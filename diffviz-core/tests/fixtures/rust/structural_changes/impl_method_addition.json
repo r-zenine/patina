@@ -1,0 +1,25 @@
+{
+  "name": "rust_impl_method_addition",
+  "language": "rust",
+  "description": "Test detection of new method addition to impl block",
+  "category": "structural_changes",
+  "old_code": "struct Calculator;\n\nimpl Calculator {\n    fn add(a: i32, b: i32) -> i32 {\n        a + b\n    }\n}",
+  "new_code": "struct Calculator;\n\nimpl Calculator {\n    fn add(a: i32, b: i32) -> i32 {\n        a + b\n    }\n    \n    fn subtract(a: i32, b: i32) -> i32 {\n        a - b\n    }\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "function_item",
+      "detected_by_strategies": ["structural"],
+      "description": "New subtract method added to Calculator impl block"
+    }
+  ],
+  "should_not_detect": ["byte_range"],
+  "performance_expectations": {
+    "max_duration_ms": 140
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["impl", "method_addition", "structural_change"]
+  }
+}

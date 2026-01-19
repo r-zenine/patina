@@ -1,0 +1,25 @@
+{
+  "name": "go_slice_to_array",
+  "language": "go",
+  "description": "Test detection of slice type converted to array type",
+  "category": "kind_changes",
+  "old_code": "func process(data []int) {\n\tfor _, v := range data {\n\t\tfmt.Println(v)\n\t}\n}",
+  "new_code": "func process(data [5]int) {\n\tfor _, v := range data {\n\t\tfmt.Println(v)\n\t}\n}",
+  "expected_changes": [
+    {
+      "change_type": "KindChange",
+      "node_kind": "slice_type→array_type",
+      "detected_by_strategies": ["structural"],
+      "description": "Parameter type changed from slice []int to array [5]int"
+    }
+  ],
+  "should_not_detect": ["byte_range"],
+  "performance_expectations": {
+    "max_duration_ms": 120
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["slice", "array", "type", "kind_change"]
+  }
+}

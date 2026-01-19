@@ -1,0 +1,25 @@
+{
+  "name": "rust_literal_value_change",
+  "language": "rust",
+  "description": "Test detection of numeric literal value changes",
+  "category": "content_changes",
+  "old_code": "const MAX_SIZE: usize = 100;",
+  "new_code": "const MAX_SIZE: usize = 200;",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "integer_literal",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Numeric literal changed from 100 to 200"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 95
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["literal", "numeric", "constant", "content_change"]
+  }
+}

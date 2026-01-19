@@ -1,0 +1,25 @@
+{
+  "name": "rust_char_literal_content_change",
+  "language": "rust",
+  "description": "Test detection of character literal content changes in Rust code",
+  "category": "content_changes",
+  "old_code": "fn get_separator() -> char { ',' }",
+  "new_code": "fn get_separator() -> char { ';' }",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "char_literal", 
+      "detected_by_strategies": ["byte_range"],
+      "description": "Character literal changed from ',' to ';'"
+    }
+  ],
+  "should_not_detect": ["child_order", "child_set", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 80
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["char_literal", "content_change", "delimiter"]
+  }
+}

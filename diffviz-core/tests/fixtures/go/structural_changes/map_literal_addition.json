@@ -1,0 +1,25 @@
+{
+  "name": "go_map_literal_addition",
+  "language": "go",
+  "description": "Test detection of new key-value pair addition to map literal",
+  "category": "structural_changes",
+  "old_code": "var config = map[string]int{\n\t\"timeout\": 30,\n\t\"retries\": 3,\n}",
+  "new_code": "var config = map[string]int{\n\t\"timeout\": 30,\n\t\"retries\": 3,\n\t\"backoff\": 5,\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "keyed_element",
+      "detected_by_strategies": ["structural"],
+      "description": "New backoff key-value pair added to config map"
+    }
+  ],
+  "should_not_detect": ["byte_range", "child_order"],
+  "performance_expectations": {
+    "max_duration_ms": 125
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["map", "literal", "key_value", "structural_change"]
+  }
+}

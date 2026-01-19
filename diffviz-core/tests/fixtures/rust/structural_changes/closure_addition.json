@@ -1,0 +1,30 @@
+{
+  "name": "rust_closure_addition",
+  "language": "rust",
+  "description": "Test detection of closure definition addition",
+  "category": "structural_changes",
+  "old_code": "fn process_numbers(nums: Vec<i32>) -> Vec<i32> {\n    nums\n}",
+  "new_code": "fn process_numbers(nums: Vec<i32>) -> Vec<i32> {\n    let double = |x| x * 2;\n    nums.into_iter().map(double).collect()\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "let_declaration",
+      "detected_by_strategies": ["structural"],
+      "description": "Closure definition added with let binding"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Return expression changed to use iterator with closure"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 150
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["closure", "lambda", "iterator", "map", "structural_change"]
+  }
+}

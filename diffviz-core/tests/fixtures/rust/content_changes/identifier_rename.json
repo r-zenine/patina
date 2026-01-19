@@ -1,0 +1,31 @@
+{
+  "name": "rust_identifier_rename",
+  "language": "rust",
+  "description": "Test detection of identifier renaming in Rust code",
+  "category": "content_changes",
+  "old_code": "fn process_data(input: &str) -> String {\n    let processed = input.trim();\n    processed.to_string()\n}",
+  "new_code": "fn process_data(input: &str) -> String {\n    let sanitized = input.trim();\n    sanitized.to_string()\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Variable name changed from 'processed' to 'sanitized'"
+    },
+    {
+      "change_type": "ContentChange", 
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Variable reference changed from 'processed' to 'sanitized'"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 120
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["identifier", "variable_rename", "content_change"]
+  }
+}

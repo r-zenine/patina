@@ -1,0 +1,25 @@
+{
+  "name": "python_operator_change",
+  "language": "python",
+  "description": "Test detection of arithmetic operator changes",
+  "category": "content_changes",
+  "old_code": "def calculate(a, b):\n    return a + b",
+  "new_code": "def calculate(a, b):\n    return a * b",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "binary_operator",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Arithmetic operator changed from '+' to '*'"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 95
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["operator", "arithmetic", "content_change"]
+  }
+}

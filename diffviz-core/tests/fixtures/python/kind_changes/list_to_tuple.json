@@ -1,0 +1,25 @@
+{
+  "name": "python_list_to_tuple",
+  "language": "python",
+  "description": "Test detection of list literal converted to tuple literal",
+  "category": "kind_changes",
+  "old_code": "def get_coordinates():\n    return [10, 20]",
+  "new_code": "def get_coordinates():\n    return (10, 20)",
+  "expected_changes": [
+    {
+      "change_type": "KindChange",
+      "node_kind": "list→tuple",
+      "detected_by_strategies": ["structural"],
+      "description": "List literal converted to tuple literal"
+    }
+  ],
+  "should_not_detect": ["byte_range"],
+  "performance_expectations": {
+    "max_duration_ms": 110
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["list", "tuple", "literal", "kind_change"]
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "rust_boolean_literal_content_change",
+  "language": "rust",
+  "description": "Test detection of boolean literal content changes in Rust code",
+  "category": "content_changes",
+  "old_code": "fn is_valid(input: &str) -> bool {\n    if input.is_empty() { false } else { true }\n}",
+  "new_code": "fn is_valid(input: &str) -> bool {\n    if input.is_empty() { true } else { false }\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange", 
+      "node_kind": "boolean_literal",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Boolean literal changed from false to true in empty check"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "boolean_literal", 
+      "detected_by_strategies": ["byte_range"],
+      "description": "Boolean literal changed from true to false in else branch"
+    }
+  ],
+  "should_not_detect": ["child_order"],
+  "performance_expectations": {
+    "max_duration_ms": 120
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple", 
+    "tags": ["boolean_literal", "content_change", "logic_inversion"]
+  }
+}

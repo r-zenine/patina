@@ -1,0 +1,25 @@
+{
+  "name": "go_switch_case_addition",
+  "language": "go",
+  "description": "Test detection of new case addition to switch statement",
+  "category": "structural_changes",
+  "old_code": "func classify(value int) string {\n\tswitch value {\n\tcase 1:\n\t\treturn \"one\"\n\tcase 2:\n\t\treturn \"two\"\n\tdefault:\n\t\treturn \"other\"\n\t}\n}",
+  "new_code": "func classify(value int) string {\n\tswitch value {\n\tcase 1:\n\t\treturn \"one\"\n\tcase 2:\n\t\treturn \"two\"\n\tcase 3:\n\t\treturn \"three\"\n\tdefault:\n\t\treturn \"other\"\n\t}\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "expression_case",
+      "detected_by_strategies": ["structural"],
+      "description": "New case 3 added to switch statement"
+    }
+  ],
+  "should_not_detect": ["byte_range", "child_order"],
+  "performance_expectations": {
+    "max_duration_ms": 145
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["switch", "case", "addition", "structural_change"]
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "typescript_variable_type_change",
+  "language": "typescript",
+  "description": "Test detection of variable type annotation changes",
+  "category": "content_changes",
+  "old_code": "const count: number = 42;",
+  "new_code": "const count: bigint = 42n;",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "type_identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Variable type changed from number to bigint"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "number",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Literal value changed from 42 to 42n"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 110
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["variable", "type", "annotation", "bigint", "content_change"]
+  }
+}

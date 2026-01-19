@@ -1,0 +1,25 @@
+{
+  "name": "rust_fn_to_const_fn_conversion",
+  "language": "rust",
+  "description": "Test detection of regular function changed to const function",
+  "category": "kind_changes",
+  "old_code": "fn square(x: i32) -> i32 {\n    x * x\n}",
+  "new_code": "const fn square(x: i32) -> i32 {\n    x * x\n}",
+  "expected_changes": [
+    {
+      "change_type": "KindChange",
+      "node_kind": "function_item→const_function_item",
+      "detected_by_strategies": ["structural"],
+      "description": "Function converted to const function for compile-time evaluation"
+    }
+  ],
+  "should_not_detect": ["byte_range"],
+  "performance_expectations": {
+    "max_duration_ms": 120
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["function", "const_fn", "kind_change", "compile_time"]
+  }
+}

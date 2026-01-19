@@ -1,0 +1,25 @@
+{
+  "name": "rust_struct_to_enum_conversion", 
+  "language": "rust",
+  "description": "Test detection of struct converted to enum",
+  "category": "kind_changes",
+  "old_code": "struct Result {\n    success: bool,\n    data: String,\n}",
+  "new_code": "enum Result {\n    Success(String),\n    Error(String),\n}",
+  "expected_changes": [
+    {
+      "change_type": "KindChange",
+      "node_kind": "struct_item→enum_item",
+      "detected_by_strategies": ["structural"],
+      "description": "Struct converted to enum for better error handling pattern"
+    }
+  ],
+  "should_not_detect": ["byte_range"],
+  "performance_expectations": {
+    "max_duration_ms": 140
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["struct", "enum", "kind_change", "error_handling", "refactoring"]
+  }
+}

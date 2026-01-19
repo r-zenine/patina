@@ -1,0 +1,68 @@
+{
+  "name": "rust_complex_refactor_multiple_changes",
+  "language": "rust",
+  "description": "Test detection of multiple simultaneous changes during refactoring",
+  "category": "complex_combinations",
+  "old_code": "fn process_user_data(name: String) {\n    let message = format!(\"Hello, {}!\", name);\n    println!(\"{}\", message);\n}",
+  "new_code": "fn process_user_info(name: String, age: u32) -> String {\n    let greeting = format!(\"Hi there, {}! You are {} years old.\", name, age);\n    greeting\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Function name changed from 'process_user_data' to 'process_user_info'"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "parameter",
+      "detected_by_strategies": ["structural"],
+      "description": "New 'age' parameter added to function"
+    },
+    {
+      "change_type": "Addition", 
+      "node_kind": "type_identifier",
+      "detected_by_strategies": ["structural"],
+      "description": "Return type annotation added"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Variable name changed from 'message' to 'greeting'"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "string_literal",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Format string updated to include age"
+    },
+    {
+      "change_type": "StructuralChange",
+      "node_kind": "block",
+      "detected_by_strategies": ["structural"],
+      "description": "Function body structure changed (println! replaced with return)"
+    }
+  ],
+  "expected_boundary": {
+    "node_type": "function_item",
+    "content": "fn process_user_info(name: String, age: u32) -> String {\n    let greeting = format!(\"Hi there, {}! You are {} years old.\", name, age);\n    greeting\n}"
+  },
+  "expected_essential_nodes": [
+    {
+      "node_type": "function_item",
+      "content": "fn process_user_info(name: String, age: u32) -> String {\n    let greeting = format!(\"Hi there, {}! You are {} years old.\", name, age);\n    greeting\n}"
+    },
+    {
+      "node_type": "identifier",
+      "content": "process_user_info"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 200
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "complex",
+    "tags": ["refactoring", "multiple_changes", "function_signature", "return_type"]
+  }
+}

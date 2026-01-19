@@ -1,0 +1,25 @@
+{
+  "name": "rust_match_arm_reorder",
+  "language": "rust",
+  "description": "Test detection of match arm reordering",
+  "category": "reorder_changes",
+  "old_code": "fn classify(x: i32) -> &'static str {\n    match x {\n        1 => \"one\",\n        2 => \"two\",\n        3 => \"three\",\n        _ => \"other\",\n    }\n}",
+  "new_code": "fn classify(x: i32) -> &'static str {\n    match x {\n        3 => \"three\",\n        1 => \"one\",\n        2 => \"two\",\n        _ => \"other\",\n    }\n}",
+  "expected_changes": [
+    {
+      "change_type": "Reorder",
+      "node_kind": "match_expression",
+      "detected_by_strategies": ["child_order"],
+      "description": "Match arms reordered (3 => 'three' moved to first position)"
+    }
+  ],
+  "should_not_detect": ["byte_range", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 140
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["match", "arm", "pattern", "reorder_change"]
+  }
+}

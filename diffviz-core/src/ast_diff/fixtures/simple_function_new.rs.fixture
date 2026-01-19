@@ -1,0 +1,4 @@
+pub async fn process_request(&mut self, path: &str) -> Result<String, Error> {
+    let url = format!("{}/{}", self.base_url, path.trim_start_matches('/'));
+    self.send_async_request(&url).await
+}

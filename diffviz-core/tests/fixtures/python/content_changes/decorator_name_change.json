@@ -1,0 +1,30 @@
+{
+  "name": "python_decorator_name_change",
+  "language": "python",
+  "description": "Test detection of decorator name changes in Python code",
+  "category": "content_changes",
+  "old_code": "class UserService:\n    @staticmethod\n    def validate_email(email):\n        return '@' in email",
+  "new_code": "class UserService:\n    @classmethod\n    def validate_email(cls, email):\n        return '@' in email",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Decorator changed from @staticmethod to @classmethod"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["structural"],
+      "description": "Added 'cls' parameter for class method"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 130
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["decorator", "method_type", "content_change", "class_method"]
+  }
+}

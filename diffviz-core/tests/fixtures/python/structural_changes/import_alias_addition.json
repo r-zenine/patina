@@ -1,0 +1,31 @@
+{
+  "name": "python_import_alias_addition",
+  "language": "python",
+  "description": "Test detection of import alias addition to existing import",
+  "category": "structural_changes",
+  "old_code": "import numpy\nimport pandas",
+  "new_code": "import numpy as np\nimport pandas as pd",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "aliased_import",
+      "detected_by_strategies": ["structural"],
+      "description": "Alias 'np' added to numpy import"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "aliased_import",
+      "detected_by_strategies": ["structural"],
+      "description": "Alias 'pd' added to pandas import"
+    }
+  ],
+  "should_not_detect": ["byte_range"],
+  "performance_expectations": {
+    "max_duration_ms": 115
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["import", "alias", "structural_change"]
+  }
+}

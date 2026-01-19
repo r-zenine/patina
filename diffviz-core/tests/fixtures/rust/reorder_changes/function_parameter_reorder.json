@@ -1,0 +1,25 @@
+{
+  "name": "rust_function_parameter_reorder",
+  "language": "rust",
+  "description": "Test detection of function parameter reordering",
+  "category": "reorder_changes",
+  "old_code": "fn create_user(name: String, age: u32, email: String) -> User {\n    User { name, age, email }\n}",
+  "new_code": "fn create_user(age: u32, name: String, email: String) -> User {\n    User { name, age, email }\n}",
+  "expected_changes": [
+    {
+      "change_type": "Reorder",
+      "node_kind": "parameters",
+      "detected_by_strategies": ["child_order"],
+      "description": "Function parameters reordered (age moved before name)"
+    }
+  ],
+  "should_not_detect": ["byte_range", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 130
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["function", "parameter_reorder", "reorder_change"]
+  }
+}

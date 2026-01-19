@@ -1,0 +1,42 @@
+{
+  "name": "typescript_react_component_refactor",
+  "language": "typescript",
+  "description": "Test complex React component refactoring with hooks and TypeScript",
+  "category": "complex_combinations",
+  "old_code": "import React from 'react';\n\ninterface Props {\n    name: string;\n}\n\nclass Greeting extends React.Component<Props> {\n    render() {\n        return <div>Hello, {this.props.name}!</div>;\n    }\n}",
+  "new_code": "import React, { useState } from 'react';\n\ninterface Props {\n    name: string;\n    showAge?: boolean;\n}\n\nconst Greeting: React.FC<Props> = ({ name, showAge = false }) => {\n    const [age, setAge] = useState<number>(0);\n\n    return (\n        <div>\n            <div>Hello, {name}!</div>\n            {showAge && <div>Age: {age}</div>}\n        </div>\n    );\n};",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "import_specifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Import statement updated to include useState"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "property_signature",
+      "detected_by_strategies": ["structural"],
+      "description": "Optional showAge property added to Props interface"
+    },
+    {
+      "change_type": "KindChange",
+      "node_kind": "class_declaration→variable_statement",
+      "detected_by_strategies": ["structural"],
+      "description": "Class component converted to functional component"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "variable_statement",
+      "detected_by_strategies": ["structural"],
+      "description": "useState hook added for age state management"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 200
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "high",
+    "tags": ["react", "component", "hooks", "useState", "refactor", "complex"]
+  }
+}

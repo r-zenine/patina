@@ -1,0 +1,30 @@
+{
+  "name": "rust_match_arm_addition",
+  "language": "rust",
+  "description": "Test detection of new match arm addition to match expression",
+  "category": "structural_changes",
+  "old_code": "fn handle_value(x: Option<i32>) -> i32 {\n    match x {\n        Some(v) => v,\n        None => 0,\n    }\n}",
+  "new_code": "fn handle_value(x: Option<i32>) -> i32 {\n    match x {\n        Some(v) if v > 0 => v,\n        Some(v) => -v,\n        None => 0,\n    }\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "match_arm",
+      "detected_by_strategies": ["structural"],
+      "description": "New match arm with guard condition added for positive values"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "match_arm",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Original Some arm modified to handle negative values"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 145
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["match", "arm", "guard", "pattern", "structural_change"]
+  }
+}

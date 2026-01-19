@@ -1,0 +1,25 @@
+{
+  "name": "python_boolean_literal_change",
+  "language": "python",
+  "description": "Test detection of boolean literal value changes",
+  "category": "content_changes",
+  "old_code": "def is_active():\n    return True",
+  "new_code": "def is_active():\n    return False",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "true",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Boolean literal changed from True to False"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 90
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["boolean", "literal", "content_change"]
+  }
+}

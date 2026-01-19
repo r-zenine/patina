@@ -1,0 +1,30 @@
+{
+  "name": "rust_for_to_while_loop",
+  "language": "rust",
+  "description": "Test detection of for loop converted to while loop",
+  "category": "kind_changes",
+  "old_code": "fn count_up(n: usize) {\n    for i in 0..n {\n        println!(\"{}\", i);\n    }\n}",
+  "new_code": "fn count_up(n: usize) {\n    let mut i = 0;\n    while i < n {\n        println!(\"{}\", i);\n        i += 1;\n    }\n}",
+  "expected_changes": [
+    {
+      "change_type": "KindChange",
+      "node_kind": "for_expression→while_expression",
+      "detected_by_strategies": ["structural"],
+      "description": "For loop converted to while loop with manual counter"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "let_declaration",
+      "detected_by_strategies": ["structural"],
+      "description": "Manual counter variable added"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 155
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["loop", "for", "while", "counter", "kind_change"]
+  }
+}

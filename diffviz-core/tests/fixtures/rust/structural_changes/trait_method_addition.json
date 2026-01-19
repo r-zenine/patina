@@ -1,0 +1,25 @@
+{
+  "name": "rust_trait_method_addition",
+  "language": "rust",
+  "description": "Test detection of new method addition to trait definition",
+  "category": "structural_changes",
+  "old_code": "trait Drawable {\n    fn draw(&self);\n}",
+  "new_code": "trait Drawable {\n    fn draw(&self);\n    \n    fn is_visible(&self) -> bool {\n        true\n    }\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "function_item",
+      "detected_by_strategies": ["structural"],
+      "description": "New is_visible method with default implementation added to Drawable trait"
+    }
+  ],
+  "should_not_detect": ["byte_range"],
+  "performance_expectations": {
+    "max_duration_ms": 130
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["trait", "method_addition", "default_implementation", "structural_change"]
+  }
+}

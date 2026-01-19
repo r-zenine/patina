@@ -1,0 +1,30 @@
+{
+  "name": "python_function_to_method_conversion",
+  "language": "python",
+  "description": "Test detection of standalone function converted to class method",
+  "category": "kind_changes",
+  "old_code": "def calculate_area(radius):\n    return 3.14159 * radius * radius",
+  "new_code": "class Circle:\n    def calculate_area(self, radius):\n        return 3.14159 * radius * radius",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "class_definition",
+      "detected_by_strategies": ["structural"],
+      "description": "New Circle class added to contain the method"
+    },
+    {
+      "change_type": "StructuralChange",
+      "node_kind": "function_definition",
+      "detected_by_strategies": ["structural"],
+      "description": "Function moved inside class and gained 'self' parameter"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 160
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["function", "method", "class", "kind_change", "refactoring"]
+  }
+}

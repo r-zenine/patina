@@ -1,0 +1,30 @@
+{
+  "name": "go_interface_implementation_refactor",
+  "language": "go",
+  "description": "Test complex refactoring with interface definition and implementation",
+  "category": "complex_combinations",
+  "old_code": "type Circle struct {\n\tRadius float64\n}\n\nfunc (c Circle) Area() float64 {\n\treturn 3.14159 * c.Radius * c.Radius\n}",
+  "new_code": "type Shape interface {\n\tArea() float64\n\tPerimeter() float64\n}\n\ntype Circle struct {\n\tRadius float64\n}\n\nfunc (c Circle) Area() float64 {\n\treturn 3.14159 * c.Radius * c.Radius\n}\n\nfunc (c Circle) Perimeter() float64 {\n\treturn 2 * 3.14159 * c.Radius\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "type_declaration",
+      "detected_by_strategies": ["structural"],
+      "description": "Shape interface added with Area and Perimeter methods"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "method_declaration",
+      "detected_by_strategies": ["structural"],
+      "description": "Perimeter method added to Circle to implement Shape interface"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 180
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "high",
+    "tags": ["interface", "implementation", "method", "refactor", "complex"]
+  }
+}

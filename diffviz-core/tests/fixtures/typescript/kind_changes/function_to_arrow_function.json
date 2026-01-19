@@ -1,0 +1,25 @@
+{
+  "name": "typescript_function_to_arrow_function",
+  "language": "typescript",
+  "description": "Test detection of function declaration converted to arrow function",
+  "category": "kind_changes",
+  "old_code": "function greet(name: string): string {\n    return `Hello, ${name}!`;\n}",
+  "new_code": "const greet = (name: string): string => `Hello, ${name}!`;",
+  "expected_changes": [
+    {
+      "change_type": "KindChange",
+      "node_kind": "function_declaration→variable_statement",
+      "detected_by_strategies": ["structural"],
+      "description": "Function declaration converted to arrow function assignment"
+    }
+  ],
+  "should_not_detect": ["byte_range"],
+  "performance_expectations": {
+    "max_duration_ms": 125
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["function", "arrow_function", "declaration", "kind_change"]
+  }
+}

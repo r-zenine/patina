@@ -1,0 +1,36 @@
+{
+  "name": "go_type_assertion_change",
+  "language": "go",
+  "description": "Test detection of type assertion target changes",
+  "category": "content_changes",
+  "old_code": "func convert(value interface{}) {\n\tstr := value.(string)\n\tfmt.Println(str)\n}",
+  "new_code": "func convert(value interface{}) {\n\tnum := value.(int)\n\tfmt.Println(num)\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Variable name changed from 'str' to 'num'"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "type_identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Type assertion changed from string to int"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Variable reference changed from 'str' to 'num'"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 130
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["type", "assertion", "interface", "content_change"]
+  }
+}

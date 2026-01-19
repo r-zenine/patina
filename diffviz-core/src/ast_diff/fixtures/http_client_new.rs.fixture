@@ -1,0 +1,15 @@
+use std::collections::HashMap;
+use std::fmt;
+use std::time::Duration;
+
+pub async fn get(&mut self, path: &str) -> Result<String, HttpError> {
+    let url = format!("{}/{}", self.config.base_url, path);
+    self.make_request("GET", &url, None).await
+}
+
+#[derive(Debug)]
+pub enum HttpError {
+    NetworkError { message: String, status_code: Option<u16> },
+    ParseError { message: String, line: Option<usize> },
+    TimeoutError { duration: Duration },
+}

@@ -1,0 +1,25 @@
+{
+  "name": "rust_macro_name_change",
+  "language": "rust",
+  "description": "Test detection of macro name changes in Rust code",
+  "category": "content_changes", 
+  "old_code": "fn debug_info(msg: &str) {\n    println!(\"Debug: {}\", msg);\n}",
+  "new_code": "fn debug_info(msg: &str) {\n    eprintln!(\"Debug: {}\", msg);\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Macro name changed from 'println!' to 'eprintln!'"
+    }
+  ],
+  "should_not_detect": ["child_order", "child_set"],
+  "performance_expectations": {
+    "max_duration_ms": 100
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["macro", "identifier", "content_change", "output_stream"]
+  }
+}

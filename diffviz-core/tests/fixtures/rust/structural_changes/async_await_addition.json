@@ -1,0 +1,30 @@
+{
+  "name": "rust_async_await_addition",
+  "language": "rust",
+  "description": "Test detection of async/await addition to function",
+  "category": "structural_changes",
+  "old_code": "fn fetch_data() -> String {\n    // Simulate network call\n    \"data\".to_string()\n}",
+  "new_code": "async fn fetch_data() -> String {\n    // Simulate network call\n    tokio::time::sleep(std::time::Duration::from_millis(100)).await;\n    \"data\".to_string()\n}",
+  "expected_changes": [
+    {
+      "change_type": "KindChange",
+      "node_kind": "function_item→function_item",
+      "detected_by_strategies": ["structural"],
+      "description": "Function converted to async function"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "expression_statement",
+      "detected_by_strategies": ["structural"],
+      "description": "Async sleep statement with await added"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 150
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["async", "await", "function", "tokio", "structural_change"]
+  }
+}

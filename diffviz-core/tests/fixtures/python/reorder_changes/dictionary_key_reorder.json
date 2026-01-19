@@ -1,0 +1,25 @@
+{
+  "name": "python_dictionary_key_reorder",
+  "language": "python",
+  "description": "Test detection of dictionary key-value pair reordering",
+  "category": "reorder_changes",
+  "old_code": "person = {\n    'name': 'John',\n    'age': 30,\n    'city': 'Boston'\n}",
+  "new_code": "person = {\n    'age': 30,\n    'name': 'John',\n    'city': 'Boston'\n}",
+  "expected_changes": [
+    {
+      "change_type": "Reorder",
+      "node_kind": "dictionary",
+      "detected_by_strategies": ["child_order"],
+      "description": "Dictionary key-value pairs reordered (age moved to first position)"
+    }
+  ],
+  "should_not_detect": ["byte_range", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 125
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["dictionary", "key_value", "reorder_change"]
+  }
+}

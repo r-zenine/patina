@@ -1,0 +1,16 @@
+{
+  "name": "python_class_inheritance_refactor",
+  "file_path": "src/models/base.py",
+  "language": "python",
+  "description": "OOP restructuring",
+  "old_code": "class Animal:\n    def speak(self):\n        pass\n\nclass Dog(Animal):\n    def speak(self):\n        return 'Woof!'",
+  "new_code": "class Animal:\n    def __init__(self, name):\n        self.name = name\n\n    def speak(self):\n        pass\n\n    def get_name(self):\n        return self.name\n\nclass Dog(Animal):\n    def __init__(self, name, breed):\n        super().__init__(name)\n        self.breed = breed\n\n    def get_name(self):\n        return self.name\n\n    def speak(self):\n        return 'Woof!'",
+  "expected_line_stats": {
+    "additions": 13,
+    "deletions": 6
+  },
+  "metadata": {
+    "complexity_level": "high",
+    "tags": ["class", "inheritance", "constructor", "method", "reorder"]
+  }
+}

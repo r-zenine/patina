@@ -1,0 +1,152 @@
+use std::collections::HashMap;
+use std::fmt;
+use std::time::Duration;
+
+#[derive(Debug)]
+pub enum HttpError {
+    NetworkError { message: String, status_code: Option<u16> },
+    ParseError { message: String, line: Option<usize> },
+    TimeoutError { duration: Duration },
+    ConfigError { field: String, value: String },
+}
+
+impl fmt::Display for HttpError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            HttpError::NetworkError { message, status_code } => {
+                match status_code {
+                    Some(code) => write!(f, "Network error ({}): {}", code, message),
+                    None => write!(f, "Network error: {}", message),
+                }
+            },
+            HttpError::ParseError { message, line } => {
+                match line {
+                    Some(l) => write!(f, "Parse error at line {}: {}", l, message),
+                    None => write!(f, "Parse error: {}", message),
+                }
+            },
+            HttpError::TimeoutError { duration } => {
+                write!(f, "Request timed out after {:?}", duration)
+            },
+            HttpError::ConfigError { field, value } => {
+                write!(f, "Invalid config for {}: {}", field, value)
+            },
+        }
+    }
+}
+
+impl std::error::Error for HttpError {}
+
+#[derive(Debug, Clone)]
+pub struct HttpConfig {
+    pub base_url: String,
+    pub timeout_ms: u64,
+    pub max_retries: u32,
+    pub user_agent: String,
+    pub follow_redirects: bool,
+}
+
+impl HttpConfig {
+    pub fn new(base_url: String, timeout_ms: u64) -> Result<Self, HttpError> {
+        if base_url.is_empty() {
+            return Err(HttpError::ConfigError { 
+                field: "base_url".to_string(), 
+                value: "empty".to_string() 
+            });
+        }
+        
+        Ok(HttpConfig {
+            base_url,
+            timeout_ms,
+            max_retries: 3,
+            user_agent: "RustHttpClient/1.0".to_string(),
+            follow_redirects: true,
+        })
+    }
+}
+
+impl Default for HttpConfig {
+    fn default() -> Self {
+        HttpConfig {
+            base_url: "https://api.example.com".to_string(),
+            timeout_ms: 10000,
+            max_retries: 5,
+            user_agent: "RustHttpClient/1.0".to_string(),
+            follow_redirects: true,
+        }
+    }
+}
+
+pub struct HttpClient {
+    config: HttpConfig,
+    headers: HashMap<String, String>,
+    request_count: u64,
+}
+
+impl HttpClient {
+    pub fn new(config: HttpConfig) -> Self {
+        let mut headers = HashMap::new();
+        headers.insert("User-Agent".to_string(), config.user_agent.clone());
+        
+        Self {
+            config,
+            headers,
+            request_count: 0,
+        }
+    }
+
+    pub fn add_header(&mut self, key: String, value: String) {
+        self.headers.insert(key, value);
+    }
+
+    pub fn remove_header(&mut self, key: &str) {
+        self.headers.remove(key);
+    }
+
+    pub fn get_request_count(&self) -> u64 {
+        self.request_count
+    }
+
+    pub async fn get(&mut self, path: &str) -> Result<String, HttpError> {
+        let url = format!("{}/{}", self.config.base_url, path.trim_start_matches('/'));
+        self.make_request("GET", &url, None).await
+    }
+
+    pub async fn post(&mut self, path: &str, body: Option<String>) -> Result<String, HttpError> {
+        let url = format!("{}/{}", self.config.base_url, path.trim_start_matches('/'));
+        self.make_request("POST", &url, body).await
+    }
+
+    pub async fn put(&mut self, path: &str, body: String) -> Result<String, HttpError> {
+        let url = format!("{}/{}", self.config.base_url, path.trim_start_matches('/'));
+        self.make_request("PUT", &url, Some(body)).await
+    }
+
+    async fn make_request(&mut self, method: &str, url: &str, body: Option<String>) -> Result<String, HttpError> {
+        self.request_count += 1;
+        
+        println!("Making async {} request #{} to: {}", method, self.request_count, url);
+        
+        if url.contains("timeout") {
+            return Err(HttpError::TimeoutError { 
+                duration: Duration::from_millis(self.config.timeout_ms) 
+            });
+        }
+        
+        if url.contains("error") {
+            return Err(HttpError::NetworkError { 
+                message: "Connection refused".to_string(),
+                status_code: Some(503),
+            });
+        }
+        
+        let response = match body {
+            Some(data) => format!("Async response for {} with body: {} (headers: {:?})", 
+                               method, data, self.headers.len()),
+            None => format!("Async response for {} (headers: {:?})", 
+                          method, self.headers.len()),
+        };
+        
+        Ok(response)
+    }
+}

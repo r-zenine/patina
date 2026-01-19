@@ -1,0 +1,31 @@
+{
+  "name": "rust_function_body_statement_addition",
+  "language": "rust",
+  "description": "Test detection of new statements added to function body",
+  "category": "structural_changes",
+  "old_code": "fn process_data() {\n    println!(\"Starting...\");\n}",
+  "new_code": "fn process_data() {\n    println!(\"Starting...\");\n    let result = calculate();\n    println!(\"Result: {}\", result);\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "let_declaration",
+      "detected_by_strategies": ["structural"],
+      "description": "New let declaration added"
+    },
+    {
+      "change_type": "Addition", 
+      "node_kind": "expression_statement",
+      "detected_by_strategies": ["structural"],
+      "description": "New println! statement added"
+    }
+  ],
+  "should_not_detect": ["byte_range"],
+  "performance_expectations": {
+    "max_duration_ms": 150
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["function_body", "statement_addition", "structural"]
+  }
+}

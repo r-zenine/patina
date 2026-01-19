@@ -1,0 +1,25 @@
+{
+  "name": "python_type_hint_change",
+  "language": "python",
+  "description": "Test detection of function parameter type hint changes",
+  "category": "content_changes",
+  "old_code": "def process(data: list) -> str:\n    return str(len(data))",
+  "new_code": "def process(data: List[int]) -> str:\n    return str(len(data))",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "type",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Type hint changed from 'list' to 'List[int]'"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 110
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["type_hint", "annotation", "generic", "content_change"]
+  }
+}

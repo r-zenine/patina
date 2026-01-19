@@ -1,0 +1,25 @@
+{
+  "name": "python_dictionary_addition",
+  "language": "python",
+  "description": "Test detection of new dictionary key-value pair addition",
+  "category": "structural_changes",
+  "old_code": "config = {\n    'debug': True,\n    'port': 8080\n}",
+  "new_code": "config = {\n    'debug': True,\n    'port': 8080,\n    'host': 'localhost'\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "pair",
+      "detected_by_strategies": ["structural"],
+      "description": "New key-value pair 'host': 'localhost' added to dictionary"
+    }
+  ],
+  "should_not_detect": ["byte_range", "child_order"],
+  "performance_expectations": {
+    "max_duration_ms": 120
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["dictionary", "key_value", "structural_change"]
+  }
+}

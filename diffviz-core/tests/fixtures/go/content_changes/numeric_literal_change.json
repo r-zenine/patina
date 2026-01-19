@@ -1,0 +1,25 @@
+{
+  "name": "go_numeric_literal_change",
+  "language": "go",
+  "description": "Test detection of numeric literal value changes",
+  "category": "content_changes",
+  "old_code": "const MaxRetries = 3",
+  "new_code": "const MaxRetries = 5",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "int_literal",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Numeric literal changed from 3 to 5"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 85
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["numeric", "literal", "constant", "content_change"]
+  }
+}

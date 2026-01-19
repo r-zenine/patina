@@ -1,0 +1,32 @@
+[package]
+name = "diffviz-core"
+version = "0.1.0"
+edition = "2024"
+
+[[example]]
+name = "reviewable_diff_demo"
+path = "examples/reviewable_diff_demo.rs"
+
+[lib]
+doctest = true
+
+[dependencies]
+tree-sitter = "0.20"
+tree-sitter-go = "0.20"
+tree-sitter-python = "0.20"
+tree-sitter-typescript = "0.20"
+tree-sitter-rust = "0.20"
+tree-sitter-java = "0.20"
+tree-sitter-c = "0.20"
+tree-sitter-cpp = "0.20"
+tree-sitter-json = "0.19"
+tree-sitter-javascript = "0.20"
+tree-sitter-css = "0.19"
+tree-sitter-toml = "0.20"
+thiserror = { workspace = true }
+serde = { workspace = true }
+serde_json = "1.0"
+sha2 = "0.10"
+log = "0.4"
+env_logger = "0.10"
+

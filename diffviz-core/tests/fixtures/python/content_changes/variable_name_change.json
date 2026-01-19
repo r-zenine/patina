@@ -1,0 +1,37 @@
+{
+  "name": "python_variable_name_change",
+  "language": "python",
+  "description": "Test detection of variable name changes in Python code",
+  "category": "content_changes",
+  "old_code": "def process_items(items):\n    result = []\n    for item in items:\n        result.append(item.upper())\n    return result",
+  "new_code": "def process_items(items):\n    processed_items = []\n    for item in items:\n        processed_items.append(item.upper())\n    return processed_items",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Variable name changed from 'result' to 'processed_items'"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Variable reference updated in append call"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Variable reference updated in return statement"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 140
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["identifier", "variable_rename", "content_change"]
+  }
+}

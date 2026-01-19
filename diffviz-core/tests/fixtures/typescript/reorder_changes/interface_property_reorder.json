@@ -1,0 +1,25 @@
+{
+  "name": "typescript_interface_property_reorder",
+  "language": "typescript",
+  "description": "Test detection of interface property reordering in TypeScript code",
+  "category": "reorder_changes",
+  "old_code": "interface User {\n    name: string;\n    id: number;\n    email: string;\n}",
+  "new_code": "interface User {\n    id: number;\n    name: string;\n    email: string;\n}",
+  "expected_changes": [
+    {
+      "change_type": "Reorder",
+      "node_kind": "interface_body",
+      "detected_by_strategies": ["child_order"],
+      "description": "Interface properties reordered (id moved to first position)"
+    }
+  ],
+  "should_not_detect": ["byte_range", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 120
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["interface", "property_reorder", "reorder_change"]
+  }
+}

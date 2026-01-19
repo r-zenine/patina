@@ -1,0 +1,36 @@
+{
+  "name": "rust_visibility_change",
+  "language": "rust",
+  "description": "Test detection of visibility modifier changes",
+  "category": "content_changes",
+  "old_code": "struct Point {\n    x: f64,\n    y: f64,\n}",
+  "new_code": "pub struct Point {\n    pub x: f64,\n    pub y: f64,\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "visibility_modifier",
+      "detected_by_strategies": ["structural"],
+      "description": "pub visibility modifier added to struct"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "visibility_modifier",
+      "detected_by_strategies": ["structural"],
+      "description": "pub visibility modifier added to x field"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "visibility_modifier",
+      "detected_by_strategies": ["structural"],
+      "description": "pub visibility modifier added to y field"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 125
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["visibility", "pub", "struct", "field", "structural_change"]
+  }
+}

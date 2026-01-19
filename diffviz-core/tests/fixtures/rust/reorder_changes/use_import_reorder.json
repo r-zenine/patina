@@ -1,0 +1,25 @@
+{
+  "name": "rust_use_import_reorder",
+  "language": "rust",
+  "description": "Test detection of use import statement reordering",
+  "category": "reorder_changes",
+  "old_code": "use std::collections::HashMap;\nuse std::fs::File;\nuse std::io::Read;",
+  "new_code": "use std::fs::File;\nuse std::collections::HashMap;\nuse std::io::Read;",
+  "expected_changes": [
+    {
+      "change_type": "Reorder",
+      "node_kind": "source_file",
+      "detected_by_strategies": ["child_order"],
+      "description": "Use statements reordered (File import moved to first position)"
+    }
+  ],
+  "should_not_detect": ["byte_range", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 110
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["use", "import", "statement", "reorder_change"]
+  }
+}

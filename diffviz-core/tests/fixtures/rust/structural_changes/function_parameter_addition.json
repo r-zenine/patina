@@ -1,0 +1,30 @@
+{
+  "name": "rust_function_parameter_addition",
+  "language": "rust",
+  "description": "Test detection of new parameter addition to function signature",
+  "category": "structural_changes",
+  "old_code": "fn format_message(msg: &str) -> String {\n    format!(\"[INFO] {}\", msg)\n}",
+  "new_code": "fn format_message(msg: &str, level: &str) -> String {\n    format!(\"[{}] {}\", level, msg)\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "parameter",
+      "detected_by_strategies": ["structural"],
+      "description": "New level parameter added to format_message function"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "string_literal",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Format string updated to use new level parameter"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 150
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["function", "parameter_addition", "signature_change", "structural_change"]
+  }
+}

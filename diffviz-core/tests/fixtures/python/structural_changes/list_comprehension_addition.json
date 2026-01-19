@@ -1,0 +1,31 @@
+{
+  "name": "python_list_comprehension_addition",
+  "language": "python",
+  "description": "Test detection of new list comprehension in function body",
+  "category": "structural_changes",
+  "old_code": "def process_data(items):\n    return items",
+  "new_code": "def process_data(items):\n    filtered = [x for x in items if x > 0]\n    return filtered",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "assignment",
+      "detected_by_strategies": ["structural"],
+      "description": "New assignment statement with list comprehension added"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Return value changed from 'items' to 'filtered'"
+    }
+  ],
+  "should_not_detect": ["child_order"],
+  "performance_expectations": {
+    "max_duration_ms": 140
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["list_comprehension", "assignment", "structural_change"]
+  }
+}

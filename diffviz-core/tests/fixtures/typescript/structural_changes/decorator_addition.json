@@ -1,0 +1,31 @@
+{
+  "name": "typescript_decorator_addition",
+  "language": "typescript",
+  "description": "Test detection of decorator addition to class and method",
+  "category": "structural_changes",
+  "old_code": "class UserService {\n    getUser(id: string) {\n        return { id, name: 'John' };\n    }\n}",
+  "new_code": "@Injectable()\nclass UserService {\n    @Cache(300)\n    getUser(id: string) {\n        return { id, name: 'John' };\n    }\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "decorator",
+      "detected_by_strategies": ["structural"],
+      "description": "@Injectable() decorator added to class"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "decorator",
+      "detected_by_strategies": ["structural"],
+      "description": "@Cache(300) decorator added to method"
+    }
+  ],
+  "should_not_detect": ["byte_range", "child_order"],
+  "performance_expectations": {
+    "max_duration_ms": 135
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["decorator", "class", "method", "annotation", "structural_change"]
+  }
+}

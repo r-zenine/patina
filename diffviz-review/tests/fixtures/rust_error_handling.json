@@ -1,0 +1,16 @@
+{
+  "name": "rust_error_handling_refactor",
+  "file_path": "src/config/reader.rs",
+  "language": "rust",
+  "description": "unwrap() to Result<T,E> conversion",
+  "old_code": "fn read_config(path: &str) -> String {\n    let file = std::fs::read_to_string(path).unwrap();\n    file\n}",
+  "new_code": "use std::fs;\nuse std::io;\n\nfn read_config(path: &str) -> Result<String, io::Error> {\n    let contents = fs::read_to_string(path)?;\n    Ok(contents)\n}",
+  "expected_line_stats": {
+    "additions": 6,
+    "deletions": 3
+  },
+  "metadata": {
+    "complexity_level": "complex",
+    "tags": ["error_handling", "result_type", "refactoring"]
+  }
+}

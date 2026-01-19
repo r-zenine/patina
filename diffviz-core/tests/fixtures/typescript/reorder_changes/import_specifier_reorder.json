@@ -1,0 +1,25 @@
+{
+  "name": "typescript_import_specifier_reorder",
+  "language": "typescript",
+  "description": "Test detection of import specifier reordering",
+  "category": "reorder_changes",
+  "old_code": "import { useState, useEffect, useCallback } from 'react';",
+  "new_code": "import { useCallback, useState, useEffect } from 'react';",
+  "expected_changes": [
+    {
+      "change_type": "Reorder",
+      "node_kind": "named_imports",
+      "detected_by_strategies": ["child_order"],
+      "description": "Import specifiers reordered (useCallback moved to first position)"
+    }
+  ],
+  "should_not_detect": ["byte_range", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 95
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["import", "specifier", "named", "reorder_change"]
+  }
+}

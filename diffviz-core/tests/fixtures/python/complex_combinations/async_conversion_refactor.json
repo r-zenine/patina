@@ -1,0 +1,48 @@
+{
+  "name": "python_async_conversion_refactor",
+  "language": "python",
+  "description": "Test detection of comprehensive async conversion refactoring",
+  "category": "complex_combinations",
+  "old_code": "import requests\nimport time\n\nclass DataFetcher:\n    def fetch_user(self, user_id):\n        response = requests.get(f\"https://api.example.com/users/{user_id}\")\n        return response.json()\n    \n    def process_users(self, user_ids):\n        results = []\n        for user_id in user_ids:\n            user = self.fetch_user(user_id)\n            results.append(user)\n        return results",
+  "new_code": "import asyncio\nimport aiohttp\n\nclass DataFetcher:\n    async def fetch_user(self, session, user_id):\n        async with session.get(f\"https://api.example.com/users/{user_id}\") as response:\n            return await response.json()\n    \n    async def process_users(self, user_ids):\n        async with aiohttp.ClientSession() as session:\n            tasks = [self.fetch_user(session, user_id) for user_id in user_ids]\n            results = await asyncio.gather(*tasks)\n            return results",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "import_statement",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Imports changed from requests to aiohttp and asyncio"
+    },
+    {
+      "change_type": "KindChange",
+      "node_kind": "function_definition→async_function_definition",
+      "detected_by_strategies": ["structural"],
+      "description": "Methods converted from sync to async"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "parameter",
+      "detected_by_strategies": ["structural"],
+      "description": "Added session parameter to fetch_user method"
+    },
+    {
+      "change_type": "StructuralChange",
+      "node_kind": "for_statement",
+      "detected_by_strategies": ["structural"],
+      "description": "Sequential loop converted to concurrent tasks with asyncio.gather"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "async_with_statement",
+      "detected_by_strategies": ["structural"],
+      "description": "Added async context managers for session handling"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 300
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "complex",
+    "tags": ["async", "aiohttp", "concurrency", "refactoring", "multiple_changes", "performance"]
+  }
+}

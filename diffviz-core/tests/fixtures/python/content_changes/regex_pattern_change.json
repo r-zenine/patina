@@ -1,0 +1,25 @@
+{
+  "name": "python_regex_pattern_change",
+  "language": "python",
+  "description": "Test detection of regex pattern string changes",
+  "category": "content_changes",
+  "old_code": "import re\\n\\ndef validate_email(email):\\n    pattern = r'^[a-zA-Z0-9]+@[a-zA-Z0-9]+\\.[a-zA-Z]+$'\\n    return re.match(pattern, email) is not None",
+  "new_code": "import re\\n\\ndef validate_email(email):\\n    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$'\\n    return re.match(pattern, email) is not None",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "string",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Regex pattern updated to be more comprehensive for email validation"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 115
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["regex", "pattern", "string", "validation", "content_change"]
+  }
+}

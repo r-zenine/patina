@@ -1,0 +1,25 @@
+{
+  "name": "python_loop_with_break_addition",
+  "language": "python",
+  "description": "Test detection of break statement addition to while loop",
+  "category": "structural_changes",
+  "old_code": "def find_first(items, target):\n    i = 0\n    while i < len(items):\n        if items[i] == target:\n            return i\n        i += 1\n    return -1",
+  "new_code": "def find_first(items, target):\n    i = 0\n    while i < len(items):\n        if items[i] == target:\n            return i\n        if items[i] < 0:\n            break\n        i += 1\n    return -1",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "if_statement",
+      "detected_by_strategies": ["structural"],
+      "description": "New if statement with break condition added to loop"
+    }
+  ],
+  "should_not_detect": ["byte_range", "child_order"],
+  "performance_expectations": {
+    "max_duration_ms": 155
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["loop", "break", "conditional", "structural_change"]
+  }
+}

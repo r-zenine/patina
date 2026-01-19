@@ -1,0 +1,25 @@
+{
+  "name": "python_tuple_element_reorder",
+  "language": "python",
+  "description": "Test detection of tuple element reordering",
+  "category": "reorder_changes",
+  "old_code": "coordinates = (10, 20, 30)",
+  "new_code": "coordinates = (20, 10, 30)",
+  "expected_changes": [
+    {
+      "change_type": "Reorder",
+      "node_kind": "tuple",
+      "detected_by_strategies": ["child_order"],
+      "description": "Tuple elements reordered (20 moved to first position)"
+    }
+  ],
+  "should_not_detect": ["byte_range", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 100
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["tuple", "element", "reorder_change"]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "rust_hex_literal_change",
+  "language": "rust",
+  "description": "Test detection of hexadecimal literal content changes in Rust code", 
+  "category": "content_changes",
+  "old_code": "fn get_color() -> u32 {\n    0xFF0000  // Red\n}",
+  "new_code": "fn get_color() -> u32 {\n    0x00FF00  // Green\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "integer_literal",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Hexadecimal literal changed from 0xFF0000 to 0x00FF00"
+    }
+  ],
+  "should_not_detect": ["child_order", "child_set"],
+  "performance_expectations": {
+    "max_duration_ms": 100
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple", 
+    "tags": ["hex_literal", "integer_literal", "content_change", "color"]
+  }
+}

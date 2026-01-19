@@ -1,0 +1,25 @@
+{
+  "name": "rust_integer_literal_content_change",
+  "language": "rust",
+  "description": "Test detection of integer literal content changes in Rust code",
+  "category": "content_changes",
+  "old_code": "fn calculate() -> i32 { let x = 42; x * 2 }",
+  "new_code": "fn calculate() -> i32 { let x = 84; x * 2 }",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "integer_literal",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Integer literal changed from 42 to 84"
+    }
+  ],
+  "should_not_detect": ["child_order", "child_set"],
+  "performance_expectations": {
+    "max_duration_ms": 100
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["integer_literal", "content_change", "basic"]
+  }
+}

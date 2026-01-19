@@ -1,0 +1,35 @@
+{
+  "name": "go_struct_method_addition",
+  "language": "go", 
+  "description": "Test detection of new method added to struct type in Go",
+  "category": "structural_changes",
+  "old_code": "package main\n\ntype User struct {\n    Name string\n    Age  int\n}\n\nfunc (u User) String() string {\n    return u.Name\n}",
+  "new_code": "package main\n\ntype User struct {\n    Name string\n    Age  int\n}\n\nfunc (u User) String() string {\n    return u.Name\n}\n\nfunc (u User) GetAge() int {\n    return u.Age\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "method_declaration",
+      "detected_by_strategies": ["structural"],
+      "description": "New GetAge method added to User struct"
+    }
+  ],
+  "should_not_detect": ["byte_range"],
+  "expected_boundary": {
+    "node_type": "method_declaration",
+    "content": "func (u User) GetAge() int {\n    return u.Age\n}"
+  },
+  "expected_essential_nodes": [
+    {
+      "node_type": "method_declaration", 
+      "content": "func (u User) GetAge() int {\n    return u.Age\n}"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 120
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["struct", "method", "addition", "go"]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "python_class_method_reorder",
+  "language": "python",
+  "description": "Test detection of method reordering within class definition",
+  "category": "reorder_changes",
+  "old_code": "class Calculator:\n    def add(self, a, b):\n        return a + b\n\n    def subtract(self, a, b):\n        return a - b\n\n    def multiply(self, a, b):\n        return a * b",
+  "new_code": "class Calculator:\n    def multiply(self, a, b):\n        return a * b\n\n    def add(self, a, b):\n        return a + b\n\n    def subtract(self, a, b):\n        return a - b",
+  "expected_changes": [
+    {
+      "change_type": "Reorder",
+      "node_kind": "class_definition",
+      "detected_by_strategies": ["child_order"],
+      "description": "Class methods reordered (multiply moved to first position)"
+    }
+  ],
+  "should_not_detect": ["byte_range", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 150
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["class", "method", "reorder_change"]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "rust_float_literal_content_change",
+  "language": "rust",
+  "description": "Test detection of floating point literal content changes in Rust code",
+  "category": "content_changes",
+  "old_code": "fn calculate_area(radius: f64) -> f64 { 3.14159 * radius * radius }",
+  "new_code": "fn calculate_area(radius: f64) -> f64 { 3.141592653589793 * radius * radius }",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "float_literal",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Float literal precision increased from 3.14159 to 3.141592653589793"
+    }
+  ],
+  "should_not_detect": ["child_order", "child_set"],
+  "performance_expectations": {
+    "max_duration_ms": 100
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["float_literal", "content_change", "numeric"]
+  }
+}

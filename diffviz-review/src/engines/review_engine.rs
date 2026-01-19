@@ -1,0 +1,2837 @@
+//! Review engine with ReviewableDiff-based architecture
+//!
+//! This module provides the core business logic for managing reviews
+//! using the new ReviewableDiff system with RenderableDiff caching.
+
+use crate::entities::Instruction;
+use crate::entities::git_ref::{DiffQuery, GitRef};
+use crate::entities::instruction::InstructionStatus;
+use crate::entities::reviewable_diff_id::{LineRange, ReviewableDiffId};
+use crate::errors::Result;
+use crate::providers::DiffProvider;
+use crate::state::{ReviewState, ReviewableDiff};
+use diffviz_core::renderable_diff::RenderableDiff;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+
+/// Type alias for review operation callbacks
+type OperationCallback = Option<Box<dyn FnOnce(bool, Option<String>) + Send>>;
+
+/// Export scope for filtering instructions during JSON export
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExportScope {
+    /// Export all instructions for a specific file
+    SingleFile(String),
+    /// Export a single instruction by its ReviewableDiffId
+    SingleInstruction(ReviewableDiffId),
+    /// Export all instructions across all files
+    All,
+}
+
+/// JSON representation of an instruction for export/import
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportedInstruction {
+    pub file: String,
+    pub query: String,
+    pub line_range: ExportedLineRange,
+    pub content: String,
+    pub author: String,
+    pub timestamp: String,
+    #[serde(default = "default_status")]
+    pub status: String,
+    #[serde(default = "default_empty_string")]
+    pub file_content_hash: String,
+    #[serde(default)]
+    pub content_snapshot: Option<String>,
+}
+
+// Helper functions for serde defaults
+fn default_status() -> String {
+    "active".to_string()
+}
+
+fn default_empty_string() -> String {
+    String::new()
+}
+
+/// JSON representation of a line range
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportedLineRange {
+    pub start_line: usize,
+    pub end_line: usize,
+}
+
+/// Metadata section for export format documentation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportMetadata {
+    pub format_version: String,
+    pub description: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub field_descriptions: Option<ExportFieldDescriptions>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub query_formats: Option<ExportQueryFormats>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub git_usage_examples: Option<ExportGitExamples>,
+}
+
+/// Field descriptions for agent understanding
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportFieldDescriptions {
+    pub file: String,
+    pub query: String,
+    pub line_range: String,
+    pub content: String,
+    pub author: String,
+    pub timestamp: String,
+    pub status: String,
+    pub file_content_hash: String,
+    pub content_snapshot: String,
+}
+
+/// Query format descriptions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportQueryFormats {
+    #[serde(rename = "HEAD..unstaged")]
+    pub head_to_unstaged: String,
+    #[serde(rename = "commit_hash..HEAD")]
+    pub commit_to_head: String,
+    #[serde(rename = "HEAD..commit_hash")]
+    pub head_to_commit: String,
+    #[serde(rename = "commit_hash..commit_hash")]
+    pub commit_to_commit: String,
+}
+
+/// Git command usage examples
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportGitExamples {
+    pub view_diff: String,
+    pub view_historical_diff: String,
+    pub get_file_at_head: String,
+    pub get_file_at_commit: String,
+}
+
+/// Container for exported instructions
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportedInstructions {
+    #[serde(rename = "_meta")]
+    pub meta: ExportMetadata,
+    pub instructions: Vec<ExportedInstruction>,
+}
+
+/// Summary of import operation results
+#[derive(Debug, Clone, Default)]
+pub struct ImportSummary {
+    pub total_imported: usize,
+    pub active_count: usize,
+    pub stale_count: usize,
+    pub errors: Vec<String>,
+}
+
+/// Core review engine with ReviewableDiff-based state management
+pub struct ReviewEngine {
+    state: ReviewState,
+    // Cache for RenderableDiffs to speed up TUI interactions
+    // Note: RenderableDiff would be imported from diffviz-core in actual implementation
+    renderable_cache: HashMap<ReviewableDiffId, String>, // Simplified - would be RenderableDiff
+    diff_provider: Box<dyn DiffProvider>,
+}
+
+impl ReviewEngine {
+    /// Create a new review engine with ReviewableDiffs and DiffProvider
+    pub fn new(
+        reviewable_diffs: Vec<ReviewableDiff>,
+        author: String,
+        diff_provider: Box<dyn DiffProvider>,
+    ) -> Self {
+        Self {
+            state: ReviewState::new(reviewable_diffs, author),
+            renderable_cache: HashMap::new(),
+            diff_provider,
+        }
+    }
+
+    /// Create a review engine with a custom provider (for testing)
+    #[cfg(test)]
+    pub fn with_provider(
+        reviewable_diffs: Vec<ReviewableDiff>,
+        author: String,
+        diff_provider: Box<dyn DiffProvider>,
+    ) -> Self {
+        Self::new(reviewable_diffs, author, diff_provider)
+    }
+
+    /// Approve a specific ReviewableDiff
+    pub fn approve(
+        &mut self,
+        reviewable_id: ReviewableDiffId,
+        reviewer: String,
+        on_result: OperationCallback,
+    ) -> Result<()> {
+        self.state.approve(reviewable_id.clone(), reviewer);
+
+        // Invalidate cache for this ReviewableDiff
+        self.renderable_cache.remove(&reviewable_id);
+
+        if let Some(callback) = on_result {
+            callback(true, Some("ReviewableDiff approved".to_string()));
+        }
+        Ok(())
+    }
+
+    /// Reject/unapprove a specific ReviewableDiff
+    pub fn reject(
+        &mut self,
+        reviewable_id: ReviewableDiffId,
+        on_result: OperationCallback,
+    ) -> Result<()> {
+        self.state.unapprove(&reviewable_id);
+
+        // Invalidate cache for this ReviewableDiff
+        self.renderable_cache.remove(&reviewable_id);
+
+        if let Some(callback) = on_result {
+            callback(true, Some("ReviewableDiff rejected".to_string()));
+        }
+        Ok(())
+    }
+
+    /// Add an instruction to a specific ReviewableDiff
+    /// If an overlapping instruction exists, automatically extends the existing instruction
+    /// to the union of both ranges and merges the content
+    pub fn add_instruction(
+        &mut self,
+        reviewable_id: ReviewableDiffId,
+        content: String,
+        author: String,
+        on_result: OperationCallback,
+    ) -> Result<()> {
+        // Check for overlap with existing instructions
+        if let Some(overlap) = self.state.check_instruction_overlap(&reviewable_id) {
+            // Automatic overlap resolution: calculate union range and merge instructions
+            let existing_range = overlap.conflicting_id.line_range();
+            let new_range = reviewable_id.line_range();
+            let union_range = Self::calculate_union_range(&existing_range, &new_range);
+
+            // Create new extended ReviewableDiffId with union range
+            let extended_id = ReviewableDiffId::new(
+                reviewable_id.query().clone(),
+                reviewable_id.file_path().to_string(),
+                union_range,
+            );
+
+            // Remove the old instruction and get its content
+            let old_instructions = self
+                .state
+                .instructions
+                .remove_instructions(&overlap.conflicting_id);
+            let old_content = old_instructions
+                .and_then(|instructions| instructions.first().map(|i| i.content.clone()))
+                .unwrap_or_default();
+
+            // Merge content with separator
+            let merged_content = format!("{old_content}\n\n---\n\n{content}");
+
+            // Calculate hash and snapshot for extended range
+            let file_path = extended_id.file_path();
+            let git_ref = &extended_id.query().to;
+            let file_content_hash = self.calculate_file_hash(file_path, git_ref)?;
+            let content_snapshot =
+                self.extract_content_snapshot(file_path, git_ref, &extended_id.line_range())?;
+
+            // Create new instruction with extended range and merged content
+            let instruction = Instruction {
+                id: uuid::Uuid::new_v4().to_string(),
+                reviewable_id: extended_id.clone(),
+                author,
+                timestamp: chrono::Utc::now()
+                    .format("%Y-%m-%d %H:%M:%S UTC")
+                    .to_string(),
+                content: merged_content,
+                status: crate::entities::instruction::InstructionStatus::Active,
+                file_content_hash,
+                content_snapshot,
+            };
+
+            self.state.add_instruction(instruction);
+
+            // Invalidate caches for both old and new ranges
+            self.renderable_cache.remove(&overlap.conflicting_id);
+            self.renderable_cache.remove(&reviewable_id);
+            self.renderable_cache.remove(&extended_id);
+
+            if let Some(callback) = on_result {
+                callback(
+                    true,
+                    Some(format!(
+                        "Instruction extended to L{}-{}",
+                        extended_id.line_range().start_line,
+                        extended_id.line_range().end_line
+                    )),
+                );
+            }
+            return Ok(());
+        }
+
+        // No overlap - add instruction normally
+        // Calculate hash and snapshot
+        let file_path = reviewable_id.file_path();
+        let git_ref = &reviewable_id.query().to;
+        let file_content_hash = self.calculate_file_hash(file_path, git_ref)?;
+        let content_snapshot =
+            self.extract_content_snapshot(file_path, git_ref, &reviewable_id.line_range())?;
+
+        let instruction = Instruction {
+            id: uuid::Uuid::new_v4().to_string(),
+            reviewable_id: reviewable_id.clone(),
+            author,
+            timestamp: chrono::Utc::now()
+                .format("%Y-%m-%d %H:%M:%S UTC")
+                .to_string(),
+            content,
+            status: crate::entities::instruction::InstructionStatus::Active,
+            file_content_hash,
+            content_snapshot,
+        };
+
+        self.state.add_instruction(instruction);
+
+        // Invalidate cache for this ReviewableDiff
+        self.renderable_cache.remove(&reviewable_id);
+
+        if let Some(callback) = on_result {
+            callback(true, Some("Instruction added".to_string()));
+        }
+        Ok(())
+    }
+
+    /// Calculate SHA256 hash of file content with line ending normalization
+    fn calculate_file_hash(&self, file_path: &str, git_ref: &GitRef) -> Result<String> {
+        // Get file content via diff_provider
+        let content = self
+            .diff_provider
+            .get_source_code(file_path, git_ref)
+            .map_err(|e| {
+                crate::errors::DiffVizError::Git(format!("Failed to get file content: {e}"))
+            })?;
+
+        // Normalize line endings (CRLF → LF)
+        let normalized = content.replace("\r\n", "\n");
+
+        // Calculate SHA256
+        use sha2::{Digest, Sha256};
+        let mut hasher = Sha256::new();
+        hasher.update(normalized.as_bytes());
+        let result = hasher.finalize();
+
+        // Return hex-encoded string
+        Ok(format!("{result:x}"))
+    }
+
+    /// Extract content snapshot from specific line range
+    fn extract_content_snapshot(
+        &self,
+        file_path: &str,
+        git_ref: &GitRef,
+        line_range: &LineRange,
+    ) -> Result<Option<String>> {
+        let content = self
+            .diff_provider
+            .get_source_code(file_path, git_ref)
+            .map_err(|e| {
+                crate::errors::DiffVizError::Git(format!("Failed to get file content: {e}"))
+            })?;
+        let lines: Vec<&str> = content.lines().collect();
+
+        // 1-based to 0-based index conversion
+        let start_idx = (line_range.start_line.saturating_sub(1)).min(lines.len());
+        let end_idx = line_range.end_line.min(lines.len());
+
+        if start_idx >= lines.len() {
+            return Ok(None);
+        }
+
+        let snapshot = lines[start_idx..end_idx].join("\n");
+        Ok(Some(snapshot))
+    }
+
+    /// Verify instruction hash against current file content
+    #[allow(dead_code)] // Used in Phase 4 (import functionality)
+    fn verify_instruction_hash(&self, instruction: &Instruction) -> InstructionStatus {
+        let file_path = instruction.reviewable_id.file_path();
+        let git_ref = &instruction.reviewable_id.query().to;
+
+        match self.calculate_file_hash(file_path, git_ref) {
+            Ok(current_hash) => {
+                if current_hash == instruction.file_content_hash {
+                    InstructionStatus::Active
+                } else {
+                    InstructionStatus::Stale
+                }
+            }
+            Err(_) => InstructionStatus::Stale, // Conservative: can't verify = stale
+        }
+    }
+
+    /// Approve all ReviewableDiffs in a specific file
+    pub fn approve_all_in_file(
+        &mut self,
+        file_path: &str,
+        reviewer: String,
+        on_result: OperationCallback,
+    ) -> Result<()> {
+        let mut approved_count = 0;
+
+        // Get all ReviewableDiff IDs for this file
+        let reviewable_ids: Vec<ReviewableDiffId> = self
+            .state
+            .reviewable_diffs
+            .values()
+            .filter(|diff| diff.file_path == file_path)
+            .map(|diff| diff.id.clone())
+            .collect();
+
+        // Approve each one and invalidate caches
+        for reviewable_id in &reviewable_ids {
+            self.renderable_cache.remove(reviewable_id);
+            approved_count += 1;
+        }
+
+        self.state.approve_all_in_file(file_path, reviewer);
+
+        if let Some(callback) = on_result {
+            if approved_count > 0 {
+                callback(
+                    true,
+                    Some(format!("Approved {approved_count} ReviewableDiffs in file")),
+                );
+            } else {
+                callback(false, Some("No ReviewableDiffs found in file".to_string()));
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Get a RenderableDiff for a ReviewableDiff (with caching)
+    pub fn get_renderable_diff(&mut self, reviewable_id: &ReviewableDiffId) -> Option<String> {
+        // Check cache first
+        if let Some(cached) = self.renderable_cache.get(reviewable_id) {
+            return Some(cached.clone());
+        }
+
+        // Generate RenderableDiff if not cached
+        if let Some(reviewable_diff) = self.state.get_reviewable_diff(reviewable_id) {
+            // Convert ReviewableDiff to RenderableDiff using core conversion
+            let renderable_diff = RenderableDiff::from(&reviewable_diff.core_diff);
+
+            // Convert RenderableDiff to string format for caching and display
+            let renderable = format_renderable_diff_for_display(&renderable_diff);
+
+            // Cache the result
+            self.renderable_cache
+                .insert(reviewable_id.clone(), renderable.clone());
+
+            Some(renderable)
+        } else {
+            None
+        }
+    }
+
+    /// Get a RenderableDiff for a ReviewableDiff (read-only, no caching)
+    /// This version can be called with &self for TUI rendering
+    pub fn render_diff(&self, reviewable_id: &ReviewableDiffId) -> Option<String> {
+        if let Some(reviewable_diff) = self.state.get_reviewable_diff(reviewable_id) {
+            // Convert ReviewableDiff to RenderableDiff using core conversion
+            let renderable_diff = RenderableDiff::from(&reviewable_diff.core_diff);
+
+            // Convert RenderableDiff to string format for display
+            Some(format_renderable_diff_for_display(&renderable_diff))
+        } else {
+            None
+        }
+    }
+
+    /// Get a RenderableDiff object for direct widget usage
+    pub fn get_renderable_diff_object(
+        &self,
+        reviewable_id: &ReviewableDiffId,
+    ) -> Option<RenderableDiff> {
+        self.state
+            .get_reviewable_diff(reviewable_id)
+            .map(|reviewable_diff| RenderableDiff::from(&reviewable_diff.core_diff))
+    }
+
+    /// Get all ReviewableDiffs grouped by file
+    pub fn get_reviewable_diffs_by_file(&self) -> HashMap<String, Vec<&ReviewableDiff>> {
+        self.state.get_reviewable_diffs_by_file()
+    }
+
+    /// Get all ReviewableDiff IDs ordered by file and line range
+    pub fn get_ordered_reviewable_ids(&self) -> Vec<&ReviewableDiffId> {
+        self.state.get_ordered_reviewable_ids()
+    }
+
+    /// Get review progress statistics
+    pub fn get_review_progress(&self) -> ReviewProgress {
+        let (approved, total, percentage) = self.state.approval_progress();
+        ReviewProgress {
+            total_reviewable_diffs: total,
+            approved_reviewable_diffs: approved,
+            approval_percentage: percentage,
+            total_instructions: self.state.instructions.total_instructions(),
+        }
+    }
+
+    /// Complete the review and generate a summary
+    pub fn complete_review(&self) -> Result<ReviewSummary> {
+        let progress = self.get_review_progress();
+
+        Ok(ReviewSummary {
+            total_reviewable_diffs: progress.total_reviewable_diffs,
+            approved_reviewable_diffs: progress.approved_reviewable_diffs,
+            instructions_added: progress.total_instructions,
+            files_reviewed: self.state.get_file_paths().len(),
+            cache_hits: self.renderable_cache.len(),
+        })
+    }
+
+    /// Get reference to the centralized state
+    pub fn state(&self) -> &ReviewState {
+        &self.state
+    }
+
+    /// Get the current author
+    pub fn author(&self) -> &str {
+        self.state.author()
+    }
+
+    /// Get all unique file paths in this review
+    pub fn get_file_paths(&self) -> Vec<String> {
+        self.state.get_file_paths()
+    }
+
+    /// Clear the RenderableDiff cache (useful for memory management)
+    pub fn clear_cache(&mut self) {
+        self.renderable_cache.clear();
+    }
+
+    /// Get cache statistics for monitoring
+    pub fn cache_stats(&self) -> CacheStats {
+        CacheStats {
+            total_entries: self.renderable_cache.len(),
+            total_reviewable_diffs: self.state.total_reviewable_diffs(),
+            cache_hit_ratio: if self.state.total_reviewable_diffs() > 0 {
+                self.renderable_cache.len() as f32 / self.state.total_reviewable_diffs() as f32
+            } else {
+                0.0
+            },
+        }
+    }
+
+    /// Get a specific ReviewableDiff by ID
+    pub fn get_reviewable_diff(&self, id: &ReviewableDiffId) -> Option<&ReviewableDiff> {
+        self.state.get_reviewable_diff(id)
+    }
+
+    /// Export instructions to JSON format based on the specified scope
+    pub fn export_instructions_json(&self, scope: ExportScope) -> Result<String> {
+        let all_instructions = self.state.instructions.get_all_instructions();
+
+        // Filter instructions based on scope
+        let filtered_instructions: Vec<&Instruction> = match &scope {
+            ExportScope::SingleFile(file_path) => all_instructions
+                .into_iter()
+                .filter(|inst| inst.reviewable_id.file_path() == file_path)
+                .collect(),
+            ExportScope::SingleInstruction(reviewable_id) => all_instructions
+                .into_iter()
+                .filter(|inst| &inst.reviewable_id == reviewable_id)
+                .collect(),
+            ExportScope::All => all_instructions,
+        };
+
+        // Convert to exportable format
+        let exported_instructions: Vec<ExportedInstruction> = filtered_instructions
+            .into_iter()
+            .map(|inst| {
+                let line_range = inst.reviewable_id.line_range();
+                // Extract query portion from full ReviewableDiffId display
+                // Format is "query:file:L#-#", we want just the query part
+                let full_id = format!("{}", inst.reviewable_id);
+                let query_str = full_id.split(':').next().unwrap_or("working");
+
+                // Map "working" to proper git format "HEAD..unstaged"
+                let query = if query_str == "working" {
+                    "HEAD..unstaged".to_string()
+                } else {
+                    query_str.to_string()
+                };
+
+                ExportedInstruction {
+                    file: inst.reviewable_id.file_path().to_string(),
+                    query,
+                    line_range: ExportedLineRange {
+                        start_line: line_range.start_line,
+                        end_line: line_range.end_line,
+                    },
+                    content: inst.content.clone(),
+                    author: inst.author.clone(),
+                    timestamp: inst.timestamp.clone(),
+                    status: match inst.status {
+                        InstructionStatus::Active => "active".to_string(),
+                        InstructionStatus::Stale => "stale".to_string(),
+                        InstructionStatus::Addressed => "addressed".to_string(),
+                    },
+                    file_content_hash: inst.file_content_hash.clone(),
+                    content_snapshot: inst.content_snapshot.clone(),
+                }
+            })
+            .collect();
+
+        // Create metadata section
+        let meta = ExportMetadata {
+            format_version: "1.1".to_string(),
+            description: "DiffViz instruction export for coding agents".to_string(),
+            field_descriptions: Some(ExportFieldDescriptions {
+                file: "Relative path to the file from repository root".to_string(),
+                query: "Git diff query to retrieve file content. Format: 'from_ref..to_ref'. Use with: git diff <query> <file>".to_string(),
+                line_range: "1-based line numbers where instruction applies (inclusive range)".to_string(),
+                content: "The instruction text for the coding agent to follow".to_string(),
+                author: "Username/identifier of instruction author".to_string(),
+                timestamp: "When instruction was created/last modified (UTC format)".to_string(),
+                status: "Instruction validity: 'active' (file unchanged), 'stale' (file changed), 'addressed' (completed)".to_string(),
+                file_content_hash: "SHA256 hash of file content at time of instruction creation, used for validity verification".to_string(),
+                content_snapshot: "Code lines from instruction range for visual reference (optional)".to_string(),
+            }),
+            query_formats: Some(ExportQueryFormats {
+                head_to_unstaged: "Uncommitted changes in working directory".to_string(),
+                commit_to_head: "Changes from specific commit to current HEAD".to_string(),
+                head_to_commit: "Changes from HEAD to specific commit".to_string(),
+                commit_to_commit: "Changes between two commits".to_string(),
+            }),
+            git_usage_examples: Some(ExportGitExamples {
+                view_diff: "git diff HEAD..unstaged src/main.rs".to_string(),
+                view_historical_diff: "git diff abc123d..HEAD src/main.rs".to_string(),
+                get_file_at_head: "git show HEAD:src/main.rs".to_string(),
+                get_file_at_commit: "git show abc123d:src/main.rs".to_string(),
+            }),
+        };
+
+        let export = ExportedInstructions {
+            meta,
+            instructions: exported_instructions,
+        };
+
+        // Serialize to JSON with pretty printing
+        serde_json::to_string_pretty(&export).map_err(|e| {
+            crate::errors::DiffVizError::Review(crate::errors::ReviewError::ExportFailed {
+                reason: format!("JSON serialization failed: {e}"),
+            })
+        })
+    }
+
+    /// Import instructions from JSON with hash verification
+    pub fn import_instructions_json(&mut self, json: &str) -> Result<ImportSummary> {
+        // Parse JSON to ExportedInstructions
+        let exported: ExportedInstructions = serde_json::from_str(json).map_err(|e| {
+            crate::errors::DiffVizError::Review(crate::errors::ReviewError::ImportFailed {
+                reason: format!("Failed to parse JSON: {e}"),
+            })
+        })?;
+
+        let mut summary = ImportSummary::default();
+
+        for exported_inst in exported.instructions {
+            // Skip if missing required fields
+            if exported_inst.content.is_empty() {
+                summary
+                    .errors
+                    .push("Skipping instruction with missing content".to_string());
+                continue;
+            }
+
+            // Reconstruct ReviewableDiffId
+            let reviewable_id = match self.create_reviewable_id_from_export(&exported_inst) {
+                Ok(id) => id,
+                Err(e) => {
+                    summary
+                        .errors
+                        .push(format!("Failed to create ReviewableDiffId: {e}"));
+                    continue;
+                }
+            };
+
+            // Check if instruction already exists
+            let existing_instruction = self
+                .state
+                .instructions
+                .get_instructions_for_reviewable(&reviewable_id);
+            if existing_instruction.is_some() {
+                summary.errors.push(format!(
+                    "Skipping duplicate instruction for {reviewable_id}"
+                ));
+                continue;
+            }
+
+            // Calculate current file hash
+            let file_path = exported_inst.file.as_str();
+            let git_ref = self.parse_git_ref_from_query(&exported_inst.query);
+
+            let current_hash = self.calculate_file_hash(file_path, &git_ref);
+
+            // Determine status based on hash verification
+            let (status, hash_to_store) = match current_hash {
+                Ok(hash) => {
+                    if !exported_inst.file_content_hash.is_empty()
+                        && hash == exported_inst.file_content_hash
+                    {
+                        (InstructionStatus::Active, hash)
+                    } else if exported_inst.file_content_hash.is_empty() {
+                        // Legacy instruction without hash - calculate and store
+                        (InstructionStatus::Active, hash)
+                    } else {
+                        // Hash mismatch - file changed
+                        (InstructionStatus::Stale, hash)
+                    }
+                }
+                Err(_) => {
+                    // File not found or error - mark as stale, use stored hash
+                    (
+                        InstructionStatus::Stale,
+                        exported_inst.file_content_hash.clone(),
+                    )
+                }
+            };
+
+            // Create Instruction
+            let instruction = Instruction {
+                id: format!(
+                    "{}:{}",
+                    reviewable_id,
+                    chrono::Utc::now().timestamp_millis()
+                ),
+                reviewable_id: reviewable_id.clone(),
+                author: exported_inst.author,
+                timestamp: exported_inst.timestamp,
+                content: exported_inst.content,
+                status: status.clone(),
+                file_content_hash: hash_to_store,
+                content_snapshot: exported_inst.content_snapshot,
+            };
+
+            // Add to ReviewState
+            self.state.instructions.add_instruction(instruction);
+
+            // Update summary
+            summary.total_imported += 1;
+            match status {
+                InstructionStatus::Active => summary.active_count += 1,
+                InstructionStatus::Stale => summary.stale_count += 1,
+                _ => {}
+            }
+        }
+
+        Ok(summary)
+    }
+
+    /// Helper to reconstruct ReviewableDiffId from ExportedInstruction
+    fn create_reviewable_id_from_export(
+        &self,
+        exported: &ExportedInstruction,
+    ) -> Result<ReviewableDiffId> {
+        // Parse query to DiffQuery
+        let diff_query = self.parse_diff_query_from_string(&exported.query)?;
+
+        // Create LineRange
+        let line_range = LineRange {
+            start_line: exported.line_range.start_line,
+            end_line: exported.line_range.end_line,
+            start_column: 0,
+            end_column: 0,
+        };
+
+        Ok(ReviewableDiffId::new(
+            diff_query,
+            exported.file.clone(),
+            line_range,
+        ))
+    }
+
+    /// Helper to parse DiffQuery from query string
+    fn parse_diff_query_from_string(&self, query: &str) -> Result<DiffQuery> {
+        match query {
+            "HEAD..unstaged" => Ok(DiffQuery::head_to_unstaged()),
+            _ => {
+                // Try to parse as commit-to-head, head-to-commit, or commit-to-commit
+                if let Some((from, to)) = query.split_once("..") {
+                    Ok(DiffQuery::new(
+                        GitRef::commit(from.to_string()),
+                        GitRef::commit(to.to_string()),
+                    ))
+                } else {
+                    Err(crate::errors::DiffVizError::Review(
+                        crate::errors::ReviewError::ImportFailed {
+                            reason: format!("Invalid query format: {query}"),
+                        },
+                    ))
+                }
+            }
+        }
+    }
+
+    /// Helper to parse GitRef from query string for hash calculation
+    fn parse_git_ref_from_query(&self, query: &str) -> GitRef {
+        match query {
+            "HEAD..unstaged" => GitRef::unstaged(),
+            _ => {
+                // Extract the 'to' part of the query
+                if let Some((_, to)) = query.split_once("..") {
+                    if to == "HEAD" {
+                        GitRef::head()
+                    } else {
+                        GitRef::commit(to.to_string())
+                    }
+                } else {
+                    GitRef::unstaged()
+                }
+            }
+        }
+    }
+
+    /// Calculate the union of two line ranges
+    /// Returns a new LineRange that spans from the minimum start to the maximum end
+    pub fn calculate_union_range(range1: &LineRange, range2: &LineRange) -> LineRange {
+        LineRange {
+            start_line: range1.start_line.min(range2.start_line),
+            end_line: range1.end_line.max(range2.end_line),
+            start_column: 0, // Union ranges start at column 0
+            end_column: 0,   // Union ranges end at column 0
+        }
+    }
+}
+
+/// Review progress information
+#[derive(Debug, Clone)]
+pub struct ReviewProgress {
+    pub total_reviewable_diffs: usize,
+    pub approved_reviewable_diffs: usize,
+    pub approval_percentage: f32,
+    pub total_instructions: usize,
+}
+
+/// Summary of a completed review session
+#[derive(Debug, Clone)]
+pub struct ReviewSummary {
+    pub total_reviewable_diffs: usize,
+    pub approved_reviewable_diffs: usize,
+    pub instructions_added: usize,
+    pub files_reviewed: usize,
+    pub cache_hits: usize,
+}
+
+/// Cache performance statistics
+#[derive(Debug, Clone)]
+pub struct CacheStats {
+    pub total_entries: usize,
+    pub total_reviewable_diffs: usize,
+    pub cache_hit_ratio: f32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::entities::git_ref::DiffQuery;
+    use crate::entities::reviewable_diff_id::LineRange;
+    use crate::providers::mock_provider::MockDiffProvider;
+
+    fn create_mock_provider() -> Box<dyn DiffProvider> {
+        let mut provider = MockDiffProvider::new();
+
+        // Add default test file content for hash calculation
+        let test_content = r#"fn main() {
+    println!("Hello, world!");
+    let x = 42;
+    let y = x + 1;
+    println!("Result: {}", y);
+}
+"#;
+
+        // Add content for all test files used in tests
+        for file_name in &[
+            "test.rs",
+            "test1.rs",
+            "test2.rs",
+            "other.rs",
+            "src/main.rs",
+            "src/file1.rs",
+            "src/file2.rs",
+        ] {
+            provider.add_file_content(file_name, &GitRef::Head, test_content);
+            provider.add_file_content(file_name, &GitRef::Unstaged, test_content);
+        }
+
+        Box::new(provider)
+    }
+
+    fn create_test_reviewable_diff(file_path: &str, start_line: usize) -> ReviewableDiff {
+        use diffviz_core::{
+            ast_diff::{OwnedNodeData, SourceCode},
+            common::{ProgrammingLanguage, SemanticNodeKind},
+            reviewable_diff::{
+                DiffMetadata, DiffNode, NodeChangeStatus, ReviewableDiff as CoreReviewableDiff,
+            },
+        };
+        use std::collections::HashMap;
+
+        let reviewable_id = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            file_path.to_string(),
+            LineRange {
+                start_line,
+                end_line: start_line + 10,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        let placeholder_content = format!("test content for {file_path}");
+        let old_source = Box::new(SourceCode::new(placeholder_content.clone()));
+        let new_source = Box::new(SourceCode::new(placeholder_content.clone()));
+
+        let core_diff = CoreReviewableDiff {
+            language: ProgrammingLanguage::Rust,
+            boundary: DiffNode {
+                node_type: "test".to_string(),
+                semantic_kind: SemanticNodeKind::Other("test".to_string()),
+                change_status: NodeChangeStatus::Unchanged {
+                    node: OwnedNodeData {
+                        start_byte: 0,
+                        end_byte: placeholder_content.len(),
+                        kind: "test".to_string(),
+                    },
+                },
+                relevance: 0,
+                children: vec![],
+            },
+            old_source,
+            new_source,
+            metadata: DiffMetadata {
+                total_changes: 1,
+                change_summary: HashMap::new(),
+                essential_node_count: 1,
+                analysis_duration_ms: 0,
+            },
+        };
+
+        ReviewableDiff {
+            id: reviewable_id,
+            core_diff,
+            file_path: file_path.to_string(),
+        }
+    }
+
+    #[test]
+    fn test_review_engine_creation() {
+        let diffs = vec![
+            create_test_reviewable_diff("test1.rs", 1),
+            create_test_reviewable_diff("test2.rs", 1),
+        ];
+        let engine = ReviewEngine::new(diffs, "test_author".to_string(), create_mock_provider());
+
+        assert_eq!(engine.state.total_reviewable_diffs(), 2);
+        assert_eq!(engine.author(), "test_author");
+    }
+
+    #[test]
+    fn test_approve_reviewable_diff() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let reviewable_id = diff.id.clone();
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        let result = engine.approve(reviewable_id.clone(), "reviewer".to_string(), None);
+        assert!(result.is_ok());
+        assert!(engine.state.is_approved(&reviewable_id));
+    }
+
+    #[test]
+    fn test_renderable_diff_caching() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let reviewable_id = diff.id.clone();
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        // First call should generate and cache
+        let renderable1 = engine.get_renderable_diff(&reviewable_id);
+        assert!(renderable1.is_some());
+
+        // Second call should use cache
+        let renderable2 = engine.get_renderable_diff(&reviewable_id);
+        assert_eq!(renderable1, renderable2);
+
+        // Cache should have one entry
+        let stats = engine.cache_stats();
+        assert_eq!(stats.total_entries, 1);
+        assert_eq!(stats.cache_hit_ratio, 1.0);
+    }
+
+    #[test]
+    fn test_cache_invalidation() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let reviewable_id = diff.id.clone();
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        // Generate cached entry
+        engine.get_renderable_diff(&reviewable_id);
+        assert_eq!(engine.cache_stats().total_entries, 1);
+
+        // Approval should invalidate cache
+        engine
+            .approve(reviewable_id.clone(), "reviewer".to_string(), None)
+            .unwrap();
+        assert_eq!(engine.cache_stats().total_entries, 0);
+    }
+
+    #[test]
+    fn test_approve_all_in_file() {
+        let diffs = vec![
+            create_test_reviewable_diff("test1.rs", 1),
+            create_test_reviewable_diff("test1.rs", 20),
+            create_test_reviewable_diff("test2.rs", 1),
+        ];
+        let mut engine =
+            ReviewEngine::new(diffs, "test_author".to_string(), create_mock_provider());
+
+        let result = engine.approve_all_in_file("test1.rs", "reviewer".to_string(), None);
+        assert!(result.is_ok());
+
+        // Check that only test1.rs diffs are approved
+        let by_file = engine.get_reviewable_diffs_by_file();
+        let test1_diffs = by_file.get("test1.rs").unwrap();
+        let test2_diffs = by_file.get("test2.rs").unwrap();
+
+        for diff in test1_diffs {
+            assert!(engine.state.is_approved(&diff.id));
+        }
+        for diff in test2_diffs {
+            assert!(!engine.state.is_approved(&diff.id));
+        }
+    }
+
+    #[test]
+    fn test_review_progress() {
+        let diffs = vec![
+            create_test_reviewable_diff("test1.rs", 1),
+            create_test_reviewable_diff("test2.rs", 1),
+        ];
+        let mut engine = ReviewEngine::new(
+            diffs.clone(),
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        let progress = engine.get_review_progress();
+        assert_eq!(progress.total_reviewable_diffs, 2);
+        assert_eq!(progress.approved_reviewable_diffs, 0);
+        assert_eq!(progress.approval_percentage, 0.0);
+
+        // Approve one diff
+        engine
+            .approve(diffs[0].id.clone(), "reviewer".to_string(), None)
+            .unwrap();
+
+        let progress = engine.get_review_progress();
+        assert_eq!(progress.approved_reviewable_diffs, 1);
+        assert_eq!(progress.approval_percentage, 50.0);
+    }
+
+    #[test]
+    fn test_complete_review() {
+        let diffs = vec![
+            create_test_reviewable_diff("test1.rs", 1),
+            create_test_reviewable_diff("test2.rs", 1),
+        ];
+        let mut engine = ReviewEngine::new(
+            diffs.clone(),
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        // Approve diffs
+        engine
+            .approve(diffs[0].id.clone(), "reviewer".to_string(), None)
+            .unwrap();
+        engine
+            .approve(diffs[1].id.clone(), "reviewer".to_string(), None)
+            .unwrap();
+
+        let summary = engine.complete_review().unwrap();
+        assert_eq!(summary.total_reviewable_diffs, 2);
+        assert_eq!(summary.approved_reviewable_diffs, 2);
+        assert_eq!(summary.files_reviewed, 2);
+    }
+
+    #[test]
+    fn test_render_diff() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let reviewable_id = diff.id.clone();
+        let engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        // Test the render_diff method
+        let rendered = engine.render_diff(&reviewable_id);
+        assert!(rendered.is_some());
+
+        let content = rendered.unwrap();
+
+        // Should contain the metadata header
+        assert!(content.contains("=== test content for test.rs ==="));
+        assert!(content.contains("Language: Rust"));
+        assert!(content.contains("Lines: 1 | Essential: 1"));
+        assert!(content.contains("test content for test.rs"));
+    }
+
+    #[test]
+    fn test_get_renderable_diff_object() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let reviewable_id = diff.id.clone();
+        let engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        // Test the get_renderable_diff_object method
+        let renderable_diff = engine.get_renderable_diff_object(&reviewable_id);
+        assert!(renderable_diff.is_some());
+
+        let renderable = renderable_diff.unwrap();
+
+        // Should have the expected language and lines
+        assert_eq!(
+            renderable.language,
+            diffviz_core::common::ProgrammingLanguage::Rust
+        );
+        assert!(!renderable.lines.is_empty());
+
+        // Should have expected metadata
+        assert_eq!(
+            renderable.metadata.boundary_name,
+            "test content for test.rs"
+        );
+    }
+
+    // Tests for overlap detection in ReviewEngine (Phase 1)
+    #[test]
+    fn test_add_instruction_without_overlap() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        let reviewable_id = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 10,
+                end_line: 12,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        let result = engine.add_instruction(
+            reviewable_id.clone(),
+            "Extract this to a separate function".to_string(),
+            "reviewer".to_string(),
+            None,
+        );
+
+        assert!(result.is_ok());
+    }
+
+    // This test has been removed because overlap now triggers automatic extension
+    // instead of an error. See test_add_instruction_with_overlap_auto_extends for
+    // the new behavior.
+
+    #[test]
+    fn test_add_instruction_non_overlapping_ranges() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        // Add first instruction (lines 10-12)
+        let id1 = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 10,
+                end_line: 12,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        engine
+            .add_instruction(
+                id1,
+                "First instruction".to_string(),
+                "reviewer".to_string(),
+                None,
+            )
+            .unwrap();
+
+        // Add non-overlapping instruction (lines 20-22)
+        let id2 = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 20,
+                end_line: 22,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        let result = engine.add_instruction(
+            id2.clone(),
+            "Second instruction".to_string(),
+            "reviewer".to_string(),
+            None,
+        );
+
+        // Should succeed - no overlap
+        assert!(result.is_ok());
+    }
+
+    // Tests for union range calculation (Phase 3)
+    #[test]
+    fn test_calculate_union_range_overlapping() {
+        // L10-12 + L11-15 → Union range is L10-15
+        let range1 = LineRange {
+            start_line: 10,
+            end_line: 12,
+            start_column: 0,
+            end_column: 0,
+        };
+        let range2 = LineRange {
+            start_line: 11,
+            end_line: 15,
+            start_column: 0,
+            end_column: 0,
+        };
+
+        let union = ReviewEngine::calculate_union_range(&range1, &range2);
+        assert_eq!(union.start_line, 10);
+        assert_eq!(union.end_line, 15);
+    }
+
+    #[test]
+    fn test_calculate_union_range_adjacent() {
+        // L10-12 + L13-20 → Union range is L10-20 (adjacent ranges)
+        let range1 = LineRange {
+            start_line: 10,
+            end_line: 12,
+            start_column: 0,
+            end_column: 0,
+        };
+        let range2 = LineRange {
+            start_line: 13,
+            end_line: 20,
+            start_column: 0,
+            end_column: 0,
+        };
+
+        let union = ReviewEngine::calculate_union_range(&range1, &range2);
+        assert_eq!(union.start_line, 10);
+        assert_eq!(union.end_line, 20);
+    }
+
+    #[test]
+    fn test_calculate_union_range_nested() {
+        // L10-15 + L12-13 → Union range is L10-15 (contained range)
+        let range1 = LineRange {
+            start_line: 10,
+            end_line: 15,
+            start_column: 0,
+            end_column: 0,
+        };
+        let range2 = LineRange {
+            start_line: 12,
+            end_line: 13,
+            start_column: 0,
+            end_column: 0,
+        };
+
+        let union = ReviewEngine::calculate_union_range(&range1, &range2);
+        assert_eq!(union.start_line, 10);
+        assert_eq!(union.end_line, 15);
+    }
+
+    #[test]
+    fn test_calculate_union_range_identical() {
+        // L10-12 + L10-12 → Union range is L10-12 (identical ranges)
+        let range1 = LineRange {
+            start_line: 10,
+            end_line: 12,
+            start_column: 0,
+            end_column: 0,
+        };
+        let range2 = LineRange {
+            start_line: 10,
+            end_line: 12,
+            start_column: 0,
+            end_column: 0,
+        };
+
+        let union = ReviewEngine::calculate_union_range(&range1, &range2);
+        assert_eq!(union.start_line, 10);
+        assert_eq!(union.end_line, 12);
+    }
+
+    // Tests for automatic overlap resolution (Phase 3)
+    #[test]
+    fn test_add_instruction_with_overlap_auto_extends() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        // Add first instruction (lines 10-12)
+        let id1 = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 10,
+                end_line: 12,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        engine
+            .add_instruction(
+                id1.clone(),
+                "First instruction".to_string(),
+                "reviewer".to_string(),
+                None,
+            )
+            .unwrap();
+
+        // Add overlapping instruction (lines 11-15) - should auto-extend
+        let id2 = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 11,
+                end_line: 15,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        let result = engine.add_instruction(
+            id2,
+            "Second instruction".to_string(),
+            "reviewer".to_string(),
+            None,
+        );
+
+        // Should succeed - auto-extension instead of error
+        assert!(result.is_ok());
+
+        // Verify that the original instruction was extended to L10-15
+        let extended_id = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 10,
+                end_line: 15,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        let instructions = engine
+            .state()
+            .instructions
+            .get_instructions_for_reviewable(&extended_id);
+        assert!(instructions.is_some());
+    }
+
+    #[test]
+    fn test_add_instruction_auto_extension_merges_content() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        // Add first instruction
+        let id1 = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 10,
+                end_line: 12,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        engine
+            .add_instruction(
+                id1.clone(),
+                "First instruction content".to_string(),
+                "reviewer1".to_string(),
+                None,
+            )
+            .unwrap();
+
+        // Add overlapping instruction
+        let id2 = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 11,
+                end_line: 15,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        engine
+            .add_instruction(
+                id2,
+                "Second instruction content".to_string(),
+                "reviewer2".to_string(),
+                None,
+            )
+            .unwrap();
+
+        // Verify merged content
+        let extended_id = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 10,
+                end_line: 15,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        let instructions = engine
+            .state()
+            .instructions
+            .get_instructions_for_reviewable(&extended_id);
+        assert!(instructions.is_some());
+
+        let instruction = instructions.unwrap();
+        // Content should be merged with separator
+        assert!(instruction.content.contains("First instruction content"));
+        assert!(instruction.content.contains("Second instruction content"));
+    }
+
+    #[test]
+    fn test_add_instruction_adjacent_ranges_remain_separate() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        // Add first instruction (lines 10-12)
+        let id1 = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 10,
+                end_line: 12,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        engine
+            .add_instruction(
+                id1.clone(),
+                "First instruction".to_string(),
+                "reviewer".to_string(),
+                None,
+            )
+            .unwrap();
+
+        // Add adjacent instruction (lines 13-15) - no overlap
+        let id2 = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 13,
+                end_line: 15,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        let result = engine.add_instruction(
+            id2.clone(),
+            "Second instruction".to_string(),
+            "reviewer".to_string(),
+            None,
+        );
+
+        // Should succeed - no overlap
+        assert!(result.is_ok());
+
+        // Both instructions should exist separately
+        assert!(
+            engine
+                .state()
+                .instructions
+                .get_instructions_for_reviewable(&id1)
+                .is_some()
+        );
+        assert!(
+            engine
+                .state()
+                .instructions
+                .get_instructions_for_reviewable(&id2)
+                .is_some()
+        );
+    }
+
+    // Tests for JSON export functionality (Phase 4)
+    #[test]
+    fn test_export_all_instructions() {
+        let diff1 = create_test_reviewable_diff("test1.rs", 1);
+        let diff2 = create_test_reviewable_diff("test2.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff1, diff2],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        // Add instructions to both files
+        let id1 = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test1.rs".to_string(),
+            LineRange {
+                start_line: 10,
+                end_line: 12,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        let id2 = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test2.rs".to_string(),
+            LineRange {
+                start_line: 20,
+                end_line: 22,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        engine
+            .add_instruction(
+                id1,
+                "Instruction 1".to_string(),
+                "reviewer".to_string(),
+                None,
+            )
+            .unwrap();
+        engine
+            .add_instruction(
+                id2,
+                "Instruction 2".to_string(),
+                "reviewer".to_string(),
+                None,
+            )
+            .unwrap();
+
+        // Export all
+        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+
+        // Verify JSON is valid
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert!(parsed["_meta"].is_object());
+        assert_eq!(parsed["_meta"]["format_version"], "1.1");
+        assert_eq!(parsed["instructions"].as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_export_single_file() {
+        let diff1 = create_test_reviewable_diff("test1.rs", 1);
+        let diff2 = create_test_reviewable_diff("test2.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff1, diff2],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        // Add instructions to both files
+        let id1 = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test1.rs".to_string(),
+            LineRange {
+                start_line: 10,
+                end_line: 12,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        let id2 = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test2.rs".to_string(),
+            LineRange {
+                start_line: 20,
+                end_line: 22,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        engine
+            .add_instruction(
+                id1,
+                "Instruction 1".to_string(),
+                "reviewer".to_string(),
+                None,
+            )
+            .unwrap();
+        engine
+            .add_instruction(
+                id2,
+                "Instruction 2".to_string(),
+                "reviewer".to_string(),
+                None,
+            )
+            .unwrap();
+
+        // Export single file
+        let json = engine
+            .export_instructions_json(ExportScope::SingleFile("test1.rs".to_string()))
+            .unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let instructions = parsed["instructions"].as_array().unwrap();
+        assert_eq!(instructions.len(), 1);
+        assert_eq!(instructions[0]["file"], "test1.rs");
+    }
+
+    #[test]
+    fn test_export_single_instruction() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        let id1 = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 10,
+                end_line: 12,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        let id2 = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 20,
+                end_line: 22,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        engine
+            .add_instruction(
+                id1.clone(),
+                "Instruction 1".to_string(),
+                "reviewer".to_string(),
+                None,
+            )
+            .unwrap();
+        engine
+            .add_instruction(
+                id2,
+                "Instruction 2".to_string(),
+                "reviewer".to_string(),
+                None,
+            )
+            .unwrap();
+
+        // Export single instruction
+        let json = engine
+            .export_instructions_json(ExportScope::SingleInstruction(id1))
+            .unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let instructions = parsed["instructions"].as_array().unwrap();
+        assert_eq!(instructions.len(), 1);
+        assert_eq!(instructions[0]["content"], "Instruction 1");
+    }
+
+    #[test]
+    fn test_export_empty_scope() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        // Export with no instructions
+        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(parsed["instructions"].as_array().unwrap().len(), 0);
+        assert!(parsed["_meta"].is_object());
+    }
+
+    #[test]
+    fn test_export_json_structure() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        let id = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 10,
+                end_line: 12,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        engine
+            .add_instruction(
+                id,
+                "Test instruction".to_string(),
+                "reviewer".to_string(),
+                None,
+            )
+            .unwrap();
+
+        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        // Verify metadata structure
+        assert_eq!(parsed["_meta"]["format_version"], "1.1");
+        assert!(parsed["_meta"]["description"].is_string());
+        assert!(parsed["_meta"]["field_descriptions"].is_object());
+        assert!(parsed["_meta"]["query_formats"].is_object());
+        assert!(parsed["_meta"]["git_usage_examples"].is_object());
+
+        // Verify instruction structure
+        let inst = &parsed["instructions"][0];
+        assert_eq!(inst["file"], "test.rs");
+        assert_eq!(inst["query"], "HEAD..unstaged");
+        assert_eq!(inst["line_range"]["start_line"], 10);
+        assert_eq!(inst["line_range"]["end_line"], 12);
+        assert_eq!(inst["content"], "Test instruction");
+        assert_eq!(inst["author"], "reviewer");
+        assert!(inst["timestamp"].is_string());
+
+        // Verify line_range has no columns
+        assert!(inst["line_range"]["start_column"].is_null());
+        assert!(inst["line_range"]["end_column"].is_null());
+    }
+
+    #[test]
+    fn test_export_query_format_mapping() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        let id = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 10,
+                end_line: 12,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        engine
+            .add_instruction(id, "Test".to_string(), "reviewer".to_string(), None)
+            .unwrap();
+
+        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        // Verify "working" is mapped to "HEAD..unstaged"
+        assert_eq!(parsed["instructions"][0]["query"], "HEAD..unstaged");
+    }
+
+    // ===== Hash Calculation Tests =====
+
+    #[test]
+    fn test_calculate_file_hash_known_content() {
+        use crate::providers::mock_provider::MockDiffProvider;
+        use sha2::{Digest, Sha256};
+
+        let mut mock_provider = MockDiffProvider::new();
+        mock_provider.add_file_content("test.rs", &GitRef::head(), "hello world\n");
+
+        let engine =
+            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
+
+        let hash = engine
+            .calculate_file_hash("test.rs", &GitRef::head())
+            .unwrap();
+
+        // Calculate expected hash
+        let mut hasher = Sha256::new();
+        hasher.update(b"hello world\n");
+        let expected = format!("{:x}", hasher.finalize());
+
+        assert_eq!(hash, expected);
+    }
+
+    #[test]
+    fn test_calculate_file_hash_identical_content_identical_hash() {
+        use crate::providers::mock_provider::MockDiffProvider;
+
+        let mut mock_provider = MockDiffProvider::new();
+        mock_provider.add_file_content("file1.rs", &GitRef::head(), "same content\n");
+        mock_provider.add_file_content("file2.rs", &GitRef::head(), "same content\n");
+
+        let engine =
+            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
+
+        let hash1 = engine
+            .calculate_file_hash("file1.rs", &GitRef::head())
+            .unwrap();
+        let hash2 = engine
+            .calculate_file_hash("file2.rs", &GitRef::head())
+            .unwrap();
+
+        assert_eq!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_calculate_file_hash_different_content_different_hash() {
+        use crate::providers::mock_provider::MockDiffProvider;
+
+        let mut mock_provider = MockDiffProvider::new();
+        mock_provider.add_file_content("file1.rs", &GitRef::head(), "content A\n");
+        mock_provider.add_file_content("file2.rs", &GitRef::head(), "content B\n");
+
+        let engine =
+            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
+
+        let hash1 = engine
+            .calculate_file_hash("file1.rs", &GitRef::head())
+            .unwrap();
+        let hash2 = engine
+            .calculate_file_hash("file2.rs", &GitRef::head())
+            .unwrap();
+
+        assert_ne!(hash1, hash2);
+    }
+
+    #[test]
+    fn test_calculate_file_hash_crlf_normalization() {
+        use crate::providers::mock_provider::MockDiffProvider;
+
+        let mut mock_provider = MockDiffProvider::new();
+        mock_provider.add_file_content("crlf.rs", &GitRef::head(), "line1\r\nline2\r\n");
+        mock_provider.add_file_content("lf.rs", &GitRef::head(), "line1\nline2\n");
+
+        let engine =
+            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
+
+        let hash_crlf = engine
+            .calculate_file_hash("crlf.rs", &GitRef::head())
+            .unwrap();
+        let hash_lf = engine
+            .calculate_file_hash("lf.rs", &GitRef::head())
+            .unwrap();
+
+        // Should be identical after normalization
+        assert_eq!(hash_crlf, hash_lf);
+    }
+
+    #[test]
+    fn test_calculate_file_hash_lf_unchanged() {
+        use crate::providers::mock_provider::MockDiffProvider;
+        use sha2::{Digest, Sha256};
+
+        let mut mock_provider = MockDiffProvider::new();
+        let content = "line1\nline2\n";
+        mock_provider.add_file_content("test.rs", &GitRef::head(), content);
+
+        let engine =
+            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
+
+        let hash = engine
+            .calculate_file_hash("test.rs", &GitRef::head())
+            .unwrap();
+
+        // Calculate expected hash directly from LF content
+        let mut hasher = Sha256::new();
+        hasher.update(content.as_bytes());
+        let expected = format!("{:x}", hasher.finalize());
+
+        assert_eq!(hash, expected);
+    }
+
+    // ===== Content Snapshot Extraction Tests =====
+
+    #[test]
+    fn test_extract_content_snapshot_middle_lines() {
+        use crate::providers::mock_provider::MockDiffProvider;
+
+        let mut mock_provider = MockDiffProvider::new();
+        let content = "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10\n";
+        mock_provider.add_file_content("test.rs", &GitRef::head(), content);
+
+        let engine =
+            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
+
+        let line_range = LineRange {
+            start_line: 3,
+            end_line: 5,
+            start_column: 0,
+            end_column: 0,
+        };
+
+        let snapshot = engine
+            .extract_content_snapshot("test.rs", &GitRef::head(), &line_range)
+            .unwrap();
+
+        assert_eq!(snapshot, Some("line3\nline4\nline5".to_string()));
+    }
+
+    #[test]
+    fn test_extract_content_snapshot_start_of_file() {
+        use crate::providers::mock_provider::MockDiffProvider;
+
+        let mut mock_provider = MockDiffProvider::new();
+        let content = "line1\nline2\nline3\n";
+        mock_provider.add_file_content("test.rs", &GitRef::head(), content);
+
+        let engine =
+            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
+
+        let line_range = LineRange {
+            start_line: 1,
+            end_line: 2,
+            start_column: 0,
+            end_column: 0,
+        };
+
+        let snapshot = engine
+            .extract_content_snapshot("test.rs", &GitRef::head(), &line_range)
+            .unwrap();
+
+        assert_eq!(snapshot, Some("line1\nline2".to_string()));
+    }
+
+    #[test]
+    fn test_extract_content_snapshot_end_of_file() {
+        use crate::providers::mock_provider::MockDiffProvider;
+
+        let mut mock_provider = MockDiffProvider::new();
+        let content = "line1\nline2\nline3\n";
+        mock_provider.add_file_content("test.rs", &GitRef::head(), content);
+
+        let engine =
+            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
+
+        let line_range = LineRange {
+            start_line: 2,
+            end_line: 3,
+            start_column: 0,
+            end_column: 0,
+        };
+
+        let snapshot = engine
+            .extract_content_snapshot("test.rs", &GitRef::head(), &line_range)
+            .unwrap();
+
+        assert_eq!(snapshot, Some("line2\nline3".to_string()));
+    }
+
+    #[test]
+    fn test_extract_content_snapshot_beyond_file_bounds() {
+        use crate::providers::mock_provider::MockDiffProvider;
+
+        let mut mock_provider = MockDiffProvider::new();
+        let content = "line1\nline2\nline3\n";
+        mock_provider.add_file_content("test.rs", &GitRef::head(), content);
+
+        let engine =
+            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
+
+        let line_range = LineRange {
+            start_line: 10,
+            end_line: 15,
+            start_column: 0,
+            end_column: 0,
+        };
+
+        let snapshot = engine
+            .extract_content_snapshot("test.rs", &GitRef::head(), &line_range)
+            .unwrap();
+
+        assert_eq!(snapshot, None);
+    }
+
+    #[test]
+    fn test_extract_content_snapshot_empty_range() {
+        use crate::providers::mock_provider::MockDiffProvider;
+
+        let mut mock_provider = MockDiffProvider::new();
+        let content = "line1\nline2\nline3\n";
+        mock_provider.add_file_content("test.rs", &GitRef::head(), content);
+
+        let engine =
+            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
+
+        let line_range = LineRange {
+            start_line: 2,
+            end_line: 2,
+            start_column: 0,
+            end_column: 0,
+        };
+
+        let snapshot = engine
+            .extract_content_snapshot("test.rs", &GitRef::head(), &line_range)
+            .unwrap();
+
+        assert_eq!(snapshot, Some("line2".to_string()));
+    }
+
+    // ===== Hash Verification Tests =====
+
+    #[test]
+    fn test_verify_instruction_hash_matching() {
+        use crate::providers::mock_provider::MockDiffProvider;
+        use sha2::{Digest, Sha256};
+
+        let content = "test content\n";
+        let mut hasher = Sha256::new();
+        hasher.update(content.as_bytes());
+        let expected_hash = format!("{:x}", hasher.finalize());
+
+        let mut mock_provider = MockDiffProvider::new();
+        mock_provider.add_file_content("test.rs", &GitRef::unstaged(), content);
+
+        let engine =
+            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
+
+        let reviewable_id = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 1,
+                end_line: 1,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        let instruction = Instruction {
+            id: "test_id".to_string(),
+            reviewable_id,
+            content: "Test".to_string(),
+            author: "reviewer".to_string(),
+            timestamp: "2023-01-01T00:00:00Z".to_string(),
+            status: InstructionStatus::Active,
+            file_content_hash: expected_hash,
+            content_snapshot: None,
+        };
+
+        let status = engine.verify_instruction_hash(&instruction);
+        assert_eq!(status, InstructionStatus::Active);
+    }
+
+    #[test]
+    fn test_verify_instruction_hash_mismatched() {
+        use crate::providers::mock_provider::MockDiffProvider;
+
+        let mut mock_provider = MockDiffProvider::new();
+        mock_provider.add_file_content("test.rs", &GitRef::unstaged(), "new content\n");
+
+        let engine =
+            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
+
+        let reviewable_id = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 1,
+                end_line: 1,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        let instruction = Instruction {
+            id: "test_id".to_string(),
+            reviewable_id,
+            content: "Test".to_string(),
+            author: "reviewer".to_string(),
+            timestamp: "2023-01-01T00:00:00Z".to_string(),
+            status: InstructionStatus::Active,
+            file_content_hash: "old_hash_value".to_string(),
+            content_snapshot: None,
+        };
+
+        let status = engine.verify_instruction_hash(&instruction);
+        assert_eq!(status, InstructionStatus::Stale);
+    }
+
+    #[test]
+    fn test_verify_instruction_hash_file_not_found() {
+        use crate::providers::mock_provider::MockDiffProvider;
+
+        let mock_provider = MockDiffProvider::new();
+        // No files added to mock provider
+
+        let engine =
+            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
+
+        let reviewable_id = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "nonexistent.rs".to_string(),
+            LineRange {
+                start_line: 1,
+                end_line: 1,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        let instruction = Instruction {
+            id: "test_id".to_string(),
+            reviewable_id,
+            content: "Test".to_string(),
+            author: "reviewer".to_string(),
+            timestamp: "2023-01-01T00:00:00Z".to_string(),
+            status: InstructionStatus::Active,
+            file_content_hash: "some_hash".to_string(),
+            content_snapshot: None,
+        };
+
+        let status = engine.verify_instruction_hash(&instruction);
+        // Conservative: can't verify = stale
+        assert_eq!(status, InstructionStatus::Stale);
+    }
+
+    // Tests for Phase 3: Export Format Enhancement
+    #[test]
+    fn test_export_includes_status_field() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        let reviewable_id = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 10,
+                end_line: 12,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        engine
+            .add_instruction(
+                reviewable_id,
+                "Test instruction".to_string(),
+                "reviewer".to_string(),
+                None,
+            )
+            .unwrap();
+
+        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        let instructions = parsed["instructions"].as_array().unwrap();
+        assert_eq!(instructions.len(), 1);
+
+        let inst = &instructions[0];
+        assert!(inst["status"].is_string());
+        assert_eq!(inst["status"], "active");
+    }
+
+    #[test]
+    fn test_export_includes_file_content_hash() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        let reviewable_id = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 10,
+                end_line: 12,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        engine
+            .add_instruction(
+                reviewable_id,
+                "Test instruction".to_string(),
+                "reviewer".to_string(),
+                None,
+            )
+            .unwrap();
+
+        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        let instructions = parsed["instructions"].as_array().unwrap();
+        assert_eq!(instructions.len(), 1);
+
+        let inst = &instructions[0];
+        assert!(inst["file_content_hash"].is_string());
+        let hash = inst["file_content_hash"].as_str().unwrap();
+        assert_eq!(hash.len(), 64); // SHA256 hex is 64 characters
+    }
+
+    #[test]
+    fn test_export_includes_content_snapshot() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        let reviewable_id = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 2,
+                end_line: 3,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        engine
+            .add_instruction(
+                reviewable_id,
+                "Test instruction".to_string(),
+                "reviewer".to_string(),
+                None,
+            )
+            .unwrap();
+
+        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        let instructions = parsed["instructions"].as_array().unwrap();
+        assert_eq!(instructions.len(), 1);
+
+        let inst = &instructions[0];
+        // content_snapshot should be present (may be null or string)
+        assert!(inst.get("content_snapshot").is_some());
+    }
+
+    #[test]
+    fn test_export_format_version_is_1_1() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed["_meta"]["format_version"], "1.1");
+    }
+
+    #[test]
+    fn test_export_metadata_includes_new_field_descriptions() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        let field_descriptions = &parsed["_meta"]["field_descriptions"];
+        assert!(field_descriptions["status"].is_string());
+        assert!(field_descriptions["file_content_hash"].is_string());
+        assert!(field_descriptions["content_snapshot"].is_string());
+
+        // Verify descriptions are meaningful
+        let status_desc = field_descriptions["status"].as_str().unwrap();
+        assert!(
+            status_desc.contains("active")
+                || status_desc.contains("stale")
+                || status_desc.contains("validity")
+        );
+
+        let hash_desc = field_descriptions["file_content_hash"].as_str().unwrap();
+        assert!(hash_desc.contains("hash") || hash_desc.contains("SHA256"));
+    }
+
+    #[test]
+    fn test_export_status_serialization_active() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        let reviewable_id = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test.rs".to_string(),
+            LineRange {
+                start_line: 10,
+                end_line: 12,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        engine
+            .add_instruction(
+                reviewable_id,
+                "Test instruction".to_string(),
+                "reviewer".to_string(),
+                None,
+            )
+            .unwrap();
+
+        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        let instructions = parsed["instructions"].as_array().unwrap();
+        let inst = &instructions[0];
+
+        // Active status should serialize as "active"
+        assert_eq!(inst["status"], "active");
+    }
+
+    #[test]
+    fn test_export_all_scopes_include_new_fields() {
+        let diff1 = create_test_reviewable_diff("test1.rs", 1);
+        let diff2 = create_test_reviewable_diff("test2.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff1, diff2],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        // Add instructions to different files
+        let id1 = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test1.rs".to_string(),
+            LineRange {
+                start_line: 10,
+                end_line: 12,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        let id2 = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "test2.rs".to_string(),
+            LineRange {
+                start_line: 20,
+                end_line: 22,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        engine
+            .add_instruction(
+                id1,
+                "Instruction 1".to_string(),
+                "reviewer".to_string(),
+                None,
+            )
+            .unwrap();
+
+        engine
+            .add_instruction(
+                id2,
+                "Instruction 2".to_string(),
+                "reviewer".to_string(),
+                None,
+            )
+            .unwrap();
+
+        // Test ExportScope::All
+        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let instructions = parsed["instructions"].as_array().unwrap();
+
+        assert_eq!(instructions.len(), 2);
+        for inst in instructions {
+            assert!(inst["status"].is_string());
+            assert!(inst["file_content_hash"].is_string());
+            assert!(inst.get("content_snapshot").is_some());
+        }
+
+        // Test ExportScope::SingleFile
+        let json = engine
+            .export_instructions_json(ExportScope::SingleFile("test1.rs".to_string()))
+            .unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let instructions = parsed["instructions"].as_array().unwrap();
+
+        assert_eq!(instructions.len(), 1);
+        assert!(instructions[0]["status"].is_string());
+        assert!(instructions[0]["file_content_hash"].is_string());
+    }
+
+    // ========== Phase 4: Import Functionality Tests ==========
+
+    // Tests for JSON parsing
+    #[test]
+    fn test_import_valid_json_with_new_fields() {
+        let diff = create_test_reviewable_diff("src/main.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        let json = r#"{
+            "_meta": {
+                "format_version": "1.1",
+                "description": "DiffViz instruction export for coding agents"
+            },
+            "instructions": [{
+                "file": "src/main.rs",
+                "query": "HEAD..unstaged",
+                "line_range": {"start_line": 10, "end_line": 12},
+                "content": "Extract this to a separate function",
+                "author": "reviewer",
+                "timestamp": "2024-01-12T10:30:00Z",
+                "status": "active",
+                "file_content_hash": "test_hash_123",
+                "content_snapshot": "    let x = calculate();\n    process(x);"
+            }]
+        }"#;
+
+        let result = engine.import_instructions_json(json);
+        if result.is_err() {
+            eprintln!("Import error: {:?}", result.as_ref().unwrap_err());
+        }
+        assert!(result.is_ok());
+        let summary = result.unwrap();
+        assert_eq!(summary.total_imported, 1);
+    }
+
+    #[test]
+    fn test_import_legacy_json_without_new_fields() {
+        let diff = create_test_reviewable_diff("src/main.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        // Legacy JSON without status, file_content_hash, content_snapshot
+        let json = r#"{
+            "_meta": {
+                "format_version": "1.0",
+                "description": "DiffViz instruction export for coding agents"
+            },
+            "instructions": [{
+                "file": "src/main.rs",
+                "query": "HEAD..unstaged",
+                "line_range": {"start_line": 10, "end_line": 12},
+                "content": "Extract this to a separate function",
+                "author": "reviewer",
+                "timestamp": "2024-01-12T10:30:00Z"
+            }]
+        }"#;
+
+        let result = engine.import_instructions_json(json);
+        // Should handle gracefully - calculate hash for legacy instructions
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_import_invalid_json() {
+        let diff = create_test_reviewable_diff("src/main.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        let invalid_json = r#"{"invalid": "json structure"#;
+        let result = engine.import_instructions_json(invalid_json);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_import_json_with_missing_required_fields() {
+        let diff = create_test_reviewable_diff("src/main.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        // Missing 'content' field (required)
+        let json = r#"{
+            "_meta": {
+                "format_version": "1.1",
+                "description": "DiffViz instruction export"
+            },
+            "instructions": [{
+                "file": "src/main.rs",
+                "query": "HEAD..unstaged",
+                "line_range": {"start_line": 10, "end_line": 12},
+                "author": "reviewer",
+                "timestamp": "2024-01-12T10:30:00Z",
+                "status": "active",
+                "file_content_hash": "test_hash"
+            }]
+        }"#;
+
+        let result = engine.import_instructions_json(json);
+        assert!(result.is_err());
+    }
+
+    // Tests for hash verification during import
+    #[test]
+    fn test_import_with_matching_hash_sets_active() {
+        let diff = create_test_reviewable_diff("src/main.rs", 1);
+        let provider = create_mock_provider();
+        let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string(), provider);
+
+        // Calculate actual hash from mock provider content
+        let actual_hash = engine
+            .calculate_file_hash("src/main.rs", &GitRef::unstaged())
+            .unwrap();
+
+        let json = format!(
+            r#"{{
+            "_meta": {{"format_version": "1.1", "description": "test"}},
+            "instructions": [{{
+                "file": "src/main.rs",
+                "query": "HEAD..unstaged",
+                "line_range": {{"start_line": 10, "end_line": 12}},
+                "content": "Test instruction",
+                "author": "reviewer",
+                "timestamp": "2024-01-12T10:30:00Z",
+                "status": "active",
+                "file_content_hash": "{actual_hash}",
+                "content_snapshot": null
+            }}]
+        }}"#
+        );
+
+        let result = engine.import_instructions_json(&json);
+        assert!(result.is_ok());
+        let summary = result.unwrap();
+        assert_eq!(summary.active_count, 1);
+        assert_eq!(summary.stale_count, 0);
+    }
+
+    #[test]
+    fn test_import_with_mismatched_hash_sets_stale() {
+        let diff = create_test_reviewable_diff("src/main.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        let json = r#"{
+            "_meta": {"format_version": "1.1", "description": "test"},
+            "instructions": [{
+                "file": "src/main.rs",
+                "query": "HEAD..unstaged",
+                "line_range": {"start_line": 10, "end_line": 12},
+                "content": "Test instruction",
+                "author": "reviewer",
+                "timestamp": "2024-01-12T10:30:00Z",
+                "status": "active",
+                "file_content_hash": "different_hash_than_actual",
+                "content_snapshot": null
+            }]
+        }"#;
+
+        let result = engine.import_instructions_json(json);
+        assert!(result.is_ok());
+        let summary = result.unwrap();
+        assert_eq!(summary.active_count, 0);
+        assert_eq!(summary.stale_count, 1);
+    }
+
+    #[test]
+    fn test_import_with_file_not_found_sets_stale() {
+        let diff = create_test_reviewable_diff("src/main.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        // File that doesn't exist in mock provider
+        let json = r#"{
+            "_meta": {"format_version": "1.1", "description": "test"},
+            "instructions": [{
+                "file": "src/nonexistent.rs",
+                "query": "HEAD..unstaged",
+                "line_range": {"start_line": 10, "end_line": 12},
+                "content": "Test instruction",
+                "author": "reviewer",
+                "timestamp": "2024-01-12T10:30:00Z",
+                "status": "active",
+                "file_content_hash": "some_hash",
+                "content_snapshot": null
+            }]
+        }"#;
+
+        let result = engine.import_instructions_json(json);
+        assert!(result.is_ok());
+        let summary = result.unwrap();
+        assert_eq!(summary.stale_count, 1);
+    }
+
+    // Tests for import summary
+    #[test]
+    fn test_import_summary_with_mixed_statuses() {
+        let diff1 = create_test_reviewable_diff("src/file1.rs", 1);
+        let diff2 = create_test_reviewable_diff("src/file2.rs", 2);
+        let provider = create_mock_provider();
+        let mut engine = ReviewEngine::new(vec![diff1, diff2], "test_author".to_string(), provider);
+
+        // Get actual hash for file1
+        let hash_file1 = engine
+            .calculate_file_hash("src/file1.rs", &GitRef::unstaged())
+            .unwrap();
+
+        let json = format!(
+            r#"{{
+            "_meta": {{"format_version": "1.1", "description": "test"}},
+            "instructions": [
+                {{
+                    "file": "src/file1.rs",
+                    "query": "HEAD..unstaged",
+                    "line_range": {{"start_line": 10, "end_line": 12}},
+                    "content": "Instruction 1",
+                    "author": "reviewer",
+                    "timestamp": "2024-01-12T10:30:00Z",
+                    "status": "active",
+                    "file_content_hash": "{hash_file1}",
+                    "content_snapshot": null
+                }},
+                {{
+                    "file": "src/file2.rs",
+                    "query": "HEAD..unstaged",
+                    "line_range": {{"start_line": 20, "end_line": 22}},
+                    "content": "Instruction 2",
+                    "author": "reviewer",
+                    "timestamp": "2024-01-12T10:30:00Z",
+                    "status": "active",
+                    "file_content_hash": "wrong_hash",
+                    "content_snapshot": null
+                }},
+                {{
+                    "file": "src/file1.rs",
+                    "query": "HEAD..unstaged",
+                    "line_range": {{"start_line": 30, "end_line": 32}},
+                    "content": "Instruction 3",
+                    "author": "reviewer",
+                    "timestamp": "2024-01-12T10:30:00Z",
+                    "status": "active",
+                    "file_content_hash": "{hash_file1}",
+                    "content_snapshot": null
+                }}
+            ]
+        }}"#
+        );
+
+        let result = engine.import_instructions_json(&json);
+        assert!(result.is_ok());
+        let summary = result.unwrap();
+        assert_eq!(summary.total_imported, 3);
+        assert_eq!(summary.active_count, 2); // file1 instructions with correct hash
+        assert_eq!(summary.stale_count, 1); // file2 with wrong hash
+    }
+
+    #[test]
+    fn test_import_summary_with_zero_instructions() {
+        let diff = create_test_reviewable_diff("src/main.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        let json = r#"{
+            "_meta": {"format_version": "1.1", "description": "test"},
+            "instructions": []
+        }"#;
+
+        let result = engine.import_instructions_json(json);
+        assert!(result.is_ok());
+        let summary = result.unwrap();
+        assert_eq!(summary.total_imported, 0);
+        assert_eq!(summary.active_count, 0);
+        assert_eq!(summary.stale_count, 0);
+    }
+
+    // Tests for duplicate handling
+    #[test]
+    fn test_import_duplicate_instruction_same_reviewable_id() {
+        let diff = create_test_reviewable_diff("src/main.rs", 1);
+        let mut engine = ReviewEngine::new(
+            vec![diff],
+            "test_author".to_string(),
+            create_mock_provider(),
+        );
+
+        // Add an instruction first
+        let reviewable_id = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            "src/main.rs".to_string(),
+            LineRange {
+                start_line: 10,
+                end_line: 12,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        engine
+            .add_instruction(
+                reviewable_id.clone(),
+                "Original instruction".to_string(),
+                "reviewer".to_string(),
+                None,
+            )
+            .unwrap();
+
+        // Try to import instruction with same ReviewableDiffId
+        let json = r#"{
+            "_meta": {"format_version": "1.1", "description": "test"},
+            "instructions": [{
+                "file": "src/main.rs",
+                "query": "HEAD..unstaged",
+                "line_range": {"start_line": 10, "end_line": 12},
+                "content": "Duplicate instruction",
+                "author": "reviewer",
+                "timestamp": "2024-01-12T10:30:00Z",
+                "status": "active",
+                "file_content_hash": "test_hash",
+                "content_snapshot": null
+            }]
+        }"#;
+
+        let result = engine.import_instructions_json(json);
+        assert!(result.is_ok());
+        let summary = result.unwrap();
+
+        // Should skip duplicate (or update based on strategy)
+        // For MVP: skip duplicates, add warning to summary
+        assert!(!summary.errors.is_empty() || summary.total_imported == 0);
+    }
+}
+
+/// Helper function to convert RenderableDiff to string format for caching and display
+fn format_renderable_diff_for_display(renderable_diff: &RenderableDiff) -> String {
+    let mut output = String::new();
+
+    // Add metadata header
+    output.push_str(&format!(
+        "=== {} ===\n",
+        renderable_diff.metadata.boundary_name
+    ));
+    output.push_str(&format!("Language: {:?}\n", renderable_diff.language));
+    output.push_str(&format!(
+        "Lines: {} | Essential: {}\n\n",
+        renderable_diff.lines.len(),
+        renderable_diff.metadata.essential_line_count
+    ));
+
+    // Add each line with change indicators
+    for line in &renderable_diff.lines {
+        let change_indicator = if line.annotations.iter().any(|a| a.change_type.is_some()) {
+            match line.annotations.iter().find(|a| a.change_type.is_some()) {
+                Some(annotation) => match annotation.change_type {
+                    Some(diffviz_core::renderable_diff::ChangeType::Added) => "+ ",
+                    Some(diffviz_core::renderable_diff::ChangeType::Deleted) => "- ",
+                    Some(diffviz_core::renderable_diff::ChangeType::Modified) => "~ ",
+                    _ => "  ",
+                },
+                None => "  ",
+            }
+        } else {
+            "  "
+        };
+
+        output.push_str(&format!(
+            "{:4} {}{}\n",
+            line.line_number, change_indicator, line.content
+        ));
+    }
+
+    output
+}

@@ -1,0 +1,25 @@
+{
+  "name": "python_attribute_access_change",
+  "language": "python",
+  "description": "Test detection of object attribute access changes",
+  "category": "content_changes",
+  "old_code": "def get_info(user):\n    return user.name",
+  "new_code": "def get_info(user):\n    return user.email",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Attribute access changed from 'name' to 'email'"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 95
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["attribute", "access", "object", "content_change"]
+  }
+}

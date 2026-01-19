@@ -1,0 +1,25 @@
+{
+  "name": "python_function_parameter_reorder",
+  "language": "python",
+  "description": "Test detection of function parameter reordering in Python code",
+  "category": "reorder_changes",
+  "old_code": "def create_user(name, email, age=18):\n    return {'name': name, 'email': email, 'age': age}",
+  "new_code": "def create_user(email, name, age=18):\n    return {'name': name, 'email': email, 'age': age}",
+  "expected_changes": [
+    {
+      "change_type": "Reorder",
+      "node_kind": "parameters",
+      "detected_by_strategies": ["child_order"],
+      "description": "Function parameters reordered (email moved before name)"
+    }
+  ],
+  "should_not_detect": ["byte_range", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 120
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["function", "parameter_reorder", "reorder_change"]
+  }
+}

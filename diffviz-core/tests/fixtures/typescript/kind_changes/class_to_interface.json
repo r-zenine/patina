@@ -1,0 +1,25 @@
+{
+  "name": "typescript_class_to_interface",
+  "language": "typescript",
+  "description": "Test detection of class converted to interface",
+  "category": "kind_changes",
+  "old_code": "class Shape {\n    width: number;\n    height: number;\n\n    getArea(): number {\n        return this.width * this.height;\n    }\n}",
+  "new_code": "interface Shape {\n    width: number;\n    height: number;\n    getArea(): number;\n}",
+  "expected_changes": [
+    {
+      "change_type": "KindChange",
+      "node_kind": "class_declaration→interface_declaration",
+      "detected_by_strategies": ["structural"],
+      "description": "Class converted to interface definition"
+    }
+  ],
+  "should_not_detect": ["byte_range"],
+  "performance_expectations": {
+    "max_duration_ms": 140
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["class", "interface", "conversion", "kind_change"]
+  }
+}

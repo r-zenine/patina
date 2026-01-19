@@ -1,0 +1,30 @@
+{
+  "name": "rust_variable_to_constant_conversion",
+  "language": "rust",
+  "description": "Test detection of variable declaration changed to constant declaration",
+  "category": "kind_changes",
+  "old_code": "fn main() {\n    let config = \"default\";\n    println!(\"{}\", config);\n}",
+  "new_code": "fn main() {\n    const CONFIG: &str = \"default\";\n    println!(\"{}\", CONFIG);\n}",
+  "expected_changes": [
+    {
+      "change_type": "KindChange",
+      "node_kind": "let_declaration→const_item",
+      "detected_by_strategies": ["structural"],
+      "description": "Variable declaration changed to constant declaration"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Variable name changed from 'config' to 'CONFIG'"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 150
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["variable", "constant", "kind_change"]
+  }
+}

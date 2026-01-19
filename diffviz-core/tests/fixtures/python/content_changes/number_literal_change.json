@@ -1,0 +1,25 @@
+{
+  "name": "python_number_literal_change",
+  "language": "python",
+  "description": "Test detection of numeric literal content changes in Python code",
+  "category": "content_changes",
+  "old_code": "def calculate_tax(amount):\n    tax_rate = 0.08\n    return amount * tax_rate",
+  "new_code": "def calculate_tax(amount):\n    tax_rate = 0.095\n    return amount * tax_rate",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "float",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Tax rate changed from 0.08 to 0.095"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 100
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["float", "number_literal", "content_change", "tax_rate"]
+  }
+}

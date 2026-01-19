@@ -1,0 +1,16 @@
+{
+  "name": "typescript_react_component_refactor",
+  "file_path": "src/components/Greeting.tsx",
+  "language": "typescript",
+  "description": "Class to hooks conversion",
+  "old_code": "import React from 'react';\n\ninterface Props {\n    name: string;\n}\n\nclass Greeting extends React.Component<Props> {\n    render() {\n        return <div>Hello, {this.props.name}!</div>;\n    }\n}",
+  "new_code": "import React, { useState } from 'react';\n\ninterface Props {\n    name: string;\n    showAge?: boolean;\n}\n\nconst Greeting: React.FC<Props> = ({ name, showAge = false }) => {\n    const [age, setAge] = useState<number>(0);\n\n    return (\n        <div>\n            <div>Hello, {name}!</div>\n            {showAge && <div>Age: {age}</div>}\n        </div>\n    );\n};",
+  "expected_line_stats": {
+    "additions": 12,
+    "deletions": 8
+  },
+  "metadata": {
+    "complexity_level": "high",
+    "tags": ["react", "component", "hooks", "useState", "refactor"]
+  }
+}

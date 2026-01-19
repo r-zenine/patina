@@ -1,0 +1,25 @@
+{
+  "name": "python_string_to_fstring",
+  "language": "python",
+  "description": "Test detection of string format conversion to f-string",
+  "category": "kind_changes",
+  "old_code": "def greet(name):\n    return \"Hello, {}!\".format(name)",
+  "new_code": "def greet(name):\n    return f\"Hello, {name}!\"",
+  "expected_changes": [
+    {
+      "change_type": "KindChange",
+      "node_kind": "call→formatted_string_literal",
+      "detected_by_strategies": ["structural"],
+      "description": "String format call converted to f-string literal"
+    }
+  ],
+  "should_not_detect": ["byte_range"],
+  "performance_expectations": {
+    "max_duration_ms": 120
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["string", "format", "fstring", "kind_change"]
+  }
+}

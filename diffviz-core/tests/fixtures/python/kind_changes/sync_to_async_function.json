@@ -1,0 +1,36 @@
+{
+  "name": "python_sync_to_async_function_conversion",
+  "language": "python",
+  "description": "Test detection of synchronous function converted to asynchronous",
+  "category": "kind_changes",
+  "old_code": "import time\n\ndef fetch_data():\n    time.sleep(1)\n    return \"data\"",
+  "new_code": "import asyncio\n\nasync def fetch_data():\n    await asyncio.sleep(1)\n    return \"data\"",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "import_statement",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Import changed from time to asyncio"
+    },
+    {
+      "change_type": "KindChange",
+      "node_kind": "function_definition→async_function_definition",
+      "detected_by_strategies": ["structural"],
+      "description": "Function converted from sync to async"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "call",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Changed from time.sleep to asyncio.sleep with await"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 170
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["async", "function", "kind_change", "concurrency"]
+  }
+}

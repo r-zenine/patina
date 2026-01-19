@@ -1,0 +1,25 @@
+{
+  "name": "go_struct_field_reorder",
+  "language": "go",
+  "description": "Test detection of struct field reordering",
+  "category": "reorder_changes",
+  "old_code": "type User struct {\n\tName  string\n\tAge   int\n\tEmail string\n}",
+  "new_code": "type User struct {\n\tAge   int\n\tName  string\n\tEmail string\n}",
+  "expected_changes": [
+    {
+      "change_type": "Reorder",
+      "node_kind": "struct_type",
+      "detected_by_strategies": ["child_order"],
+      "description": "Struct fields reordered (Age moved to first position)"
+    }
+  ],
+  "should_not_detect": ["byte_range", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 115
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["struct", "field", "reorder_change"]
+  }
+}

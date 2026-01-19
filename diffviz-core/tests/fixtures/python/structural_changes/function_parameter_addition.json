@@ -1,0 +1,30 @@
+{
+  "name": "python_function_parameter_addition",
+  "language": "python",
+  "description": "Test detection of new parameters added to function definition",
+  "category": "structural_changes",
+  "old_code": "def calculate(x):\n    return x * 2",
+  "new_code": "def calculate(x, multiplier=2):\n    return x * multiplier",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "default_parameter",
+      "detected_by_strategies": ["structural"],
+      "description": "New parameter with default value added"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Integer literal '2' replaced with identifier 'multiplier'"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 120
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["function", "parameter", "default_value", "python"]
+  }
+}

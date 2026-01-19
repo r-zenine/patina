@@ -1,0 +1,4 @@
+pub async fn get(&mut self, path: &str) -> Result<String, HttpError> {
+    let url = format!("{}/{}", self.config.base_url, path);
+    self.make_request("GET", &url, None).await
+}

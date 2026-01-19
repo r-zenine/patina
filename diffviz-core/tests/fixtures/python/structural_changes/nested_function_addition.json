@@ -1,0 +1,30 @@
+{
+  "name": "python_nested_function_addition",
+  "language": "python",
+  "description": "Test detection of nested function definition addition",
+  "category": "structural_changes",
+  "old_code": "def outer_function(x):\n    return x * 2",
+  "new_code": "def outer_function(x):\n    def inner_function(y):\n        return y + 1\n    return inner_function(x) * 2",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "function_definition",
+      "detected_by_strategies": ["structural"],
+      "description": "Nested function inner_function added inside outer_function"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "binary_operator",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Return expression changed to call inner_function"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 140
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["nested", "function", "closure", "structural_change"]
+  }
+}

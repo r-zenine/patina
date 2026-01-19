@@ -1,0 +1,25 @@
+{
+  "name": "typescript_jsx_attribute_change",
+  "language": "typescript",
+  "description": "Test detection of JSX attribute changes in TypeScript React code",
+  "category": "content_changes",
+  "old_code": "function Button(props: {text: string}) {\n    return <button className=\"btn-primary\">{props.text}</button>;\n}",
+  "new_code": "function Button(props: {text: string}) {\n    return <button className=\"btn-secondary\">{props.text}</button>;\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "string",
+      "detected_by_strategies": ["byte_range"],
+      "description": "JSX className attribute changed from 'btn-primary' to 'btn-secondary'"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 110
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["jsx", "attribute", "react", "content_change", "css_class"]
+  }
+}

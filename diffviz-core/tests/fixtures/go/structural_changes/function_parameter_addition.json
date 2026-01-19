@@ -1,0 +1,36 @@
+{
+  "name": "go_function_parameter_addition",
+  "language": "go",
+  "description": "Test detection of new parameter addition to Go function",
+  "category": "structural_changes",
+  "old_code": "func greet(name string) {\n\tfmt.Printf(\"Hello, %s!\\n\", name)\n}",
+  "new_code": "func greet(name string, age int) {\n\tfmt.Printf(\"Hello, %s! You are %d years old.\\n\", name, age)\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "parameter_declaration",
+      "detected_by_strategies": ["structural"],
+      "description": "New age parameter added to greet function"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "interpreted_string_literal",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Format string updated to include age placeholder"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "argument_list",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Printf call updated to include age argument"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 150
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["function", "parameter", "addition", "structural_change"]
+  }
+}

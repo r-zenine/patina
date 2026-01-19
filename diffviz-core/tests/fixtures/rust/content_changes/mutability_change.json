@@ -1,0 +1,30 @@
+{
+  "name": "rust_mutability_change",
+  "language": "rust",
+  "description": "Test detection of mutability modifier changes",
+  "category": "content_changes",
+  "old_code": "fn process_data() {\n    let data = vec![1, 2, 3];\n    println!(\"{:?}\", data);\n}",
+  "new_code": "fn process_data() {\n    let mut data = vec![1, 2, 3];\n    data.push(4);\n    println!(\"{:?}\", data);\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "mutable_pattern",
+      "detected_by_strategies": ["structural"],
+      "description": "mut keyword added to variable binding"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "expression_statement",
+      "detected_by_strategies": ["structural"],
+      "description": "Push method call added to mutate vector"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 120
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["mutability", "mut", "variable", "vector", "structural_change"]
+  }
+}

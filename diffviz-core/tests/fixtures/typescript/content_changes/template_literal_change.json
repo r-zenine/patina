@@ -1,0 +1,25 @@
+{
+  "name": "typescript_template_literal_change",
+  "language": "typescript",
+  "description": "Test detection of template literal content changes",
+  "category": "content_changes",
+  "old_code": "function createMessage(name: string, age: number): string {\n    return `Hello, ${name}! You are ${age} years old.`;\n}",
+  "new_code": "function createMessage(name: string, age: number): string {\n    return `Hi ${name}, you are ${age} years young!`;\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "template_string",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Template literal text changed from 'Hello' to 'Hi' and 'old' to 'young'"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 105
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["template", "literal", "string", "interpolation", "content_change"]
+  }
+}
