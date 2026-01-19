@@ -1,0 +1,25 @@
+{
+  "name": "typescript_interface_property_addition",
+  "language": "typescript",
+  "description": "Test detection of new property addition to interface definition",
+  "category": "structural_changes",
+  "old_code": "interface Product {\n    id: number;\n    name: string;\n}",
+  "new_code": "interface Product {\n    id: number;\n    name: string;\n    price: number;\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "property_signature",
+      "detected_by_strategies": ["structural"],
+      "description": "New price property added to Product interface"
+    }
+  ],
+  "should_not_detect": ["byte_range"],
+  "performance_expectations": {
+    "max_duration_ms": 120
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["interface", "property_addition", "structural_change"]
+  }
+}

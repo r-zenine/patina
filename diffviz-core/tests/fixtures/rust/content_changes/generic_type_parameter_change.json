@@ -1,0 +1,37 @@
+{
+  "name": "rust_generic_type_parameter_change", 
+  "language": "rust",
+  "description": "Test detection of generic type parameter name changes in Rust code",
+  "category": "content_changes",
+  "old_code": "struct Container<T> {\n    value: T,\n}\n\nimpl<T> Container<T> {\n    fn new(value: T) -> Self {\n        Container { value }\n    }\n}",
+  "new_code": "struct Container<ItemType> {\n    value: ItemType,\n}\n\nimpl<ItemType> Container<ItemType> {\n    fn new(value: ItemType) -> Self {\n        Container { value }\n    }\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "type_identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Generic type parameter changed from T to ItemType"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "type_identifier", 
+      "detected_by_strategies": ["byte_range"],
+      "description": "Type parameter usage changed in struct field"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "type_identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Type parameter usage changed in impl block"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 180
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["generic", "type_parameter", "content_change", "naming"]
+  }
+}

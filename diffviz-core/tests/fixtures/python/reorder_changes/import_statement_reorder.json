@@ -1,0 +1,25 @@
+{
+  "name": "python_import_statement_reorder",
+  "language": "python",
+  "description": "Test detection of import statement reordering in Python code",
+  "category": "reorder_changes",
+  "old_code": "import os\nimport sys\nimport json\n\ndef main():\n    pass",
+  "new_code": "import json\nimport os\nimport sys\n\ndef main():\n    pass",
+  "expected_changes": [
+    {
+      "change_type": "Reorder",
+      "node_kind": "module",
+      "detected_by_strategies": ["child_order"],
+      "description": "Import statements reordered (json moved to first position)"
+    }
+  ],
+  "should_not_detect": ["byte_range", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 110
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["import", "module", "reorder_change"]
+  }
+}

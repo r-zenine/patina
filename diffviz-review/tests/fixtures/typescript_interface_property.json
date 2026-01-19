@@ -1,0 +1,16 @@
+{
+  "name": "typescript_interface_property_addition",
+  "file_path": "src/interfaces/Config.ts",
+  "language": "typescript",
+  "description": "API evolution",
+  "old_code": "interface Product {\n    id: number;\n    name: string;\n}",
+  "new_code": "interface Product {\n    id: number;\n    name: string;\n    price: number;\n}",
+  "expected_line_stats": {
+    "additions": 1,
+    "deletions": 0
+  },
+  "metadata": {
+    "complexity_level": "simple",
+    "tags": ["interface", "property_addition", "structural_change"]
+  }
+}

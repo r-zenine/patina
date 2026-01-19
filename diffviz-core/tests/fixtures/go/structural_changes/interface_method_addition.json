@@ -1,0 +1,25 @@
+{
+  "name": "go_interface_method_addition",
+  "language": "go",
+  "description": "Test detection of new method addition to Go interface",
+  "category": "structural_changes",
+  "old_code": "type Writer interface {\n\tWrite([]byte) error\n}",
+  "new_code": "type Writer interface {\n\tWrite([]byte) error\n\tClose() error\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "method_spec",
+      "detected_by_strategies": ["structural"],
+      "description": "New Close method added to Writer interface"
+    }
+  ],
+  "should_not_detect": ["byte_range", "child_order"],
+  "performance_expectations": {
+    "max_duration_ms": 115
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["interface", "method", "addition", "structural_change"]
+  }
+}

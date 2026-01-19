@@ -1,0 +1,25 @@
+{
+  "name": "rust_binary_literal_change",
+  "language": "rust", 
+  "description": "Test detection of binary literal content changes in Rust code",
+  "category": "content_changes",
+  "old_code": "fn get_mask() -> u8 {\n    0b11110000\n}",
+  "new_code": "fn get_mask() -> u8 {\n    0b11111111\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "integer_literal",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Binary literal changed from 0b11110000 to 0b11111111"
+    }
+  ],
+  "should_not_detect": ["child_order", "child_set", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 80
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["binary_literal", "integer_literal", "content_change", "bit_mask"]
+  }
+}

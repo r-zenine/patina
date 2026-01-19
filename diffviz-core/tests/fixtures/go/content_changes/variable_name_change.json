@@ -1,0 +1,31 @@
+{
+  "name": "go_variable_name_change",
+  "language": "go",
+  "description": "Test detection of variable name changes in Go code",
+  "category": "content_changes",
+  "old_code": "func calculate() {\n\tresult := 42\n\tfmt.Println(result)\n}",
+  "new_code": "func calculate() {\n\tvalue := 42\n\tfmt.Println(value)\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Variable name changed from 'result' to 'value'"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Reference name changed from 'result' to 'value' in println"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 100
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["variable", "identifier", "rename", "content_change"]
+  }
+}

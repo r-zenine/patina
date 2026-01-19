@@ -1,0 +1,30 @@
+{
+  "name": "go_struct_to_interface",
+  "language": "go",
+  "description": "Test detection of struct type converted to interface",
+  "category": "kind_changes",
+  "old_code": "type Shape struct {\n\tWidth  float64\n\tHeight float64\n}\n\nfunc (s Shape) Area() float64 {\n\treturn s.Width * s.Height\n}",
+  "new_code": "type Shape interface {\n\tArea() float64\n}",
+  "expected_changes": [
+    {
+      "change_type": "KindChange",
+      "node_kind": "struct_type→interface_type",
+      "detected_by_strategies": ["structural"],
+      "description": "Struct type converted to interface type"
+    },
+    {
+      "change_type": "Deletion",
+      "node_kind": "method_declaration",
+      "detected_by_strategies": ["structural"],
+      "description": "Method implementation removed (now interface method)"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 140
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["struct", "interface", "abstraction", "kind_change"]
+  }
+}

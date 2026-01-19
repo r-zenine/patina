@@ -1,0 +1,25 @@
+{
+  "name": "rust_raw_string_literal_change",
+  "language": "rust",
+  "description": "Test detection of raw string literal content changes in Rust code",
+  "category": "content_changes",
+  "old_code": "fn get_regex() -> &'static str {\n    r\"\\d{3}-\\d{2}-\\d{4}\"\n}",
+  "new_code": "fn get_regex() -> &'static str {\n    r\"\\d{3}-\\d{3}-\\d{4}\"\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "raw_string_literal",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Raw string literal content changed - regex pattern updated"
+    }
+  ],
+  "should_not_detect": ["child_order", "child_set", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 100
+  },
+  "metadata": {
+    "author": "Claude", 
+    "complexity_level": "simple",
+    "tags": ["raw_string_literal", "content_change", "regex", "pattern"]
+  }
+}

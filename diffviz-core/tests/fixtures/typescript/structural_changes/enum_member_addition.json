@@ -1,0 +1,25 @@
+{
+  "name": "typescript_enum_member_addition",
+  "language": "typescript",
+  "description": "Test detection of new enum member addition",
+  "category": "structural_changes",
+  "old_code": "enum Color {\n    Red,\n    Green,\n    Blue\n}",
+  "new_code": "enum Color {\n    Red,\n    Green,\n    Blue,\n    Yellow\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "property_identifier",
+      "detected_by_strategies": ["structural"],
+      "description": "New enum member Yellow added"
+    }
+  ],
+  "should_not_detect": ["byte_range", "child_order"],
+  "performance_expectations": {
+    "max_duration_ms": 115
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["enum", "member", "addition", "structural_change"]
+  }
+}

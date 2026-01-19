@@ -1,0 +1,25 @@
+{
+  "name": "rust_enum_variant_addition",
+  "language": "rust",
+  "description": "Test detection of new variant addition to enum definition",
+  "category": "structural_changes",
+  "old_code": "enum Status {\n    Active,\n    Inactive,\n}",
+  "new_code": "enum Status {\n    Active,\n    Inactive,\n    Pending,\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "enum_variant",
+      "detected_by_strategies": ["structural"],
+      "description": "New Pending variant added to Status enum"
+    }
+  ],
+  "should_not_detect": ["byte_range", "child_order"],
+  "performance_expectations": {
+    "max_duration_ms": 110
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["enum", "variant_addition", "structural_change"]
+  }
+}

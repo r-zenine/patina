@@ -1,0 +1,42 @@
+{
+  "name": "python_decorator_and_async_addition",
+  "language": "python",
+  "description": "Test complex combination of decorator addition and async conversion",
+  "category": "complex_combinations",
+  "old_code": "def fetch_data(url):\n    # Simulate data fetching\n    return {'status': 'success'}",
+  "new_code": "@retry(max_attempts=3)\n@cache_result\nasync def fetch_data(url):\n    # Simulate data fetching\n    await asyncio.sleep(0.1)\n    return {'status': 'success'}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "decorator",
+      "detected_by_strategies": ["structural"],
+      "description": "Decorator @retry(max_attempts=3) added to function"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "decorator",
+      "detected_by_strategies": ["structural"],
+      "description": "Decorator @cache_result added to function"
+    },
+    {
+      "change_type": "KindChange",
+      "node_kind": "function_definition→async_function_definition",
+      "detected_by_strategies": ["structural"],
+      "description": "Function converted to async function"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "expression_statement",
+      "detected_by_strategies": ["structural"],
+      "description": "Await statement added for asyncio.sleep"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 190
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "high",
+    "tags": ["decorator", "async", "await", "function", "complex"]
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "name": "python_comprehension_to_generator",
+  "language": "python",
+  "description": "Test list comprehension converted to generator expression with function wrapping",
+  "category": "complex_combinations",
+  "old_code": "def process_numbers(data):\n    results = [x * 2 for x in data if x > 0]\n    return results",
+  "new_code": "def process_numbers(data):\n    def double_positive(items):\n        return (x * 2 for x in items if x > 0)\n    return list(double_positive(data))",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "function_definition",
+      "detected_by_strategies": ["structural"],
+      "description": "Inner function double_positive added"
+    },
+    {
+      "change_type": "KindChange",
+      "node_kind": "list_comprehension→generator_expression",
+      "detected_by_strategies": ["structural"],
+      "description": "List comprehension converted to generator expression"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "call",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Return statement changed to call double_positive function"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 180
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "high",
+    "tags": ["comprehension", "generator", "function", "refactor", "complex"]
+  }
+}

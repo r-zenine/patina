@@ -1,0 +1,42 @@
+{
+  "name": "python_class_inheritance_refactor",
+  "language": "python",
+  "description": "Test complex refactoring with inheritance changes, method additions, and reordering",
+  "category": "complex_combinations",
+  "old_code": "class Animal:\n    def speak(self):\n        pass\n\nclass Dog(Animal):\n    def speak(self):\n        return 'Woof!'",
+  "new_code": "class Animal:\n    def __init__(self, name):\n        self.name = name\n\n    def speak(self):\n        pass\n\n    def get_name(self):\n        return self.name\n\nclass Dog(Animal):\n    def __init__(self, name, breed):\n        super().__init__(name)\n        self.breed = breed\n\n    def get_name(self):\n        return self.name\n\n    def speak(self):\n        return 'Woof!'",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "function_definition",
+      "detected_by_strategies": ["structural"],
+      "description": "Constructor __init__ added to Animal class"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "function_definition",
+      "detected_by_strategies": ["structural"],
+      "description": "Method get_name added to Animal class"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "function_definition",
+      "detected_by_strategies": ["structural"],
+      "description": "Constructor __init__ added to Dog class"
+    },
+    {
+      "change_type": "Reorder",
+      "node_kind": "class_definition",
+      "detected_by_strategies": ["child_order"],
+      "description": "Methods reordered in Dog class (speak moved after get_name)"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 200
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "high",
+    "tags": ["class", "inheritance", "constructor", "method", "reorder", "complex"]
+  }
+}

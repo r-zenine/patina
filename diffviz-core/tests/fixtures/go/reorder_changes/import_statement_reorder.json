@@ -1,0 +1,25 @@
+{
+  "name": "go_import_statement_reorder",
+  "language": "go",
+  "description": "Test detection of import statement reordering",
+  "category": "reorder_changes",
+  "old_code": "package main\n\nimport (\n\t\"fmt\"\n\t\"os\"\n\t\"strings\"\n)",
+  "new_code": "package main\n\nimport (\n\t\"os\"\n\t\"fmt\"\n\t\"strings\"\n)",
+  "expected_changes": [
+    {
+      "change_type": "Reorder",
+      "node_kind": "import_declaration",
+      "detected_by_strategies": ["child_order"],
+      "description": "Import statements reordered (os moved to first position)"
+    }
+  ],
+  "should_not_detect": ["byte_range", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 105
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["import", "statement", "package", "reorder_change"]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "rust_let_to_const_conversion",
+  "language": "rust",
+  "description": "Test detection of let binding changed to const declaration",
+  "category": "kind_changes",
+  "old_code": "fn get_config() {\n    let max_retries = 3;\n    println!(\"Max retries: {}\", max_retries);\n}",
+  "new_code": "const MAX_RETRIES: i32 = 3;\n\nfn get_config() {\n    println!(\"Max retries: {}\", MAX_RETRIES);\n}",
+  "expected_changes": [
+    {
+      "change_type": "KindChange",
+      "node_kind": "let_declaration→const_item",
+      "detected_by_strategies": ["structural"],
+      "description": "Local let binding converted to global const declaration"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Variable name changed from max_retries to MAX_RETRIES"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 160
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["let", "const", "kind_change", "scope_change"]
+  }
+}

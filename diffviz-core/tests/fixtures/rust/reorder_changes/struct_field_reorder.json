@@ -1,0 +1,25 @@
+{
+  "name": "rust_struct_field_reorder",
+  "language": "rust",
+  "description": "Test detection of struct field reordering",
+  "category": "reorder_changes",
+  "old_code": "struct User {\n    name: String,\n    age: u32,\n    email: String,\n}",
+  "new_code": "struct User {\n    age: u32,\n    name: String,\n    email: String,\n}",
+  "expected_changes": [
+    {
+      "change_type": "Reorder",
+      "node_kind": "struct_item",
+      "detected_by_strategies": ["child_order"],
+      "description": "Struct fields reordered (age moved before name)"
+    }
+  ],
+  "should_not_detect": ["byte_range", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 120
+  },
+  "metadata": {
+    "author": "Claude", 
+    "complexity_level": "medium",
+    "tags": ["struct", "field_reorder", "reorder"]
+  }
+}

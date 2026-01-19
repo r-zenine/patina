@@ -1,0 +1,25 @@
+{
+  "name": "rust_enum_variant_reorder",
+  "language": "rust",
+  "description": "Test detection of enum variant reordering",
+  "category": "reorder_changes",
+  "old_code": "enum Priority {\n    Low,\n    Medium,\n    High,\n    Critical,\n}",
+  "new_code": "enum Priority {\n    Critical,\n    High,\n    Medium,\n    Low,\n}",
+  "expected_changes": [
+    {
+      "change_type": "Reorder",
+      "node_kind": "enum_item",
+      "detected_by_strategies": ["child_order"],
+      "description": "Enum variants reordered from ascending to descending priority"
+    }
+  ],
+  "should_not_detect": ["byte_range", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 120
+  },
+  "metadata": {
+    "author": "Claude", 
+    "complexity_level": "medium",
+    "tags": ["enum", "variant_reorder", "reorder_change", "priority"]
+  }
+}

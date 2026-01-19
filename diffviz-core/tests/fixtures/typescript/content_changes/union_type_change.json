@@ -1,0 +1,25 @@
+{
+  "name": "typescript_union_type_change",
+  "language": "typescript",
+  "description": "Test detection of union type changes in TypeScript code",
+  "category": "content_changes",
+  "old_code": "function processValue(value: string | number): void {\n    console.log(value);\n}",
+  "new_code": "function processValue(value: string | number | boolean): void {\n    console.log(value);\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "predefined_type",
+      "detected_by_strategies": ["structural"],
+      "description": "Added boolean type to union type"
+    }
+  ],
+  "should_not_detect": ["child_order"],
+  "performance_expectations": {
+    "max_duration_ms": 120
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["union_type", "type_extension", "content_change"]
+  }
+}

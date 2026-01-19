@@ -1,0 +1,42 @@
+{
+  "name": "typescript_generic_constraint_addition",
+  "language": "typescript",
+  "description": "Test addition of generic constraints and conditional types",
+  "category": "complex_combinations",
+  "old_code": "function process<T>(data: T): T {\n    return data;\n}",
+  "new_code": "interface Processable {\n    id: number;\n}\n\nfunction process<T extends Processable>(\n    data: T\n): T extends { name: string } ? string : number {\n    return 'id' in data && typeof data.id === 'number' ? data.id as any : 0 as any;\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "interface_declaration",
+      "detected_by_strategies": ["structural"],
+      "description": "Processable interface added as constraint"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "type_parameter",
+      "detected_by_strategies": ["structural"],
+      "description": "Generic constraint 'extends Processable' added"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "conditional_type",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Return type changed to conditional type"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "conditional_expression",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Function body changed to conditional logic"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 180
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "high",
+    "tags": ["generic", "constraint", "conditional", "type", "complex"]
+  }
+}

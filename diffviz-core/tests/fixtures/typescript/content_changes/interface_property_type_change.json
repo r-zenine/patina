@@ -1,0 +1,25 @@
+{
+  "name": "typescript_interface_property_type_change",
+  "language": "typescript",
+  "description": "Test detection of interface property type changes in TypeScript code",
+  "category": "content_changes",
+  "old_code": "interface User {\n    id: number;\n    name: string;\n    isActive: boolean;\n}",
+  "new_code": "interface User {\n    id: string;\n    name: string;\n    isActive: boolean;\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "predefined_type",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Property type changed from number to string for id field"
+    }
+  ],
+  "should_not_detect": ["child_order", "child_set"],
+  "performance_expectations": {
+    "max_duration_ms": 100
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["interface", "property_type", "type_change", "content_change"]
+  }
+}

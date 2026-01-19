@@ -1,0 +1,16 @@
+{
+  "name": "rust_async_conversion_refactor",
+  "file_path": "src/network/client.rs",
+  "language": "rust",
+  "description": "sync to async conversion",
+  "old_code": "use std::thread;\nuse std::time::Duration;\n\nfn fetch_data() -> String {\n    thread::sleep(Duration::from_secs(1));\n    \"data\".to_string()\n}",
+  "new_code": "use tokio::time::{sleep, Duration};\n\nasync fn fetch_data() -> String {\n    sleep(Duration::from_secs(1)).await;\n    \"data\".to_string()\n}",
+  "expected_line_stats": {
+    "additions": 5,
+    "deletions": 6
+  },
+  "metadata": {
+    "complexity_level": "complex",
+    "tags": ["async", "tokio", "refactoring", "concurrency"]
+  }
+}

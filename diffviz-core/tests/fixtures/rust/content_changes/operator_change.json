@@ -1,0 +1,25 @@
+{
+  "name": "rust_operator_change",
+  "language": "rust",
+  "description": "Test detection of binary operator changes",
+  "category": "content_changes",
+  "old_code": "fn calculate(a: i32, b: i32) -> i32 {\n    a + b\n}",
+  "new_code": "fn calculate(a: i32, b: i32) -> i32 {\n    a * b\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "binary_expression",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Binary operator changed from '+' to '*'"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 90
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["operator", "binary", "arithmetic", "content_change"]
+  }
+}

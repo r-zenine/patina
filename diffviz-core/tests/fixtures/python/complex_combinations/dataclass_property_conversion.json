@@ -1,0 +1,42 @@
+{
+  "name": "python_dataclass_property_conversion",
+  "language": "python",
+  "description": "Test conversion from regular class to dataclass with property decorator",
+  "category": "complex_combinations",
+  "old_code": "class Point:\n    def __init__(self, x, y):\n        self.x = x\n        self.y = y\n\n    def distance(self):\n        return (self.x ** 2 + self.y ** 2) ** 0.5",
+  "new_code": "from dataclasses import dataclass\n\n@dataclass\nclass Point:\n    x: float\n    y: float\n\n    @property\n    def distance(self):\n        return (self.x ** 2 + self.y ** 2) ** 0.5",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "import_from_statement",
+      "detected_by_strategies": ["structural"],
+      "description": "Import statement for dataclasses added"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "decorator",
+      "detected_by_strategies": ["structural"],
+      "description": "@dataclass decorator added to class"
+    },
+    {
+      "change_type": "KindChange",
+      "node_kind": "function_definition→decorated_definition",
+      "detected_by_strategies": ["structural"],
+      "description": "Constructor replaced with typed field annotations"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "decorator",
+      "detected_by_strategies": ["structural"],
+      "description": "@property decorator added to distance method"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 210
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "high",
+    "tags": ["dataclass", "property", "decorator", "class", "refactor", "complex"]
+  }
+}

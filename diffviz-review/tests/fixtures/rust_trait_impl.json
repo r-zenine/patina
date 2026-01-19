@@ -1,0 +1,16 @@
+{
+  "name": "rust_trait_impl_refactor",
+  "file_path": "src/models/user.rs",
+  "language": "rust",
+  "description": "trait implementation changes",
+  "old_code": "struct Calculator;\n\nimpl Calculator {\n    fn add(a: i32, b: i32) -> i32 {\n        a + b\n    }\n\n    fn multiply(a: i32, b: i32) -> i32 {\n        a * b\n    }\n}",
+  "new_code": "trait Operations {\n    fn add(&self, a: i32, b: i32) -> i32;\n    fn multiply(&self, a: i32, b: i32) -> i32;\n    fn subtract(&self, a: i32, b: i32) -> i32;\n}\n\nstruct Calculator;\n\nimpl Operations for Calculator {\n    fn subtract(&self, a: i32, b: i32) -> i32 {\n        a - b\n    }\n\n    fn add(&self, a: i32, b: i32) -> i32 {\n        a + b\n    }\n\n    fn multiply(&self, a: i32, b: i32) -> i32 {\n        a * b\n    }\n}",
+  "expected_line_stats": {
+    "additions": 14,
+    "deletions": 9
+  },
+  "metadata": {
+    "complexity_level": "high",
+    "tags": ["trait", "impl", "method", "refactor", "reorder"]
+  }
+}

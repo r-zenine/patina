@@ -1,0 +1,39 @@
+{
+  "name": "python_string_literal_content_change",
+  "language": "python",
+  "description": "Test detection of string literal content changes in Python code",
+  "category": "content_changes",
+  "old_code": "def greet():\n    print(\"Hello, World!\")",
+  "new_code": "def greet():\n    print(\"Hello, Python!\")",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "string",
+      "detected_by_strategies": ["byte_range"],
+      "description": "String literal content changed from 'Hello, World!' to 'Hello, Python!'"
+    }
+  ],
+  "should_not_detect": ["child_order", "child_set"],
+  "expected_boundary": {
+    "node_type": "function_definition",
+    "content": "def greet():\n    print(\"Hello, Python!\")"
+  },
+  "expected_essential_nodes": [
+    {
+      "node_type": "string", 
+      "content": "\"Hello, Python!\""
+    },
+    {
+      "node_type": "function_definition",
+      "content": "def greet():\n    print(\"Hello, Python!\")"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 100
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["string_literal", "content_change", "python"]
+  }
+}

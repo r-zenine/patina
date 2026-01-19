@@ -1,0 +1,25 @@
+{
+  "name": "rust_comment_content_change",
+  "language": "rust",
+  "description": "Test detection of comment content changes in Rust code",
+  "category": "content_changes",
+  "old_code": "fn calculate(x: i32) -> i32 {\n    // TODO: Add input validation\n    x * 2\n}",
+  "new_code": "fn calculate(x: i32) -> i32 {\n    // FIXME: Add input validation and error handling\n    x * 2\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "line_comment",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Comment content changed from TODO to FIXME with additional details"
+    }
+  ],
+  "should_not_detect": ["child_order", "child_set", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 100
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["comment", "content_change", "documentation", "todo"]
+  }
+}

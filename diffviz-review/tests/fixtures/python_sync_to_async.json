@@ -1,0 +1,16 @@
+{
+  "name": "python_sync_to_async_function_conversion",
+  "file_path": "src/data/fetcher.py",
+  "language": "python",
+  "description": "Async/await patterns",
+  "old_code": "import time\n\ndef fetch_data():\n    time.sleep(1)\n    return \"data\"",
+  "new_code": "import asyncio\n\nasync def fetch_data():\n    await asyncio.sleep(1)\n    return \"data\"",
+  "expected_line_stats": {
+    "additions": 5,
+    "deletions": 5
+  },
+  "metadata": {
+    "complexity_level": "medium",
+    "tags": ["async", "function", "kind_change", "concurrency"]
+  }
+}

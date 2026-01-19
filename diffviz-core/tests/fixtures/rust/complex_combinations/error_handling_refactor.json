@@ -1,0 +1,48 @@
+{
+  "name": "rust_error_handling_refactor",
+  "language": "rust",
+  "description": "Test detection of comprehensive error handling refactoring",
+  "category": "complex_combinations",
+  "old_code": "fn read_config(path: &str) -> String {\n    let file = std::fs::read_to_string(path).unwrap();\n    file\n}",
+  "new_code": "use std::fs;\nuse std::io;\n\nfn read_config(path: &str) -> Result<String, io::Error> {\n    let contents = fs::read_to_string(path)?;\n    Ok(contents)\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "use_declaration",
+      "detected_by_strategies": ["structural"],
+      "description": "Added use declarations for std::fs and std::io"
+    },
+    {
+      "change_type": "StructuralChange",
+      "node_kind": "function_item",
+      "detected_by_strategies": ["structural"],
+      "description": "Function signature changed to return Result type"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier", 
+      "detected_by_strategies": ["byte_range"],
+      "description": "Variable name changed from file to contents"
+    },
+    {
+      "change_type": "StructuralChange",
+      "node_kind": "call_expression",
+      "detected_by_strategies": ["structural"],
+      "description": "Method call changed from unwrap() to ? operator"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "call_expression",
+      "detected_by_strategies": ["structural"],
+      "description": "Added Ok() wrapper for success case"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 250
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "complex",
+    "tags": ["error_handling", "result_type", "refactoring", "multiple_changes", "best_practices"]
+  }
+}

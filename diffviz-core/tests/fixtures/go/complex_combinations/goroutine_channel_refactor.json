@@ -1,0 +1,36 @@
+{
+  "name": "go_goroutine_channel_refactor",
+  "language": "go",
+  "description": "Test complex refactoring adding goroutines and channels",
+  "category": "complex_combinations",
+  "old_code": "func processData(items []int) []int {\n\tresults := make([]int, len(items))\n\tfor i, item := range items {\n\t\tresults[i] = item * 2\n\t}\n\treturn results\n}",
+  "new_code": "func processData(items []int) []int {\n\tresults := make([]int, len(items))\n\tch := make(chan int, len(items))\n\t\n\tfor _, item := range items {\n\t\tgo func(val int) {\n\t\t\tch <- val * 2\n\t\t}(item)\n\t}\n\t\n\tfor i := 0; i < len(items); i++ {\n\t\tresults[i] = <-ch\n\t}\n\t\n\treturn results\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "short_var_declaration",
+      "detected_by_strategies": ["structural"],
+      "description": "Channel variable declaration added"
+    },
+    {
+      "change_type": "KindChange",
+      "node_kind": "assignment_statement→go_statement",
+      "detected_by_strategies": ["structural"],
+      "description": "Direct assignment converted to goroutine with channel send"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "for_statement",
+      "detected_by_strategies": ["structural"],
+      "description": "New for loop added to receive from channel"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 190
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "high",
+    "tags": ["goroutine", "channel", "concurrent", "refactor", "complex"]
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "name": "typescript_type_annotation_change",
+  "language": "typescript",
+  "description": "Test detection of type annotation changes in TypeScript code",
+  "category": "content_changes",
+  "old_code": "function calculate(x: number): number {\n    return x * 2;\n}",
+  "new_code": "function calculate(x: number): string {\n    return x * 2;\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "type_identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Return type annotation changed from 'number' to 'string'"
+    }
+  ],
+  "should_not_detect": ["child_order"],
+  "expected_boundary": {
+    "node_type": "function_declaration",
+    "content": "function calculate(x: number): string {\n    return x * 2;\n}"
+  },
+  "expected_essential_nodes": [
+    {
+      "node_type": "function_declaration",
+      "content": "function calculate(x: number): string {\n    return x * 2;\n}"
+    },
+    {
+      "node_type": "type_annotation", 
+      "content": ": string"
+    },
+    {
+      "node_type": "predefined_type",
+      "content": "string"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 100
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["type_annotation", "return_type", "typescript"]
+  }
+}

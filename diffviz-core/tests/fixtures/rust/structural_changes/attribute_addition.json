@@ -1,0 +1,31 @@
+{
+  "name": "rust_attribute_addition",
+  "language": "rust",
+  "description": "Test detection of attribute addition to function",
+  "category": "structural_changes",
+  "old_code": "fn deprecated_function() -> i32 {\n    42\n}",
+  "new_code": "#[deprecated(since = \"1.0.0\", note = \"Use new_function instead\")]\n#[allow(dead_code)]\nfn deprecated_function() -> i32 {\n    42\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "attribute_item",
+      "detected_by_strategies": ["structural"],
+      "description": "deprecated attribute added to function"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "attribute_item",
+      "detected_by_strategies": ["structural"],
+      "description": "allow(dead_code) attribute added to function"
+    }
+  ],
+  "should_not_detect": ["byte_range", "child_order"],
+  "performance_expectations": {
+    "max_duration_ms": 130
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["attribute", "deprecated", "allow", "function", "structural_change"]
+  }
+}

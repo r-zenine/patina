@@ -1,0 +1,25 @@
+{
+  "name": "go_string_literal_change",
+  "language": "go",
+  "description": "Test detection of string literal content changes",
+  "category": "content_changes",
+  "old_code": "func greet() {\n\tfmt.Println(\"Hello, World!\")\n}",
+  "new_code": "func greet() {\n\tfmt.Println(\"Hello, Go!\")\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "interpreted_string_literal",
+      "detected_by_strategies": ["byte_range"],
+      "description": "String literal changed from 'Hello, World!' to 'Hello, Go!'"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 95
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["string", "literal", "content_change"]
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "name": "typescript_generic_constraint_addition",
+  "file_path": "src/types/api.ts",
+  "language": "typescript",
+  "description": "Advanced typing constraints",
+  "old_code": "function process<T>(data: T): T {\n    return data;\n}",
+  "new_code": "interface Processable {\n    id: number;\n}\n\nfunction process<T extends Processable>(\n    data: T\n): T extends { name: string } ? string : number {\n    return 'id' in data && typeof data.id === 'number' ? data.id as any : 0 as any;\n}",
+  "expected_line_stats": {
+    "additions": 8,
+    "deletions": 3
+  },
+  "metadata": {
+    "complexity_level": "high",
+    "tags": ["generic", "constraint", "conditional", "type", "complex"]
+  }
+}

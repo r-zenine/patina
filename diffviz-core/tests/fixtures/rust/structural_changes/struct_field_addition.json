@@ -1,0 +1,25 @@
+{
+  "name": "rust_struct_field_addition",
+  "language": "rust",
+  "description": "Test detection of new field addition to struct definition",
+  "category": "structural_changes",
+  "old_code": "struct User {\n    name: String,\n    age: u32,\n}",
+  "new_code": "struct User {\n    name: String,\n    age: u32,\n    email: String,\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "field_declaration",
+      "detected_by_strategies": ["structural"],
+      "description": "New email field added to User struct"
+    }
+  ],
+  "should_not_detect": ["byte_range", "child_order"],
+  "performance_expectations": {
+    "max_duration_ms": 120
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["struct", "field_addition", "structural_change"]
+  }
+}

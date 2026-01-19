@@ -1,0 +1,30 @@
+{
+  "name": "typescript_namespace_addition",
+  "language": "typescript",
+  "description": "Test detection of namespace wrapping around existing code",
+  "category": "structural_changes",
+  "old_code": "export function add(a: number, b: number): number {\n    return a + b;\n}\n\nexport const PI = 3.14159;",
+  "new_code": "namespace MathUtils {\n    export function add(a: number, b: number): number {\n        return a + b;\n    }\n\n    export const PI = 3.14159;\n}\n\nexport = MathUtils;",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "module_declaration",
+      "detected_by_strategies": ["structural"],
+      "description": "MathUtils namespace added to wrap existing exports"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "export_assignment",
+      "detected_by_strategies": ["structural"],
+      "description": "Export assignment added for namespace"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 150
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["namespace", "module", "export", "wrapper", "structural_change"]
+  }
+}

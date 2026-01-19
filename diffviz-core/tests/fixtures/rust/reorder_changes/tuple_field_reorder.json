@@ -1,0 +1,25 @@
+{
+  "name": "rust_tuple_field_reorder",
+  "language": "rust",
+  "description": "Test detection of tuple struct field reordering",
+  "category": "reorder_changes",
+  "old_code": "struct Point(i32, f64, String);",
+  "new_code": "struct Point(f64, i32, String);",
+  "expected_changes": [
+    {
+      "change_type": "Reorder",
+      "node_kind": "tuple_struct",
+      "detected_by_strategies": ["child_order"],
+      "description": "Tuple struct fields reordered (f64 moved to first position)"
+    }
+  ],
+  "should_not_detect": ["byte_range", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 85
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["tuple", "struct", "field", "identical"]
+  }
+}

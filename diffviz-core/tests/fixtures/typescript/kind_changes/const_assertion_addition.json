@@ -1,0 +1,25 @@
+{
+  "name": "typescript_const_assertion_addition",
+  "language": "typescript",
+  "description": "Test detection of const assertion addition to literal",
+  "category": "kind_changes",
+  "old_code": "const colors = ['red', 'green', 'blue'];",
+  "new_code": "const colors = ['red', 'green', 'blue'] as const;",
+  "expected_changes": [
+    {
+      "change_type": "KindChange",
+      "node_kind": "array→type_assertion",
+      "detected_by_strategies": ["structural"],
+      "description": "Array literal converted to const assertion"
+    }
+  ],
+  "should_not_detect": ["byte_range"],
+  "performance_expectations": {
+    "max_duration_ms": 110
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["const", "assertion", "literal", "readonly", "kind_change"]
+  }
+}

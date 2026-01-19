@@ -1,0 +1,25 @@
+{
+  "name": "python_comparison_operator_change",
+  "language": "python",
+  "description": "Test detection of comparison operator changes",
+  "category": "content_changes",
+  "old_code": "def validate(value):\n    return value > 10",
+  "new_code": "def validate(value):\n    return value >= 10",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "comparison_operator",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Comparison operator changed from '>' to '>='"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 100
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["comparison", "operator", "content_change"]
+  }
+}

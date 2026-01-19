@@ -1,0 +1,25 @@
+{
+  "name": "python_list_element_reorder",
+  "language": "python",
+  "description": "Test detection of list element reordering",
+  "category": "reorder_changes",
+  "old_code": "colors = ['red', 'green', 'blue', 'yellow']",
+  "new_code": "colors = ['blue', 'red', 'green', 'yellow']",
+  "expected_changes": [
+    {
+      "change_type": "Reorder",
+      "node_kind": "list",
+      "detected_by_strategies": ["child_order"],
+      "description": "List elements reordered (blue moved to first position)"
+    }
+  ],
+  "should_not_detect": ["byte_range", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 105
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["list", "element", "reorder_change"]
+  }
+}

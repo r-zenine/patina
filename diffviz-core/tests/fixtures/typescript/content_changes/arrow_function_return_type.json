@@ -1,0 +1,30 @@
+{
+  "name": "typescript_arrow_function_return_type",
+  "language": "typescript",
+  "description": "Test detection of arrow function return type changes",
+  "category": "content_changes",
+  "old_code": "const multiply = (a: number, b: number): number => a * b;",
+  "new_code": "const multiply = (a: number, b: number): string => (a * b).toString();",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "type_identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Return type changed from number to string"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "call_expression",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Function body changed to convert result to string"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 120
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["arrow_function", "return_type", "type", "content_change"]
+  }
+}

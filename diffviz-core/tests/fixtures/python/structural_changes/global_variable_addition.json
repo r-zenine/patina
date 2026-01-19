@@ -1,0 +1,36 @@
+{
+  "name": "python_global_variable_addition",
+  "language": "python",
+  "description": "Test detection of global variable declaration addition",
+  "category": "structural_changes",
+  "old_code": "def increment():\n    counter = 0\n    counter += 1\n    return counter",
+  "new_code": "counter = 0\n\ndef increment():\n    global counter\n    counter += 1\n    return counter",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "assignment",
+      "detected_by_strategies": ["structural"],
+      "description": "Global variable counter declaration added"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "global_statement",
+      "detected_by_strategies": ["structural"],
+      "description": "Global statement added to function"
+    },
+    {
+      "change_type": "Deletion",
+      "node_kind": "assignment",
+      "detected_by_strategies": ["structural"],
+      "description": "Local counter assignment removed from function"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 150
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["global", "variable", "scope", "structural_change"]
+  }
+}

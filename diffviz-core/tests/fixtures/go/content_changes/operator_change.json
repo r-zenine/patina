@@ -1,0 +1,25 @@
+{
+  "name": "go_operator_change",
+  "language": "go",
+  "description": "Test detection of binary operator changes",
+  "category": "content_changes",
+  "old_code": "func calculate(a, b int) int {\n\treturn a + b\n}",
+  "new_code": "func calculate(a, b int) int {\n\treturn a * b\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "binary_expression",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Binary operator changed from '+' to '*'"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 90
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["operator", "binary", "arithmetic", "content_change"]
+  }
+}

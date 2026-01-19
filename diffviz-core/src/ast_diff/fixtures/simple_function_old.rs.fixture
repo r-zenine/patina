@@ -1,0 +1,4 @@
+pub fn process_request(&self, path: &str) -> Result<String, Error> {
+    let url = format!("{}/{}", self.base_url, path);
+    self.send_sync_request(&url)
+}

@@ -1,0 +1,25 @@
+{
+  "name": "python_f_string_content_change",
+  "language": "python",
+  "description": "Test detection of f-string content changes in Python code",
+  "category": "content_changes",
+  "old_code": "def greet(name):\n    return f\"Hello, {name}!\"",
+  "new_code": "def greet(name):\n    return f\"Hi there, {name.upper()}!\"",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "string",
+      "detected_by_strategies": ["byte_range"],
+      "description": "F-string content changed from 'Hello' to 'Hi there' and added .upper()"
+    }
+  ],
+  "should_not_detect": ["child_order", "child_set"],
+  "performance_expectations": {
+    "max_duration_ms": 110
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["f_string", "content_change", "string_interpolation"]
+  }
+}

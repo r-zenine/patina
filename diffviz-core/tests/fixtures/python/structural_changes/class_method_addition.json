@@ -1,0 +1,25 @@
+{
+  "name": "python_class_method_addition",
+  "language": "python",
+  "description": "Test detection of new method addition to class definition",
+  "category": "structural_changes",
+  "old_code": "class Calculator:\n    def add(self, a, b):\n        return a + b",
+  "new_code": "class Calculator:\n    def add(self, a, b):\n        return a + b\n    \n    def subtract(self, a, b):\n        return a - b",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "function_definition",
+      "detected_by_strategies": ["structural"],
+      "description": "New subtract method added to Calculator class"
+    }
+  ],
+  "should_not_detect": ["byte_range"],
+  "performance_expectations": {
+    "max_duration_ms": 130
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["class", "method_addition", "structural_change"]
+  }
+}

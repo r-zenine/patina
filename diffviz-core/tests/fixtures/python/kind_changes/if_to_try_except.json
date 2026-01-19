@@ -1,0 +1,25 @@
+{
+  "name": "python_if_to_try_except",
+  "language": "python",
+  "description": "Test detection of if statement converted to try-except block",
+  "category": "kind_changes",
+  "old_code": "def safe_divide(a, b):\n    if b != 0:\n        return a / b\n    else:\n        return 0",
+  "new_code": "def safe_divide(a, b):\n    try:\n        return a / b\n    except ZeroDivisionError:\n        return 0",
+  "expected_changes": [
+    {
+      "change_type": "KindChange",
+      "node_kind": "if_statement→try_statement",
+      "detected_by_strategies": ["structural"],
+      "description": "If statement converted to try-except block for error handling"
+    }
+  ],
+  "should_not_detect": ["byte_range"],
+  "performance_expectations": {
+    "max_duration_ms": 135
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["if", "try", "except", "error_handling", "kind_change"]
+  }
+}

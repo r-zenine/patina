@@ -1,0 +1,30 @@
+{
+  "name": "go_for_to_for_range",
+  "language": "go",
+  "description": "Test detection of traditional for loop converted to range loop",
+  "category": "kind_changes",
+  "old_code": "func iterate(items []string) {\n\tfor i := 0; i < len(items); i++ {\n\t\tfmt.Println(items[i])\n\t}\n}",
+  "new_code": "func iterate(items []string) {\n\tfor _, item := range items {\n\t\tfmt.Println(item)\n\t}\n}",
+  "expected_changes": [
+    {
+      "change_type": "KindChange",
+      "node_kind": "for_statement→range_clause",
+      "detected_by_strategies": ["structural"],
+      "description": "Traditional for loop converted to range loop"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Loop variable changed from indexed access to range variable"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 145
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["for", "range", "loop", "iteration", "kind_change"]
+  }
+}

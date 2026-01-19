@@ -1,0 +1,48 @@
+{
+  "name": "rust_lifetime_bounds_addition",
+  "language": "rust",
+  "description": "Test complex addition of lifetime bounds and generic constraints",
+  "category": "complex_combinations",
+  "old_code": "fn process<T>(data: T) -> T {\n    data\n}",
+  "new_code": "fn process<'a, T: Clone + 'a>(data: &'a T) -> T\nwhere\n    T: std::fmt::Debug,\n{\n    data.clone()\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "lifetime",
+      "detected_by_strategies": ["structural"],
+      "description": "Lifetime parameter 'a added to generic parameters"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "type_bound_list",
+      "detected_by_strategies": ["structural"],
+      "description": "Type bounds Clone + 'a added to T parameter"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "reference_type",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Parameter type changed from T to &'a T"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "where_clause",
+      "detected_by_strategies": ["structural"],
+      "description": "Where clause with Debug bound added"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "call_expression",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Function body changed to call clone() method"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 200
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "high",
+    "tags": ["lifetime", "bounds", "generic", "where", "clone", "complex"]
+  }
+}

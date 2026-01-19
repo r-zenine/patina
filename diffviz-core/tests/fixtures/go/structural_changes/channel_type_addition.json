@@ -1,0 +1,30 @@
+{
+  "name": "go_channel_type_addition",
+  "language": "go",
+  "description": "Test detection of channel type addition to function parameter",
+  "category": "structural_changes",
+  "old_code": "func process(data int) {\n\tfmt.Println(data)\n}",
+  "new_code": "func process(data int, ch chan<- string) {\n\tfmt.Println(data)\n\tch <- \"processed\"\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "parameter_declaration",
+      "detected_by_strategies": ["structural"],
+      "description": "New channel parameter added to function"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "send_statement",
+      "detected_by_strategies": ["structural"],
+      "description": "Channel send statement added to function body"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 140
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["channel", "parameter", "send", "goroutine", "structural_change"]
+  }
+}

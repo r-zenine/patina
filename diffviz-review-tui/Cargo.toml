@@ -1,0 +1,27 @@
+[package]
+name = "diffviz-review-tui"
+version = "0.1.0"
+edition = "2021"
+description = "Clean TUI for code review built on ReviewEngine architecture"
+
+[dependencies]
+ratatui = "0.28"
+crossterm = "0.28"
+anyhow = "1.0"
+diffviz-review = { path = "../diffviz-review" }
+diffviz-core = { path = "../diffviz-core" }
+diffviz-git = { path = "../diffviz-git" }
+serde = { version = "1.0", features = ["derive"] }
+uuid = { version = "1.0", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+log = "0.4"
+edtui = "0.8"
+
+[[bin]]
+name = "review-tui"
+path = "src/main.rs"
+
+[dev-dependencies]
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }

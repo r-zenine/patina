@@ -1,0 +1,25 @@
+{
+  "name": "typescript_class_member_reorder",
+  "language": "typescript",
+  "description": "Test detection of class member reordering",
+  "category": "reorder_changes",
+  "old_code": "class Person {\n    name: string;\n    age: number;\n    email: string;\n\n    constructor(name: string, age: number, email: string) {\n        this.name = name;\n        this.age = age;\n        this.email = email;\n    }\n}",
+  "new_code": "class Person {\n    age: number;\n    name: string;\n    email: string;\n\n    constructor(name: string, age: number, email: string) {\n        this.name = name;\n        this.age = age;\n        this.email = email;\n    }\n}",
+  "expected_changes": [
+    {
+      "change_type": "Reorder",
+      "node_kind": "class_body",
+      "detected_by_strategies": ["child_order"],
+      "description": "Class properties reordered (age moved to first position)"
+    }
+  ],
+  "should_not_detect": ["byte_range", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 140
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["class", "member", "property", "reorder_change"]
+  }
+}

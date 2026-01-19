@@ -1,0 +1,25 @@
+{
+  "name": "go_function_parameter_reorder",
+  "language": "go",
+  "description": "Test detection of function parameter reordering",
+  "category": "reorder_changes",
+  "old_code": "func divide(dividend float64, divisor float64) float64 {\n\treturn dividend / divisor\n}",
+  "new_code": "func divide(divisor float64, dividend float64) float64 {\n\treturn dividend / divisor\n}",
+  "expected_changes": [
+    {
+      "change_type": "Reorder",
+      "node_kind": "parameter_list",
+      "detected_by_strategies": ["child_order"],
+      "description": "Function parameters reordered (divisor moved to first position)"
+    }
+  ],
+  "should_not_detect": ["byte_range", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 110
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "simple",
+    "tags": ["function", "parameter", "reorder_change"]
+  }
+}

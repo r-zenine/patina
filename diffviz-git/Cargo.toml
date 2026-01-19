@@ -1,0 +1,17 @@
+[package]
+name = "diffviz-git"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+diffviz-review = { path = "../diffviz-review" }
+diffviz-core = { path = "../diffviz-core" }
+git2 = "0.18"
+thiserror = { workspace = true }
+serde = { workspace = true }
+log = { workspace = true }
+
+[dev-dependencies]
+diffviz-review = { path = "../diffviz-review", features = ["test-utils"] }
+tempfile = "3.0"
+assert_matches = "1.5"

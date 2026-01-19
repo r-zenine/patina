@@ -1,0 +1,42 @@
+{
+  "name": "go_error_handling_refactor",
+  "language": "go",
+  "description": "Test complex refactoring of error handling patterns",
+  "category": "complex_combinations",
+  "old_code": "func readFile(filename string) string {\n\tdata, _ := os.ReadFile(filename)\n\treturn string(data)\n}",
+  "new_code": "func readFile(filename string) (string, error) {\n\tdata, err := os.ReadFile(filename)\n\tif err != nil {\n\t\treturn \"\", fmt.Errorf(\"failed to read file %s: %w\", filename, err)\n\t}\n\treturn string(data), nil\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "parameter_list",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Return type changed to include error parameter"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "identifier",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Blank identifier changed to proper error variable"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "if_statement",
+      "detected_by_strategies": ["structural"],
+      "description": "Error handling if statement added"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "return_statement",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Return statement modified to return error"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 170
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "high",
+    "tags": ["error", "handling", "return", "refactor", "complex"]
+  }
+}

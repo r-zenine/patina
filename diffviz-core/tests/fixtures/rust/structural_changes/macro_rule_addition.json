@@ -1,0 +1,25 @@
+{
+  "name": "rust_macro_rule_addition",
+  "language": "rust",
+  "description": "Test detection of new macro rule addition to macro_rules! definition",
+  "category": "structural_changes",
+  "old_code": "macro_rules! say_hello {\n    () => {\n        println!(\"Hello!\");\n    };\n}",
+  "new_code": "macro_rules! say_hello {\n    () => {\n        println!(\"Hello!\");\n    };\n    ($name:expr) => {\n        println!(\"Hello, {}!\", $name);\n    };\n}",
+  "expected_changes": [
+    {
+      "change_type": "Addition",
+      "node_kind": "macro_rule",
+      "detected_by_strategies": ["structural"],
+      "description": "New macro rule with parameter added to say_hello macro"
+    }
+  ],
+  "should_not_detect": ["byte_range", "child_order"],
+  "performance_expectations": {
+    "max_duration_ms": 140
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["macro", "rule", "pattern", "structural_change"]
+  }
+}

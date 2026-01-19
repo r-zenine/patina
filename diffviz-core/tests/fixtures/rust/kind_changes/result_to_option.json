@@ -1,0 +1,30 @@
+{
+  "name": "rust_result_to_option",
+  "language": "rust",
+  "description": "Test detection of Result type converted to Option type",
+  "category": "kind_changes",
+  "old_code": "fn parse_number(s: &str) -> Result<i32, ParseIntError> {\n    s.parse()\n}",
+  "new_code": "fn parse_number(s: &str) -> Option<i32> {\n    s.parse().ok()\n}",
+  "expected_changes": [
+    {
+      "change_type": "KindChange",
+      "node_kind": "generic_type→generic_type",
+      "detected_by_strategies": ["structural"],
+      "description": "Return type changed from Result<i32, ParseIntError> to Option<i32>"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "call_expression",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Method call changed from parse() to parse().ok()"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 135
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["result", "option", "error", "type", "kind_change"]
+  }
+}

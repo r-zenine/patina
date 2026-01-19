@@ -1,0 +1,25 @@
+{
+  "name": "python_function_to_lambda",
+  "language": "python",
+  "description": "Test detection of function definition converted to lambda expression",
+  "category": "kind_changes",
+  "old_code": "def square(x):\n    return x * x\n\nresult = square(5)",
+  "new_code": "square = lambda x: x * x\n\nresult = square(5)",
+  "expected_changes": [
+    {
+      "change_type": "KindChange",
+      "node_kind": "function_definition→assignment",
+      "detected_by_strategies": ["structural"],
+      "description": "Function definition converted to lambda assignment"
+    }
+  ],
+  "should_not_detect": ["byte_range"],
+  "performance_expectations": {
+    "max_duration_ms": 130
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["function", "lambda", "kind_change"]
+  }
+}

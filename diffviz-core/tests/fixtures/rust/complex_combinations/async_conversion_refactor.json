@@ -1,0 +1,42 @@
+{
+  "name": "rust_async_conversion_refactor",
+  "language": "rust", 
+  "description": "Test detection of synchronous to asynchronous conversion refactoring",
+  "category": "complex_combinations",
+  "old_code": "use std::thread;\nuse std::time::Duration;\n\nfn fetch_data() -> String {\n    thread::sleep(Duration::from_secs(1));\n    \"data\".to_string()\n}",
+  "new_code": "use tokio::time::{sleep, Duration};\n\nasync fn fetch_data() -> String {\n    sleep(Duration::from_secs(1)).await;\n    \"data\".to_string()\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "use_declaration",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Changed import from std::thread to tokio::time"
+    },
+    {
+      "change_type": "KindChange", 
+      "node_kind": "function_item→async_function_item",
+      "detected_by_strategies": ["structural"],
+      "description": "Function converted from sync to async"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "call_expression",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Changed from thread::sleep to tokio sleep"
+    },
+    {
+      "change_type": "Addition",
+      "node_kind": "await_expression",
+      "detected_by_strategies": ["structural"],
+      "description": "Added .await to sleep call"
+    }
+  ],
+  "performance_expectations": {
+    "max_duration_ms": 220
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "complex",
+    "tags": ["async", "tokio", "refactoring", "concurrency", "multiple_changes"]
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "typescript_interface_to_type_alias_conversion",
+  "language": "typescript",
+  "description": "Test detection of interface converted to type alias",
+  "category": "kind_changes",
+  "old_code": "interface Point {\n    x: number;\n    y: number;\n}",
+  "new_code": "type Point = {\n    x: number;\n    y: number;\n};",
+  "expected_changes": [
+    {
+      "change_type": "KindChange",
+      "node_kind": "interface_declaration→type_alias_declaration",
+      "detected_by_strategies": ["structural"],
+      "description": "Interface converted to type alias declaration"
+    }
+  ],
+  "should_not_detect": ["byte_range"],
+  "performance_expectations": {
+    "max_duration_ms": 130
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["interface", "type_alias", "kind_change", "type_definition"]
+  }
+}

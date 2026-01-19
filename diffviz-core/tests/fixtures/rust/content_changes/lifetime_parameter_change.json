@@ -1,0 +1,37 @@
+{
+  "name": "rust_lifetime_parameter_change",
+  "language": "rust",
+  "description": "Test detection of lifetime parameter changes in Rust code",
+  "category": "content_changes",
+  "old_code": "fn longest<'a>(x: &'a str, y: &'a str) -> &'a str {\n    if x.len() > y.len() { x } else { y }\n}",
+  "new_code": "fn longest<'lifetime>(x: &'lifetime str, y: &'lifetime str) -> &'lifetime str {\n    if x.len() > y.len() { x } else { y }\n}",
+  "expected_changes": [
+    {
+      "change_type": "ContentChange",
+      "node_kind": "lifetime",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Lifetime parameter changed from 'a to 'lifetime"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "lifetime",
+      "detected_by_strategies": ["byte_range"], 
+      "description": "Lifetime annotation changed in function parameter"
+    },
+    {
+      "change_type": "ContentChange",
+      "node_kind": "lifetime",
+      "detected_by_strategies": ["byte_range"],
+      "description": "Lifetime annotation changed in return type"
+    }
+  ],
+  "should_not_detect": ["child_order", "structural"],
+  "performance_expectations": {
+    "max_duration_ms": 150
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "medium",
+    "tags": ["lifetime", "generic", "content_change", "memory_safety"]
+  }
+}
