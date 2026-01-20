@@ -6,6 +6,7 @@
 //! clean separation between UI and business logic.
 
 pub mod app;
+pub mod decision_navigation;
 pub mod diff;
 pub mod events;
 pub mod formatting;
@@ -16,6 +17,7 @@ pub mod ui;
 
 // Re-export main types for easy access
 pub use app::ReviewTuiApp;
+pub use decision_navigation::DecisionNavigationState;
 pub use state::{FocusPanel, InputMode, UiState};
 
 /// Result type used throughout the TUI
