@@ -153,6 +153,56 @@ impl ReviewDecisions {
         decisions.sort_by_key(|d| d.number);
         decisions
     }
+
+    /// Create a synthetic Decision 0 for unmapped diffs
+    /// Ensures all ReviewableDiffs are accessible through decision-based navigation
+    /// Only creates Decision 0 if there are unmapped diffs
+    pub fn create_unmapped_decision(&mut self, review_state: &ReviewState) {
+        // Find all diffs that are not mapped to any decision
+        let unmapped_diffs: Vec<_> = review_state
+            .reviewable_diffs
+            .values()
+            .filter(|diff| !self.decision_index.contains_key(&diff.id))
+            .collect();
+
+        // Only create Decision 0 if there are unmapped diffs
+        if !unmapped_diffs.is_empty() {
+            let mut code_impacts = Vec::new();
+
+            // Create a CodeImpact for each unmapped diff
+            for diff in &unmapped_diffs {
+                code_impacts.push(CodeImpact {
+                    file: diff.file_path.clone(),
+                    line_ranges: vec![DecisionLineRange {
+                        start: diff.id.line_range().start_line,
+                        end: diff.id.line_range().end_line,
+                    }],
+                    change_type: ChangeType::Modification,
+                    confidence: Confidence::Medium,
+                    reasoning: "Code change not mapped to any architectural decision".to_string(),
+                });
+            }
+
+            let unmapped_decision = Decision {
+                number: 0,
+                title: "Unmapped Changes".to_string(),
+                summary: "Code changes that are not mapped to any architectural decision"
+                    .to_string(),
+                decision_log_line: None,
+                code_impacts,
+            };
+
+            self.add_decision(unmapped_decision);
+
+            // Add all unmapped diffs to the index for Decision 0
+            for diff in unmapped_diffs {
+                self.decision_index
+                    .entry(diff.id.clone())
+                    .or_default()
+                    .push(0);
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -478,5 +528,195 @@ mod tests {
 
         let deserialized: ChangeType = serde_json::from_str(&json).unwrap();
         assert_eq!(change_type, deserialized);
+    }
+
+    #[test]
+    fn test_create_unmapped_decision_with_unmapped_diffs() {
+        let mut decisions = ReviewDecisions::new();
+        decisions.add_decision(Decision {
+            number: 1,
+            title: "Decision 1".to_string(),
+            summary: "Summary".to_string(),
+            decision_log_line: None,
+            code_impacts: vec![CodeImpact {
+                file: "src/auth.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 10, end: 20 }],
+                change_type: ChangeType::Modification,
+                confidence: Confidence::High,
+                reasoning: "Auth changes".to_string(),
+            }],
+        });
+
+        // Create two diffs: one mapped, one unmapped
+        let mapped_diff = create_test_reviewable_diff("src/auth.rs", 10, 20);
+        let unmapped_diff = create_test_reviewable_diff("src/other.rs", 5, 15);
+
+        let review_state = ReviewState::new(
+            vec![mapped_diff.clone(), unmapped_diff.clone()],
+            "author".to_string(),
+        );
+
+        // Build index first to map Decision 1
+        decisions.build_index_from_review_state(&review_state);
+
+        // Create Decision 0 for unmapped
+        decisions.create_unmapped_decision(&review_state);
+
+        // Verify Decision 0 exists
+        let decision_0 = decisions.get_decision(0);
+        assert!(decision_0.is_some());
+        assert_eq!(decision_0.unwrap().title, "Unmapped Changes");
+
+        // Verify unmapped diff is mapped to Decision 0
+        let decisions_for_unmapped = decisions.get_decisions_for_diff(&unmapped_diff.id);
+        assert_eq!(decisions_for_unmapped.len(), 1);
+        assert_eq!(decisions_for_unmapped[0].number, 0);
+
+        // Verify mapped diff is still mapped to Decision 1 (not Decision 0)
+        let decisions_for_mapped = decisions.get_decisions_for_diff(&mapped_diff.id);
+        assert_eq!(decisions_for_mapped.len(), 1);
+        assert_eq!(decisions_for_mapped[0].number, 1);
+    }
+
+    #[test]
+    fn test_create_unmapped_decision_with_no_unmapped_diffs() {
+        let mut decisions = ReviewDecisions::new();
+        decisions.add_decision(Decision {
+            number: 1,
+            title: "Decision 1".to_string(),
+            summary: "Summary".to_string(),
+            decision_log_line: None,
+            code_impacts: vec![CodeImpact {
+                file: "src/auth.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 10, end: 20 }],
+                change_type: ChangeType::Modification,
+                confidence: Confidence::High,
+                reasoning: "Auth changes".to_string(),
+            }],
+        });
+
+        // Create only mapped diffs
+        let diff1 = create_test_reviewable_diff("src/auth.rs", 10, 20);
+        let review_state = ReviewState::new(vec![diff1], "author".to_string());
+
+        decisions.build_index_from_review_state(&review_state);
+        decisions.create_unmapped_decision(&review_state);
+
+        // Verify Decision 0 was NOT created
+        let decision_0 = decisions.get_decision(0);
+        assert!(decision_0.is_none());
+
+        // Verify we still only have Decision 1
+        let all = decisions.all_decisions();
+        assert_eq!(all.len(), 1);
+        assert_eq!(all[0].number, 1);
+    }
+
+    #[test]
+    fn test_create_unmapped_decision_with_all_unmapped() {
+        let mut decisions = ReviewDecisions::new();
+
+        // Create only unmapped diffs
+        let diff1 = create_test_reviewable_diff("src/auth.rs", 10, 20);
+        let diff2 = create_test_reviewable_diff("src/other.rs", 5, 15);
+        let review_state =
+            ReviewState::new(vec![diff1.clone(), diff2.clone()], "author".to_string());
+
+        decisions.build_index_from_review_state(&review_state);
+        decisions.create_unmapped_decision(&review_state);
+
+        // Verify Decision 0 exists
+        let decision_0 = decisions.get_decision(0);
+        assert!(decision_0.is_some());
+
+        // Verify both diffs are mapped to Decision 0
+        let decisions_for_diff1 = decisions.get_decisions_for_diff(&diff1.id);
+        assert_eq!(decisions_for_diff1.len(), 1);
+        assert_eq!(decisions_for_diff1[0].number, 0);
+
+        let decisions_for_diff2 = decisions.get_decisions_for_diff(&diff2.id);
+        assert_eq!(decisions_for_diff2.len(), 1);
+        assert_eq!(decisions_for_diff2[0].number, 0);
+
+        // Verify Decision 0 has correct code impacts
+        let code_impacts = &decision_0.unwrap().code_impacts;
+        assert_eq!(code_impacts.len(), 2);
+
+        // Verify line ranges are captured correctly
+        let auth_impact = code_impacts.iter().find(|c| c.file == "src/auth.rs");
+        assert!(auth_impact.is_some());
+        assert_eq!(auth_impact.unwrap().line_ranges[0].start, 10);
+        assert_eq!(auth_impact.unwrap().line_ranges[0].end, 20);
+
+        let other_impact = code_impacts.iter().find(|c| c.file == "src/other.rs");
+        assert!(other_impact.is_some());
+        assert_eq!(other_impact.unwrap().line_ranges[0].start, 5);
+        assert_eq!(other_impact.unwrap().line_ranges[0].end, 15);
+    }
+
+    #[test]
+    fn test_create_unmapped_decision_preserves_existing_decisions() {
+        let mut decisions = ReviewDecisions::new();
+
+        // Add Decision 1 and 2
+        decisions.add_decision(Decision {
+            number: 1,
+            title: "Decision 1".to_string(),
+            summary: "Summary 1".to_string(),
+            decision_log_line: None,
+            code_impacts: vec![CodeImpact {
+                file: "src/file1.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 1, end: 10 }],
+                change_type: ChangeType::Addition,
+                confidence: Confidence::High,
+                reasoning: "Change 1".to_string(),
+            }],
+        });
+
+        decisions.add_decision(Decision {
+            number: 2,
+            title: "Decision 2".to_string(),
+            summary: "Summary 2".to_string(),
+            decision_log_line: None,
+            code_impacts: vec![CodeImpact {
+                file: "src/file2.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 20, end: 30 }],
+                change_type: ChangeType::Modification,
+                confidence: Confidence::High,
+                reasoning: "Change 2".to_string(),
+            }],
+        });
+
+        let diff1 = create_test_reviewable_diff("src/file1.rs", 1, 10);
+        let diff2 = create_test_reviewable_diff("src/file2.rs", 20, 30);
+        let unmapped_diff = create_test_reviewable_diff("src/unmapped.rs", 50, 60);
+
+        let review_state = ReviewState::new(
+            vec![diff1.clone(), diff2.clone(), unmapped_diff.clone()],
+            "author".to_string(),
+        );
+
+        decisions.build_index_from_review_state(&review_state);
+        decisions.create_unmapped_decision(&review_state);
+
+        // Verify all decisions still exist
+        let all = decisions.all_decisions();
+        assert_eq!(all.len(), 3);
+        assert_eq!(all[0].number, 0);
+        assert_eq!(all[1].number, 1);
+        assert_eq!(all[2].number, 2);
+
+        // Verify correct mappings
+        assert_eq!(decisions.get_decisions_for_diff(&diff1.id).len(), 1);
+        assert_eq!(decisions.get_decisions_for_diff(&diff1.id)[0].number, 1);
+
+        assert_eq!(decisions.get_decisions_for_diff(&diff2.id).len(), 1);
+        assert_eq!(decisions.get_decisions_for_diff(&diff2.id)[0].number, 2);
+
+        assert_eq!(decisions.get_decisions_for_diff(&unmapped_diff.id).len(), 1);
+        assert_eq!(
+            decisions.get_decisions_for_diff(&unmapped_diff.id)[0].number,
+            0
+        );
     }
 }
