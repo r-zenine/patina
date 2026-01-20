@@ -129,49 +129,89 @@ impl ReviewTuiApp {
                 self.ui_state.quit();
             }
 
-            UiEvent::NavigateUp => match self.ui_state.focused_panel {
-                crate::state::FocusPanel::FileList => {
-                    crate::navigation::navigate_file_list(
-                        &mut self.ui_state,
-                        &self.review_engine,
-                        crate::navigation::NavigationDirection::Up,
-                    );
+            UiEvent::NavigateUp => {
+                use crate::decision_navigation::NavigationLevel;
+                // Handle decision navigation at decision level
+                if self.ui_state.decision_nav.current_level == NavigationLevel::Decision {
+                    self.ui_state.decision_nav.prev_decision();
+                    let decision_count = self.review_engine.get_all_decisions().len();
+                    self.ui_state.decision_nav.clamp_decision_index(decision_count.saturating_sub(1));
+                } else {
+                    // Handle traditional file/chunk navigation
+                    match self.ui_state.focused_panel {
+                        crate::state::FocusPanel::FileList => {
+                            crate::navigation::navigate_file_list(
+                                &mut self.ui_state,
+                                &self.review_engine,
+                                crate::navigation::NavigationDirection::Up,
+                            );
+                        }
+                        crate::state::FocusPanel::DiffView => {
+                            self.ui_state.cursor_up();
+                        }
+                    }
                 }
-                crate::state::FocusPanel::DiffView => {
-                    self.ui_state.cursor_up();
-                }
-            },
+            }
 
-            UiEvent::NavigateDown => match self.ui_state.focused_panel {
-                crate::state::FocusPanel::FileList => {
-                    crate::navigation::navigate_file_list(
-                        &mut self.ui_state,
-                        &self.review_engine,
-                        crate::navigation::NavigationDirection::Down,
-                    );
+            UiEvent::NavigateDown => {
+                use crate::decision_navigation::NavigationLevel;
+                // Handle decision navigation at decision level
+                if self.ui_state.decision_nav.current_level == NavigationLevel::Decision {
+                    self.ui_state.decision_nav.next_decision();
+                    let decision_count = self.review_engine.get_all_decisions().len();
+                    self.ui_state.decision_nav.clamp_decision_index(decision_count.saturating_sub(1));
+                } else {
+                    // Handle traditional file/chunk navigation
+                    match self.ui_state.focused_panel {
+                        crate::state::FocusPanel::FileList => {
+                            crate::navigation::navigate_file_list(
+                                &mut self.ui_state,
+                                &self.review_engine,
+                                crate::navigation::NavigationDirection::Down,
+                            );
+                        }
+                        crate::state::FocusPanel::DiffView => {
+                            self.ui_state.cursor_down(total_lines);
+                        }
+                    }
                 }
-                crate::state::FocusPanel::DiffView => {
-                    self.ui_state.cursor_down(total_lines);
-                }
-            },
+            }
 
-            UiEvent::NavigateLeft => match self.ui_state.focused_panel {
-                crate::state::FocusPanel::FileList => {
-                    self.navigate_to_previous_file();
+            UiEvent::NavigateLeft => {
+                use crate::decision_navigation::NavigationLevel;
+                // Handle decision navigation - go back to decisions from file view
+                if self.ui_state.decision_nav.current_level == NavigationLevel::File {
+                    self.ui_state.decision_nav.back_to_decisions();
+                } else {
+                    // Handle traditional file/chunk navigation
+                    match self.ui_state.focused_panel {
+                        crate::state::FocusPanel::FileList => {
+                            self.navigate_to_previous_file();
+                        }
+                        crate::state::FocusPanel::DiffView => {
+                            self.ui_state.toggle_focus();
+                        }
+                    }
                 }
-                crate::state::FocusPanel::DiffView => {
-                    self.ui_state.toggle_focus();
-                }
-            },
+            }
 
-            UiEvent::NavigateRight => match self.ui_state.focused_panel {
-                crate::state::FocusPanel::FileList => {
-                    self.ui_state.toggle_focus();
+            UiEvent::NavigateRight => {
+                use crate::decision_navigation::NavigationLevel;
+                // Handle decision navigation - drill into files from decision level
+                if self.ui_state.decision_nav.current_level == NavigationLevel::Decision {
+                    self.ui_state.decision_nav.drill_into_files();
+                } else {
+                    // Handle traditional file/chunk navigation
+                    match self.ui_state.focused_panel {
+                        crate::state::FocusPanel::FileList => {
+                            self.ui_state.toggle_focus();
+                        }
+                        crate::state::FocusPanel::DiffView => {
+                            self.navigate_to_next_file();
+                        }
+                    }
                 }
-                crate::state::FocusPanel::DiffView => {
-                    self.navigate_to_next_file();
-                }
-            },
+            }
 
             UiEvent::NavigateToTop => match self.ui_state.focused_panel {
                 crate::state::FocusPanel::FileList => {
@@ -278,7 +318,12 @@ impl ReviewTuiApp {
             }
 
             UiEvent::ExitInputMode | UiEvent::CancelInput => {
-                self.ui_state.exit_input_mode();
+                // Close decision modal if open
+                if self.ui_state.decision_nav.show_decision_modal {
+                    self.ui_state.decision_nav.close_decision_modal();
+                } else {
+                    self.ui_state.exit_input_mode();
+                }
             }
 
             UiEvent::InputChar(c) => {
@@ -314,16 +359,27 @@ impl ReviewTuiApp {
             UiEvent::SubmitInput => {}
 
             UiEvent::SelectCurrent => {
-                // Handle selection based on focused panel
-                match self.ui_state.focused_panel {
-                    crate::state::FocusPanel::FileList => {
-                        crate::navigation::handle_selection_action(
-                            &mut self.ui_state,
-                            &self.review_engine,
-                        );
+                use crate::decision_navigation::NavigationLevel;
+                // Handle selection based on navigation level
+                if self.ui_state.decision_nav.current_level == NavigationLevel::Decision {
+                    // At decision level - open decision modal
+                    let all_decisions = self.review_engine.get_all_decisions();
+                    if !all_decisions.is_empty() && self.ui_state.decision_nav.decision_list_index < all_decisions.len() {
+                        let selected_decision = all_decisions[self.ui_state.decision_nav.decision_list_index];
+                        self.ui_state.decision_nav.select_decision(selected_decision.number);
                     }
-                    crate::state::FocusPanel::DiffView => {
-                        // In diff view, could toggle approval or other action
+                } else {
+                    // Handle traditional file/chunk selection
+                    match self.ui_state.focused_panel {
+                        crate::state::FocusPanel::FileList => {
+                            crate::navigation::handle_selection_action(
+                                &mut self.ui_state,
+                                &self.review_engine,
+                            );
+                        }
+                        crate::state::FocusPanel::DiffView => {
+                            // In diff view, could toggle approval or other action
+                        }
                     }
                 }
             }
