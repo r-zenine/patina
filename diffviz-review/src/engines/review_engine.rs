@@ -808,6 +808,33 @@ impl ReviewEngine {
             end_column: 0,   // Union ranges end at column 0
         }
     }
+
+    // === Decision-Based Review API (Phase 1: Decision Context Display) ===
+
+    /// Set the decision mapping for this review
+    /// This enables decision-based navigation in the TUI
+    pub fn set_decisions(&mut self, decisions: crate::entities::ReviewDecisions) {
+        self.state.decisions = decisions;
+    }
+
+    /// Get all decisions that affect a specific ReviewableDiffId
+    /// Returns the decisions in order by decision number
+    pub fn get_decisions_for_diff(
+        &self,
+        reviewable_id: &ReviewableDiffId,
+    ) -> Vec<&crate::entities::Decision> {
+        self.state.decisions.get_decisions_for_diff(reviewable_id)
+    }
+
+    /// Get a specific decision by number
+    pub fn get_decision(&self, number: u32) -> Option<&crate::entities::Decision> {
+        self.state.decisions.get_decision(number)
+    }
+
+    /// Get all decisions in this review, ordered by decision number
+    pub fn get_all_decisions(&self) -> Vec<&crate::entities::Decision> {
+        self.state.decisions.all_decisions()
+    }
 }
 
 /// Review progress information

@@ -13,7 +13,10 @@ pub mod state;
 pub use engines::{CacheStats, ReviewEngine, ReviewProgress, ReviewSummary};
 pub use entities::git_ref::{DiffQuery, GitRef};
 pub use entities::reviewable_diff_id::{LineRange, ReviewableDiffId};
-pub use entities::{Approval, Instruction, ReviewApprovals, ReviewInstructions};
+pub use entities::{
+    Approval, ChangeType, CodeImpact, Confidence, Decision, DecisionLineRange, Instruction,
+    ReviewApprovals, ReviewDecisions, ReviewInstructions,
+};
 pub use providers::{DiffProvider, FileStats, FileStatus};
 pub use review_engine_builder::ReviewEngineBuilder;
 pub use state::{OverlapConflict, OverlapType, ReviewState, ReviewableDiff};

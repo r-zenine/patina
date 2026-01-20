@@ -2,11 +2,11 @@ mod format_utils;
 mod hnsw;
 mod memory;
 mod node;
+pub mod persistence;
 mod prefetch;
 mod simd_distances;
 mod tape;
 mod tape_mutations;
-pub mod persistence;
 
 #[repr(C, packed)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)] // Add Hash for HashSet

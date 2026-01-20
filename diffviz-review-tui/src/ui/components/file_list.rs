@@ -55,6 +55,31 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &mut UiState, review_engine: 
 
         // Build indicators with counts
         let mut indicators = String::new();
+
+        // Collect decision numbers that affect any diff in this file
+        let mut file_decisions = std::collections::HashSet::new();
+        for &diff_id in diff_ids {
+            let decisions = review_engine.get_decisions_for_diff(diff_id);
+            for decision in decisions {
+                file_decisions.insert(decision.number);
+            }
+        }
+
+        // Show decision count badge
+        if !file_decisions.is_empty() {
+            let decision_numbers = {
+                let mut nums: Vec<_> = file_decisions.iter().copied().collect();
+                nums.sort();
+                nums
+            };
+            let decision_list = decision_numbers
+                .iter()
+                .map(|n| n.to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+            indicators.push_str(&format!(" D[{}]", decision_list));
+        }
+
         if instruction_count > 0 {
             indicators.push_str(&format!(
                 " {} {}",
@@ -103,6 +128,19 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &mut UiState, review_engine: 
                     };
 
                     let mut item_indicators = String::new();
+
+                    // Add decision numbers for this specific diff
+                    let decisions = review_engine.get_decisions_for_diff(diff_id);
+                    if !decisions.is_empty() {
+                        let decision_nums = decisions.iter().map(|d| d.number).collect::<Vec<_>>();
+                        let decision_str = decision_nums
+                            .iter()
+                            .map(|n| n.to_string())
+                            .collect::<Vec<_>>()
+                            .join(",");
+                        item_indicators.push_str(&format!(" D[{}]", decision_str));
+                    }
+
                     if has_instruction {
                         item_indicators.push_str(&format!(" {}", Icons::INSTRUCTION_MODE));
                     }

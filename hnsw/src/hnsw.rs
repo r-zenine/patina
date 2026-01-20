@@ -719,12 +719,18 @@ where
     }
 
     /// Get reference to a graph chunk by index
-    pub fn get_graph_chunk(&self, idx: usize) -> Result<&crate::memory::AlignedChunk<u8, GRAPH_CHUNK_SIZE>, String> {
+    pub fn get_graph_chunk(
+        &self,
+        idx: usize,
+    ) -> Result<&crate::memory::AlignedChunk<u8, GRAPH_CHUNK_SIZE>, String> {
         self.graph_tape.get_chunk(idx)
     }
 
     /// Get reference to a vector chunk by index
-    pub fn get_vector_chunk(&self, idx: usize) -> Result<&crate::memory::AlignedChunk<f32, VECTOR_CHUNK_SIZE>, String> {
+    pub fn get_vector_chunk(
+        &self,
+        idx: usize,
+    ) -> Result<&crate::memory::AlignedChunk<f32, VECTOR_CHUNK_SIZE>, String> {
         self.vector_tape.get_chunk(idx)
     }
 

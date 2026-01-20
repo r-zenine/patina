@@ -1,10 +1,12 @@
+use memmap2::Mmap;
 use std::fs::File;
 use std::io;
 use std::path::Path;
-use memmap2::Mmap;
 
+use super::format::{
+    CHUNK_SIZE, FILE_HEADER_SIZE, FileHeader, IndexMetadata, MAGIC_META, MAGIC_OFFSETS,
+};
 use crate::NodeId;
-use super::format::{FileHeader, IndexMetadata, MAGIC_META, MAGIC_OFFSETS, CHUNK_SIZE, FILE_HEADER_SIZE};
 
 /// Read-only index backed by memory-mapped files
 pub struct BaseIndex {
@@ -47,14 +49,20 @@ impl BaseIndex {
 
         // Read header
         if mmap.len() < FILE_HEADER_SIZE {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "Offsets file too small"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Offsets file too small",
+            ));
         }
 
         let header = FileHeader::read_from(&mmap[0..6])
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Invalid offsets header"))?;
 
         if !header.validate(MAGIC_OFFSETS) {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid offsets magic"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Invalid offsets magic",
+            ));
         }
 
         // Read offset count (at offset 8)
@@ -67,7 +75,10 @@ impl BaseIndex {
         for i in 0..count {
             let offset_pos = FILE_HEADER_SIZE + i * 8;
             if offset_pos + 8 > mmap.len() {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, "Offsets file truncated"));
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Offsets file truncated",
+                ));
             }
             let mut bytes = [0u8; 8];
             bytes.copy_from_slice(&mmap[offset_pos..offset_pos + 8]);
@@ -83,14 +94,20 @@ impl BaseIndex {
 
         // Read header
         if mmap.len() < FILE_HEADER_SIZE {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "Meta file too small"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Meta file too small",
+            ));
         }
 
         let header = FileHeader::read_from(&mmap[0..6])
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Invalid meta header"))?;
 
         if !header.validate(MAGIC_META) {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid meta magic"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Invalid meta magic",
+            ));
         }
 
         // Read metadata (starts at offset FILE_HEADER_SIZE)
@@ -144,9 +161,7 @@ impl BaseIndex {
 
         let slice = &self.vector_mmap[offset..offset + CHUNK_SIZE * std::mem::size_of::<f32>()];
         let ptr = slice.as_ptr() as *const f32;
-        unsafe {
-            Some(std::slice::from_raw_parts(ptr, CHUNK_SIZE))
-        }
+        unsafe { Some(std::slice::from_raw_parts(ptr, CHUNK_SIZE)) }
     }
 
     /// Get vector for a specific node
@@ -158,7 +173,8 @@ impl BaseIndex {
 
         let offset = self.offsets[node_idx];
         let chunk_idx = offset / (CHUNK_SIZE * std::mem::size_of::<f32>());
-        let elem_offset = (offset % (CHUNK_SIZE * std::mem::size_of::<f32>())) / std::mem::size_of::<f32>();
+        let elem_offset =
+            (offset % (CHUNK_SIZE * std::mem::size_of::<f32>())) / std::mem::size_of::<f32>();
 
         let chunk = self.get_vector_chunk(chunk_idx)?;
         if elem_offset + DIM > chunk.len() {
@@ -187,7 +203,8 @@ impl BaseIndex {
         if chunk_offset + 2 > CHUNK_SIZE {
             return None;
         }
-        let node_length = u16::from_le_bytes([chunk[chunk_offset], chunk[chunk_offset + 1]]) as usize;
+        let node_length =
+            u16::from_le_bytes([chunk[chunk_offset], chunk[chunk_offset + 1]]) as usize;
 
         // Parse node to get neighbors at level
         let node_start = chunk_offset + 2;
@@ -196,7 +213,12 @@ impl BaseIndex {
         }
 
         let node_bytes = &chunk[node_start..node_start + node_length];
-        Self::parse_neighbors_at_level(node_bytes, level, self.metadata.max_connections_level0, self.metadata.max_connections)
+        Self::parse_neighbors_at_level(
+            node_bytes,
+            level,
+            self.metadata.max_connections_level0,
+            self.metadata.max_connections,
+        )
     }
 
     fn parse_neighbors_at_level(
@@ -270,8 +292,8 @@ impl BaseIndex {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use super::super::format::MAGIC_TAPE;
+    use super::*;
 
     #[test]
     fn test_file_header_roundtrip() {

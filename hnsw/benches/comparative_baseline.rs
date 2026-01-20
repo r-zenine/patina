@@ -102,17 +102,19 @@ fn build_hnsw_rs_index(
 }
 
 #[cfg(feature = "bench-compare")]
-fn build_external_hnsw_index(vectors: &[[f32; DIM]]) -> external_hnsw::hnsw::Hnsw<f32, external_hnsw::prelude::DistL2> {
-    use external_hnsw::prelude::DistL2;
+fn build_external_hnsw_index(
+    vectors: &[[f32; DIM]],
+) -> external_hnsw::hnsw::Hnsw<f32, external_hnsw::prelude::DistL2> {
     use external_hnsw::hnsw::Hnsw;
+    use external_hnsw::prelude::DistL2;
 
     let nb_layer = 16.min((vectors.len() as f32).ln() as usize);
     let mut hnsw = Hnsw::<f32, DistL2>::new(
-        M,              // max_nb_connection
-        vectors.len(),  // nb_elem
-        nb_layer,       // nb_layer
-        200,            // ef_c (construction parameter)
-        DistL2{},       // distance function
+        M,             // max_nb_connection
+        vectors.len(), // nb_elem
+        nb_layer,      // nb_layer
+        200,           // ef_c (construction parameter)
+        DistL2 {},     // distance function
     );
 
     // Insert vectors
@@ -122,10 +124,8 @@ fn build_external_hnsw_index(vectors: &[[f32; DIM]]) -> external_hnsw::hnsw::Hns
         .map(|(i, v)| (v.to_vec(), i))
         .collect();
 
-    let data_refs: Vec<(&Vec<f32>, usize)> = data_for_insertion
-        .iter()
-        .map(|(v, i)| (v, *i))
-        .collect();
+    let data_refs: Vec<(&Vec<f32>, usize)> =
+        data_for_insertion.iter().map(|(v, i)| (v, *i)).collect();
 
     hnsw.parallel_insert(&data_refs);
     hnsw.set_searching_mode(true);
@@ -134,7 +134,7 @@ fn build_external_hnsw_index(vectors: &[[f32; DIM]]) -> external_hnsw::hnsw::Hns
 
 #[cfg(feature = "bench-compare")]
 fn build_faiss_index(vectors: &[[f32; DIM]]) -> Result<faiss::index::IndexImpl> {
-    use faiss::{Index, index_factory, MetricType};
+    use faiss::{Index, MetricType, index_factory};
 
     // Create HNSW index (not flat!)
     let description = format!("HNSW{}", M);
@@ -207,7 +207,10 @@ fn benchmark_implementations(c: &mut Criterion) {
         match build_faiss_index(seed_vectors) {
             Ok(mut index) => {
                 use faiss::Index;
-                println!("Faiss index created successfully, ntotal: {}", index.ntotal());
+                println!(
+                    "Faiss index created successfully, ntotal: {}",
+                    index.ntotal()
+                );
 
                 // Faiss insert benchmark
                 group.bench_function(BenchmarkId::new("insert", "faiss"), |b| {
