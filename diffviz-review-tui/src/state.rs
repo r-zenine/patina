@@ -3,6 +3,7 @@
 //! This module contains presentation-layer state that tracks navigation,
 //! focus, and input modes. Business logic state is handled by ReviewEngine.
 
+use crate::decision_navigation::DecisionNavigationState;
 use diffviz_review::ReviewableDiffId;
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
@@ -86,6 +87,9 @@ pub struct UiState {
 
     /// Whether to show help overlay
     pub show_help: bool,
+
+    /// Decision-based navigation state (primary navigation pattern)
+    pub decision_nav: DecisionNavigationState,
 }
 
 impl Default for UiState {
@@ -111,6 +115,7 @@ impl Default for UiState {
             leader_pressed_at: None,
             leader_submenu: None,
             show_help: false,
+            decision_nav: DecisionNavigationState::new(),
         }
     }
 }
