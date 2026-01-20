@@ -817,6 +817,13 @@ impl ReviewEngine {
         self.state.decisions = decisions;
     }
 
+    /// Set decisions and automatically build the index by detecting overlaps with review state diffs
+    /// This is the preferred method for populating decision-based review context
+    pub fn set_decisions_with_index(&mut self, mut decisions: crate::entities::ReviewDecisions) {
+        decisions.build_index_from_review_state(&self.state);
+        self.state.decisions = decisions;
+    }
+
     /// Get all decisions that affect a specific ReviewableDiffId
     /// Returns the decisions in order by decision number
     pub fn get_decisions_for_diff(

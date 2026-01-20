@@ -32,4 +32,17 @@
 **Why**: Validate TUI UX with mock/static data before touching skill system. Use existing mock binary for fast iteration.
 **Rejected**: dev-contribute first (would build mapping without knowing if TUI works)
 
+## Navigation Pattern: Decision-first hierarchy (not dual-view toggle)
+**Why**: Aligns with core vision ("decision-based review"), simpler mental model, complete UX validates concept better
+**Details**: Navigation hierarchy: Decision List → Modal → File View → Chunk Detail. No file-first mode.
+**Rejected**: Decision badges in file view (treats decisions as secondary), Dual-view toggle (complexity, unclear primary pattern)
+
+## Unmapped Code: Synthetic Decision 0
+**Why**: Ensures all code accessible through decision navigation, no special fallback modes needed
+**Rejected**: Separate file view for unmapped only (maintains dual navigation), Require all code mapped (too strict)
+
+## Decision Detail: Modal view
+**Why**: Minimizes TUI architecture changes, reuses existing modal pattern, quick context without navigation state complexity
+**Rejected**: Full panel (larger TUI changes), Inline expansion (harder to scan impacts)
+
 [Additional decisions added chronologically during implementation]
