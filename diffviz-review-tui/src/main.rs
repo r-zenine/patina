@@ -41,8 +41,10 @@ fn create_test_review_engine() -> Result<diffviz_review::engines::ReviewEngine> 
         .map_err(|e| anyhow::anyhow!("Failed to build ReviewEngine: {}", e))?;
 
     // Phase 1: Add hardcoded decision data for TUI testing
+    // Use set_decisions_with_index() to automatically build decision index by detecting
+    // overlaps between CodeImpact line ranges and actual ReviewableDiffs in the review state
     let decisions = create_hardcoded_decisions();
-    review_engine.set_decisions(decisions);
+    review_engine.set_decisions_with_index(decisions);
 
     Ok(review_engine)
 }

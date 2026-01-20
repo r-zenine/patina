@@ -5,6 +5,7 @@
 //! that produced them.
 
 use crate::entities::reviewable_diff_id::ReviewableDiffId;
+use crate::state::ReviewState;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -75,30 +76,57 @@ impl ReviewDecisions {
         }
     }
 
-    /// Add a decision and update the decision index
+    /// Add a decision to the collection
+    /// Note: Call build_index_from_review_state() after adding all decisions to populate the decision_index
     pub fn add_decision(&mut self, decision: Decision) {
-        let decision_number = decision.number;
+        self.decisions.insert(decision.number, decision);
+    }
 
-        // For each code impact, add this decision to the index
-        // This creates ReviewableDiffIds for each line range and maps decision to them
-        for impact in &decision.code_impacts {
-            // For each line range in this impact, create a ReviewableDiffId
-            // We create a synthetic ReviewableDiffId based on file and line range
-            for line_range in &impact.line_ranges {
-                let reviewable_id = self.create_synthetic_reviewable_id(
-                    &impact.file,
-                    line_range.start,
-                    line_range.end,
-                );
+    /// Build the decision index by detecting overlaps between code impacts and review state diffs
+    /// This maps each ReviewableDiffId from the review state to the decisions that affect it
+    pub fn build_index_from_review_state(&mut self, review_state: &ReviewState) {
+        self.decision_index.clear();
 
-                self.decision_index
-                    .entry(reviewable_id)
-                    .or_default()
-                    .push(decision_number);
+        // Get decisions in order by number to ensure consistent ordering
+        let mut decision_numbers: Vec<u32> = self.decisions.keys().copied().collect();
+        decision_numbers.sort();
+
+        // For each decision (in order) and its code impacts
+        for decision_number in decision_numbers {
+            let decision = &self.decisions[&decision_number];
+            for impact in &decision.code_impacts {
+                // For each ReviewableDiff in the review state
+                for reviewable_diff in review_state.reviewable_diffs.values() {
+                    // Check if this diff is in the same file
+                    if reviewable_diff.file_path == impact.file {
+                        // Check if the diff's line range overlaps with any of this impact's ranges
+                        for code_impact_range in &impact.line_ranges {
+                            if Self::ranges_overlap(
+                                reviewable_diff.id.line_range().start_line,
+                                reviewable_diff.id.line_range().end_line,
+                                code_impact_range.start,
+                                code_impact_range.end,
+                            ) {
+                                // Found an overlap - map this diff to this decision
+                                self.decision_index
+                                    .entry(reviewable_diff.id.clone())
+                                    .or_default()
+                                    .push(decision_number);
+                                // Break to avoid adding same decision multiple times for same diff
+                                break;
+                            }
+                        }
+                    }
+                }
             }
         }
+    }
 
-        self.decisions.insert(decision_number, decision);
+    /// Check if two line ranges overlap
+    /// Range 1: [start1, end1], Range 2: [start2, end2] (both inclusive)
+    /// Ranges overlap if: start1 <= end2 && start2 <= end1
+    fn ranges_overlap(start1: usize, end1: usize, start2: usize, end2: usize) -> bool {
+        start1 <= end2 && start2 <= end1
     }
 
     /// Get a decision by number
@@ -125,35 +153,20 @@ impl ReviewDecisions {
         decisions.sort_by_key(|d| d.number);
         decisions
     }
-
-    /// Create a synthetic ReviewableDiffId from file path and line range
-    /// This is used internally to index decisions by the code ranges they affect
-    fn create_synthetic_reviewable_id(
-        &self,
-        file: &str,
-        start: usize,
-        end: usize,
-    ) -> ReviewableDiffId {
-        // Use the line range as the diff range
-        use crate::entities::git_ref::DiffQuery;
-        use crate::entities::reviewable_diff_id::LineRange;
-
-        ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            file.to_string(),
-            LineRange {
-                start_line: start,
-                end_line: end,
-                start_column: 0,
-                end_column: 0,
-            },
-        )
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::entities::git_ref::DiffQuery;
+    use crate::entities::reviewable_diff_id::LineRange;
+    use crate::state::ReviewableDiff;
+    use diffviz_core::ast_diff::{OwnedNodeData, SourceCode};
+    use diffviz_core::common::{ProgrammingLanguage, SemanticNodeKind};
+    use diffviz_core::reviewable_diff::{
+        DiffMetadata, DiffNode, NodeChangeStatus, ReviewableDiff as CoreReviewableDiff,
+    };
+    use std::collections::HashMap;
 
     fn create_test_decision() -> Decision {
         Decision {
@@ -168,6 +181,58 @@ mod tests {
                 confidence: Confidence::High,
                 reasoning: "New authentication module implementation".to_string(),
             }],
+        }
+    }
+
+    fn create_test_reviewable_diff(
+        file_path: &str,
+        start_line: usize,
+        end_line: usize,
+    ) -> ReviewableDiff {
+        let reviewable_id = ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            file_path.to_string(),
+            LineRange {
+                start_line,
+                end_line,
+                start_column: 0,
+                end_column: 0,
+            },
+        );
+
+        let placeholder_content = format!("content for {file_path}");
+        let old_source = Box::new(SourceCode::new(placeholder_content.clone()));
+        let new_source = Box::new(SourceCode::new(placeholder_content.clone()));
+
+        let core_diff = CoreReviewableDiff {
+            language: ProgrammingLanguage::Rust,
+            boundary: DiffNode {
+                node_type: "test".to_string(),
+                semantic_kind: SemanticNodeKind::Other("test".to_string()),
+                change_status: NodeChangeStatus::Unchanged {
+                    node: OwnedNodeData {
+                        start_byte: 0,
+                        end_byte: placeholder_content.len(),
+                        kind: "test".to_string(),
+                    },
+                },
+                relevance: 0,
+                children: vec![],
+            },
+            old_source,
+            new_source,
+            metadata: DiffMetadata {
+                total_changes: 1,
+                change_summary: HashMap::new(),
+                essential_node_count: 1,
+                analysis_duration_ms: 0,
+            },
+        };
+
+        ReviewableDiff {
+            id: reviewable_id,
+            core_diff,
+            file_path: file_path.to_string(),
         }
     }
 
@@ -205,6 +270,186 @@ mod tests {
         assert_eq!(all.len(), 2);
         assert_eq!(all[0].number, 1);
         assert_eq!(all[1].number, 2);
+    }
+
+    #[test]
+    fn test_build_index_exact_overlap() {
+        let mut decisions = ReviewDecisions::new();
+        decisions.add_decision(Decision {
+            number: 1,
+            title: "Decision 1".to_string(),
+            summary: "Summary".to_string(),
+            decision_log_line: None,
+            code_impacts: vec![CodeImpact {
+                file: "src/auth.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 10, end: 20 }],
+                change_type: ChangeType::Modification,
+                confidence: Confidence::High,
+                reasoning: "Auth changes".to_string(),
+            }],
+        });
+
+        let diff = create_test_reviewable_diff("src/auth.rs", 10, 20);
+        let review_state = ReviewState::new(vec![diff.clone()], "author".to_string());
+
+        decisions.build_index_from_review_state(&review_state);
+
+        let decision_list = decisions.get_decisions_for_diff(&diff.id);
+        assert_eq!(decision_list.len(), 1);
+        assert_eq!(decision_list[0].number, 1);
+    }
+
+    #[test]
+    fn test_build_index_partial_overlap() {
+        let mut decisions = ReviewDecisions::new();
+        decisions.add_decision(Decision {
+            number: 1,
+            title: "Decision 1".to_string(),
+            summary: "Summary".to_string(),
+            decision_log_line: None,
+            code_impacts: vec![CodeImpact {
+                file: "src/auth.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 10, end: 30 }],
+                change_type: ChangeType::Modification,
+                confidence: Confidence::High,
+                reasoning: "Auth changes".to_string(),
+            }],
+        });
+
+        // Diff that partially overlaps: 15-25 overlaps with decision range 10-30
+        let diff = create_test_reviewable_diff("src/auth.rs", 15, 25);
+        let review_state = ReviewState::new(vec![diff.clone()], "author".to_string());
+
+        decisions.build_index_from_review_state(&review_state);
+
+        let decision_list = decisions.get_decisions_for_diff(&diff.id);
+        assert_eq!(decision_list.len(), 1);
+        assert_eq!(decision_list[0].number, 1);
+    }
+
+    #[test]
+    fn test_build_index_no_overlap() {
+        let mut decisions = ReviewDecisions::new();
+        decisions.add_decision(Decision {
+            number: 1,
+            title: "Decision 1".to_string(),
+            summary: "Summary".to_string(),
+            decision_log_line: None,
+            code_impacts: vec![CodeImpact {
+                file: "src/auth.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 10, end: 20 }],
+                change_type: ChangeType::Modification,
+                confidence: Confidence::High,
+                reasoning: "Auth changes".to_string(),
+            }],
+        });
+
+        // Diff that doesn't overlap: 30-40 doesn't overlap with decision range 10-20
+        let diff = create_test_reviewable_diff("src/auth.rs", 30, 40);
+        let review_state = ReviewState::new(vec![diff.clone()], "author".to_string());
+
+        decisions.build_index_from_review_state(&review_state);
+
+        let decision_list = decisions.get_decisions_for_diff(&diff.id);
+        assert_eq!(decision_list.len(), 0);
+    }
+
+    #[test]
+    fn test_build_index_different_file_no_match() {
+        let mut decisions = ReviewDecisions::new();
+        decisions.add_decision(Decision {
+            number: 1,
+            title: "Decision 1".to_string(),
+            summary: "Summary".to_string(),
+            decision_log_line: None,
+            code_impacts: vec![CodeImpact {
+                file: "src/auth.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 10, end: 20 }],
+                change_type: ChangeType::Modification,
+                confidence: Confidence::High,
+                reasoning: "Auth changes".to_string(),
+            }],
+        });
+
+        // Diff in different file should not match
+        let diff = create_test_reviewable_diff("src/other.rs", 10, 20);
+        let review_state = ReviewState::new(vec![diff.clone()], "author".to_string());
+
+        decisions.build_index_from_review_state(&review_state);
+
+        let decision_list = decisions.get_decisions_for_diff(&diff.id);
+        assert_eq!(decision_list.len(), 0);
+    }
+
+    #[test]
+    fn test_build_index_multiple_decisions() {
+        let mut decisions = ReviewDecisions::new();
+        decisions.add_decision(Decision {
+            number: 1,
+            title: "Decision 1".to_string(),
+            summary: "Summary".to_string(),
+            decision_log_line: None,
+            code_impacts: vec![CodeImpact {
+                file: "src/auth.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 10, end: 30 }],
+                change_type: ChangeType::Modification,
+                confidence: Confidence::High,
+                reasoning: "Auth changes".to_string(),
+            }],
+        });
+
+        decisions.add_decision(Decision {
+            number: 2,
+            title: "Decision 2".to_string(),
+            summary: "Summary".to_string(),
+            decision_log_line: None,
+            code_impacts: vec![CodeImpact {
+                file: "src/auth.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 15, end: 25 }],
+                change_type: ChangeType::Modification,
+                confidence: Confidence::High,
+                reasoning: "More auth changes".to_string(),
+            }],
+        });
+
+        // Diff in range that overlaps both decisions
+        let diff = create_test_reviewable_diff("src/auth.rs", 18, 22);
+        let review_state = ReviewState::new(vec![diff.clone()], "author".to_string());
+
+        decisions.build_index_from_review_state(&review_state);
+
+        let decision_list = decisions.get_decisions_for_diff(&diff.id);
+        assert_eq!(decision_list.len(), 2);
+        assert_eq!(decision_list[0].number, 1);
+        assert_eq!(decision_list[1].number, 2);
+    }
+
+    #[test]
+    fn test_build_index_nested_range() {
+        let mut decisions = ReviewDecisions::new();
+        decisions.add_decision(Decision {
+            number: 1,
+            title: "Decision 1".to_string(),
+            summary: "Summary".to_string(),
+            decision_log_line: None,
+            code_impacts: vec![CodeImpact {
+                file: "src/auth.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 10, end: 50 }],
+                change_type: ChangeType::Modification,
+                confidence: Confidence::High,
+                reasoning: "Large refactor".to_string(),
+            }],
+        });
+
+        // Diff nested inside decision range
+        let diff = create_test_reviewable_diff("src/auth.rs", 20, 30);
+        let review_state = ReviewState::new(vec![diff.clone()], "author".to_string());
+
+        decisions.build_index_from_review_state(&review_state);
+
+        let decision_list = decisions.get_decisions_for_diff(&diff.id);
+        assert_eq!(decision_list.len(), 1);
+        assert_eq!(decision_list[0].number, 1);
     }
 
     #[test]

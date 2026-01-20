@@ -4,12 +4,25 @@
 
 Transform DiffViz from a file-based code review tool into a decision-based code review tool. Reviewers will explore code changes organized by the decisions that produced them, not just by file.
 
+**Primary Navigation Pattern: Decision-First Hierarchy**
+
 When a reviewer opens a contribution for review:
-1. They see a list of decisions (from decision-log.md) instead of just files
-2. Selecting a decision shows its rationale, alternatives considered, and all code impacts
-3. Code that implements a decision appears with decision context (number, title)
-4. If two decisions affect the same code, that code appears under both decisions (reviewed twice)
-5. File-based navigation remains available as an alternative view
+1. They see a **decision list** as the primary view (not files)
+2. Selecting a decision opens a **modal** showing rationale, summary, and all code impacts
+3. Drilling into a code impact navigates to **file view filtered by that decision**
+4. Code that implements a decision is reviewed with full decision context
+5. If two decisions affect the same code, that code appears under both decisions (reviewed twice)
+6. All code is accessible: unmapped diffs appear under synthetic "Decision 0: Unmapped Changes"
+
+**Navigation Hierarchy**:
+```
+Decision List (primary)
+  → Decision Detail Modal (context)
+    → File View (filtered by decision)
+      → Chunk Detail (existing diff view)
+```
+
+**No file-first navigation mode** - decisions are the only entry point.
 
 ## Codebase Patterns to Follow
 
@@ -48,6 +61,9 @@ When a reviewer opens a contribution for review:
 
 | Decision | Choice |
 |----------|--------|
+| Navigation pattern | Decision-first hierarchy (decision → file → chunk) |
+| Unmapped code | Synthetic "Decision 0: Unmapped Changes" |
+| Decision detail | Modal view (minimize TUI changes) |
 | Overlapping code | Same code reviewed under both decisions |
 | Range precision | Function-level |
 | Confidence levels | Three-level (high/medium/low) |
@@ -55,6 +71,7 @@ When a reviewer opens a contribution for review:
 | Mapping generation | Fully automatic by dev-contribute |
 | Backward compat | No - decision-based only for new contributions |
 | Comments | Keep current line-based visual selection |
+| Actions | At chunk level (ReviewableDiffId) |
 | Decision layer | diffviz-review only (keep diffviz-core pure) |
 
 ## JSON Schema (Agreed)
