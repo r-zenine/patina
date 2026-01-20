@@ -4,6 +4,7 @@ pub mod components;
 pub mod layout;
 
 use crate::state::UiState;
+use crate::decision_navigation::NavigationLevel;
 use diffviz_review::engines::ReviewEngine;
 use ratatui::Frame;
 
@@ -11,8 +12,18 @@ use ratatui::Frame;
 pub fn draw(f: &mut Frame, ui_state: &mut UiState, review_engine: &ReviewEngine) {
     let chunks = layout::create_main_layout(f.area());
 
-    // Render main components
-    components::file_list::render(f, chunks.file_list, ui_state, review_engine);
+    // Render main components based on navigation level
+    match ui_state.decision_nav.current_level {
+        NavigationLevel::Decision => {
+            // Show decision list as primary view
+            components::decision_list::render(f, chunks.file_list, ui_state, review_engine);
+        }
+        NavigationLevel::File | NavigationLevel::Chunk => {
+            // Show file list for file/chunk navigation
+            components::file_list::render(f, chunks.file_list, ui_state, review_engine);
+        }
+    }
+
     components::diff_view::render(f, chunks.diff_view, ui_state, review_engine);
     components::status_bar::render(f, chunks.status_bar, ui_state, review_engine);
 
@@ -20,6 +31,10 @@ pub fn draw(f: &mut Frame, ui_state: &mut UiState, review_engine: &ReviewEngine)
     if ui_state.is_in_input_mode() {
         components::input_modal::render(f, f.area(), ui_state);
     }
+
+    // Render decision detail modal if active
+    components::decision_detail_modal::render(f, f.area(), ui_state, review_engine);
+
     components::which_key::render(f, ui_state);
     components::help_overlay::render(f, ui_state);
 }
