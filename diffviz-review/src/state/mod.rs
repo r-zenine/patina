@@ -4,7 +4,7 @@
 //! now organized around ReviewableDiffs as the primary unit of review.
 
 use crate::entities::reviewable_diff_id::{LineRange, ReviewableDiffId};
-use crate::entities::{Instruction, ReviewApprovals, ReviewInstructions};
+use crate::entities::{Instruction, ReviewApprovals, ReviewDecisions, ReviewInstructions};
 // Simplified structures for review workflow
 #[derive(Debug, Clone, Default)]
 pub struct ReviewJourney;
@@ -56,6 +56,7 @@ pub struct ReviewState {
     /// Review progress and decisions
     pub approvals: ReviewApprovals,
     pub instructions: ReviewInstructions,
+    pub decisions: ReviewDecisions,
     pub journey: ReviewJourney,
 
     /// Session metadata
@@ -116,6 +117,7 @@ impl ReviewState {
             reviewable_diffs: diffs_map,
             approvals: ReviewApprovals::new(),
             instructions: ReviewInstructions::new(),
+            decisions: ReviewDecisions::new(),
             journey: ReviewJourney::new(),
             author,
             session_metadata: None,
@@ -129,6 +131,7 @@ impl ReviewState {
         journey: ReviewJourney,
         approvals: ReviewApprovals,
         instructions: ReviewInstructions,
+        decisions: ReviewDecisions,
     ) -> Self {
         let mut diffs_map = BTreeMap::new();
         for diff in reviewable_diffs {
@@ -139,6 +142,7 @@ impl ReviewState {
             reviewable_diffs: diffs_map,
             approvals,
             instructions,
+            decisions,
             journey,
             author,
             session_metadata: None,

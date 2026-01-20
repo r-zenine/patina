@@ -95,10 +95,8 @@ impl IndexMetadata {
             buf[6], buf[7], buf[8], buf[9], buf[10], buf[11], buf[12], buf[13],
         ]) as usize;
 
-        let max_connections =
-            u16::from_le_bytes([buf[14], buf[15]]) as usize;
-        let max_connections_level0 =
-            u16::from_le_bytes([buf[16], buf[17]]) as usize;
+        let max_connections = u16::from_le_bytes([buf[14], buf[15]]) as usize;
+        let max_connections_level0 = u16::from_le_bytes([buf[16], buf[17]]) as usize;
         let max_level = buf[18];
 
         Some(IndexMetadata {

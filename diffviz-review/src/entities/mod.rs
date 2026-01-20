@@ -1,5 +1,6 @@
 // Individual review entity modules
 pub mod approval;
+pub mod decision;
 pub mod instruction;
 
 // Core identifier module
@@ -10,4 +11,7 @@ pub mod git_ref;
 
 // Re-exports for backward compatibility
 pub use approval::{Approval, ReviewApprovals};
+pub use decision::{
+    ChangeType, CodeImpact, Confidence, Decision, DecisionLineRange, ReviewDecisions,
+};
 pub use instruction::{Instruction, ReviewInstructions};

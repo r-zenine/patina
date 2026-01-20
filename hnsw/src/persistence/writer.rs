@@ -1,15 +1,20 @@
 use std::fs::File;
-use std::io::{self, Write, BufWriter};
+use std::io::{self, BufWriter, Write};
 use std::path::Path;
 
+use super::format::{FileHeader, MAGIC_META, MAGIC_OFFSETS, MAGIC_TAPE, MAGIC_VECTORS};
 use crate::hnsw::HnswIndex;
-use super::format::{FileHeader, MAGIC_TAPE, MAGIC_VECTORS, MAGIC_META, MAGIC_OFFSETS};
 
 pub struct IndexWriter;
 
 impl IndexWriter {
     /// Serialize an HNSW index to disk files
-    pub fn write<K, const DIM: usize, const GRAPH_CHUNK_SIZE: usize, const VECTOR_CHUNK_SIZE: usize>(
+    pub fn write<
+        K,
+        const DIM: usize,
+        const GRAPH_CHUNK_SIZE: usize,
+        const VECTOR_CHUNK_SIZE: usize,
+    >(
         index: &HnswIndex<K, DIM, GRAPH_CHUNK_SIZE, VECTOR_CHUNK_SIZE>,
         base_path: &Path,
     ) -> io::Result<()>
@@ -34,7 +39,12 @@ impl IndexWriter {
         Ok(())
     }
 
-    fn write_graph_tape<K, const DIM: usize, const GRAPH_CHUNK_SIZE: usize, const VECTOR_CHUNK_SIZE: usize>(
+    fn write_graph_tape<
+        K,
+        const DIM: usize,
+        const GRAPH_CHUNK_SIZE: usize,
+        const VECTOR_CHUNK_SIZE: usize,
+    >(
         index: &HnswIndex<K, DIM, GRAPH_CHUNK_SIZE, VECTOR_CHUNK_SIZE>,
         base_path: &Path,
     ) -> io::Result<()>
@@ -56,7 +66,8 @@ impl IndexWriter {
 
         // Write all chunks sequentially
         for chunk_idx in 0..chunk_count as usize {
-            let chunk = index.get_graph_chunk(chunk_idx)
+            let chunk = index
+                .get_graph_chunk(chunk_idx)
                 .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
             writer.write_all(chunk.as_ref())?;
         }
@@ -65,7 +76,12 @@ impl IndexWriter {
         Ok(())
     }
 
-    fn write_vector_tape<K, const DIM: usize, const GRAPH_CHUNK_SIZE: usize, const VECTOR_CHUNK_SIZE: usize>(
+    fn write_vector_tape<
+        K,
+        const DIM: usize,
+        const GRAPH_CHUNK_SIZE: usize,
+        const VECTOR_CHUNK_SIZE: usize,
+    >(
         index: &HnswIndex<K, DIM, GRAPH_CHUNK_SIZE, VECTOR_CHUNK_SIZE>,
         base_path: &Path,
     ) -> io::Result<()>
@@ -87,7 +103,8 @@ impl IndexWriter {
 
         // Write all chunks sequentially
         for chunk_idx in 0..chunk_count as usize {
-            let chunk = index.get_vector_chunk(chunk_idx)
+            let chunk = index
+                .get_vector_chunk(chunk_idx)
                 .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
             // chunk is &[f32; VECTOR_CHUNK_SIZE], write as bytes
             let bytes = unsafe {
@@ -103,7 +120,12 @@ impl IndexWriter {
         Ok(())
     }
 
-    fn write_offsets<K, const DIM: usize, const GRAPH_CHUNK_SIZE: usize, const VECTOR_CHUNK_SIZE: usize>(
+    fn write_offsets<
+        K,
+        const DIM: usize,
+        const GRAPH_CHUNK_SIZE: usize,
+        const VECTOR_CHUNK_SIZE: usize,
+    >(
         index: &HnswIndex<K, DIM, GRAPH_CHUNK_SIZE, VECTOR_CHUNK_SIZE>,
         base_path: &Path,
     ) -> io::Result<()>
@@ -120,7 +142,8 @@ impl IndexWriter {
         header.write_to(&mut header_buf[0..6]);
 
         // Get vector offsets from index
-        let offsets = index.get_vector_offsets()
+        let offsets = index
+            .get_vector_offsets()
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
         // Write offset count at offset 8
@@ -137,7 +160,12 @@ impl IndexWriter {
         Ok(())
     }
 
-    fn write_metadata<K, const DIM: usize, const GRAPH_CHUNK_SIZE: usize, const VECTOR_CHUNK_SIZE: usize>(
+    fn write_metadata<
+        K,
+        const DIM: usize,
+        const GRAPH_CHUNK_SIZE: usize,
+        const VECTOR_CHUNK_SIZE: usize,
+    >(
         index: &HnswIndex<K, DIM, GRAPH_CHUNK_SIZE, VECTOR_CHUNK_SIZE>,
         base_path: &Path,
     ) -> io::Result<()>
@@ -155,7 +183,8 @@ impl IndexWriter {
         writer.write_all(&header_buf)?;
 
         // Collect metadata from index
-        let metadata = index.get_metadata()
+        let metadata = index
+            .get_metadata()
             .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
 
         // Write metadata

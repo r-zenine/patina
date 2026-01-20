@@ -1,4 +1,4 @@
-use hnsw::{HnswIndex, HnswParams, persistence::IndexWriter, persistence::BaseIndex};
+use hnsw::{HnswIndex, HnswParams, persistence::BaseIndex, persistence::IndexWriter};
 use tempfile::TempDir;
 
 const GRAPH_CHUNK_SIZE: usize = 4096;
@@ -14,7 +14,8 @@ fn test_serialize_and_load_index() {
     let params = HnswParams::default();
     let max_connections = params.max_connections;
     let max_connections_level0 = params.max_connections_level0;
-    let mut index: HnswIndex<u32, 4, GRAPH_CHUNK_SIZE, VECTOR_CHUNK_SIZE> = HnswIndex::new_euclidean(params);
+    let mut index: HnswIndex<u32, 4, GRAPH_CHUNK_SIZE, VECTOR_CHUNK_SIZE> =
+        HnswIndex::new_euclidean(params);
 
     // Insert some test vectors
     let vectors = vec![
@@ -39,17 +40,36 @@ fn test_serialize_and_load_index() {
     IndexWriter::write(&index, &base_path).expect("Failed to serialize index");
 
     // Verify files were created
-    assert!(base_path.join("main.tape").exists(), "Graph tape file should exist");
-    assert!(base_path.join("main.vectors").exists(), "Vector tape file should exist");
-    assert!(base_path.join("main.offsets").exists(), "Offsets file should exist");
-    assert!(base_path.join("main.meta").exists(), "Metadata file should exist");
+    assert!(
+        base_path.join("main.tape").exists(),
+        "Graph tape file should exist"
+    );
+    assert!(
+        base_path.join("main.vectors").exists(),
+        "Vector tape file should exist"
+    );
+    assert!(
+        base_path.join("main.offsets").exists(),
+        "Offsets file should exist"
+    );
+    assert!(
+        base_path.join("main.meta").exists(),
+        "Metadata file should exist"
+    );
 
     // Load index from disk
     let loaded_index = BaseIndex::open(&base_path).expect("Failed to load index");
 
     // Verify metadata
-    assert_eq!(loaded_index.node_count(), 4, "Loaded index should have 4 nodes");
-    assert!(loaded_index.entry_point().is_some(), "Loaded index should have entry point");
+    assert_eq!(
+        loaded_index.node_count(),
+        4,
+        "Loaded index should have 4 nodes"
+    );
+    assert!(
+        loaded_index.entry_point().is_some(),
+        "Loaded index should have entry point"
+    );
     assert_eq!(
         loaded_index.max_connections(),
         max_connections,
@@ -93,7 +113,8 @@ fn test_empty_index_serialization() {
 
     // Create empty index
     let params = HnswParams::default();
-    let index: HnswIndex<u32, 4, GRAPH_CHUNK_SIZE, VECTOR_CHUNK_SIZE> = HnswIndex::new_euclidean(params);
+    let index: HnswIndex<u32, 4, GRAPH_CHUNK_SIZE, VECTOR_CHUNK_SIZE> =
+        HnswIndex::new_euclidean(params);
 
     // Serialize empty index
     IndexWriter::write(&index, &base_path).expect("Failed to serialize empty index");
@@ -101,8 +122,15 @@ fn test_empty_index_serialization() {
     // Load empty index
     let loaded_index = BaseIndex::open(&base_path).expect("Failed to load empty index");
 
-    assert_eq!(loaded_index.node_count(), 0, "Loaded empty index should have 0 nodes");
-    assert!(loaded_index.entry_point().is_none(), "Empty index should have no entry point");
+    assert_eq!(
+        loaded_index.node_count(),
+        0,
+        "Loaded empty index should have 0 nodes"
+    );
+    assert!(
+        loaded_index.entry_point().is_none(),
+        "Empty index should have no entry point"
+    );
 
     println!("✓ Empty index serialization test passed");
 }
@@ -114,10 +142,13 @@ fn test_single_node_index() {
 
     // Create index with single node
     let params = HnswParams::default();
-    let mut index: HnswIndex<u32, 4, GRAPH_CHUNK_SIZE, VECTOR_CHUNK_SIZE> = HnswIndex::new_euclidean(params);
+    let mut index: HnswIndex<u32, 4, GRAPH_CHUNK_SIZE, VECTOR_CHUNK_SIZE> =
+        HnswIndex::new_euclidean(params);
 
     let vector = [1.0, 2.0, 3.0, 4.0];
-    let node_id = index.insert(42u32, vector).expect("Failed to insert vector");
+    let node_id = index
+        .insert(42u32, vector)
+        .expect("Failed to insert vector");
 
     // Serialize
     IndexWriter::write(&index, &base_path).expect("Failed to serialize");
@@ -148,7 +179,8 @@ fn test_vector_persistence_round_trip() {
     let base_path = temp_dir.path().join("vectors");
 
     let params = HnswParams::default();
-    let mut index: HnswIndex<u32, 4, GRAPH_CHUNK_SIZE, VECTOR_CHUNK_SIZE> = HnswIndex::new_euclidean(params);
+    let mut index: HnswIndex<u32, 4, GRAPH_CHUNK_SIZE, VECTOR_CHUNK_SIZE> =
+        HnswIndex::new_euclidean(params);
 
     // Create and insert vectors with specific values
     let vectors = vec![
