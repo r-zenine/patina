@@ -6,6 +6,7 @@
 //! clean separation between UI and business logic.
 
 pub mod app;
+pub mod command;
 pub mod decision_navigation;
 pub mod diff;
 pub mod events;
