@@ -2,6 +2,7 @@
 
 pub mod decision_detail_modal;
 pub mod decision_list;
+pub mod decision_tree;
 pub mod diff_view;
 pub mod file_list;
 pub mod help_overlay;

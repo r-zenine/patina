@@ -42,23 +42,13 @@ pub enum BusinessEvent {
 /// Convert UI events to business events based on current state
 pub fn ui_event_to_business_event(ui_event: &UiEvent, ui_state: &UiState) -> Option<BusinessEvent> {
     match ui_event {
-        UiEvent::ToggleApprove => {
-            ui_state
-                .current_reviewable_id
-                .as_ref()
-                .map(|id| BusinessEvent::ToggleApprove {
-                    reviewable_id: id.clone(),
-                })
-        }
+        UiEvent::ToggleApprove => ui_state
+            .current_reviewable_id()
+            .map(|id| BusinessEvent::ToggleApprove { reviewable_id: id }),
 
-        UiEvent::ApproveFile => {
-            ui_state
-                .current_file_path
-                .as_ref()
-                .map(|path| BusinessEvent::ApproveFile {
-                    file_path: path.clone(),
-                })
-        }
+        UiEvent::ApproveFile => ui_state
+            .current_file_path()
+            .map(|path| BusinessEvent::ApproveFile { file_path: path }),
 
         UiEvent::SubmitInput => match &ui_state.input_mode {
             InputMode::Instruction { reviewable_id } => Some(BusinessEvent::AddInstruction {
@@ -76,19 +66,17 @@ pub fn ui_event_to_business_event(ui_event: &UiEvent, ui_state: &UiState) -> Opt
 
         UiEvent::ExportFile => {
             ui_state
-                .current_file_path
-                .as_ref()
+                .current_file_path()
                 .map(|path| BusinessEvent::ExportInstructions {
-                    scope: ExportScope::SingleFile(path.clone()),
+                    scope: ExportScope::SingleFile(path),
                 })
         }
 
         UiEvent::ExportSingleInstruction => {
             ui_state
-                .current_reviewable_id
-                .as_ref()
+                .current_reviewable_id()
                 .map(|id| BusinessEvent::ExportInstructions {
-                    scope: ExportScope::SingleInstruction(id.clone()),
+                    scope: ExportScope::SingleInstruction(id),
                 })
         }
 

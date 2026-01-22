@@ -1,191 +1,375 @@
-//! Navigation state for decision-first review hierarchy
+//! Tree-based navigation state for decision-first review hierarchy
 //!
-//! Manages navigation through Decision List → Decision Detail Modal → File View → Chunk Detail.
-//! Replaces file-first navigation as the primary navigation pattern.
+//! Models the navigation as an actual tree structure where each node has identity
+//! and expansion state. Navigation operations work on the tree itself, avoiding
+//! synchronization issues with flat indices into dynamically rebuilt structures.
 
 use diffviz_review::{engines::ReviewEngine, ReviewableDiffId};
 
-/// Navigation level in the decision-first hierarchy
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NavigationLevel {
-    /// At the decision list
-    Decision,
-    /// Inside a decision's file view
-    File,
-    /// Inside a chunk detail view
-    Chunk,
-}
-
-/// Tracks position in the decision-first navigation hierarchy
+/// Navigation tree that models the decision hierarchy
 #[derive(Debug, Clone)]
-pub struct DecisionNavigationState {
-    /// Current navigation level (decision list, file view, or chunk view)
-    pub current_level: NavigationLevel,
+pub struct DecisionNavigationTree {
+    /// The decision nodes that form the tree
+    pub nodes: Vec<DecisionNode>,
 
-    /// Currently selected decision number (if any)
-    pub selected_decision: Option<u32>,
-
-    /// Currently selected file path (when at File or Chunk level)
-    pub selected_file: Option<String>,
-
-    /// Currently selected chunk ReviewableDiffId (when at Chunk level)
-    pub selected_chunk: Option<ReviewableDiffId>,
+    /// Currently selected position in the tree
+    pub selected_path: TreePath,
 
     /// Whether decision detail modal is visible
     pub show_decision_modal: bool,
-
-    /// Current index in decision list (for navigation)
-    pub decision_list_index: usize,
-
-    /// Current index in file list within a decision (for navigation)
-    pub file_list_index: usize,
 }
 
-impl Default for DecisionNavigationState {
+/// A decision node in the tree
+#[derive(Debug, Clone)]
+pub struct DecisionNode {
+    /// Decision number
+    pub decision_number: u32,
+
+    /// Whether this decision is expanded to show its files
+    pub expanded: bool,
+
+    /// Files contained in this decision
+    pub files: Vec<FileNode>,
+}
+
+/// A file node within a decision
+#[derive(Debug, Clone)]
+pub struct FileNode {
+    /// File path
+    pub path: String,
+
+    /// Whether this file is expanded to show its chunks
+    pub expanded: bool,
+
+    /// Chunks (diffs) within this file
+    pub chunks: Vec<ChunkNode>,
+}
+
+/// A chunk (ReviewableDiff) within a file
+#[derive(Debug, Clone)]
+pub struct ChunkNode {
+    /// The ReviewableDiff identifier
+    pub chunk_id: ReviewableDiffId,
+}
+
+/// Path to a node in the tree (which decision/file/chunk is selected)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TreePath {
+    /// Index into decisions array
+    pub decision_index: usize,
+
+    /// If Some, index into files array of selected decision
+    pub file_index: Option<usize>,
+
+    /// If Some, index into chunks array of selected file
+    pub chunk_index: Option<usize>,
+}
+
+impl TreePath {
+    /// Create a path pointing to a decision
+    pub fn decision(index: usize) -> Self {
+        Self {
+            decision_index: index,
+            file_index: None,
+            chunk_index: None,
+        }
+    }
+
+    /// Create a path pointing to a file
+    pub fn file(decision_index: usize, file_index: usize) -> Self {
+        Self {
+            decision_index,
+            file_index: Some(file_index),
+            chunk_index: None,
+        }
+    }
+
+    /// Create a path pointing to a chunk
+    pub fn chunk(decision_index: usize, file_index: usize, chunk_index: usize) -> Self {
+        Self {
+            decision_index,
+            file_index: Some(file_index),
+            chunk_index: Some(chunk_index),
+        }
+    }
+
+    /// Get the depth of this path (0=decision, 1=file, 2=chunk)
+    pub fn depth(&self) -> usize {
+        if self.chunk_index.is_some() {
+            2
+        } else if self.file_index.is_some() {
+            1
+        } else {
+            0
+        }
+    }
+}
+
+/// Flattened view of the tree for linear navigation
+#[derive(Debug, Clone)]
+pub struct FlattenedNode {
+    /// Path to this node in the tree
+    pub path: TreePath,
+
+    /// What kind of node this is
+    pub kind: FlattenedNodeKind,
+}
+
+#[derive(Debug, Clone)]
+pub enum FlattenedNodeKind {
+    Decision {
+        number: u32,
+        expanded: bool,
+    },
+    File {
+        decision_num: u32,
+        path: String,
+        expanded: bool,
+    },
+    Chunk {
+        decision_num: u32,
+        file_path: String,
+        chunk_id: ReviewableDiffId,
+    },
+}
+
+impl DecisionNavigationTree {
+    /// Create a new empty navigation tree
+    pub fn new() -> Self {
+        Self {
+            nodes: Vec::new(),
+            selected_path: TreePath::decision(0),
+            show_decision_modal: false,
+        }
+    }
+
+    /// Build tree from ReviewEngine decisions
+    pub fn build_from_review_engine(review_engine: &ReviewEngine) -> Self {
+        let decisions = review_engine.get_all_decisions();
+        let mut nodes = Vec::new();
+
+        for decision in decisions {
+            // Collect unique files for this decision
+            let mut file_paths = Vec::new();
+            for impact in &decision.code_impacts {
+                if !file_paths.contains(&impact.file) {
+                    file_paths.push(impact.file.clone());
+                }
+            }
+            file_paths.sort();
+
+            // Build file nodes for each file
+            let mut files = Vec::new();
+            for file_path in file_paths {
+                // Get chunks for this file
+                let chunks =
+                    get_chunks_for_file_in_decision(review_engine, decision.number, &file_path);
+
+                let chunk_nodes = chunks
+                    .into_iter()
+                    .map(|chunk_id| ChunkNode { chunk_id })
+                    .collect();
+
+                files.push(FileNode {
+                    path: file_path,
+                    expanded: false,
+                    chunks: chunk_nodes,
+                });
+            }
+
+            nodes.push(DecisionNode {
+                decision_number: decision.number,
+                expanded: false,
+                files,
+            });
+        }
+
+        Self {
+            nodes,
+            selected_path: TreePath::decision(0),
+            show_decision_modal: false,
+        }
+    }
+
+    /// Flatten the tree into a linear sequence for rendering and navigation
+    pub fn flatten(&self) -> Vec<FlattenedNode> {
+        let mut result = Vec::new();
+
+        for (decision_idx, decision_node) in self.nodes.iter().enumerate() {
+            // Add decision node
+            result.push(FlattenedNode {
+                path: TreePath::decision(decision_idx),
+                kind: FlattenedNodeKind::Decision {
+                    number: decision_node.decision_number,
+                    expanded: decision_node.expanded,
+                },
+            });
+
+            // If decision is expanded, add its files
+            if decision_node.expanded {
+                for (file_idx, file_node) in decision_node.files.iter().enumerate() {
+                    result.push(FlattenedNode {
+                        path: TreePath::file(decision_idx, file_idx),
+                        kind: FlattenedNodeKind::File {
+                            decision_num: decision_node.decision_number,
+                            path: file_node.path.clone(),
+                            expanded: file_node.expanded,
+                        },
+                    });
+
+                    // If file is expanded, add its chunks
+                    if file_node.expanded {
+                        for (chunk_idx, chunk_node) in file_node.chunks.iter().enumerate() {
+                            result.push(FlattenedNode {
+                                path: TreePath::chunk(decision_idx, file_idx, chunk_idx),
+                                kind: FlattenedNodeKind::Chunk {
+                                    decision_num: decision_node.decision_number,
+                                    file_path: file_node.path.clone(),
+                                    chunk_id: chunk_node.chunk_id.clone(),
+                                },
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        result
+    }
+
+    /// Navigate to the next item in the flattened tree
+    pub fn navigate_next(&mut self) {
+        let flattened = self.flatten();
+        if flattened.is_empty() {
+            return;
+        }
+
+        // Find current position
+        if let Some(current_idx) = flattened.iter().position(|n| n.path == self.selected_path) {
+            // Move to next if not at end
+            if current_idx + 1 < flattened.len() {
+                self.selected_path = flattened[current_idx + 1].path.clone();
+            }
+        }
+    }
+
+    /// Navigate to the previous item in the flattened tree
+    pub fn navigate_prev(&mut self) {
+        let flattened = self.flatten();
+        if flattened.is_empty() {
+            return;
+        }
+
+        // Find current position
+        if let Some(current_idx) = flattened.iter().position(|n| n.path == self.selected_path) {
+            // Move to previous if not at start
+            if current_idx > 0 {
+                self.selected_path = flattened[current_idx - 1].path.clone();
+            }
+        }
+    }
+
+    /// Toggle expansion of the currently selected node
+    pub fn toggle_expansion(&mut self) {
+        let path = &self.selected_path;
+
+        if let Some(decision) = self.nodes.get_mut(path.decision_index) {
+            if let Some(file_idx) = path.file_index {
+                // Toggle file expansion
+                if let Some(file) = decision.files.get_mut(file_idx) {
+                    file.expanded = !file.expanded;
+                }
+            } else {
+                // Toggle decision expansion
+                decision.expanded = !decision.expanded;
+            }
+        }
+    }
+
+    /// Expand the currently selected node
+    pub fn expand_current(&mut self) {
+        let path = &self.selected_path;
+
+        if let Some(decision) = self.nodes.get_mut(path.decision_index) {
+            if let Some(file_idx) = path.file_index {
+                if let Some(file) = decision.files.get_mut(file_idx) {
+                    file.expanded = true;
+                }
+            } else {
+                decision.expanded = true;
+            }
+        }
+    }
+
+    /// Get the currently selected decision number
+    pub fn selected_decision_number(&self) -> Option<u32> {
+        self.nodes
+            .get(self.selected_path.decision_index)
+            .map(|d| d.decision_number)
+    }
+
+    /// Get the currently selected file path
+    pub fn selected_file_path(&self) -> Option<String> {
+        let path = &self.selected_path;
+        self.nodes
+            .get(path.decision_index)
+            .and_then(|d| path.file_index.and_then(|f_idx| d.files.get(f_idx)))
+            .map(|f| f.path.clone())
+    }
+
+    /// Get the currently selected chunk ID
+    pub fn selected_chunk_id(&self) -> Option<ReviewableDiffId> {
+        let path = &self.selected_path;
+        self.nodes
+            .get(path.decision_index)
+            .and_then(|d| {
+                path.file_index
+                    .and_then(|f_idx| d.files.get(f_idx))
+                    .and_then(|f| path.chunk_index.and_then(|c_idx| f.chunks.get(c_idx)))
+            })
+            .map(|c| c.chunk_id.clone())
+    }
+
+    /// Check if a decision is expanded
+    pub fn is_decision_expanded(&self, decision_number: u32) -> bool {
+        self.nodes
+            .iter()
+            .find(|d| d.decision_number == decision_number)
+            .map(|d| d.expanded)
+            .unwrap_or(false)
+    }
+
+    /// Open the decision modal for the currently selected decision
+    pub fn open_decision_modal(&mut self) {
+        self.show_decision_modal = true;
+    }
+
+    /// Close the decision modal
+    pub fn close_decision_modal(&mut self) {
+        self.show_decision_modal = false;
+    }
+
+    /// Reset to initial state
+    pub fn reset(&mut self) {
+        for node in &mut self.nodes {
+            node.expanded = false;
+            for file in &mut node.files {
+                file.expanded = false;
+            }
+        }
+        self.selected_path = TreePath::decision(0);
+        self.show_decision_modal = false;
+    }
+}
+
+impl Default for DecisionNavigationTree {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl DecisionNavigationState {
-    /// Create new decision navigation state at the decision list
-    pub fn new() -> Self {
-        Self {
-            current_level: NavigationLevel::Decision,
-            selected_decision: None,
-            selected_file: None,
-            selected_chunk: None,
-            show_decision_modal: false,
-            decision_list_index: 0,
-            file_list_index: 0,
-        }
-    }
-
-    /// Navigate to next decision in the list
-    pub fn next_decision(&mut self) {
-        self.decision_list_index += 1;
-    }
-
-    /// Navigate to previous decision in the list
-    pub fn prev_decision(&mut self) {
-        self.decision_list_index = self.decision_list_index.saturating_sub(1);
-    }
-
-    /// Clamp decision list index to valid range
-    pub fn clamp_decision_index(&mut self, max_index: usize) {
-        if self.decision_list_index > max_index {
-            self.decision_list_index = max_index;
-        }
-    }
-
-    /// Select a specific decision by number and open modal
-    pub fn select_decision(&mut self, decision_number: u32) {
-        self.selected_decision = Some(decision_number);
-        self.show_decision_modal = true;
-    }
-
-    /// Close the decision detail modal
-    pub fn close_decision_modal(&mut self) {
-        self.show_decision_modal = false;
-    }
-
-    /// Drill into files view for the selected decision
-    pub fn drill_into_files(&mut self) {
-        if self.selected_decision.is_some() {
-            self.current_level = NavigationLevel::File;
-            self.show_decision_modal = false;
-            self.file_list_index = 0;
-        }
-    }
-
-    /// Return to decision list from file/chunk view
-    pub fn back_to_decisions(&mut self) {
-        self.current_level = NavigationLevel::Decision;
-        self.selected_file = None;
-        self.selected_chunk = None;
-        self.file_list_index = 0;
-    }
-
-    /// Navigate to next file in file view
-    pub fn next_file(&mut self) {
-        self.file_list_index += 1;
-    }
-
-    /// Navigate to previous file in file view
-    pub fn prev_file(&mut self) {
-        self.file_list_index = self.file_list_index.saturating_sub(1);
-    }
-
-    /// Clamp file list index to valid range
-    pub fn clamp_file_index(&mut self, max_index: usize) {
-        if self.file_list_index > max_index {
-            self.file_list_index = max_index;
-        }
-    }
-
-    /// Select a file and move to chunk view
-    pub fn select_file(&mut self, file_path: String, chunk_id: ReviewableDiffId) {
-        self.selected_file = Some(file_path);
-        self.selected_chunk = Some(chunk_id);
-        self.current_level = NavigationLevel::Chunk;
-    }
-
-    /// Navigate to next chunk within current file
-    pub fn next_chunk(&mut self) {
-        // This will be coordinated with file view component
-        // which will update selected_chunk based on visible chunks
-    }
-
-    /// Navigate to previous chunk within current file
-    pub fn prev_chunk(&mut self) {
-        // This will be coordinated with file view component
-        // which will update selected_chunk based on visible chunks
-    }
-
-    /// Clear all navigation state (used when reloading review)
-    pub fn reset(&mut self) {
-        *self = Self::new();
-    }
-
-    /// Get the current decision number if any
-    pub fn current_decision(&self) -> Option<u32> {
-        self.selected_decision
-    }
-
-    /// Check if we're at the decision list level
-    pub fn at_decision_list(&self) -> bool {
-        self.current_level == NavigationLevel::Decision
-    }
-
-    /// Check if we're in file view
-    pub fn at_file_view(&self) -> bool {
-        self.current_level == NavigationLevel::File
-    }
-
-    /// Check if we're in chunk view
-    pub fn at_chunk_view(&self) -> bool {
-        self.current_level == NavigationLevel::Chunk
-    }
-}
-
-/// Helper to build filtered file list for a specific decision
-pub fn get_files_for_decision(review_engine: &ReviewEngine, decision_number: u32) -> Vec<String> {
-    if let Some(decision) = review_engine.get_decision(decision_number) {
-        let mut files = Vec::new();
-        for code_impact in &decision.code_impacts {
-            if !files.contains(&code_impact.file) {
-                files.push(code_impact.file.clone());
-            }
-        }
-        files.sort();
-        files
-    } else {
-        Vec::new()
-    }
-}
-
 /// Helper to get chunks for a specific file within a decision
-pub fn get_chunks_for_file_in_decision(
+fn get_chunks_for_file_in_decision(
     review_engine: &ReviewEngine,
     decision_number: u32,
     file_path: &str,
@@ -227,159 +411,24 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_new_decision_navigation_state() {
-        let state = DecisionNavigationState::new();
-        assert_eq!(state.current_level, NavigationLevel::Decision);
-        assert_eq!(state.selected_decision, None);
-        assert_eq!(state.selected_file, None);
-        assert_eq!(state.selected_chunk, None);
-        assert!(!state.show_decision_modal);
-        assert_eq!(state.decision_list_index, 0);
-        assert_eq!(state.file_list_index, 0);
+    fn test_tree_path_depth() {
+        assert_eq!(TreePath::decision(0).depth(), 0);
+        assert_eq!(TreePath::file(0, 0).depth(), 1);
+        assert_eq!(TreePath::chunk(0, 0, 0).depth(), 2);
     }
 
     #[test]
-    fn test_next_decision() {
-        let mut state = DecisionNavigationState::new();
-        state.next_decision();
-        assert_eq!(state.decision_list_index, 1);
-        state.next_decision();
-        assert_eq!(state.decision_list_index, 2);
+    fn test_empty_tree_flatten() {
+        let tree = DecisionNavigationTree::new();
+        let flattened = tree.flatten();
+        assert_eq!(flattened.len(), 0);
     }
 
     #[test]
-    fn test_prev_decision() {
-        let mut state = DecisionNavigationState::new();
-        state.decision_list_index = 5;
-        state.prev_decision();
-        assert_eq!(state.decision_list_index, 4);
-        state.prev_decision();
-        assert_eq!(state.decision_list_index, 3);
-    }
-
-    #[test]
-    fn test_prev_decision_at_start() {
-        let mut state = DecisionNavigationState::new();
-        state.prev_decision();
-        assert_eq!(state.decision_list_index, 0); // Should stay at 0
-    }
-
-    #[test]
-    fn test_clamp_decision_index() {
-        let mut state = DecisionNavigationState::new();
-        state.decision_list_index = 10;
-        state.clamp_decision_index(5);
-        assert_eq!(state.decision_list_index, 5);
-
-        state.clamp_decision_index(20);
-        assert_eq!(state.decision_list_index, 5); // Should not change
-    }
-
-    #[test]
-    fn test_select_decision() {
-        let mut state = DecisionNavigationState::new();
-        state.select_decision(2);
-        assert_eq!(state.selected_decision, Some(2));
-        assert!(state.show_decision_modal);
-    }
-
-    #[test]
-    fn test_close_decision_modal() {
-        let mut state = DecisionNavigationState::new();
-        state.show_decision_modal = true;
-        state.close_decision_modal();
-        assert!(!state.show_decision_modal);
-    }
-
-    #[test]
-    fn test_drill_into_files() {
-        let mut state = DecisionNavigationState::new();
-        state.select_decision(1);
-        state.drill_into_files();
-
-        assert_eq!(state.current_level, NavigationLevel::File);
-        assert!(!state.show_decision_modal);
-        assert_eq!(state.file_list_index, 0);
-    }
-
-    #[test]
-    fn test_drill_into_files_requires_decision() {
-        let mut state = DecisionNavigationState::new();
-        state.drill_into_files();
-
-        // Should not change level if no decision selected
-        assert_eq!(state.current_level, NavigationLevel::Decision);
-    }
-
-    #[test]
-    fn test_back_to_decisions() {
-        let mut state = DecisionNavigationState::new();
-        state.current_level = NavigationLevel::File;
-        state.selected_file = Some("src/main.rs".to_string());
-        state.file_list_index = 5;
-
-        state.back_to_decisions();
-
-        assert_eq!(state.current_level, NavigationLevel::Decision);
-        assert_eq!(state.selected_file, None);
-        assert_eq!(state.selected_chunk, None);
-        assert_eq!(state.file_list_index, 0);
-    }
-
-    #[test]
-    fn test_select_file() {
-        let mut state = DecisionNavigationState::new();
-        // For this test, we just verify state transitions without creating actual ReviewableDiffId
-        // The chunk_id would be properly created when wired to the actual TUI components
-        assert_eq!(state.current_level, NavigationLevel::Decision);
-
-        state.current_level = NavigationLevel::File;
-        state.selected_file = Some("src/main.rs".to_string());
-
-        assert_eq!(state.current_level, NavigationLevel::File);
-        assert_eq!(state.selected_file, Some("src/main.rs".to_string()));
-    }
-
-    #[test]
-    fn test_reset() {
-        let mut state = DecisionNavigationState::new();
-        state.current_level = NavigationLevel::Chunk;
-        state.selected_decision = Some(5);
-        state.decision_list_index = 10;
-
-        state.reset();
-
-        assert_eq!(state.current_level, NavigationLevel::Decision);
-        assert_eq!(state.selected_decision, None);
-        assert_eq!(state.decision_list_index, 0);
-    }
-
-    #[test]
-    fn test_at_decision_list() {
-        let mut state = DecisionNavigationState::new();
-        assert!(state.at_decision_list());
-
-        state.current_level = NavigationLevel::File;
-        assert!(!state.at_decision_list());
-    }
-
-    #[test]
-    fn test_at_file_view() {
-        let mut state = DecisionNavigationState::new();
-        state.current_level = NavigationLevel::File;
-        assert!(state.at_file_view());
-
-        state.current_level = NavigationLevel::Decision;
-        assert!(!state.at_file_view());
-    }
-
-    #[test]
-    fn test_at_chunk_view() {
-        let mut state = DecisionNavigationState::new();
-        state.current_level = NavigationLevel::Chunk;
-        assert!(state.at_chunk_view());
-
-        state.current_level = NavigationLevel::File;
-        assert!(!state.at_chunk_view());
+    fn test_navigate_empty_tree() {
+        let mut tree = DecisionNavigationTree::new();
+        tree.navigate_next();
+        tree.navigate_prev();
+        // Should not panic on empty tree
     }
 }

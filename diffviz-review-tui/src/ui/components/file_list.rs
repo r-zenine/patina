@@ -17,7 +17,7 @@ use diffviz_review::engines::ReviewEngine;
 use diffviz_review::ReviewableDiffId;
 
 /// Render the file list with collapsible groups
-pub fn render(f: &mut Frame, area: Rect, ui_state: &mut UiState, review_engine: &ReviewEngine) {
+pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &ReviewEngine) {
     let reviewable_ids = review_engine.get_ordered_reviewable_ids();
     let is_focused = matches!(ui_state.focused_panel, FocusPanel::FileList);
 
@@ -77,7 +77,7 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &mut UiState, review_engine: 
                 .map(|n| n.to_string())
                 .collect::<Vec<_>>()
                 .join(",");
-            indicators.push_str(&format!(" D[{}]", decision_list));
+            indicators.push_str(&format!(" D[{decision_list}]"));
         }
 
         if instruction_count > 0 {
@@ -138,7 +138,7 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &mut UiState, review_engine: 
                             .map(|n| n.to_string())
                             .collect::<Vec<_>>()
                             .join(",");
-                        item_indicators.push_str(&format!(" D[{}]", decision_str));
+                        item_indicators.push_str(&format!(" D[{decision_str}]"));
                     }
 
                     if has_instruction {

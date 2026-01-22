@@ -112,16 +112,10 @@ pub fn navigate_file_list(
     ui_state.file_list_selection = new_index;
 
     // Update current reviewable if on a diff item
-    if let Some(selection) = nav_state.get_current_selection() {
-        match selection {
-            SelectionItem::DiffItem { diff_id, .. } => {
-                ui_state.current_reviewable_id = Some(diff_id.clone());
-            }
-            SelectionItem::FileHeader { first_diff_id, .. } => {
-                // When on a file header, show the first diff
-                ui_state.current_reviewable_id = Some(first_diff_id.clone());
-            }
-        }
+    // Note: This code is deprecated - use decision tree navigation instead
+    // TODO: Remove this legacy navigation code
+    if let Some(_selection) = nav_state.get_current_selection() {
+        // Legacy code - current_reviewable_id is now computed from tree
     }
 }
 
@@ -135,9 +129,9 @@ pub fn handle_selection_action(ui_state: &mut UiState, review_engine: &ReviewEng
                 // Toggle expansion of the file
                 ui_state.toggle_file_expansion(path);
             }
-            SelectionItem::DiffItem { diff_id, .. } => {
+            SelectionItem::DiffItem { .. } => {
                 // Navigate to the diff
-                ui_state.current_reviewable_id = Some(diff_id.clone());
+                // Note: Legacy code - current_reviewable_id is now computed from tree
                 // Optionally switch to diff view
                 ui_state.focused_panel = crate::state::FocusPanel::DiffView;
             }

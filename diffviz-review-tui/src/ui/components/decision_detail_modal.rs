@@ -8,17 +8,17 @@ use ratatui::{
     Frame,
 };
 
-use crate::ui::layout::centered_popup;
 use crate::state::UiState;
+use crate::ui::layout::centered_popup;
 use diffviz_review::engines::ReviewEngine;
 
 /// Render the decision detail modal when showing decision context
 pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &ReviewEngine) {
-    if !ui_state.decision_nav.show_decision_modal {
+    if !ui_state.decision_tree.show_decision_modal {
         return;
     }
 
-    let decision_number = match ui_state.decision_nav.selected_decision {
+    let decision_number = match ui_state.decision_tree.selected_decision_number() {
         Some(num) => num,
         None => return,
     };
@@ -35,14 +35,12 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &Rev
     let mut lines = Vec::new();
 
     // Title
-    lines.push(Line::from(vec![
-        Span::styled(
-            format!("Decision {}: {}", decision.number, decision.title),
-            Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD),
-        ),
-    ]));
+    lines.push(Line::from(vec![Span::styled(
+        format!("Decision {}: {}", decision.number, decision.title),
+        Style::default()
+            .fg(Color::Cyan)
+            .add_modifier(Modifier::BOLD),
+    )]));
 
     lines.push(Line::from("")); // Spacer
 
@@ -60,14 +58,12 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &Rev
     }
 
     // Code impacts header
-    lines.push(Line::from(vec![
-        Span::styled(
-            "Code Impacts:",
-            Style::default()
-                .fg(Color::Green)
-                .add_modifier(Modifier::BOLD),
-        ),
-    ]));
+    lines.push(Line::from(vec![Span::styled(
+        "Code Impacts:",
+        Style::default()
+            .fg(Color::Green)
+            .add_modifier(Modifier::BOLD),
+    )]));
 
     if decision.code_impacts.is_empty() {
         lines.push(Line::from(vec![Span::styled(
@@ -87,7 +83,7 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &Rev
             lines.push(Line::from(vec![
                 Span::raw(format!("  ► {}", impact.file)),
                 Span::styled(
-                    format!(" (lines {})", ranges),
+                    format!(" (lines {ranges})"),
                     Style::default().fg(Color::DarkGray),
                 ),
             ]));
@@ -158,6 +154,7 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &Rev
 
 #[cfg(test)]
 mod tests {
+    #[allow(unused_imports)]
     use super::*;
 
     #[test]

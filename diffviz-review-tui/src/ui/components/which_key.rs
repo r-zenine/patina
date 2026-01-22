@@ -66,6 +66,7 @@ fn create_root_menu(_ui_state: &UiState) -> Vec<Line<'static>> {
         create_compact_line(vec![
             ("a", "Actions"),
             ("c", "Comments"),
+            ("d", "Decision"),
             ("i", "Instructions"),
             ("t", "Toggles"),
             ("e", "Edit"),

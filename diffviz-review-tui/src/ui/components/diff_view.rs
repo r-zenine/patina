@@ -18,12 +18,12 @@ use crate::{
 use diffviz_review::{engines::ReviewEngine, state::ReviewableDiff};
 
 /// Render the diff view panel
-pub fn render(f: &mut Frame, area: Rect, ui_state: &mut UiState, review_engine: &ReviewEngine) {
+pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &ReviewEngine) {
     let is_focused = matches!(ui_state.focused_panel, FocusPanel::DiffView);
 
     // Get current ReviewableDiff
-    if let Some(reviewable_id) = &ui_state.current_reviewable_id.clone() {
-        if let Some(reviewable_diff) = review_engine.get_reviewable_diff(reviewable_id) {
+    if let Some(reviewable_id) = ui_state.current_reviewable_id() {
+        if let Some(reviewable_diff) = review_engine.get_reviewable_diff(&reviewable_id) {
             render_diff_content(
                 f,
                 area,
@@ -44,7 +44,7 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &mut UiState, review_engine: 
 fn render_diff_content(
     f: &mut Frame,
     area: Rect,
-    ui_state: &mut UiState,
+    ui_state: &UiState,
     review_engine: &ReviewEngine,
     reviewable_diff: &ReviewableDiff,
     is_focused: bool,
@@ -174,11 +174,11 @@ fn render_review_metadata(
 ) {
     let state = review_engine.state();
     // TODO: Get actual reviewable_id from ReviewableDiff once API is available
-    let reviewable_id = ui_state.current_reviewable_id.as_ref().unwrap(); // &reviewable_diff.id;
+    let reviewable_id = ui_state.current_reviewable_id().unwrap(); // &reviewable_diff.id;
 
     // Check for instructions
-    if state.has_instructions(reviewable_id) {
-        let instructions = state.get_instructions(reviewable_id);
+    if state.has_instructions(&reviewable_id) {
+        let instructions = state.get_instructions(&reviewable_id);
         let instruction_count = instructions.map_or(0, |i| i.len());
 
         // Render instruction indicator
@@ -206,9 +206,9 @@ fn render_instructions_overlay(
     ui_state: &UiState,
 ) {
     let state = review_engine.state();
-    let reviewable_id = ui_state.current_reviewable_id.as_ref().unwrap();
+    let reviewable_id = ui_state.current_reviewable_id().unwrap();
 
-    if let Some(instructions) = state.get_instructions(reviewable_id) {
+    if let Some(instructions) = state.get_instructions(&reviewable_id) {
         // Create overlay area (bottom 40% of screen)
         let overlay_height = (area.height as f32 * 0.4) as u16;
         let overlay_area = ratatui::layout::Rect {

@@ -77,8 +77,8 @@ fn create_state_info(ui_state: &UiState, review_engine: &ReviewEngine) -> Line<'
     let mut spans = Vec::new();
 
     // Current file info
-    if let Some(file_path) = &ui_state.current_file_path {
-        let file_name = file_path.split('/').next_back().unwrap_or(file_path);
+    if let Some(file_path) = ui_state.current_file_path() {
+        let file_name = file_path.split('/').next_back().unwrap_or(&file_path);
         spans.push(Span::styled(
             format!("📄 {file_name}"),
             Style::default().fg(Colors::BLUE),
@@ -88,7 +88,7 @@ fn create_state_info(ui_state: &UiState, review_engine: &ReviewEngine) -> Line<'
         let total_in_file = review_engine
             .get_ordered_reviewable_ids()
             .iter()
-            .filter(|id| id.file_path == *file_path)
+            .filter(|id| id.file_path == file_path)
             .count();
 
         let approved_in_file = review_engine

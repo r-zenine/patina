@@ -12,12 +12,16 @@ diffviz-review = { path = "../diffviz-review" }
 diffviz-core = { path = "../diffviz-core" }
 diffviz-git = { path = "../diffviz-git" }
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 uuid = { version = "1.0", features = ["v4"] }
 chrono = { version = "0.4", features = ["serde"] }
 tracing = "0.1"
 tracing-subscriber = "0.3"
 log = "0.4"
 edtui = "0.8"
+
+[features]
+test-harness = []
 
 [[bin]]
 name = "review-tui"

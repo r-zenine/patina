@@ -3,7 +3,7 @@
 //! This module contains presentation-layer state that tracks navigation,
 //! focus, and input modes. Business logic state is handled by ReviewEngine.
 
-use crate::decision_navigation::DecisionNavigationState;
+use crate::decision_navigation::DecisionNavigationTree;
 use diffviz_review::ReviewableDiffId;
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
@@ -32,12 +32,6 @@ impl InputMode {
 /// Pure UI navigation and display state
 #[derive(Clone)]
 pub struct UiState {
-    /// Currently selected ReviewableDiff for display
-    pub current_reviewable_id: Option<ReviewableDiffId>,
-
-    /// Currently selected file path
-    pub current_file_path: Option<String>,
-
     /// Which panel has focus
     pub focused_panel: FocusPanel,
 
@@ -88,15 +82,13 @@ pub struct UiState {
     /// Whether to show help overlay
     pub show_help: bool,
 
-    /// Decision-based navigation state (primary navigation pattern)
-    pub decision_nav: DecisionNavigationState,
+    /// Decision-based navigation tree (primary navigation pattern)
+    pub decision_tree: DecisionNavigationTree,
 }
 
 impl Default for UiState {
     fn default() -> Self {
         Self {
-            current_reviewable_id: None,
-            current_file_path: None,
             focused_panel: FocusPanel::FileList,
             input_mode: InputMode::Navigation,
             scroll_offset: 0,
@@ -115,7 +107,7 @@ impl Default for UiState {
             leader_pressed_at: None,
             leader_submenu: None,
             show_help: false,
-            decision_nav: DecisionNavigationState::new(),
+            decision_tree: DecisionNavigationTree::new(),
         }
     }
 }
@@ -126,10 +118,19 @@ impl UiState {
         Self::default()
     }
 
-    /// Navigate to a specific ReviewableDiff
-    pub fn navigate_to(&mut self, reviewable_id: ReviewableDiffId) {
-        self.current_reviewable_id = Some(reviewable_id);
+    /// Reset scroll when navigating (called after tree navigation updates selection)
+    pub fn reset_scroll(&mut self) {
         self.scroll_offset = 0;
+    }
+
+    /// Get currently selected ReviewableDiff ID (computed from tree)
+    pub fn current_reviewable_id(&self) -> Option<ReviewableDiffId> {
+        self.decision_tree.selected_chunk_id()
+    }
+
+    /// Get currently selected file path (computed from tree)
+    pub fn current_file_path(&self) -> Option<String> {
+        self.decision_tree.selected_file_path()
     }
 
     /// Switch focus between panels
