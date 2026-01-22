@@ -15,6 +15,7 @@ use std::time::Duration;
 use diffviz_review::engines::ReviewEngine;
 
 use crate::{
+    command::{execute_command, Command},
     events::{handle_key_event, ui_event_to_business_event, BusinessEvent, UiEvent},
     state::UiState,
     ui, Result,
@@ -75,9 +76,15 @@ impl ReviewTuiApp {
             // Render UI
             self.render()?;
 
-            // Handle events
-            if self.handle_events()? {
-                break; // Should quit
+            // Handle events and get command
+            let command = self.handle_events()?;
+
+            // Execute command (side effects)
+            execute_command(command)?;
+
+            // Check if should quit
+            if self.ui_state.should_quit {
+                break;
             }
         }
 
@@ -92,8 +99,8 @@ impl ReviewTuiApp {
         Ok(())
     }
 
-    /// Handle input events and return true if should quit
-    fn handle_events(&mut self) -> Result<bool> {
+    /// Handle input events and return command to execute
+    fn handle_events(&mut self) -> Result<Command> {
         // Check leader timeout first
         if self.ui_state.leader_active && self.ui_state.is_leader_timed_out() {
             self.ui_state.deactivate_leader();
@@ -102,15 +109,15 @@ impl ReviewTuiApp {
         // Poll for input events with timeout
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
-                self.process_key_event(key)?;
+                return self.process_key_event(key);
             }
         }
 
-        Ok(self.ui_state.should_quit)
+        Ok(Command::None)
     }
 
-    /// Process a single key event and update state
-    pub fn process_key_event(&mut self, key: KeyEvent) -> Result<()> {
+    /// Process a single key event and update state, returning command to execute
+    pub fn process_key_event(&mut self, key: KeyEvent) -> Result<Command> {
         // Convert keyboard input to UI event, passing leader state
         if let Some(ui_event) = handle_key_event(
             key,
@@ -123,16 +130,18 @@ impl ReviewTuiApp {
 
             // Convert to business events and handle through ReviewEngine
             if let Some(business_event) = ui_event_to_business_event(&ui_event, &self.ui_state) {
-                self.handle_business_event(business_event)?;
+                let command = self.handle_business_event(business_event)?;
 
                 // Exit input mode after successful business operation
                 if matches!(ui_event, UiEvent::SubmitInput) {
                     self.ui_state.exit_input_mode();
                 }
+
+                return Ok(command);
             }
         }
 
-        Ok(())
+        Ok(Command::None)
     }
 
     /// Handle UI events that affect navigation and display
@@ -409,8 +418,8 @@ impl ReviewTuiApp {
         Ok(())
     }
 
-    /// Handle business events that require ReviewEngine operations
-    fn handle_business_event(&mut self, event: BusinessEvent) -> Result<()> {
+    /// Handle business events that require ReviewEngine operations, returning command to execute
+    fn handle_business_event(&mut self, event: BusinessEvent) -> Result<Command> {
         let author = self.review_engine.author().to_string();
 
         match event {
@@ -420,11 +429,13 @@ impl ReviewTuiApp {
                 } else {
                     self.review_engine.approve(reviewable_id, author, None)?;
                 }
+                Ok(Command::None)
             }
 
             BusinessEvent::ApproveFile { file_path } => {
                 self.review_engine
                     .approve_all_in_file(&file_path, author, None)?;
+                Ok(Command::None)
             }
 
             BusinessEvent::AddInstruction {
@@ -435,6 +446,7 @@ impl ReviewTuiApp {
                     self.review_engine
                         .add_instruction(reviewable_id, content, author, None)?;
                 }
+                Ok(Command::None)
             }
 
             BusinessEvent::ExportInstructions { ref scope } => {
@@ -454,22 +466,18 @@ impl ReviewTuiApp {
                     }
                 };
 
-                // Write to file
-                std::fs::write(&filename, json)
-                    .map_err(diffviz_review::errors::DiffVizError::Io)?;
-
-                // Show success message (will be visible in status bar)
-                // TODO: Add proper success notification UI
-                eprintln!("Exported instructions to {filename}");
+                // Return commands for file write and message
+                Ok(Command::Batch(vec![
+                    Command::WriteFile { path: filename.clone(), content: json },
+                    Command::ShowMessage { message: format!("Exported instructions to {filename}") },
+                ]))
             }
 
             // Not implemented yet
             BusinessEvent::EditContent { .. }
             | BusinessEvent::SaveSession
-            | BusinessEvent::LoadSession { .. } => {}
+            | BusinessEvent::LoadSession { .. } => Ok(Command::None),
         }
-
-        Ok(())
     }
 
     // Navigation helper methods
@@ -531,8 +539,8 @@ impl HeadlessApp {
         }
     }
 
-    /// Process a single key event and update state
-    pub fn process_key_event(&mut self, key: KeyEvent) -> Result<()> {
+    /// Process a single key event and update state, returning command to execute
+    pub fn process_key_event(&mut self, key: KeyEvent) -> Result<Command> {
         // Convert keyboard input to UI event, passing leader state
         if let Some(ui_event) = handle_key_event(
             key,
@@ -545,16 +553,18 @@ impl HeadlessApp {
 
             // Convert to business events and handle through ReviewEngine
             if let Some(business_event) = ui_event_to_business_event(&ui_event, &self.ui_state) {
-                self.handle_business_event(business_event)?;
+                let command = self.handle_business_event(business_event)?;
 
                 // Exit input mode after successful business operation
                 if matches!(ui_event, UiEvent::SubmitInput) {
                     self.ui_state.exit_input_mode();
                 }
+
+                return Ok(command);
             }
         }
 
-        Ok(())
+        Ok(Command::None)
     }
 
     /// Handle UI events that affect navigation and display
@@ -831,8 +841,8 @@ impl HeadlessApp {
         Ok(())
     }
 
-    /// Handle business events that require ReviewEngine operations
-    fn handle_business_event(&mut self, event: BusinessEvent) -> Result<()> {
+    /// Handle business events that require ReviewEngine operations, returning command to execute
+    fn handle_business_event(&mut self, event: BusinessEvent) -> Result<Command> {
         let author = self.review_engine.author().to_string();
 
         match event {
@@ -842,11 +852,13 @@ impl HeadlessApp {
                 } else {
                     self.review_engine.approve(reviewable_id, author, None)?;
                 }
+                Ok(Command::None)
             }
 
             BusinessEvent::ApproveFile { file_path } => {
                 self.review_engine
                     .approve_all_in_file(&file_path, author, None)?;
+                Ok(Command::None)
             }
 
             BusinessEvent::AddInstruction {
@@ -857,6 +869,7 @@ impl HeadlessApp {
                     self.review_engine
                         .add_instruction(reviewable_id, content, author, None)?;
                 }
+                Ok(Command::None)
             }
 
             BusinessEvent::ExportInstructions { ref scope } => {
@@ -876,22 +889,18 @@ impl HeadlessApp {
                     }
                 };
 
-                // Write to file
-                std::fs::write(&filename, json)
-                    .map_err(diffviz_review::errors::DiffVizError::Io)?;
-
-                // Show success message (will be visible in status bar)
-                // TODO: Add proper success notification UI
-                eprintln!("Exported instructions to {filename}");
+                // Return commands for file write and message
+                Ok(Command::Batch(vec![
+                    Command::WriteFile { path: filename.clone(), content: json },
+                    Command::ShowMessage { message: format!("Exported instructions to {filename}") },
+                ]))
             }
 
             // Not implemented yet
             BusinessEvent::EditContent { .. }
             | BusinessEvent::SaveSession
-            | BusinessEvent::LoadSession { .. } => {}
+            | BusinessEvent::LoadSession { .. } => Ok(Command::None),
         }
-
-        Ok(())
     }
 
     fn navigate_to_next_reviewable_diff(&mut self) {
