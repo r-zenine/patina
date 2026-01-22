@@ -15,10 +15,18 @@ pub mod state;
 pub mod theme;
 pub mod ui;
 
+#[cfg(feature = "test-harness")]
+pub mod test_harness;
+
 // Re-export main types for easy access
 pub use app::ReviewTuiApp;
-pub use decision_navigation::DecisionNavigationState;
+pub use decision_navigation::DecisionNavigationTree;
 pub use state::{FocusPanel, InputMode, UiState};
+
+#[cfg(feature = "test-harness")]
+pub use app::HeadlessApp;
+#[cfg(feature = "test-harness")]
+pub use test_harness::{InputTestHarness, StateSnapshot};
 
 /// Result type used throughout the TUI
 pub type Result<T> = anyhow::Result<T>;

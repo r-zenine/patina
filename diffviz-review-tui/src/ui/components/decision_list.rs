@@ -16,9 +16,7 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &Rev
     let decisions = review_engine.get_all_decisions();
 
     if decisions.is_empty() {
-        let block = Block::default()
-            .title(" Decisions ")
-            .borders(Borders::ALL);
+        let block = Block::default().title(" Decisions ").borders(Borders::ALL);
         f.render_widget(block, area);
         return;
     }
@@ -28,8 +26,8 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &Rev
 
     for decision in &decisions {
         let is_selected = ui_state
-            .decision_nav
-            .selected_decision
+            .decision_tree
+            .selected_decision_number()
             .map(|sel| sel == decision.number)
             .unwrap_or(false);
 
@@ -41,7 +39,7 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &Rev
 
         // Code impact count
         let impact_count = decision.code_impacts.len();
-        let count_str = format!("[{}]", impact_count);
+        let count_str = format!("[{impact_count}]");
 
         // Build the line
         let line_content = if is_selected {
@@ -68,10 +66,9 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &Rev
                         .add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
-                    " ".repeat(
-                        (area.width as usize)
-                            .saturating_sub(indicator.len() + 1 + number_and_title.len() + count_str.len() + 1),
-                    ),
+                    " ".repeat((area.width as usize).saturating_sub(
+                        indicator.len() + 1 + number_and_title.len() + count_str.len() + 1,
+                    )),
                     Style::default().bg(Color::DarkGray),
                 ),
                 Span::styled(
@@ -84,9 +81,12 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &Rev
             ]
         } else {
             vec![
-                Span::raw(format!("{} ", indicator)),
+                Span::raw(format!("{indicator} ")),
                 Span::raw(number_and_title),
-                Span::styled(format!("  {}", count_str), Style::default().fg(Color::DarkGray)),
+                Span::styled(
+                    format!("  {count_str}"),
+                    Style::default().fg(Color::DarkGray),
+                ),
             ]
         };
 
@@ -95,11 +95,7 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &Rev
 
     // Create the list widget
     let list = List::new(items)
-        .block(
-            Block::default()
-                .title(" Decisions ")
-                .borders(Borders::ALL),
-        )
+        .block(Block::default().title(" Decisions ").borders(Borders::ALL))
         .style(Style::default().fg(Color::White));
 
     f.render_widget(list, area);
@@ -107,6 +103,7 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &Rev
 
 #[cfg(test)]
 mod tests {
+    #[allow(unused_imports)]
     use super::*;
 
     #[test]

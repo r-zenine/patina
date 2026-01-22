@@ -4,25 +4,15 @@ pub mod components;
 pub mod layout;
 
 use crate::state::UiState;
-use crate::decision_navigation::NavigationLevel;
 use diffviz_review::engines::ReviewEngine;
 use ratatui::Frame;
 
 /// Main UI drawing function
-pub fn draw(f: &mut Frame, ui_state: &mut UiState, review_engine: &ReviewEngine) {
+pub fn draw(f: &mut Frame, ui_state: &UiState, review_engine: &ReviewEngine) {
     let chunks = layout::create_main_layout(f.area());
 
-    // Render main components based on navigation level
-    match ui_state.decision_nav.current_level {
-        NavigationLevel::Decision => {
-            // Show decision list as primary view
-            components::decision_list::render(f, chunks.file_list, ui_state, review_engine);
-        }
-        NavigationLevel::File | NavigationLevel::Chunk => {
-            // Show file list for file/chunk navigation
-            components::file_list::render(f, chunks.file_list, ui_state, review_engine);
-        }
-    }
+    // Render main components - tree explorer is now primary view for all decision levels
+    components::decision_tree::render(f, chunks.file_list, ui_state, review_engine);
 
     components::diff_view::render(f, chunks.diff_view, ui_state, review_engine);
     components::status_bar::render(f, chunks.status_bar, ui_state, review_engine);
