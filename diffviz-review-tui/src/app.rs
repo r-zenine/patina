@@ -184,11 +184,7 @@ impl ReviewTuiApp {
             UiEvent::NavigateToTop => match self.ui_state.focused_panel {
                 crate::state::FocusPanel::FileList => {
                     // Navigate to first item in tree
-                    let flattened = self.ui_state.decision_tree.flatten();
-                    if let Some(first) = flattened.first() {
-                        self.ui_state.decision_tree.selected_path = first.path.clone();
-                        self.ui_state.reset_scroll();
-                    }
+                    self.ui_state.navigate_to_first_in_tree();
                 }
                 crate::state::FocusPanel::DiffView => {
                     self.ui_state.cursor_to_top();
@@ -198,11 +194,7 @@ impl ReviewTuiApp {
             UiEvent::NavigateToBottom => match self.ui_state.focused_panel {
                 crate::state::FocusPanel::FileList => {
                     // Navigate to last item in tree
-                    let flattened = self.ui_state.decision_tree.flatten();
-                    if let Some(last) = flattened.last() {
-                        self.ui_state.decision_tree.selected_path = last.path.clone();
-                        self.ui_state.reset_scroll();
-                    }
+                    self.ui_state.navigate_to_last_in_tree();
                 }
                 crate::state::FocusPanel::DiffView => {
                     self.ui_state.cursor_to_bottom(total_lines);
@@ -289,8 +281,8 @@ impl ReviewTuiApp {
 
             UiEvent::ExitInputMode | UiEvent::CancelInput => {
                 // Close decision modal if open
-                if self.ui_state.decision_tree.show_decision_modal {
-                    self.ui_state.decision_tree.close_decision_modal();
+                if self.ui_state.is_modal_open() {
+                    self.ui_state.close_modal_if_open();
                 } else {
                     self.ui_state.exit_input_mode();
                 }
@@ -362,7 +354,7 @@ impl ReviewTuiApp {
 
             UiEvent::ShowDecisionModal => {
                 // Toggle decision modal for currently selected decision
-                if self.ui_state.decision_tree.show_decision_modal {
+                if self.ui_state.is_modal_open() {
                     self.ui_state.decision_tree.close_decision_modal();
                 } else {
                     self.ui_state.decision_tree.open_decision_modal();
@@ -614,11 +606,7 @@ impl HeadlessApp {
             UiEvent::NavigateToTop => match self.ui_state.focused_panel {
                 crate::state::FocusPanel::FileList => {
                     // Navigate to first item in tree
-                    let flattened = self.ui_state.decision_tree.flatten();
-                    if let Some(first) = flattened.first() {
-                        self.ui_state.decision_tree.selected_path = first.path.clone();
-                        self.ui_state.reset_scroll();
-                    }
+                    self.ui_state.navigate_to_first_in_tree();
                 }
                 crate::state::FocusPanel::DiffView => {
                     self.ui_state.cursor_to_top();
@@ -628,11 +616,7 @@ impl HeadlessApp {
             UiEvent::NavigateToBottom => match self.ui_state.focused_panel {
                 crate::state::FocusPanel::FileList => {
                     // Navigate to last item in tree
-                    let flattened = self.ui_state.decision_tree.flatten();
-                    if let Some(last) = flattened.last() {
-                        self.ui_state.decision_tree.selected_path = last.path.clone();
-                        self.ui_state.reset_scroll();
-                    }
+                    self.ui_state.navigate_to_last_in_tree();
                 }
                 crate::state::FocusPanel::DiffView => {
                     self.ui_state.cursor_to_bottom(total_lines);
@@ -719,8 +703,8 @@ impl HeadlessApp {
 
             UiEvent::ExitInputMode | UiEvent::CancelInput => {
                 // Close decision modal if open
-                if self.ui_state.decision_tree.show_decision_modal {
-                    self.ui_state.decision_tree.close_decision_modal();
+                if self.ui_state.is_modal_open() {
+                    self.ui_state.close_modal_if_open();
                 } else {
                     self.ui_state.exit_input_mode();
                 }
@@ -792,7 +776,7 @@ impl HeadlessApp {
 
             UiEvent::ShowDecisionModal => {
                 // Toggle decision modal for currently selected decision
-                if self.ui_state.decision_tree.show_decision_modal {
+                if self.ui_state.is_modal_open() {
                     self.ui_state.decision_tree.close_decision_modal();
                 } else {
                     self.ui_state.decision_tree.open_decision_modal();

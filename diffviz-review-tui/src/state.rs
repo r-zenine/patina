@@ -402,4 +402,34 @@ impl UiState {
             None
         }
     }
+
+    /// Navigate to the first item in the decision tree
+    pub fn navigate_to_first_in_tree(&mut self) {
+        let flattened = self.decision_tree.flatten();
+        if let Some(first) = flattened.first() {
+            self.decision_tree.selected_path = first.path.clone();
+            self.reset_scroll();
+        }
+    }
+
+    /// Navigate to the last item in the decision tree
+    pub fn navigate_to_last_in_tree(&mut self) {
+        let flattened = self.decision_tree.flatten();
+        if let Some(last) = flattened.last() {
+            self.decision_tree.selected_path = last.path.clone();
+            self.reset_scroll();
+        }
+    }
+
+    /// Check if the decision modal is currently open
+    pub fn is_modal_open(&self) -> bool {
+        self.decision_tree.show_decision_modal
+    }
+
+    /// Close the decision modal if it's open
+    pub fn close_modal_if_open(&mut self) {
+        if self.decision_tree.show_decision_modal {
+            self.decision_tree.close_decision_modal();
+        }
+    }
 }
