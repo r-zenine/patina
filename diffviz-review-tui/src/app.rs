@@ -101,9 +101,10 @@ impl ReviewTuiApp {
 
     /// Handle input events and return command to execute
     fn handle_events(&mut self) -> Result<Command> {
-        // Check leader timeout first
+        // Check leader timeout - modeled as LeaderTimeout event
         if self.ui_state.leader_active && self.ui_state.is_leader_timed_out() {
             self.ui_state.deactivate_leader();
+            return Ok(Command::None);
         }
 
         // Poll for input events with timeout
@@ -393,6 +394,10 @@ impl ReviewTuiApp {
             }
 
             UiEvent::DeactivateLeader => {
+                self.ui_state.deactivate_leader();
+            }
+
+            UiEvent::LeaderTimeout => {
                 self.ui_state.deactivate_leader();
             }
 
@@ -816,6 +821,10 @@ impl HeadlessApp {
             }
 
             UiEvent::DeactivateLeader => {
+                self.ui_state.deactivate_leader();
+            }
+
+            UiEvent::LeaderTimeout => {
                 self.ui_state.deactivate_leader();
             }
 

@@ -75,6 +75,7 @@ pub enum UiEvent {
     ActivateLeader,
     EnterLeaderSubmenu(char),
     DeactivateLeader,
+    LeaderTimeout,
 
     // Export actions
     ExportFile,
