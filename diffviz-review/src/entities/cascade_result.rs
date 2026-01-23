@@ -53,14 +53,22 @@ impl CascadeResult {
                 decision_number,
                 chunks_affected,
             } => {
-                let chunk_word = if *chunks_affected == 1 { "chunk" } else { "chunks" };
+                let chunk_word = if *chunks_affected == 1 {
+                    "chunk"
+                } else {
+                    "chunks"
+                };
                 format!("Decision #{decision_number} and {chunks_affected} {chunk_word} approved")
             }
             CascadeResult::DecisionUnapproved {
                 decision_number,
                 chunks_affected,
             } => {
-                let chunk_word = if *chunks_affected == 1 { "chunk" } else { "chunks" };
+                let chunk_word = if *chunks_affected == 1 {
+                    "chunk"
+                } else {
+                    "chunks"
+                };
                 format!("Decision #{decision_number} and {chunks_affected} {chunk_word} unapproved")
             }
             CascadeResult::NoChunksAffected { decision_number } => {

@@ -13,6 +13,7 @@ use ratatui::{
 
 use crate::decision_navigation::FlattenedNodeKind;
 use crate::state::UiState;
+use crate::theme::Icons;
 use diffviz_review::engines::ReviewEngine;
 
 /// Render the decision tree as the primary navigation view
@@ -74,8 +75,22 @@ fn build_decision_item<'a>(
     // Decision indicator (► for selected, space for unselected)
     let selection_indicator = if is_selected { "►" } else { " " };
 
+    // Approval status
+    let is_approved = review_engine.is_decision_approved(decision_num);
+    let approval_icon = if is_approved {
+        Icons::APPROVED
+    } else {
+        Icons::NOT_APPROVED
+    };
+
     // Decision number and title
     let number_and_title = format!("{}. {}", decision.number, decision.title);
+
+    // Progress indicator: approved/total chunks
+    let (approved_count, total_count) = review_engine
+        .state()
+        .decision_approval_progress(decision_num);
+    let progress_str = format!("({approved_count}/{total_count})");
 
     // Code impact count
     let impact_count = decision.code_impacts.len();
@@ -83,6 +98,11 @@ fn build_decision_item<'a>(
 
     let line_content = if is_selected {
         // Highlight selected decision with inverted colors
+        let approval_color = if is_approved {
+            Color::Green
+        } else {
+            Color::DarkGray
+        };
         vec![
             Span::styled(
                 selection_indicator,
@@ -98,6 +118,13 @@ fn build_decision_item<'a>(
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
+                format!("{approval_icon} "),
+                Style::default()
+                    .bg(Color::DarkGray)
+                    .fg(approval_color)
+                    .add_modifier(Modifier::BOLD),
+            ),
+            Span::styled(
                 number_and_title.clone(),
                 Style::default()
                     .bg(Color::DarkGray)
@@ -106,9 +133,23 @@ fn build_decision_item<'a>(
             ),
             Span::styled(
                 " ".repeat((area_width as usize).saturating_sub(
-                    selection_indicator.len() + 3 + number_and_title.len() + count_str.len() + 1,
+                    selection_indicator.len()
+                        + 3
+                        + approval_icon.len()
+                        + 1
+                        + number_and_title.len()
+                        + progress_str.len()
+                        + count_str.len()
+                        + 2,
                 )),
                 Style::default().bg(Color::DarkGray),
+            ),
+            Span::styled(
+                format!("{progress_str} "),
+                Style::default()
+                    .bg(Color::DarkGray)
+                    .fg(Color::Magenta)
+                    .add_modifier(Modifier::DIM),
             ),
             Span::styled(
                 count_str,
@@ -121,9 +162,21 @@ fn build_decision_item<'a>(
     } else {
         vec![
             Span::raw(format!("{selection_indicator} {expand_indicator} ")),
+            Span::styled(
+                format!("{approval_icon} "),
+                Style::default().fg(if is_approved {
+                    Color::Green
+                } else {
+                    Color::DarkGray
+                }),
+            ),
             Span::raw(number_and_title),
             Span::styled(
-                format!("  {count_str}"),
+                format!(" {progress_str} "),
+                Style::default().fg(Color::DarkGray),
+            ),
+            Span::styled(
+                format!(" {count_str}"),
                 Style::default().fg(Color::DarkGray),
             ),
         ]

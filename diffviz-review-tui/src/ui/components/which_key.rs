@@ -28,7 +28,7 @@ pub fn render(f: &mut Frame, ui_state: &UiState) {
 
     let content = match ui_state.leader_submenu {
         None => create_root_menu(ui_state),
-        Some('a') => create_actions_submenu(),
+        Some('a') => create_actions_submenu(ui_state),
         Some('c') => create_comments_submenu(),
         Some('i') => create_instructions_submenu(),
         Some('t') => create_toggles_submenu(),
@@ -80,10 +80,17 @@ fn create_root_menu(_ui_state: &UiState) -> Vec<Line<'static>> {
     ]
 }
 
-fn create_actions_submenu() -> Vec<Line<'static>> {
+fn create_actions_submenu(ui_state: &UiState) -> Vec<Line<'static>> {
+    let mut items = vec![("a", "Approve diff"), ("f", "Approve file")];
+
+    // Add decision approval option if at depth 0
+    if ui_state.decision_tree.selected_path.depth() == 0 {
+        items.push(("d", "Approve decision"));
+    }
+
     vec![
         Line::from(""),
-        create_compact_line(vec![("a", "Approve diff"), ("f", "Approve file")]),
+        create_compact_line(items),
         Line::from(""),
         Line::from(vec![
             Span::styled("  ", Style::default()),

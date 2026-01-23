@@ -9,7 +9,7 @@ use ratatui::{
 };
 
 use crate::state::UiState;
-use crate::theme::Styles;
+use crate::theme::{Icons, Styles};
 use diffviz_review::engines::ReviewEngine;
 
 /// Render decision details inline in the diff view panel when a decision is selected (depth 0)
@@ -39,11 +39,36 @@ pub fn render(
     // Build content lines
     let mut lines = Vec::new();
 
-    // Title with decision number
-    lines.push(Line::from(vec![Span::styled(
-        format!("Decision {}: {}", decision.number, decision.title),
-        Styles::info().add_modifier(Modifier::BOLD),
-    )]));
+    // Title with decision number and approval status
+    let is_approved = review_engine.is_decision_approved(decision_number);
+    let approval_icon = if is_approved {
+        Icons::APPROVED
+    } else {
+        Icons::NOT_APPROVED
+    };
+
+    let (approved_count, total_count) = review_engine
+        .state()
+        .decision_approval_progress(decision_number);
+    let progress_str = format!("({approved_count}/{total_count})");
+
+    lines.push(Line::from(vec![
+        Span::styled(
+            approval_icon,
+            if is_approved {
+                Styles::success()
+            } else {
+                Styles::muted()
+            },
+        ),
+        Span::raw(" "),
+        Span::styled(
+            format!("Decision {}: {}", decision.number, decision.title),
+            Styles::info().add_modifier(Modifier::BOLD),
+        ),
+        Span::raw(" "),
+        Span::styled(progress_str, Styles::muted()),
+    ]));
 
     lines.push(Line::from("")); // Spacer
 
