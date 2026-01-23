@@ -64,10 +64,6 @@ pub enum UiEvent {
     // Instructions visibility
     ToggleInstructions,
 
-    // Decision modal
-    ShowDecisionModal,
-    HideDecisionModal,
-
     // Decision tree expansion
     ToggleDecisionExpansion,
 
@@ -278,7 +274,6 @@ fn handle_leader_keys(key: KeyEvent, submenu: Option<char>) -> Option<UiEvent> {
         // First level - entering submenus
         (None, KeyCode::Char('a')) => Some(UiEvent::EnterLeaderSubmenu('a')),
         (None, KeyCode::Char('c')) => Some(UiEvent::EnterLeaderSubmenu('c')),
-        (None, KeyCode::Char('d')) => Some(UiEvent::ShowDecisionModal),
         (None, KeyCode::Char('i')) => Some(UiEvent::EnterLeaderSubmenu('i')),
         (None, KeyCode::Char('t')) => Some(UiEvent::EnterLeaderSubmenu('t')),
         (None, KeyCode::Char('e')) => Some(UiEvent::EnterLeaderSubmenu('e')),

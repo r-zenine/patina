@@ -290,12 +290,7 @@ impl ReviewTuiApp {
             }
 
             UiEvent::ExitInputMode | UiEvent::CancelInput => {
-                // Close decision modal if open
-                if self.ui_state.is_modal_open() {
-                    self.ui_state.close_modal_if_open();
-                } else {
-                    self.ui_state.exit_input_mode();
-                }
+                self.ui_state.exit_input_mode();
             }
 
             UiEvent::InputChar(c) => {
@@ -360,23 +355,6 @@ impl ReviewTuiApp {
                 // Toggle expansion of currently selected node
                 self.ui_state.decision_tree.toggle_expansion();
                 self.ui_state.reset_scroll();
-            }
-
-            UiEvent::ShowDecisionModal => {
-                // Toggle decision modal for currently selected decision
-                if self.ui_state.is_modal_open() {
-                    self.ui_state.decision_tree.close_decision_modal();
-                } else {
-                    self.ui_state.decision_tree.open_decision_modal();
-                }
-                // Deactivate leader after executing complete action
-                self.ui_state.deactivate_leader();
-            }
-
-            UiEvent::HideDecisionModal => {
-                self.ui_state.decision_tree.close_decision_modal();
-                // Deactivate leader after executing complete action
-                self.ui_state.deactivate_leader();
             }
 
             UiEvent::ToggleInstructions => {
@@ -473,8 +451,13 @@ impl ReviewTuiApp {
 
                 // Return commands for file write and message
                 Ok(Command::Batch(vec![
-                    Command::WriteFile { path: filename.clone(), content: json },
-                    Command::ShowMessage { message: format!("Exported instructions to {filename}") },
+                    Command::WriteFile {
+                        path: filename.clone(),
+                        content: json,
+                    },
+                    Command::ShowMessage {
+                        message: format!("Exported instructions to {filename}"),
+                    },
                 ]))
             }
 
@@ -717,12 +700,7 @@ impl HeadlessApp {
             }
 
             UiEvent::ExitInputMode | UiEvent::CancelInput => {
-                // Close decision modal if open
-                if self.ui_state.is_modal_open() {
-                    self.ui_state.close_modal_if_open();
-                } else {
-                    self.ui_state.exit_input_mode();
-                }
+                self.ui_state.exit_input_mode();
             }
 
             UiEvent::InputChar(c) => {
@@ -787,23 +765,6 @@ impl HeadlessApp {
                 // Toggle expansion of currently selected node
                 self.ui_state.decision_tree.toggle_expansion();
                 self.ui_state.reset_scroll();
-            }
-
-            UiEvent::ShowDecisionModal => {
-                // Toggle decision modal for currently selected decision
-                if self.ui_state.is_modal_open() {
-                    self.ui_state.decision_tree.close_decision_modal();
-                } else {
-                    self.ui_state.decision_tree.open_decision_modal();
-                }
-                // Deactivate leader after executing complete action
-                self.ui_state.deactivate_leader();
-            }
-
-            UiEvent::HideDecisionModal => {
-                self.ui_state.decision_tree.close_decision_modal();
-                // Deactivate leader after executing complete action
-                self.ui_state.deactivate_leader();
             }
 
             UiEvent::ToggleInstructions => {
@@ -900,8 +861,13 @@ impl HeadlessApp {
 
                 // Return commands for file write and message
                 Ok(Command::Batch(vec![
-                    Command::WriteFile { path: filename.clone(), content: json },
-                    Command::ShowMessage { message: format!("Exported instructions to {filename}") },
+                    Command::WriteFile {
+                        path: filename.clone(),
+                        content: json,
+                    },
+                    Command::ShowMessage {
+                        message: format!("Exported instructions to {filename}"),
+                    },
                 ]))
             }
 

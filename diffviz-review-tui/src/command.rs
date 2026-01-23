@@ -38,7 +38,7 @@ pub fn execute_command(command: Command) -> Result<()> {
             Ok(())
         }
         Command::ShowMessage { message } => {
-            eprintln!("{}", message);
+            eprintln!("{message}");
             Ok(())
         }
         Command::Batch(commands) => {

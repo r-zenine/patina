@@ -22,9 +22,6 @@ pub fn draw(f: &mut Frame, ui_state: &UiState, review_engine: &ReviewEngine) {
         components::input_modal::render(f, f.area(), ui_state);
     }
 
-    // Render decision detail modal if active
-    components::decision_detail_modal::render(f, f.area(), ui_state, review_engine);
-
     components::which_key::render(f, ui_state);
     components::help_overlay::render(f, ui_state);
 }

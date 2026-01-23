@@ -14,9 +14,6 @@ pub struct DecisionNavigationTree {
 
     /// Currently selected position in the tree
     pub selected_path: TreePath,
-
-    /// Whether decision detail modal is visible
-    pub show_decision_modal: bool,
 }
 
 /// A decision node in the tree
@@ -139,7 +136,6 @@ impl DecisionNavigationTree {
         Self {
             nodes: Vec::new(),
             selected_path: TreePath::decision(0),
-            show_decision_modal: false,
         }
     }
 
@@ -187,7 +183,6 @@ impl DecisionNavigationTree {
         Self {
             nodes,
             selected_path: TreePath::decision(0),
-            show_decision_modal: false,
         }
     }
 
@@ -339,16 +334,6 @@ impl DecisionNavigationTree {
             .unwrap_or(false)
     }
 
-    /// Open the decision modal for the currently selected decision
-    pub fn open_decision_modal(&mut self) {
-        self.show_decision_modal = true;
-    }
-
-    /// Close the decision modal
-    pub fn close_decision_modal(&mut self) {
-        self.show_decision_modal = false;
-    }
-
     /// Reset to initial state
     pub fn reset(&mut self) {
         for node in &mut self.nodes {
@@ -358,7 +343,6 @@ impl DecisionNavigationTree {
             }
         }
         self.selected_path = TreePath::decision(0);
-        self.show_decision_modal = false;
     }
 }
 
