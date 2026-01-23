@@ -62,9 +62,6 @@ pub struct StateSnapshot {
 
     /// Current decision tree selection path (decision_index, file_index, chunk_index)
     pub decision_tree_path: (usize, Option<usize>, Option<usize>),
-
-    /// Whether decision modal is open
-    pub decision_modal_open: bool,
 }
 
 impl StateSnapshot {
@@ -100,7 +97,6 @@ impl StateSnapshot {
                 ui_state.decision_tree.selected_path.file_index,
                 ui_state.decision_tree.selected_path.chunk_index,
             ),
-            decision_modal_open: ui_state.decision_tree.show_decision_modal,
         }
     }
 

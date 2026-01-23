@@ -1,0 +1,261 @@
+//! Decision detail panel component - shows decision context inline in diff view
+
+use ratatui::{
+    layout::Rect,
+    style::Modifier,
+    text::{Line, Span},
+    widgets::{Block, Borders, Paragraph, Wrap},
+    Frame,
+};
+
+use crate::state::UiState;
+use crate::theme::Styles;
+use diffviz_review::engines::ReviewEngine;
+
+/// Render decision details inline in the diff view panel when a decision is selected (depth 0)
+pub fn render(
+    f: &mut Frame,
+    area: Rect,
+    ui_state: &UiState,
+    review_engine: &ReviewEngine,
+    is_focused: bool,
+) {
+    let decision_number = match ui_state.decision_tree.selected_decision_number() {
+        Some(num) => num,
+        None => {
+            render_no_decision_selected(f, area, is_focused);
+            return;
+        }
+    };
+
+    let decision = match review_engine.get_decision(decision_number) {
+        Some(d) => d,
+        None => {
+            render_decision_not_found(f, area, decision_number as usize, is_focused);
+            return;
+        }
+    };
+
+    // Build content lines
+    let mut lines = Vec::new();
+
+    // Title with decision number
+    lines.push(Line::from(vec![Span::styled(
+        format!("Decision {}: {}", decision.number, decision.title),
+        Styles::info().add_modifier(Modifier::BOLD),
+    )]));
+
+    lines.push(Line::from("")); // Spacer
+
+    // Summary
+    lines.push(Line::from(vec![Span::styled(
+        &decision.summary,
+        Styles::primary(),
+    )]));
+
+    lines.push(Line::from("")); // Spacer
+
+    // Decision log reference
+    if let Some(log_line) = decision.decision_log_line {
+        lines.push(Line::from(vec![
+            Span::styled("From decision log: ", Styles::muted()),
+            Span::styled(format!("line {log_line}"), Styles::secondary()),
+        ]));
+        lines.push(Line::from("")); // Spacer
+    }
+
+    // Code impacts summary
+    let impact_count = decision.code_impacts.len();
+    let file_count = decision
+        .code_impacts
+        .iter()
+        .map(|impact| &impact.file)
+        .collect::<std::collections::HashSet<_>>()
+        .len();
+
+    lines.push(Line::from(vec![Span::styled(
+        format!(
+            "This decision affects {} file{} with {} code impact{}",
+            file_count,
+            if file_count == 1 { "" } else { "s" },
+            impact_count,
+            if impact_count == 1 { "" } else { "s" }
+        ),
+        Styles::muted(),
+    )]));
+
+    lines.push(Line::from("")); // Spacer
+
+    // Code impacts detail section
+    if !decision.code_impacts.is_empty() {
+        lines.push(Line::from(vec![Span::styled(
+            "Code Impacts:",
+            Styles::success().add_modifier(Modifier::BOLD),
+        )]));
+
+        lines.push(Line::from("")); // Spacer
+
+        // List each code impact
+        for (idx, impact) in decision.code_impacts.iter().enumerate() {
+            // File and line ranges
+            let mut range_strs = Vec::new();
+            for range in &impact.line_ranges {
+                range_strs.push(format!("{}-{}", range.start, range.end));
+            }
+            let ranges = range_strs.join(", ");
+
+            lines.push(Line::from(vec![
+                Span::styled("  ► ", Styles::info()),
+                Span::styled(&impact.file, Styles::primary()),
+                Span::styled(format!(" (lines {ranges})"), Styles::muted()),
+            ]));
+
+            // Change type and confidence
+            let change_type_str = match impact.change_type {
+                diffviz_review::entities::decision::ChangeType::Addition => "Addition",
+                diffviz_review::entities::decision::ChangeType::Modification => "Modification",
+                diffviz_review::entities::decision::ChangeType::Deletion => "Deletion",
+            };
+
+            let confidence_str = match impact.confidence {
+                diffviz_review::entities::decision::Confidence::High => "HIGH",
+                diffviz_review::entities::decision::Confidence::Medium => "MEDIUM",
+                diffviz_review::entities::decision::Confidence::Low => "LOW",
+            };
+
+            let confidence_style = match impact.confidence {
+                diffviz_review::entities::decision::Confidence::High => Styles::success(),
+                diffviz_review::entities::decision::Confidence::Medium => Styles::warning(),
+                diffviz_review::entities::decision::Confidence::Low => Styles::error(),
+            };
+
+            lines.push(Line::from(vec![
+                Span::raw("    "),
+                Span::styled(change_type_str, Styles::secondary()),
+                Span::raw(" • "),
+                Span::styled(confidence_str, confidence_style),
+            ]));
+
+            // Reasoning
+            lines.push(Line::from(vec![Span::styled(
+                format!("    {}", impact.reasoning),
+                Styles::muted(),
+            )]));
+
+            // Add space between impacts (except after last one)
+            if idx < decision.code_impacts.len() - 1 {
+                lines.push(Line::from(""));
+            }
+        }
+    } else {
+        lines.push(Line::from(vec![Span::styled(
+            "  (no code impacts - architectural decision)",
+            Styles::muted(),
+        )]));
+    }
+
+    lines.push(Line::from("")); // Spacer before footer
+
+    // Footer with navigation hints
+    lines.push(Line::from(vec![
+        Span::styled("[Enter]", Styles::info()),
+        Span::raw(" expand files  "),
+        Span::styled("[j/k]", Styles::info()),
+        Span::raw(" navigate  "),
+        Span::styled("[Space]", Styles::info()),
+        Span::raw(" actions"),
+    ]));
+
+    // Create paragraph with appropriate border style
+    let border_style = if is_focused {
+        Styles::border_focused()
+    } else {
+        Styles::border()
+    };
+
+    let paragraph = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Decision Details")
+                .border_style(border_style),
+        )
+        .wrap(Wrap { trim: true })
+        .style(Styles::primary());
+
+    f.render_widget(paragraph, area);
+}
+
+/// Render placeholder when no decision is selected
+fn render_no_decision_selected(f: &mut Frame, area: Rect, is_focused: bool) {
+    let border_style = if is_focused {
+        Styles::border_focused()
+    } else {
+        Styles::border()
+    };
+
+    let lines = vec![
+        Line::from(""),
+        Line::from(vec![Span::styled("No decision selected", Styles::muted())]),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            "Navigate to a decision in the tree to view details",
+            Styles::muted(),
+        )]),
+    ];
+
+    let paragraph = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Decision Details")
+                .border_style(border_style),
+        )
+        .style(Styles::primary());
+
+    f.render_widget(paragraph, area);
+}
+
+/// Render error state when decision is not found
+fn render_decision_not_found(f: &mut Frame, area: Rect, decision_number: usize, is_focused: bool) {
+    let border_style = if is_focused {
+        Styles::border_focused()
+    } else {
+        Styles::border()
+    };
+
+    let lines = vec![
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            format!("Decision {decision_number} not found"),
+            Styles::error(),
+        )]),
+        Line::from(""),
+        Line::from(vec![Span::styled(
+            "The selected decision may have been removed",
+            Styles::muted(),
+        )]),
+    ];
+
+    let paragraph = Paragraph::new(lines)
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Decision Details")
+                .border_style(border_style),
+        )
+        .style(Styles::primary());
+
+    f.render_widget(paragraph, area);
+}
+
+#[cfg(test)]
+mod tests {
+    #[allow(unused_imports)]
+    use super::*;
+
+    #[test]
+    fn test_render_decision_details_panel() {
+        // Rendering tests require Frame setup; validation is done through integration tests
+    }
+}

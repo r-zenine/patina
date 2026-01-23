@@ -420,16 +420,4 @@ impl UiState {
             self.reset_scroll();
         }
     }
-
-    /// Check if the decision modal is currently open
-    pub fn is_modal_open(&self) -> bool {
-        self.decision_tree.show_decision_modal
-    }
-
-    /// Close the decision modal if it's open
-    pub fn close_modal_if_open(&mut self) {
-        if self.decision_tree.show_decision_modal {
-            self.decision_tree.close_decision_modal();
-        }
-    }
 }

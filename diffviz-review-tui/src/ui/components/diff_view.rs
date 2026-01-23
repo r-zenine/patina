@@ -11,8 +11,9 @@ use ratatui::{
 use crate::{
     state::{FocusPanel, UiState},
     theme::{Colors, Icons, Styles},
-    ui::components::renderable_diff_widget::{
-        GutterBracketMap, GutterPosition, RenderableDiffWidget,
+    ui::components::{
+        decision_details_panel,
+        renderable_diff_widget::{GutterBracketMap, GutterPosition, RenderableDiffWidget},
     },
 };
 use diffviz_review::{engines::ReviewEngine, state::ReviewableDiff};
@@ -21,23 +22,51 @@ use diffviz_review::{engines::ReviewEngine, state::ReviewableDiff};
 pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &ReviewEngine) {
     let is_focused = matches!(ui_state.focused_panel, FocusPanel::DiffView);
 
-    // Get current ReviewableDiff
-    if let Some(reviewable_id) = ui_state.current_reviewable_id() {
-        if let Some(reviewable_diff) = review_engine.get_reviewable_diff(&reviewable_id) {
-            render_diff_content(
-                f,
-                area,
-                ui_state,
-                review_engine,
-                reviewable_diff,
-                is_focused,
-            );
-        } else {
+    // Route based on selected depth in decision tree
+    match ui_state.decision_tree.selected_path.depth() {
+        0 => {
+            // Decision selected - show decision details inline
+            render_decision_details(f, area, ui_state, review_engine, is_focused);
+        }
+        1 => {
+            // File selected - show placeholder (future: file summary)
             render_no_diff_selected(f, area, is_focused);
         }
-    } else {
-        render_no_diff_selected(f, area, is_focused);
+        2 => {
+            // Chunk selected - show diff content (existing behavior)
+            if let Some(reviewable_id) = ui_state.current_reviewable_id() {
+                if let Some(reviewable_diff) = review_engine.get_reviewable_diff(&reviewable_id) {
+                    render_diff_content(
+                        f,
+                        area,
+                        ui_state,
+                        review_engine,
+                        reviewable_diff,
+                        is_focused,
+                    );
+                } else {
+                    render_no_diff_selected(f, area, is_focused);
+                }
+            } else {
+                render_no_diff_selected(f, area, is_focused);
+            }
+        }
+        _ => {
+            // Unknown depth - show placeholder
+            render_no_diff_selected(f, area, is_focused);
+        }
     }
+}
+
+/// Render decision details inline when a decision is selected (depth 0)
+fn render_decision_details(
+    f: &mut Frame,
+    area: Rect,
+    ui_state: &UiState,
+    review_engine: &ReviewEngine,
+    is_focused: bool,
+) {
+    decision_details_panel::render(f, area, ui_state, review_engine, is_focused);
 }
 
 /// Render the actual diff content

@@ -18,6 +18,7 @@ fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     // Parse command line arguments for test modes (feature-gated)
+    #[cfg_attr(not(feature = "test-harness"), allow(unused_variables))]
     let args: Vec<String> = env::args().collect();
 
     #[cfg(feature = "test-harness")]
@@ -100,14 +101,14 @@ fn create_hardcoded_decisions() -> ReviewDecisions {
         code_impacts: vec![
             CodeImpact {
                 file: "src/models/user.rs".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 1, end: 50 }],
+                line_ranges: vec![DecisionLineRange { start: 1, end: 21 }],
                 change_type: ChangeType::Modification,
                 confidence: Confidence::High,
                 reasoning: "User model structure refactoring".to_string(),
             },
             CodeImpact {
                 file: "src/config/reader.rs".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 1, end: 100 }],
+                line_ranges: vec![DecisionLineRange { start: 1, end: 7 }],
                 change_type: ChangeType::Modification,
                 confidence: Confidence::High,
                 reasoning: "Configuration reader updates".to_string(),
@@ -124,17 +125,14 @@ fn create_hardcoded_decisions() -> ReviewDecisions {
         code_impacts: vec![
             CodeImpact {
                 file: "src/network/client.rs".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 1, end: 50 }],
+                line_ranges: vec![DecisionLineRange { start: 1, end: 6 }],
                 change_type: ChangeType::Modification,
                 confidence: Confidence::Medium,
                 reasoning: "Network error handling improvements".to_string(),
             },
             CodeImpact {
                 file: "src/models/user.rs".to_string(),
-                line_ranges: vec![DecisionLineRange {
-                    start: 50,
-                    end: 100,
-                }],
+                line_ranges: vec![DecisionLineRange { start: 10, end: 21 }],
                 change_type: ChangeType::Modification,
                 confidence: Confidence::High,
                 reasoning: "User model error handling enhancements".to_string(),
@@ -142,13 +140,35 @@ fn create_hardcoded_decisions() -> ReviewDecisions {
         ],
     });
 
-    // Decision 3: Add logging infrastructure (no-code decision)
+    // Decision 3: Add logging infrastructure
     decisions.add_decision(Decision {
         number: 3,
         title: "Add structured logging throughout application".to_string(),
         summary: "Architectural decision: use tracing crate for observability".to_string(),
         decision_log_line: Some(42),
-        code_impacts: vec![],
+        code_impacts: vec![
+            CodeImpact {
+                file: "src/data/fetcher.py".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 1, end: 5 }],
+                change_type: ChangeType::Modification,
+                confidence: Confidence::High,
+                reasoning: "Add logging to async data fetching operations".to_string(),
+            },
+            CodeImpact {
+                file: "src/components/Greeting.tsx".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 1, end: 17 }],
+                change_type: ChangeType::Modification,
+                confidence: Confidence::Medium,
+                reasoning: "Add component lifecycle logging".to_string(),
+            },
+            CodeImpact {
+                file: "src/types/api.ts".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 1, end: 9 }],
+                change_type: ChangeType::Modification,
+                confidence: Confidence::High,
+                reasoning: "Add API type validation logging".to_string(),
+            },
+        ],
     });
 
     decisions

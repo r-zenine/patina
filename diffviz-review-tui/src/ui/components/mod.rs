@@ -1,6 +1,6 @@
 //! UI component modules
 
-pub mod decision_detail_modal;
+pub mod decision_details_panel;
 pub mod decision_list;
 pub mod decision_tree;
 pub mod diff_view;
