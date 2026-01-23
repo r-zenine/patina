@@ -167,10 +167,27 @@ impl ReviewEngine {
         reviewer: String,
         on_result: OperationCallback,
     ) -> Result<()> {
-        self.state.approve(reviewable_id.clone(), reviewer);
+        self.state.approve(reviewable_id.clone(), reviewer.clone());
 
         // Invalidate cache for this ReviewableDiff
         self.renderable_cache.remove(&reviewable_id);
+
+        // Check for reverse cascade: if all chunks for any decision are now approved, auto-approve the decision
+        let decisions_for_chunk: Vec<u32> = self
+            .state
+            .decisions
+            .decision_index
+            .get(&reviewable_id)
+            .cloned()
+            .unwrap_or_default();
+
+        for decision_num in decisions_for_chunk {
+            let (approved, total) = self.state.decision_approval_progress(decision_num);
+            // If all chunks are approved, auto-approve the decision
+            if total > 0 && approved == total && !self.state.is_decision_approved(decision_num) {
+                self.state.approve_decision(decision_num, reviewer.clone());
+            }
+        }
 
         if let Some(callback) = on_result {
             callback(true, Some("ReviewableDiff approved".to_string()));
@@ -188,6 +205,25 @@ impl ReviewEngine {
 
         // Invalidate cache for this ReviewableDiff
         self.renderable_cache.remove(&reviewable_id);
+
+        // Check for reverse cascade: if a decision was approved but now not all chunks are approved, unapprove the decision
+        let decisions_for_chunk: Vec<u32> = self
+            .state
+            .decisions
+            .decision_index
+            .get(&reviewable_id)
+            .cloned()
+            .unwrap_or_default();
+
+        for decision_num in decisions_for_chunk {
+            if self.state.is_decision_approved(decision_num) {
+                let (approved, total) = self.state.decision_approval_progress(decision_num);
+                // If not all chunks are approved anymore, unapprove the decision
+                if total > 0 && approved < total {
+                    self.state.unapprove_decision(decision_num);
+                }
+            }
+        }
 
         if let Some(callback) = on_result {
             callback(true, Some("ReviewableDiff rejected".to_string()));
@@ -410,6 +446,95 @@ impl ReviewEngine {
         }
 
         Ok(())
+    }
+
+    // === Decision Approval Methods ===
+
+    /// Get all chunks (ReviewableDiffIds) for a specific decision
+    fn get_chunks_for_decision(&self, decision_number: u32) -> Vec<ReviewableDiffId> {
+        self.state
+            .decisions
+            .decision_index
+            .iter()
+            .filter(|(_, decision_nums)| decision_nums.contains(&decision_number))
+            .map(|(diff_id, _)| diff_id.clone())
+            .collect()
+    }
+
+    /// Approve an entire decision, cascading to all affected chunks
+    pub fn approve_decision(
+        &mut self,
+        decision_number: u32,
+        reviewer: String,
+        on_result: OperationCallback,
+    ) -> Result<()> {
+        // Approve the decision itself
+        self.state
+            .approve_decision(decision_number, reviewer.clone());
+
+        // Get all chunks for this decision
+        let chunks = self.get_chunks_for_decision(decision_number);
+
+        // Approve each chunk
+        for chunk_id in &chunks {
+            self.state.approve(chunk_id.clone(), reviewer.clone());
+            self.renderable_cache.remove(chunk_id);
+        }
+
+        if let Some(callback) = on_result {
+            callback(
+                true,
+                Some(format!(
+                    "Decision #{} and all {} affected chunks approved",
+                    decision_number,
+                    chunks.len()
+                )),
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Reject/unapprove an entire decision, cascading to all affected chunks
+    pub fn reject_decision(
+        &mut self,
+        decision_number: u32,
+        on_result: OperationCallback,
+    ) -> Result<()> {
+        // Unapprove the decision itself
+        self.state.unapprove_decision(decision_number);
+
+        // Get all chunks for this decision
+        let chunks = self.get_chunks_for_decision(decision_number);
+
+        // Reject each chunk
+        for chunk_id in &chunks {
+            self.state.unapprove(chunk_id);
+            self.renderable_cache.remove(chunk_id);
+        }
+
+        if let Some(callback) = on_result {
+            callback(
+                true,
+                Some(format!(
+                    "Decision #{} and all {} affected chunks rejected",
+                    decision_number,
+                    chunks.len()
+                )),
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Check if a decision is approved
+    pub fn is_decision_approved(&self, decision_number: u32) -> bool {
+        self.state.is_decision_approved(decision_number)
+    }
+
+    /// Get approval progress for a decision: (approved_chunks, total_chunks)
+    pub fn decision_approval_progress(&self, decision_number: u32) -> (usize, usize) {
+        self.state.decision_approval_progress(decision_number)
     }
 
     /// Get a RenderableDiff for a ReviewableDiff (with caching)
@@ -2826,6 +2951,288 @@ mod tests {
         // Should skip duplicate (or update based on strategy)
         // For MVP: skip duplicates, add warning to summary
         assert!(!summary.errors.is_empty() || summary.total_imported == 0);
+    }
+
+    // ===== Decision Approval Integration Tests =====
+
+    /// Helper to set up a decision with multiple chunks
+    fn create_engine_with_decision_and_chunks() -> ReviewEngine {
+        use crate::entities::decision::{
+            ChangeType, CodeImpact, Confidence, Decision, DecisionLineRange,
+        };
+
+        // Create 3 chunks in the same file
+        let chunks = vec![
+            create_test_reviewable_diff("main.rs", 1),
+            create_test_reviewable_diff("main.rs", 15),
+            create_test_reviewable_diff("main.rs", 30),
+        ];
+
+        let mut engine =
+            ReviewEngine::new(chunks, "test_author".to_string(), create_mock_provider());
+
+        // Add a decision that affects all 3 chunks
+        let decision = Decision {
+            number: 1,
+            title: "Add authentication module".to_string(),
+            summary: "Implement user authentication".to_string(),
+            decision_log_line: None,
+            code_impacts: vec![CodeImpact {
+                file: "main.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 1, end: 45 }],
+                change_type: ChangeType::Addition,
+                confidence: Confidence::High,
+                reasoning: "Affects main function and helpers".to_string(),
+            }],
+        };
+
+        engine.state.decisions.add_decision(decision);
+        {
+            let state_copy = engine.state.clone();
+            engine
+                .state
+                .decisions
+                .build_index_from_review_state(&state_copy);
+        }
+
+        engine
+    }
+
+    #[test]
+    fn test_decision_approval_cascades_to_chunks() {
+        let mut engine = create_engine_with_decision_and_chunks();
+
+        // Approve decision 1
+        let result = engine.approve_decision(1, "reviewer".to_string(), None);
+        assert!(result.is_ok());
+
+        // Verify decision is approved
+        assert!(engine.is_decision_approved(1));
+
+        // Verify all chunks are approved
+        for reviewable_diff in engine.state.reviewable_diffs.values() {
+            assert!(engine.state.is_approved(&reviewable_diff.id));
+        }
+    }
+
+    #[test]
+    fn test_decision_rejection_cascades_to_chunks() {
+        let mut engine = create_engine_with_decision_and_chunks();
+
+        // First approve decision and chunks
+        engine
+            .approve_decision(1, "reviewer".to_string(), None)
+            .unwrap();
+        assert!(engine.is_decision_approved(1));
+
+        // Now reject the decision
+        let result = engine.reject_decision(1, None);
+        assert!(result.is_ok());
+
+        // Verify decision is unapproved
+        assert!(!engine.is_decision_approved(1));
+
+        // Verify all chunks are unapproved
+        for reviewable_diff in engine.state.reviewable_diffs.values() {
+            assert!(!engine.state.is_approved(&reviewable_diff.id));
+        }
+    }
+
+    #[test]
+    fn test_reverse_cascade_all_chunks_approved() {
+        let mut engine = create_engine_with_decision_and_chunks();
+
+        // Get all chunk IDs
+        let chunk_ids: Vec<_> = engine
+            .state
+            .reviewable_diffs
+            .values()
+            .map(|d| d.id.clone())
+            .collect();
+
+        // Approve chunks one by one
+        for (i, chunk_id) in chunk_ids.iter().enumerate() {
+            engine
+                .approve(chunk_id.clone(), "reviewer".to_string(), None)
+                .unwrap();
+
+            // Decision should still be unapproved until ALL chunks are approved
+            if i < chunk_ids.len() - 1 {
+                assert!(!engine.is_decision_approved(1));
+            }
+        }
+
+        // After approving all chunks, decision should be auto-approved
+        assert!(engine.is_decision_approved(1));
+    }
+
+    #[test]
+    fn test_reverse_cascade_reject_one_chunk_unapproves_decision() {
+        let mut engine = create_engine_with_decision_and_chunks();
+
+        // Approve all chunks
+        let chunk_ids: Vec<_> = engine
+            .state
+            .reviewable_diffs
+            .values()
+            .map(|d| d.id.clone())
+            .collect();
+        for chunk_id in chunk_ids {
+            engine
+                .approve(chunk_id, "reviewer".to_string(), None)
+                .unwrap();
+        }
+
+        // Verify decision is auto-approved
+        assert!(engine.is_decision_approved(1));
+
+        // Reject one chunk
+        let first_chunk_id = engine
+            .state
+            .reviewable_diffs
+            .values()
+            .next()
+            .unwrap()
+            .id
+            .clone();
+
+        engine.reject(first_chunk_id, None).unwrap();
+
+        // Decision should be unapproved since not all chunks are approved anymore
+        assert!(!engine.is_decision_approved(1));
+    }
+
+    #[test]
+    fn test_decision_progress_partial_approval() {
+        let mut engine = create_engine_with_decision_and_chunks();
+
+        // Get chunk IDs
+        let chunk_ids: Vec<_> = engine
+            .state
+            .reviewable_diffs
+            .values()
+            .map(|d| d.id.clone())
+            .collect();
+
+        // Initially: no chunks approved
+        let (approved, total) = engine.decision_approval_progress(1);
+        assert_eq!(approved, 0);
+        assert_eq!(total, 3);
+
+        // Approve first chunk
+        engine
+            .approve(chunk_ids[0].clone(), "reviewer".to_string(), None)
+            .unwrap();
+        let (approved, total) = engine.decision_approval_progress(1);
+        assert_eq!(approved, 1);
+        assert_eq!(total, 3);
+
+        // Approve second chunk
+        engine
+            .approve(chunk_ids[1].clone(), "reviewer".to_string(), None)
+            .unwrap();
+        let (approved, total) = engine.decision_approval_progress(1);
+        assert_eq!(approved, 2);
+        assert_eq!(total, 3);
+
+        // Approve third chunk - should trigger reverse cascade
+        engine
+            .approve(chunk_ids[2].clone(), "reviewer".to_string(), None)
+            .unwrap();
+        let (approved, total) = engine.decision_approval_progress(1);
+        assert_eq!(approved, 3);
+        assert_eq!(total, 3);
+
+        // Decision should be auto-approved
+        assert!(engine.is_decision_approved(1));
+    }
+
+    #[test]
+    fn test_multiple_decisions_independent() {
+        use crate::entities::decision::{
+            ChangeType, CodeImpact, Confidence, Decision, DecisionLineRange,
+        };
+
+        // Create 4 chunks: 2 for decision 1, 2 for decision 2
+        let chunks = vec![
+            create_test_reviewable_diff("module1.rs", 1),
+            create_test_reviewable_diff("module1.rs", 50),
+            create_test_reviewable_diff("module2.rs", 1),
+            create_test_reviewable_diff("module2.rs", 50),
+        ];
+
+        let mut engine =
+            ReviewEngine::new(chunks, "test_author".to_string(), create_mock_provider());
+
+        // Add decision 1 (affects module1.rs)
+        let decision1 = Decision {
+            number: 1,
+            title: "Module 1 changes".to_string(),
+            summary: "Changes to module 1".to_string(),
+            decision_log_line: None,
+            code_impacts: vec![CodeImpact {
+                file: "module1.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 1, end: 100 }],
+                change_type: ChangeType::Modification,
+                confidence: Confidence::High,
+                reasoning: "All module1 changes".to_string(),
+            }],
+        };
+
+        // Add decision 2 (affects module2.rs)
+        let decision2 = Decision {
+            number: 2,
+            title: "Module 2 changes".to_string(),
+            summary: "Changes to module 2".to_string(),
+            decision_log_line: None,
+            code_impacts: vec![CodeImpact {
+                file: "module2.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 1, end: 100 }],
+                change_type: ChangeType::Modification,
+                confidence: Confidence::High,
+                reasoning: "All module2 changes".to_string(),
+            }],
+        };
+
+        engine.state.decisions.add_decision(decision1);
+        engine.state.decisions.add_decision(decision2);
+        {
+            let state_copy = engine.state.clone();
+            engine
+                .state
+                .decisions
+                .build_index_from_review_state(&state_copy);
+        }
+
+        // Approve only decision 1
+        engine
+            .approve_decision(1, "reviewer".to_string(), None)
+            .unwrap();
+
+        // Decision 1 should be approved
+        assert!(engine.is_decision_approved(1));
+
+        // Decision 2 should not be approved
+        assert!(!engine.is_decision_approved(2));
+
+        // Only module1 chunks should be approved
+        for reviewable_diff in engine.state.reviewable_diffs.values() {
+            if reviewable_diff.file_path == "module1.rs" {
+                assert!(engine.state.is_approved(&reviewable_diff.id));
+            } else {
+                assert!(!engine.state.is_approved(&reviewable_diff.id));
+            }
+        }
+    }
+
+    #[test]
+    fn test_decision_progress_zero_chunks() {
+        let engine = ReviewEngine::new(vec![], "test_author".to_string(), create_mock_provider());
+
+        // For non-existent decision, progress should be (0, 0)
+        let (approved, total) = engine.decision_approval_progress(999);
+        assert_eq!(approved, 0);
+        assert_eq!(total, 0);
     }
 }
 
