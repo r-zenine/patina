@@ -12,6 +12,7 @@ pub mod git_ref;
 // Re-exports for backward compatibility
 pub use approval::{Approval, ReviewApprovals};
 pub use decision::{
-    ChangeType, CodeImpact, Confidence, Decision, DecisionLineRange, ReviewDecisions,
+    ChangeType, CodeImpact, Confidence, Decision, DecisionApproval, DecisionApprovals,
+    DecisionLineRange, ReviewDecisions,
 };
 pub use instruction::{Instruction, ReviewInstructions};
