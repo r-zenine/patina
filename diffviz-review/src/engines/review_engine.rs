@@ -3,6 +3,7 @@
 //! This module provides the core business logic for managing reviews
 //! using the new ReviewableDiff system with RenderableDiff caching.
 
+use crate::entities::CascadeResult;
 use crate::entities::Instruction;
 use crate::entities::git_ref::{DiffQuery, GitRef};
 use crate::entities::instruction::InstructionStatus;
@@ -14,7 +15,8 @@ use diffviz_core::renderable_diff::RenderableDiff;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Type alias for review operation callbacks
+/// Type alias for review operation callbacks (used by existing approve/reject/add_instruction methods)
+/// NOTE: Cascade methods (approve_decision/reject_decision) use CascadeResult instead of callbacks
 type OperationCallback = Option<Box<dyn FnOnce(bool, Option<String>) + Send>>;
 
 /// Export scope for filtering instructions during JSON export
@@ -462,12 +464,13 @@ impl ReviewEngine {
     }
 
     /// Approve an entire decision, cascading to all affected chunks
+    ///
+    /// Returns a CascadeResult describing what was affected by this operation.
     pub fn approve_decision(
         &mut self,
         decision_number: u32,
         reviewer: String,
-        on_result: OperationCallback,
-    ) -> Result<()> {
+    ) -> Result<CascadeResult> {
         // Approve the decision itself
         self.state
             .approve_decision(decision_number, reviewer.clone());
@@ -481,26 +484,23 @@ impl ReviewEngine {
             self.renderable_cache.remove(chunk_id);
         }
 
-        if let Some(callback) = on_result {
-            callback(
-                true,
-                Some(format!(
-                    "Decision #{} and all {} affected chunks approved",
-                    decision_number,
-                    chunks.len()
-                )),
-            );
-        }
+        let result = if chunks.is_empty() {
+            CascadeResult::NoChunksAffected { decision_number }
+        } else {
+            CascadeResult::DecisionApproved {
+                decision_number,
+                chunks_affected: chunks.len(),
+            }
+        };
 
-        Ok(())
+        Ok(result)
     }
 
     /// Reject/unapprove an entire decision, cascading to all affected chunks
-    pub fn reject_decision(
-        &mut self,
-        decision_number: u32,
-        on_result: OperationCallback,
-    ) -> Result<()> {
+    /// Reject/unapprove an entire decision, cascading to all affected chunks
+    ///
+    /// Returns a CascadeResult describing what was affected by this operation.
+    pub fn reject_decision(&mut self, decision_number: u32) -> Result<CascadeResult> {
         // Unapprove the decision itself
         self.state.unapprove_decision(decision_number);
 
@@ -513,18 +513,16 @@ impl ReviewEngine {
             self.renderable_cache.remove(chunk_id);
         }
 
-        if let Some(callback) = on_result {
-            callback(
-                true,
-                Some(format!(
-                    "Decision #{} and all {} affected chunks rejected",
-                    decision_number,
-                    chunks.len()
-                )),
-            );
-        }
+        let result = if chunks.is_empty() {
+            CascadeResult::NoChunksAffected { decision_number }
+        } else {
+            CascadeResult::DecisionUnapproved {
+                decision_number,
+                chunks_affected: chunks.len(),
+            }
+        };
 
-        Ok(())
+        Ok(result)
     }
 
     /// Check if a decision is approved
@@ -3003,8 +3001,21 @@ mod tests {
         let mut engine = create_engine_with_decision_and_chunks();
 
         // Approve decision 1
-        let result = engine.approve_decision(1, "reviewer".to_string(), None);
+        let result = engine.approve_decision(1, "reviewer".to_string());
         assert!(result.is_ok());
+
+        // Verify cascade result
+        let cascade_result = result.unwrap();
+        match cascade_result {
+            CascadeResult::DecisionApproved {
+                decision_number,
+                chunks_affected,
+            } => {
+                assert_eq!(decision_number, 1);
+                assert_eq!(chunks_affected, 3);
+            }
+            _ => panic!("Expected DecisionApproved result"),
+        }
 
         // Verify decision is approved
         assert!(engine.is_decision_approved(1));
@@ -3020,14 +3031,25 @@ mod tests {
         let mut engine = create_engine_with_decision_and_chunks();
 
         // First approve decision and chunks
-        engine
-            .approve_decision(1, "reviewer".to_string(), None)
-            .unwrap();
+        engine.approve_decision(1, "reviewer".to_string()).unwrap();
         assert!(engine.is_decision_approved(1));
 
         // Now reject the decision
-        let result = engine.reject_decision(1, None);
+        let result = engine.reject_decision(1);
         assert!(result.is_ok());
+
+        // Verify cascade result
+        let cascade_result = result.unwrap();
+        match cascade_result {
+            CascadeResult::DecisionUnapproved {
+                decision_number,
+                chunks_affected,
+            } => {
+                assert_eq!(decision_number, 1);
+                assert_eq!(chunks_affected, 3);
+            }
+            _ => panic!("Expected DecisionUnapproved result"),
+        }
 
         // Verify decision is unapproved
         assert!(!engine.is_decision_approved(1));
@@ -3205,9 +3227,19 @@ mod tests {
         }
 
         // Approve only decision 1
-        engine
-            .approve_decision(1, "reviewer".to_string(), None)
-            .unwrap();
+        let result = engine.approve_decision(1, "reviewer".to_string()).unwrap();
+
+        // Verify we got the cascade result
+        match result {
+            CascadeResult::DecisionApproved {
+                decision_number,
+                chunks_affected,
+            } => {
+                assert_eq!(decision_number, 1);
+                assert_eq!(chunks_affected, 2);
+            }
+            _ => panic!("Expected DecisionApproved result"),
+        }
 
         // Decision 1 should be approved
         assert!(engine.is_decision_approved(1));
