@@ -133,6 +133,15 @@ impl UiState {
         self.decision_tree.selected_file_path()
     }
 
+    /// Get currently selected decision number when at depth 0 (decision level)
+    pub fn current_decision_number(&self) -> Option<u32> {
+        if self.decision_tree.selected_path.depth() == 0 {
+            self.decision_tree.selected_decision_number()
+        } else {
+            None
+        }
+    }
+
     /// Switch focus between panels
     pub fn toggle_focus(&mut self) {
         self.focused_panel = match self.focused_panel {

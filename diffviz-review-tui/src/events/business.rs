@@ -14,6 +14,9 @@ pub enum BusinessEvent {
     /// Approve or unapprove a ReviewableDiff
     ToggleApprove { reviewable_id: ReviewableDiffId },
 
+    /// Approve or unapprove an entire Decision
+    ToggleApproveDecision { decision_number: u32 },
+
     /// Approve all ReviewableDiffs in a file
     ApproveFile { file_path: String },
 
@@ -42,9 +45,17 @@ pub enum BusinessEvent {
 /// Convert UI events to business events based on current state
 pub fn ui_event_to_business_event(ui_event: &UiEvent, ui_state: &UiState) -> Option<BusinessEvent> {
     match ui_event {
-        UiEvent::ToggleApprove => ui_state
-            .current_reviewable_id()
-            .map(|id| BusinessEvent::ToggleApprove { reviewable_id: id }),
+        UiEvent::ToggleApprove => {
+            // At depth 0 (decision level), approve the decision
+            if let Some(decision_number) = ui_state.current_decision_number() {
+                Some(BusinessEvent::ToggleApproveDecision { decision_number })
+            } else {
+                // Otherwise, approve the chunk
+                ui_state
+                    .current_reviewable_id()
+                    .map(|id| BusinessEvent::ToggleApprove { reviewable_id: id })
+            }
+        }
 
         UiEvent::ApproveFile => ui_state
             .current_file_path()

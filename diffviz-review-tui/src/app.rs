@@ -461,6 +461,16 @@ impl ReviewTuiApp {
                 ]))
             }
 
+            BusinessEvent::ToggleApproveDecision { decision_number } => {
+                if self.review_engine.is_decision_approved(decision_number) {
+                    self.review_engine.reject_decision(decision_number)?;
+                } else {
+                    self.review_engine
+                        .approve_decision(decision_number, author)?;
+                }
+                Ok(Command::None)
+            }
+
             // Not implemented yet
             BusinessEvent::EditContent { .. }
             | BusinessEvent::SaveSession
