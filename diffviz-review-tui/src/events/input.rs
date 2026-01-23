@@ -280,6 +280,7 @@ fn handle_leader_keys(key: KeyEvent, submenu: Option<char>) -> Option<UiEvent> {
 
         // Actions submenu (Space + a + ?)
         (Some('a'), KeyCode::Char('a')) => Some(UiEvent::ToggleApprove),
+        (Some('a'), KeyCode::Char('d')) => Some(UiEvent::ToggleApprove),
         (Some('a'), KeyCode::Char('f')) => Some(UiEvent::ApproveFile),
 
         // Instructions submenu (Space + i + ?)

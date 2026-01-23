@@ -136,7 +136,6 @@ mod tests {
             selection_range: None,
             expanded_files: vec![],
             decision_tree_path: (0, None, None),
-            decision_modal_open: false,
         };
 
         let json = snapshot.to_json().unwrap();
