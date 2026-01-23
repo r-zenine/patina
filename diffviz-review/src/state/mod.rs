@@ -4,7 +4,9 @@
 //! now organized around ReviewableDiffs as the primary unit of review.
 
 use crate::entities::reviewable_diff_id::{LineRange, ReviewableDiffId};
-use crate::entities::{Instruction, ReviewApprovals, ReviewDecisions, ReviewInstructions};
+use crate::entities::{
+    DecisionApprovals, Instruction, ReviewApprovals, ReviewDecisions, ReviewInstructions,
+};
 // Simplified structures for review workflow
 #[derive(Debug, Clone, Default)]
 pub struct ReviewJourney;
@@ -57,6 +59,7 @@ pub struct ReviewState {
     pub approvals: ReviewApprovals,
     pub instructions: ReviewInstructions,
     pub decisions: ReviewDecisions,
+    pub decision_approvals: DecisionApprovals,
     pub journey: ReviewJourney,
 
     /// Session metadata
@@ -118,6 +121,7 @@ impl ReviewState {
             approvals: ReviewApprovals::new(),
             instructions: ReviewInstructions::new(),
             decisions: ReviewDecisions::new(),
+            decision_approvals: DecisionApprovals::new(),
             journey: ReviewJourney::new(),
             author,
             session_metadata: None,
@@ -132,6 +136,7 @@ impl ReviewState {
         approvals: ReviewApprovals,
         instructions: ReviewInstructions,
         decisions: ReviewDecisions,
+        decision_approvals: DecisionApprovals,
     ) -> Self {
         let mut diffs_map = BTreeMap::new();
         for diff in reviewable_diffs {
@@ -143,6 +148,7 @@ impl ReviewState {
             approvals,
             instructions,
             decisions,
+            decision_approvals,
             journey,
             author,
             session_metadata: None,
@@ -244,6 +250,50 @@ impl ReviewState {
                 .approve(reviewable_id, reviewer.clone(), timestamp.clone());
         }
 
+        self
+    }
+
+    // === Decision Approval Methods ===
+
+    /// Check if a decision is approved
+    pub fn is_decision_approved(&self, decision_number: u32) -> bool {
+        self.decision_approvals.is_approved(decision_number)
+    }
+
+    /// Get approval progress for a decision: (approved_chunks, total_chunks)
+    pub fn decision_approval_progress(&self, decision_number: u32) -> (usize, usize) {
+        // Find all chunks for this decision via decision_index
+        let chunks_for_decision: Vec<&ReviewableDiffId> = self
+            .decisions
+            .decision_index
+            .iter()
+            .filter(|(_, nums)| nums.contains(&decision_number))
+            .map(|(diff_id, _)| diff_id)
+            .collect();
+
+        let total_chunks = chunks_for_decision.len();
+        let approved_chunks = chunks_for_decision
+            .iter()
+            .filter(|diff_id| self.approvals.is_approved(diff_id))
+            .count();
+
+        (approved_chunks, total_chunks)
+    }
+
+    /// Approve a decision (returns new state)
+    pub fn approve_decision(&mut self, decision_number: u32, reviewer: String) -> &mut Self {
+        let timestamp = chrono::Utc::now()
+            .format("%Y-%m-%d %H:%M:%S UTC")
+            .to_string();
+
+        self.decision_approvals
+            .approve(decision_number, reviewer, timestamp);
+        self
+    }
+
+    /// Unapprove/reject a decision (returns new state)
+    pub fn unapprove_decision(&mut self, decision_number: u32) -> &mut Self {
+        self.decision_approvals.unapprove(decision_number);
         self
     }
 
