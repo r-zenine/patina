@@ -205,6 +205,68 @@ impl ReviewDecisions {
     }
 }
 
+/// An approval record for a decision
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DecisionApproval {
+    pub decision_number: u32,
+    pub approved: bool,
+    pub approved_by: String,
+    pub approval_timestamp: String,
+}
+
+/// Collection of decision approvals organized by decision number
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct DecisionApprovals {
+    pub approvals: HashMap<u32, DecisionApproval>,
+}
+
+impl DecisionApprovals {
+    pub fn new() -> Self {
+        Self {
+            approvals: HashMap::new(),
+        }
+    }
+
+    pub fn approve(&mut self, decision_number: u32, approved_by: String, timestamp: String) {
+        let approval = DecisionApproval {
+            decision_number,
+            approved: true,
+            approved_by,
+            approval_timestamp: timestamp,
+        };
+        self.approvals.insert(decision_number, approval);
+    }
+
+    pub fn unapprove(&mut self, decision_number: u32) {
+        self.approvals.remove(&decision_number);
+    }
+
+    pub fn is_approved(&self, decision_number: u32) -> bool {
+        self.approvals
+            .get(&decision_number)
+            .is_some_and(|approval| approval.approved)
+    }
+
+    pub fn get_approval(&self, decision_number: u32) -> Option<&DecisionApproval> {
+        self.approvals.get(&decision_number)
+    }
+
+    pub fn total_approved(&self) -> usize {
+        self.approvals
+            .values()
+            .filter(|approval| approval.approved)
+            .count()
+    }
+
+    pub fn approval_percentage(&self, total_decisions: usize) -> f32 {
+        if total_decisions == 0 {
+            0.0
+        } else {
+            (self.total_approved() as f32 / total_decisions as f32) * 100.0
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -718,5 +780,144 @@ mod tests {
             decisions.get_decisions_for_diff(&unmapped_diff.id)[0].number,
             0
         );
+    }
+
+    #[test]
+    fn test_decision_approval_lifecycle() {
+        let mut approvals = DecisionApprovals::new();
+        let decision_number = 1;
+
+        // Initially not approved
+        assert!(!approvals.is_approved(decision_number));
+        assert_eq!(approvals.total_approved(), 0);
+
+        // Approve it
+        approvals.approve(
+            decision_number,
+            "reviewer".to_string(),
+            "2023-01-01T00:00:00Z".to_string(),
+        );
+        assert!(approvals.is_approved(decision_number));
+        assert_eq!(approvals.total_approved(), 1);
+
+        // Verify approval details
+        let approval = approvals.get_approval(decision_number).unwrap();
+        assert_eq!(approval.approved_by, "reviewer");
+        assert_eq!(approval.approval_timestamp, "2023-01-01T00:00:00Z");
+
+        // Unapprove it
+        approvals.unapprove(decision_number);
+        assert!(!approvals.is_approved(decision_number));
+        assert_eq!(approvals.total_approved(), 0);
+    }
+
+    #[test]
+    fn test_decision_approval_percentage() {
+        let mut approvals = DecisionApprovals::new();
+
+        // Test with no decisions
+        assert_eq!(approvals.approval_percentage(0), 0.0);
+
+        // Test with some approved
+        approvals.approve(
+            1,
+            "reviewer".to_string(),
+            "2023-01-01T00:00:00Z".to_string(),
+        );
+
+        assert_eq!(approvals.approval_percentage(2), 50.0);
+        assert_eq!(approvals.approval_percentage(1), 100.0);
+    }
+
+    #[test]
+    fn test_decision_approval_serialization() {
+        let mut approvals = DecisionApprovals::new();
+        approvals.approve(
+            1,
+            "reviewer".to_string(),
+            "2023-01-01T00:00:00Z".to_string(),
+        );
+        approvals.approve(
+            2,
+            "reviewer2".to_string(),
+            "2023-01-02T00:00:00Z".to_string(),
+        );
+
+        // Serialize
+        let json = serde_json::to_string(&approvals).expect("Failed to serialize");
+
+        // Deserialize
+        let deserialized: DecisionApprovals =
+            serde_json::from_str(&json).expect("Failed to deserialize");
+
+        // Verify
+        assert!(deserialized.is_approved(1));
+        assert!(deserialized.is_approved(2));
+        assert_eq!(deserialized.total_approved(), 2);
+        assert_eq!(
+            deserialized.get_approval(1).unwrap().approved_by,
+            "reviewer"
+        );
+    }
+
+    #[test]
+    fn test_decision_approval_multiple_approvals() {
+        let mut approvals = DecisionApprovals::new();
+
+        // Approve multiple decisions
+        approvals.approve(
+            1,
+            "reviewer".to_string(),
+            "2023-01-01T00:00:00Z".to_string(),
+        );
+        approvals.approve(
+            2,
+            "reviewer".to_string(),
+            "2023-01-01T00:00:00Z".to_string(),
+        );
+        approvals.approve(
+            3,
+            "reviewer".to_string(),
+            "2023-01-01T00:00:00Z".to_string(),
+        );
+
+        assert_eq!(approvals.total_approved(), 3);
+        assert!((approvals.approval_percentage(5) - 60.0).abs() < 0.01);
+
+        // Unapprove one
+        approvals.unapprove(2);
+        assert_eq!(approvals.total_approved(), 2);
+        assert!(!approvals.is_approved(2));
+        assert!(approvals.is_approved(1));
+        assert!(approvals.is_approved(3));
+    }
+
+    #[test]
+    fn test_decision_approval_edge_cases() {
+        let mut approvals = DecisionApprovals::new();
+
+        // Unapproving non-existent decision should not panic
+        approvals.unapprove(999);
+        assert!(!approvals.is_approved(999));
+
+        // Getting non-existent decision should return None
+        assert_eq!(approvals.get_approval(999), None);
+
+        // Approving twice should update the approval
+        approvals.approve(
+            1,
+            "reviewer1".to_string(),
+            "2023-01-01T00:00:00Z".to_string(),
+        );
+        approvals.approve(
+            1,
+            "reviewer2".to_string(),
+            "2023-01-02T00:00:00Z".to_string(),
+        );
+
+        let approval = approvals.get_approval(1).unwrap();
+        assert_eq!(approval.approved_by, "reviewer2");
+        assert_eq!(approval.approval_timestamp, "2023-01-02T00:00:00Z");
+        assert_eq!(approvals.total_approved(), 1); // Still only 1 approval
     }
 }
