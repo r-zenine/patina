@@ -1,5 +1,6 @@
 // Individual review entity modules
 pub mod approval;
+pub mod cascade_result;
 pub mod decision;
 pub mod instruction;
 
@@ -11,6 +12,7 @@ pub mod git_ref;
 
 // Re-exports for backward compatibility
 pub use approval::{Approval, ReviewApprovals};
+pub use cascade_result::CascadeResult;
 pub use decision::{
     ChangeType, CodeImpact, Confidence, Decision, DecisionApproval, DecisionApprovals,
     DecisionLineRange, ReviewDecisions,
