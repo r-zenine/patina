@@ -15,6 +15,7 @@ Enables any agent to contribute to a dev-strategy by:
 - Creating sequentially numbered contribution folders
 - Generating mandatory documentation (changelog, decisions, context handoff)
 - Maintaining project continuity and knowledge transfer
+- Handling decision revisions when previous choices need revisiting
 
 ## When to Use This Skill
 
@@ -31,6 +32,8 @@ Enables any agent to contribute to a dev-strategy by:
 - Working on projects without dev-strategy plans
 - Making quick fixes unrelated to strategic development
 
+**💡 Tip**: Instead of manually invoking this skill, users can use **dev-continue** skill which automatically determines if design or implementation is needed next.
+
 ## Process Overview
 
 1. **Read existing dev-strategy plan** - Understand context, strategy, and current state
@@ -38,6 +41,7 @@ Enables any agent to contribute to a dev-strategy by:
 3. **Create numbered contribution folder** - Sequential numbering for chronological order
 4. **Perform specialized work** - Implementation, review, audit, testing, etc.
 5. **Generate mandatory documentation** - 3 required files + optional artifacts
+6. **Handle decision revisions** - When decisions need revisiting, create new revision contribution
 
 ## Key Outputs
 

@@ -45,13 +45,20 @@ Different roles have different information needs:
 
 ## Directory Structure
 
-Contributions follow this pattern:
+**Implementation contributions** follow this pattern:
 ```
 contributions/NNN-phase-X-type-specialty-agent/
 ├── context-handoff.md     ← START HERE
 ├── decision-log.md        ← Read if you need technical choices
 ├── changelog.md           ← Read for completion summary
 └── [optional artifacts]   ← Read for specialized analysis
+```
+
+**Design contributions** have a different structure:
+```
+contributions/NNN-phase-X-design-[topic]-design-contribute/
+├── design-doc.md          ← START HERE (< 100 lines)
+└── decision-log.md        ← Design decisions and rationale
 ```
 
 ## Detailed Instructions
