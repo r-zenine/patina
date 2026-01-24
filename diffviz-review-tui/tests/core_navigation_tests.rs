@@ -98,8 +98,14 @@ fn test_navigation_j_moves_down_one_position() {
 
     // Should have initial state + 1 event = 2 snapshots
     assert_eq!(snapshots.len(), 2);
-    assert_eq!(snapshots[0].decision_tree_path.0, 0, "Initial position at 0");
-    assert_eq!(snapshots[1].decision_tree_path.0, 1, "After 'j', position at 1");
+    assert_eq!(
+        snapshots[0].decision_tree_path.0, 0,
+        "Initial position at 0"
+    );
+    assert_eq!(
+        snapshots[1].decision_tree_path.0, 1,
+        "After 'j', position at 1"
+    );
 }
 
 #[test]
@@ -125,7 +131,10 @@ fn test_navigation_down_arrow_moves_down() {
 
     assert_eq!(snapshots.len(), 2);
     assert_eq!(snapshots[0].decision_tree_path.0, 0);
-    assert_eq!(snapshots[1].decision_tree_path.0, 1, "Arrow down moves cursor");
+    assert_eq!(
+        snapshots[1].decision_tree_path.0, 1,
+        "Arrow down moves cursor"
+    );
 }
 
 #[test]
@@ -136,7 +145,10 @@ fn test_navigation_up_arrow_moves_up() {
     let snapshots = harness.run_sequence("j<Up>").expect("Run sequence");
 
     assert_eq!(snapshots.len(), 3);
-    assert_eq!(snapshots[2].decision_tree_path.0, 0, "Arrow up moves cursor");
+    assert_eq!(
+        snapshots[2].decision_tree_path.0, 0,
+        "Arrow up moves cursor"
+    );
 }
 
 // =============================================================================
@@ -156,7 +168,10 @@ fn test_navigation_multiple_j_moves_down_multiple_positions() {
     assert_eq!(snapshots[1].decision_tree_path.0, 1);
     assert_eq!(snapshots[2].decision_tree_path.0, 2);
     // With 3 decisions collapsed, max position is 2 (indices 0, 1, 2)
-    assert_eq!(snapshots[3].decision_tree_path.0, 2, "After 'jjj' at bottom (position 2)");
+    assert_eq!(
+        snapshots[3].decision_tree_path.0, 2,
+        "After 'jjj' at bottom (position 2)"
+    );
 }
 
 #[test]
@@ -168,7 +183,10 @@ fn test_navigation_multiple_k_moves_up_multiple_positions() {
     let snapshots = harness.run_sequence("jjjkk").expect("Run sequence");
 
     assert_eq!(snapshots.len(), 6);
-    assert_eq!(snapshots[3].decision_tree_path.0, 2, "After 'jjj' at bottom (position 2)");
+    assert_eq!(
+        snapshots[3].decision_tree_path.0, 2,
+        "After 'jjj' at bottom (position 2)"
+    );
     assert_eq!(snapshots[4].decision_tree_path.0, 1, "After first 'k'");
     assert_eq!(snapshots[5].decision_tree_path.0, 0, "After second 'k'");
 }
@@ -217,7 +235,10 @@ fn test_navigation_k_at_top_stays_at_top() {
 
     assert_eq!(snapshots.len(), 2);
     assert_eq!(snapshots[0].decision_tree_path.0, 0, "Start at top");
-    assert_eq!(snapshots[1].decision_tree_path.0, 0, "Stay at top after 'k'");
+    assert_eq!(
+        snapshots[1].decision_tree_path.0, 0,
+        "Stay at top after 'k'"
+    );
 }
 
 #[test]
@@ -243,7 +264,9 @@ fn test_navigation_j_past_bottom_behavior() {
 
     // Move down many times to test bottom boundary
     // With 3 decisions and their files/chunks, we should have multiple items in tree
-    let snapshots = harness.run_sequence("jjjjjjjjjjjjjjjjjjjj").expect("Run sequence");
+    let snapshots = harness
+        .run_sequence("jjjjjjjjjjjjjjjjjjjj")
+        .expect("Run sequence");
 
     // Get the last position reached
     let max_position = snapshots.last().unwrap().decision_tree_path.0;
@@ -338,7 +361,10 @@ fn test_navigation_gg_then_shift_g_covers_full_range() {
 
     assert!(pos_after_g > 0, "After G should be at bottom");
     assert_eq!(pos_after_gg, 0, "After gg should be at top");
-    assert_eq!(pos_after_g2, pos_after_g, "After G again should be at bottom");
+    assert_eq!(
+        pos_after_g2, pos_after_g,
+        "After G again should be at bottom"
+    );
 }
 
 // =============================================================================

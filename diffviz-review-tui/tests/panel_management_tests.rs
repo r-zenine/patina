@@ -163,7 +163,7 @@ fn test_panel_focus_right_then_left_returns_to_file_list() {
 
     assert_eq!(snapshots.len(), 3);
     assert_eq!(snapshots[0].focused_panel, "FileList"); // Initial
-    assert_eq!(snapshots[1].focused_panel, "DiffView");  // After right
+    assert_eq!(snapshots[1].focused_panel, "DiffView"); // After right
     assert_eq!(snapshots[2].focused_panel, "FileList"); // After left
 }
 
@@ -176,7 +176,7 @@ fn test_panel_focus_l_then_h_returns_to_file_list() {
 
     assert_eq!(snapshots.len(), 3);
     assert_eq!(snapshots[0].focused_panel, "FileList"); // Initial
-    assert_eq!(snapshots[1].focused_panel, "DiffView");  // After l
+    assert_eq!(snapshots[1].focused_panel, "DiffView"); // After l
     assert_eq!(snapshots[2].focused_panel, "FileList"); // After h
 }
 
@@ -205,7 +205,9 @@ fn test_switch_focus_navigate_switch_back_preserves_position() {
     let engine = create_test_engine();
     let mut harness = InputTestHarness::new(engine);
 
-    let snapshots = harness.run_sequence("<Right>j<Left>").expect("Run sequence");
+    let snapshots = harness
+        .run_sequence("<Right>j<Left>")
+        .expect("Run sequence");
 
     assert_eq!(snapshots.len(), 4);
 
@@ -224,14 +226,16 @@ fn test_multiple_focus_switches_with_navigation() {
     let engine = create_test_engine();
     let mut harness = InputTestHarness::new(engine);
 
-    let snapshots = harness.run_sequence("j<Right>j<Left>k").expect("Run sequence");
+    let snapshots = harness
+        .run_sequence("j<Right>j<Left>k")
+        .expect("Run sequence");
 
     assert_eq!(snapshots.len(), 6);
 
     // Track the sequence
     assert_eq!(snapshots[1].decision_tree_path.0, 1); // After j in FileList
-    assert_eq!(snapshots[2].focused_panel, "DiffView");  // After right
-    // After j in DiffView, tree position stays same (j affects cursor in DiffView)
+    assert_eq!(snapshots[2].focused_panel, "DiffView"); // After right
+                                                        // After j in DiffView, tree position stays same (j affects cursor in DiffView)
     assert_eq!(snapshots[3].decision_tree_path.0, 1);
     assert_eq!(snapshots[4].focused_panel, "FileList"); // After left
     assert_eq!(snapshots[5].decision_tree_path.0, 0); // After k in FileList (back to 0)
@@ -262,7 +266,9 @@ fn test_scroll_up_ctrl_y_from_scrolled_position() {
     let engine = create_test_engine();
     let mut harness = InputTestHarness::new(engine);
 
-    let snapshots = harness.run_sequence("<C-e><C-e><C-y>").expect("Run sequence");
+    let snapshots = harness
+        .run_sequence("<C-e><C-e><C-y>")
+        .expect("Run sequence");
 
     assert_eq!(snapshots.len(), 4);
 
@@ -364,7 +370,9 @@ fn test_scroll_state_persists_across_focus_switch() {
     let mut harness = InputTestHarness::new(engine);
 
     // Scroll in FileList, switch to DiffView, switch back
-    let snapshots = harness.run_sequence("<C-e><Right><Left>").expect("Run sequence");
+    let snapshots = harness
+        .run_sequence("<C-e><Right><Left>")
+        .expect("Run sequence");
 
     assert_eq!(snapshots.len(), 4);
 
@@ -382,7 +390,9 @@ fn test_panels_have_independent_scroll_state() {
     let mut harness = InputTestHarness::new(engine);
 
     // Scroll FileList, switch to DiffView, scroll DiffView, switch back
-    let snapshots = harness.run_sequence("<C-e><Right><C-e><C-e><Left>").expect("Run sequence");
+    let snapshots = harness
+        .run_sequence("<C-e><Right><C-e><C-e><Left>")
+        .expect("Run sequence");
 
     assert_eq!(snapshots.len(), 6);
 
@@ -399,7 +409,9 @@ fn test_focus_switching_preserves_navigation_position() {
     let engine = create_test_engine();
     let mut harness = InputTestHarness::new(engine);
 
-    let snapshots = harness.run_sequence("jj<Right><Left>").expect("Run sequence");
+    let snapshots = harness
+        .run_sequence("jj<Right><Left>")
+        .expect("Run sequence");
 
     assert_eq!(snapshots.len(), 5);
 
@@ -424,7 +436,10 @@ fn test_focus_switching_only_affects_focused_panel() {
     assert_ne!(initial_state.focused_panel, final_state.focused_panel);
 
     // Everything else should stay the same
-    assert_eq!(initial_state.decision_tree_path, final_state.decision_tree_path);
+    assert_eq!(
+        initial_state.decision_tree_path,
+        final_state.decision_tree_path
+    );
     assert_eq!(initial_state.input_mode, final_state.input_mode);
 }
 

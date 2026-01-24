@@ -108,7 +108,8 @@ fn create_enriched_test_engine() -> diffviz_review::engines::ReviewEngine {
     decisions.add_decision(Decision {
         number: 1,
         title: "Refactor authentication system".to_string(),
-        summary: "Extract auth logic into separate, testable module with multiple files".to_string(),
+        summary: "Extract auth logic into separate, testable module with multiple files"
+            .to_string(),
         decision_log_line: Some(15),
         code_impacts: vec![
             CodeImpact {
@@ -162,7 +163,10 @@ fn create_enriched_test_engine() -> diffviz_review::engines::ReviewEngine {
                 file: "src/api/handlers.rs".to_string(),
                 line_ranges: vec![
                     DecisionLineRange { start: 30, end: 60 },
-                    DecisionLineRange { start: 100, end: 120 },
+                    DecisionLineRange {
+                        start: 100,
+                        end: 120,
+                    },
                 ],
                 change_type: ChangeType::Modification,
                 confidence: Confidence::Medium,
@@ -182,7 +186,10 @@ fn create_enriched_test_engine() -> diffviz_review::engines::ReviewEngine {
             line_ranges: vec![
                 DecisionLineRange { start: 1, end: 50 },
                 DecisionLineRange { start: 60, end: 90 },
-                DecisionLineRange { start: 100, end: 120 },
+                DecisionLineRange {
+                    start: 100,
+                    end: 120,
+                },
             ],
             change_type: ChangeType::Addition,
             confidence: Confidence::Medium,
@@ -578,9 +585,7 @@ fn test_approve_chunk_at_depth_2() {
     // Tab: expand decision, stay at depth 0
     // j: move to file (first file within expanded decision, depth 1)
     // j: move to chunk (first chunk within file, depth 2)
-    let snapshots = harness
-        .run_sequence("<Tab>jj")
-        .expect("Navigate to chunk");
+    let snapshots = harness.run_sequence("<Tab>jj").expect("Navigate to chunk");
 
     // The last snapshot should be at a valid depth
     let depth_2_state = snapshots.last().unwrap();
@@ -588,12 +593,13 @@ fn test_approve_chunk_at_depth_2() {
 
     // With flattened navigation through enriched fixture, we should reach depth 2
     // (or at least depth 1 if chunks within files work differently)
-    assert!(final_depth >= 1, "Should reach at least file level (depth 1)");
+    assert!(
+        final_depth >= 1,
+        "Should reach at least file level (depth 1)"
+    );
 
     // Now approve with Space+a+a (works at any depth >= 1 in enriched fixture)
-    let approve_snapshots = harness
-        .run_sequence("<Space>aa")
-        .expect("Approve");
+    let approve_snapshots = harness.run_sequence("<Space>aa").expect("Approve");
 
     assert!(approve_snapshots.len() >= 3);
 }
@@ -613,9 +619,7 @@ fn test_approve_file_at_depth_1() {
     assert_eq!(calculate_depth(&depth_1_state.decision_tree_path), 1);
 
     // Now approve all in file with Space+a+f
-    let approve_snapshots = harness
-        .run_sequence("<Space>af")
-        .expect("Approve file");
+    let approve_snapshots = harness.run_sequence("<Space>af").expect("Approve file");
 
     assert!(approve_snapshots.len() >= 3);
 }
@@ -636,16 +640,27 @@ fn test_navigate_through_depth_levels() {
     assert_eq!(calculate_depth(&tab_snapshot.decision_tree_path), 0);
 
     // Navigate down to depth 1 (file) - first j moves into expanded decision's first file
-    let depth_1 = harness.run_sequence_final_state("j").expect("Navigate down");
-    assert_eq!(calculate_depth(&depth_1.decision_tree_path), 1, "Should be at file level after Tab and j");
+    let depth_1 = harness
+        .run_sequence_final_state("j")
+        .expect("Navigate down");
+    assert_eq!(
+        calculate_depth(&depth_1.decision_tree_path),
+        1,
+        "Should be at file level after Tab and j"
+    );
 
     // Navigate down to depth 2 (chunk) - second j moves to chunk within file
     // Note: This may stay at depth 1 if the file doesn't have visible chunks in the flattened view
-    let depth_2 = harness.run_sequence_final_state("j").expect("Navigate to next");
+    let depth_2 = harness
+        .run_sequence_final_state("j")
+        .expect("Navigate to next");
     let actual_depth = calculate_depth(&depth_2.decision_tree_path);
 
     // With enriched fixtures, we should reach depth 2 (or stay at depth 1 if no chunks visible)
-    assert!(actual_depth >= 1, "Should be at depth 1 or 2 after navigation");
+    assert!(
+        actual_depth >= 1,
+        "Should be at depth 1 or 2 after navigation"
+    );
 }
 
 // =============================================================================
@@ -671,7 +686,10 @@ fn test_cascading_all_chunks_approved_makes_decision_approved() {
 
     // If decision has chunks, it should be fully approved
     if total_final > 0 {
-        assert_eq!(approved_final, total_final, "All chunks should be approved after decision approval");
+        assert_eq!(
+            approved_final, total_final,
+            "All chunks should be approved after decision approval"
+        );
     }
 }
 
@@ -690,7 +708,10 @@ fn test_reverse_cascade_decision_approval_affects_chunks() {
 
     // If decision has chunks, verify cascading
     if total > 0 {
-        assert_eq!(approved, total, "Decision approval should cascade to all chunks");
+        assert_eq!(
+            approved, total,
+            "Decision approval should cascade to all chunks"
+        );
     }
 }
 
@@ -704,9 +725,7 @@ fn test_partial_approval_state_mixed_chunks() {
     harness.run_sequence("<Tab>").expect("Expand decision");
 
     // Navigate to first chunk (depth 0 → depth 1 → depth 2, then approve)
-    harness
-        .run_sequence("jj")
-        .expect("Navigate to first chunk");
+    harness.run_sequence("jj").expect("Navigate to first chunk");
 
     // Approve just first chunk
     harness
@@ -741,12 +760,13 @@ fn test_unapprove_workflow_toggle_twice() {
     }
 
     // Reject decision 0 (unapprove)
-    engine
-        .reject_decision(0)
-        .expect("Reject decision");
+    engine.reject_decision(0).expect("Reject decision");
 
     let (approved_after_reject, _) = engine.decision_approval_progress(0);
-    assert_eq!(approved_after_reject, 0, "Decision should be unapproved after rejection");
+    assert_eq!(
+        approved_after_reject, 0,
+        "Decision should be unapproved after rejection"
+    );
 }
 
 /// Test mixing approve/unapprove operations across multiple decisions
@@ -890,12 +910,13 @@ fn test_complex_workflow_navigate_expand_approve() {
 
     // After Tab and jj from decision 1, should be at least at file level
     let depth = calculate_depth(&state.decision_tree_path);
-    assert!(depth >= 1, "Should be at file level or deeper after expansion and navigation");
+    assert!(
+        depth >= 1,
+        "Should be at file level or deeper after expansion and navigation"
+    );
 
     // Approve with Space+a+a (works at any depth in enriched fixture)
-    harness
-        .run_sequence("<Space>aa")
-        .expect("Approve");
+    harness.run_sequence("<Space>aa").expect("Approve");
 
     // Final state - verify we're still in valid state
     let final_state = harness.run_sequence_final_state("").expect("Final");
@@ -913,9 +934,7 @@ fn test_workflow_approve_chunks_then_decision() {
     harness.run_sequence("<Tab>").expect("Expand");
 
     // Navigate to first chunk
-    harness
-        .run_sequence("jj")
-        .expect("Navigate to first chunk");
+    harness.run_sequence("jj").expect("Navigate to first chunk");
 
     // Approve first chunk
     harness
@@ -953,9 +972,7 @@ fn test_workflow_approve_file_from_file_level() {
     harness.run_sequence("j").expect("Navigate to file");
 
     // Approve all in file
-    harness
-        .run_sequence("<Space>af")
-        .expect("Approve file");
+    harness.run_sequence("<Space>af").expect("Approve file");
 
     // Should still be at depth 1
     let final_state = harness.run_sequence_final_state("").expect("Final");
@@ -978,7 +995,9 @@ fn test_workflow_navigate_between_approved_unapproved() {
 
     // Don't approve decision 1
     // Navigate back to decision 0
-    harness.run_sequence("k").expect("Navigate back to decision 0");
+    harness
+        .run_sequence("k")
+        .expect("Navigate back to decision 0");
 
     // Final position should be decision 0
     let final_state = harness.run_sequence_final_state("").expect("Final");
