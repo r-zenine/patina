@@ -80,7 +80,10 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
                 file: "src/error/handler.rs".to_string(),
                 line_ranges: vec![
                     DecisionLineRange { start: 1, end: 30 },
-                    DecisionLineRange { start: 100, end: 120 },
+                    DecisionLineRange {
+                        start: 100,
+                        end: 120,
+                    },
                 ],
                 change_type: ChangeType::Modification,
                 confidence: Confidence::High,
@@ -139,8 +142,10 @@ fn test_expansion_tab_then_tab_again_collapses() {
 
     assert_eq!(snapshots.len(), 3, "Initial + 2 tabs");
     // State should be toggled twice, returning to original state
-    assert_eq!(snapshots[0].decision_tree_path, snapshots[2].decision_tree_path,
-        "After two tabs, should return to original expansion state");
+    assert_eq!(
+        snapshots[0].decision_tree_path, snapshots[2].decision_tree_path,
+        "After two tabs, should return to original expansion state"
+    );
 }
 
 #[test]
@@ -155,8 +160,10 @@ fn test_expansion_multiple_tab_toggles_on_same_decision() {
 
     assert_eq!(snapshots.len(), 5, "Initial + 4 tabs");
     // After even number of toggles, should be back to original state
-    assert_eq!(snapshots[0].decision_tree_path, snapshots[4].decision_tree_path,
-        "After even toggles, should return to original state");
+    assert_eq!(
+        snapshots[0].decision_tree_path, snapshots[4].decision_tree_path,
+        "After even toggles, should return to original state"
+    );
 }
 
 #[test]
@@ -168,7 +175,10 @@ fn test_expansion_tab_at_each_decision_level() {
     let snapshots = harness.run_sequence("j<Tab>").expect("Run sequence");
 
     assert_eq!(snapshots.len(), 3, "Initial + j + tab");
-    assert_eq!(snapshots[1].decision_tree_path.0, 1, "After j, at decision 2");
+    assert_eq!(
+        snapshots[1].decision_tree_path.0, 1,
+        "After j, at decision 2"
+    );
     // Tab at depth 0 should be handled consistently
 }
 
@@ -208,8 +218,10 @@ fn test_expansion_tab_and_enter_have_same_effect() {
         .expect("Enter expansion sequence");
     let enter_state = snapshots_enter.last().unwrap().decision_tree_path.clone();
 
-    assert_eq!(tab_state, enter_state,
-        "Tab and Enter should have same expansion effect");
+    assert_eq!(
+        tab_state, enter_state,
+        "Tab and Enter should have same expansion effect"
+    );
 }
 
 // =============================================================================
@@ -237,7 +249,8 @@ fn test_navigation_depth_increases_with_expand_and_down() {
 
     assert_eq!(snapshots.len(), 3, "Initial + tab + j");
     assert_eq!(
-        calculate_depth(&snapshots[0].decision_tree_path), 0,
+        calculate_depth(&snapshots[0].decision_tree_path),
+        0,
         "Initial depth is 0 (decision level)"
     );
     // After Tab (expand) and j (navigate), should potentially be at depth 1
@@ -252,14 +265,16 @@ fn test_navigation_depth_zero_at_decision_nodes() {
     // At start, we're at a decision node (depth 0)
     let snapshots = harness.run_sequence("").expect("Empty sequence");
     assert_eq!(
-        calculate_depth(&snapshots[0].decision_tree_path), 0,
+        calculate_depth(&snapshots[0].decision_tree_path),
+        0,
         "Initial position is at decision level (depth 0)"
     );
 
     // Navigate to next decision, should still be depth 0
     let snapshots2 = harness.run_sequence("j").expect("Navigate to next");
     assert_eq!(
-        calculate_depth(&snapshots2.last().unwrap().decision_tree_path), 0,
+        calculate_depth(&snapshots2.last().unwrap().decision_tree_path),
+        0,
         "Navigation between collapsed decisions stays at depth 0"
     );
 }
@@ -270,7 +285,9 @@ fn test_expansion_then_navigation_changes_depth() {
     let mut harness = InputTestHarness::new(engine);
 
     // Expand first decision, navigate down to enter file level
-    let snapshots = harness.run_sequence("<Tab>j").expect("Expand then navigate");
+    let snapshots = harness
+        .run_sequence("<Tab>j")
+        .expect("Expand then navigate");
 
     let initial_depth = calculate_depth(&snapshots[0].decision_tree_path);
     let final_depth = calculate_depth(&snapshots.last().unwrap().decision_tree_path);
@@ -290,7 +307,9 @@ fn test_navigation_respects_collapsed_tree_structure() {
 
     // With tree collapsed, j from first decision should go to second decision
     // (not skip to files, since they're hidden)
-    let snapshots = harness.run_sequence("jjjj").expect("Navigate collapsed tree");
+    let snapshots = harness
+        .run_sequence("jjjj")
+        .expect("Navigate collapsed tree");
 
     // Each snapshot should maintain depth 0 (navigating between collapsed decisions)
     for snapshot in &snapshots {
@@ -389,11 +408,21 @@ fn test_expand_decision1_navigate_to_first_file_correct_flattened_behavior() {
     let path_after_j = &snapshots_after_j.last().unwrap().decision_tree_path;
 
     assert_eq!(path_after_j.0, 0, "Still at decision 0");
-    assert_eq!(path_after_j.1, Some(0), "Now at first file of decision 0 (file depth)");
+    assert_eq!(
+        path_after_j.1,
+        Some(0),
+        "Now at first file of decision 0 (file depth)"
+    );
     assert_eq!(path_after_j.2, None, "Not yet at chunk level");
 
     // Verify depth is 1 (file level)
-    let depth = if path_after_j.2.is_some() { 2 } else if path_after_j.1.is_some() { 1 } else { 0 };
+    let depth = if path_after_j.2.is_some() {
+        2
+    } else if path_after_j.1.is_some() {
+        1
+    } else {
+        0
+    };
     assert_eq!(depth, 1, "Should be at file depth (1)");
 }
 
@@ -432,7 +461,9 @@ fn test_expansion_navigate_into_expanded_tree() {
     let mut harness = InputTestHarness::new(engine);
 
     // Expand decision 1, then navigate down into files/chunks
-    let snapshots = harness.run_sequence("<Tab>jj").expect("Expand and deep navigate");
+    let snapshots = harness
+        .run_sequence("<Tab>jj")
+        .expect("Expand and deep navigate");
 
     assert_eq!(snapshots.len(), 4, "Initial + tab + j + j");
     // First j might go to a file, second j to a chunk (if structure allows)
@@ -469,7 +500,8 @@ fn test_expansion_with_multiple_decisions_independent_expansion() {
     let snapshots = harness.run_sequence("k").expect("Navigate back to 1");
 
     assert_eq!(
-        snapshots.last().unwrap().decision_tree_path.0, 0,
+        snapshots.last().unwrap().decision_tree_path.0,
+        0,
         "Back at decision 1"
     );
     // Decision 1 should still be expanded independently
@@ -488,11 +520,7 @@ fn test_expansion_depth_routing_consistency() {
     for snapshot in &snapshots {
         let depth = calculate_depth(&snapshot.decision_tree_path);
         // Depth should be 0-2 throughout
-        assert!(
-            depth <= 2,
-            "Depth out of valid range: {}",
-            depth
-        );
+        assert!(depth <= 2, "Depth out of valid range: {}", depth);
     }
 }
 
@@ -521,7 +549,9 @@ fn test_expansion_collapse_then_navigate_through() {
     let mut harness = InputTestHarness::new(engine);
 
     // Expand then collapse decision 1
-    harness.run_sequence("<Tab><Tab>").expect("Expand and collapse");
+    harness
+        .run_sequence("<Tab><Tab>")
+        .expect("Expand and collapse");
 
     // Now navigate through collapsed tree
     let snapshots = harness.run_sequence("jj").expect("Navigate collapsed");
@@ -560,7 +590,11 @@ fn test_expansion_state_with_zero_depth_navigation() {
     for snapshot in &snapshots {
         // These are decision-level navigations, depth should reflect actual position
         let depth = calculate_depth(&snapshot.decision_tree_path);
-        assert!(depth <= 1, "Depth 0 nav should not exceed depth 1: {}", depth);
+        assert!(
+            depth <= 1,
+            "Depth 0 nav should not exceed depth 1: {}",
+            depth
+        );
     }
 }
 
@@ -573,7 +607,9 @@ fn test_expansion_preserves_focused_panel() {
     let engine = create_test_engine();
     let mut harness = InputTestHarness::new(engine);
 
-    let snapshots = harness.run_sequence("<Tab>j<Tab>").expect("Expansion sequence");
+    let snapshots = harness
+        .run_sequence("<Tab>j<Tab>")
+        .expect("Expansion sequence");
 
     let initial_panel = &snapshots[0].focused_panel;
     for snapshot in &snapshots {
@@ -589,7 +625,9 @@ fn test_expansion_preserves_other_ui_state() {
     let engine = create_test_engine();
     let mut harness = InputTestHarness::new(engine);
 
-    let snapshots = harness.run_sequence("<Tab><Tab>").expect("Expansion sequence");
+    let snapshots = harness
+        .run_sequence("<Tab><Tab>")
+        .expect("Expansion sequence");
 
     // UI state like input_mode, leader_active, etc should not change
     assert_eq!(

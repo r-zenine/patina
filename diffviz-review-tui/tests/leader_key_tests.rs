@@ -89,10 +89,7 @@ fn test_leader_key_deactivation_with_esc() {
         .run_sequence_final_state("<Space><Esc>")
         .expect("Leader deactivation failed");
 
-    assert!(
-        !state.leader_active,
-        "Leader should be inactive after Esc"
-    );
+    assert!(!state.leader_active, "Leader should be inactive after Esc");
 }
 
 #[test]
@@ -511,7 +508,10 @@ fn test_leader_navigation_in_submenu() {
         .expect("Actions submenu and action failed");
 
     // Check intermediate state (after Space+a)
-    assert!(snapshots.len() >= 2, "Should have snapshots for Space and a");
+    assert!(
+        snapshots.len() >= 2,
+        "Should have snapshots for Space and a"
+    );
 
     // Check final state
     let final_state = &snapshots[snapshots.len() - 1];
