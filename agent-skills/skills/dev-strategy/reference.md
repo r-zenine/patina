@@ -2,6 +2,17 @@
 
 This document provides step-by-step instructions for executing the 6-step dev-strategy skill.
 
+## Table of Contents
+
+- [Step 1: Generate Behavioral Specification](#step-1-generate-behavioral-specification)
+- [Step 2: Analyze Codebase](#step-2-analyze-codebase)
+- [Step 3: Technical Research](#step-3-technical-research)
+- [Step 4: Gather Constraints & Requirements](#step-4-gather-constraints--requirements)
+- [Step 5: Select Implementation Strategy](#step-5-select-implementation-strategy)
+- [Step 6: Create Actionable Plan](#step-6-create-actionable-plan)
+- [Implementation Tips](#implementation-tips)
+- [Common Patterns](#common-patterns)
+
 ## Step 1: Generate Behavioral Specification
 
 ### Goal
@@ -35,6 +46,7 @@ Understand existing architecture, patterns, and constraints using the onboarding
    - Key files, classes, and functions relevant to the task
    - Existing code conventions and patterns
    - Technical constraints from current implementation
+   - Local repository-specific skills (in .claude/skills/, skills/, .skills/, etc.) with their descriptions and when to use them
 
 ### Example Task Prompt
 ```

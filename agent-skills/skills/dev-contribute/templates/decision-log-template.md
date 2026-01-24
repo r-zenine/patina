@@ -16,7 +16,7 @@
 **Decision Process**: [How decisions were made]
 **Constraints**: [What limited the choices]
 
-## Example
+## Example (Regular Contribution)
 ```markdown
 # Technical Decisions - Phase 2 Test Design
 
@@ -33,4 +33,23 @@
 ## 📚 Human Context
 **Decision Process**: Followed existing codebase patterns, prioritized maintainability
 **Constraints**: Must integrate with current CI/CD setup and team familiarity
+```
+
+## Example (Revision Contribution)
+```markdown
+# Technical Decisions - Phase 1 Revision
+
+## ⚡ Critical Decisions
+**Revision of Contribution 002 - REST API approach**: Switched to GraphQL → **Impact**: All future API endpoints use GraphQL schema, REST endpoints deprecated
+
+## 🔧 Implementation Choices
+**GraphQL with Apollo Server**: Better type safety and client flexibility → **Result**: Use schema-first approach, all types defined in schema.graphql
+**Rationale for revision**: Original REST design led to over-fetching and multiple endpoints for related data. GraphQL solves both issues.
+
+## 🔍 Alternatives Considered
+**Keep REST and optimize**: Add field filtering → **Trade-off**: Would require complex query parameters, chose GraphQL for cleaner solution
+
+## 📚 Human Context
+**Decision Process**: Reviewed contribution 002 decision-log.md, identified REST limitations in practice
+**Constraints**: Must migrate existing 3 endpoints gradually, maintain backwards compatibility during transition
 ```

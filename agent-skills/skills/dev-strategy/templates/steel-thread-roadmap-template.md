@@ -24,6 +24,8 @@ Example: "User enters hardcoded credentials, sees 'Login Success' message"
 - **Implementation**: [Build minimal component 2]
 - **Design**: [Determine integration approach for components]
 
+**Relevant Local Skills**: [List applicable skills from context document for this phase, or "None"]
+
 **Files to Modify**:
 - `path/to/controller.js` - [Minimal endpoint with hardcoded logic]
 - `path/to/component.jsx` - [Basic form and success page]
@@ -55,6 +57,8 @@ Example: "User logs in with real credentials from database, still sees success m
 - **Implementation**: [Replace shortcuts with real implementation]
 - **Design**: [Determine error handling strategy for edge cases]
 - **Implementation**: [Keep all Phase 1 functionality working]
+
+**Relevant Local Skills**: [List applicable skills from context document for this phase, or "None"]
 
 **Files to Modify**:
 - `path/to/auth-service.js` - [Add database integration]
@@ -89,6 +93,8 @@ Example: "Full authentication with proper error messages, session management, se
 - **Design**: [Determine proven security patterns to follow]
 - **Implementation**: [Add monitoring and logging]
 - **Design**: [Design final UI/UX polish strategy]
+
+**Relevant Local Skills**: [List applicable skills from context document for this phase, or "None"]
 
 **Files to Modify**:
 - `path/to/error-handler.js` - [Essential error management]

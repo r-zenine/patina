@@ -23,6 +23,8 @@
 
 **Dependencies**: [None, or "Must complete Phase X first"]
 
+**Relevant Local Skills**: [List applicable skills from context document for this phase, or "None"]
+
 **Files to Modify**:
 - `path/to/file1.js` - [What changes will be made]
 - `path/to/file2.js` - [What changes will be made]
@@ -44,6 +46,8 @@
 
 **Dependencies**: [Phase numbers that must complete first]
 
+**Relevant Local Skills**: [List applicable skills from context document for this phase, or "None"]
+
 **Files to Modify**:
 - `path/to/file3.js` - [What changes will be made]
 - `path/to/file4.js` - [What changes will be made]
@@ -63,6 +67,8 @@
 - [How to verify objective 2 is complete]
 
 **Dependencies**: [Phase numbers that must complete first]
+
+**Relevant Local Skills**: [List applicable skills from context document for this phase, or "None"]
 
 **Files to Modify**:
 - `path/to/file5.js` - [What changes will be made]

@@ -2,6 +2,21 @@
 
 This document provides instructions for contributing to dev-strategy implementation plans.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [Step 1: Read and Understand Dev-Strategy Plan](#step-1-read-and-understand-dev-strategy-plan)
+- [Step 1.5: Pre-Work Validation](#step-15-pre-work-validation)
+- [Step 2: Follow Strategy Approach](#step-2-follow-strategy-approach)
+- [Step 3: Create Numbered Contribution Folder](#step-3-create-numbered-contribution-folder)
+- [Step 4: Perform Specialized Work](#step-4-perform-specialized-work)
+- [Step 5: Generate Mandatory Documentation](#step-5-generate-mandatory-documentation)
+- [Step 6: Handling Decision Revisions](#step-6-handling-decision-revisions)
+- [Contribution Validation](#contribution-validation)
+- [Common Patterns by Strategy](#common-patterns-by-strategy)
+- [Research Integration Examples](#research-integration-examples)
+- [Test Pyramid Principles (Martin Fowler)](#test-pyramid-principles-martin-fowler)
+
 ## Overview
 
 The dev-contribute skill enables structured contributions to existing dev-strategy plans. Each contribution follows the selected implementation strategy (TDD, Steel Thread, or Core-then-Integrate) and creates proper documentation for knowledge transfer.
@@ -137,6 +152,7 @@ Create sequentially numbered folder for chronological ordering.
    - `implementation` - Code, features, infrastructure
    - `review` - Code review, architecture review, quality assessment
    - `audit` - Security, performance, compliance analysis
+   - `revision` - Revisiting a previous decision with code updates
    - `test-design` - Test creation (TDD Test Designer)
    - `test-validation` - Test review (TDD Test Validator)
    - `foundation` - Basic working implementation (Steel Thread Foundation Builder)
@@ -224,6 +240,70 @@ Create three required artifacts for knowledge transfer and project continuity.
 ### Optional Artifacts
 For specialized contributions, see [optional-artifacts-templates.md](templates/optional-artifacts-templates.md) for additional documentation types.
 
+## Step 6: Handling Decision Revisions
+
+### Goal
+Provide clear workflow when users disagree with logged decisions from previous contributions.
+
+### When to Use This
+After reviewing a contribution's decision-log.md, if the user disagrees with a decision and wants to revisit it.
+
+### Process
+
+**1. Create new revision contribution folder:**
+- Format: `NNN-phase-X-revision-[original-specialty]-[agent]`
+- Example: If revising contribution `002-phase-1-implementation-code-general-purpose/`, create `004-phase-1-revision-code-general-purpose/`
+- Use next sequential number, maintain phase and specialty context
+
+**2. Update code to match revised decision:**
+- Make all necessary code changes to implement the new decision
+- Ensure changes are complete and align with the revised approach
+- Follow same quality standards as original contribution
+
+**3. Document in new contribution's decision-log.md:**
+- Reference original contribution number
+- Explain what decision is being revised and why
+- Document the new decision with its rationale
+- Example format:
+  ```markdown
+  ## ⚡ Critical Decisions
+  **Revision of Contribution 002 - [Original Decision]**: [New decision] → **Impact**: [How this changes future work]
+  **Rationale**: [Why the original decision needed revisiting]
+  ```
+
+**4. Generate all mandatory documentation:**
+- **changelog.md**: Indicate this revises contribution NNN, explain what changed
+- **decision-log.md**: New decision with revision context and reference to original
+- **context-handoff.md**: Explain impact of revision on existing work and future contributions
+
+**5. Run validation checks:**
+- Same mandatory quality gates as any contribution
+- Ensure build, lint, and tests all pass
+
+### Example Revision Flow
+
+```
+Original contribution:
+002-phase-1-implementation-code-general-purpose/
+  ├── decision-log.md (decided to use REST API)
+  └── ...
+
+User disagrees with REST decision, prefers GraphQL
+
+New revision contribution:
+004-phase-1-revision-code-general-purpose/
+  ├── changelog.md (notes revision of 002, switched REST to GraphQL)
+  ├── decision-log.md (documents GraphQL decision, references 002)
+  ├── context-handoff.md (explains migration impact)
+  └── ...
+```
+
+### Key Principles
+- **Always create new folder** - Don't edit previous contribution folders
+- **Always update code** - Code changes are part of the revision contribution
+- **Clear audit trail** - Decision evolution is visible through contribution history
+- **Sequential numbering** - Revisions follow chronological order like any contribution
+
 ## Contribution Validation
 
 Before finalizing your contribution:
@@ -282,6 +362,15 @@ Before finalizing your contribution:
 003-phase-X-adapter-database-[agent]
 004-phase-X-adapter-api-[agent]
 005-phase-X-integration-orchestrator-[agent]
+```
+
+### Revision Pattern
+```
+001-phase-X-implementation-code-[agent]
+002-phase-X-review-security-[agent]
+003-phase-Y-test-design-tdd-[agent]
+004-phase-X-revision-code-[agent]  # Revises decision from 001
+005-phase-Y-test-validation-tdd-[agent]
 ```
 
 ## Research Integration Examples

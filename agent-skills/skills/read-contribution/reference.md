@@ -2,6 +2,20 @@
 
 This document provides strategies for efficiently reading and understanding contribution artifacts.
 
+## Table of Contents
+
+- [Progressive Disclosure Strategy](#progressive-disclosure-strategy)
+- [Role-Specific Reading Strategies](#role-specific-reading-strategies)
+  - [Implementation Agents](#implementation-agents)
+  - [Review Agents](#review-agents)
+  - [Audit Agents](#audit-agents)
+- [Navigation Patterns](#navigation-patterns)
+- [Efficient Reading Techniques](#efficient-reading-techniques)
+- [Common Reading Scenarios](#common-reading-scenarios)
+- [Reading Design Contributions](#reading-design-contributions)
+- [Quality Indicators](#quality-indicators)
+- [Integration with Other Skills](#integration-with-other-skills)
+
 ## Progressive Disclosure Strategy
 
 ### The First Pass Rule
@@ -92,18 +106,29 @@ This document provides strategies for efficiently reading and understanding cont
 
 ### Understanding Strategy Patterns
 
+**Design Pattern Recognition (Any Strategy):**
+- Look for `design-[topic]-design-contribute` contributions
+- These appear when "Design: Determine [X]" objectives exist in roadmap
+- Design contributions precede implementation contributions
+- Example: `005-design-session-mgmt` → `006-implementation-session-validation`
+- **Implementation agents**: Read design-doc.md before implementing
+- **Review agents**: Verify implementation matches design specifications
+
 **TDD Pattern Recognition:**
 - Look for test-design → test-validation → implementation sequence
+- May include design contributions when architectural decisions needed
 - Implementation agents: Focus on test-validation contributions for requirements
 - Review agents: Verify TDD discipline was maintained
 
 **Steel Thread Pattern Recognition:**
 - Look for pathfinder → foundation → expansion sequence
+- May include design contributions before major expansions
 - Implementation agents: Understand the core working flow before adding features
 - Review agents: Verify working system was maintained throughout
 
 **Core-then-Integrate Pattern Recognition:**
 - Look for domain-logic → port-design → adapter → integration sequence
+- May include design contributions for interface design decisions
 - Implementation agents: Understand interface contracts before building adapters
 - Review agents: Verify clean architecture principles were followed
 
@@ -157,10 +182,65 @@ This document provides strategies for efficiently reading and understanding cont
 3. Read latest contribution's context-handoff.md (understand current state)
 4. Scan decision-log.md files for architectural patterns
 
+### Scenario 5: "I'm implementing after a design contribution"
+1. Read the design contribution's design-doc.md (understand what to build)
+2. Focus on "How It Works" and "Implementation Guidance" sections
+3. Note "What We're NOT Doing" to avoid scope creep
+4. Read decision-log.md to understand why this approach was chosen
+5. Read previous implementation context-handoff.md for current state
+
+## Reading Design Contributions
+
+Design contributions (created by design-contribute skill) have a **different structure** than implementation contributions:
+
+### Design Contribution Structure
+```
+contributions/NNN-phase-X-design-[topic]-design-contribute/
+├── design-doc.md          ← START HERE (replaces context-handoff.md)
+└── decision-log.md        ← Design decisions and rationale
+```
+
+**Note**: Design contributions have NO changelog.md and NO context-handoff.md.
+
+### Reading Strategy for Design Contributions
+
+**Implementation Agents (Primary Users):**
+1. **design-doc.md**: Read the entire document (< 100 lines)
+   - Focus on "How It Works" - pattern to implement
+   - Focus on "Implementation Guidance" - where to start
+   - Note "What We're NOT Doing" - avoid scope creep
+2. **decision-log.md**: Understand why this approach was chosen
+   - See what alternatives were rejected and why
+   - Understand constraints that led to this design
+
+**Review Agents:**
+1. **design-doc.md**: Focus on "Why This Design" section
+   - Verify design matches constraints learned from implementation
+   - Check "Simplicity Rationale" - ensure YAGNI principle followed
+2. **decision-log.md**: Verify design decisions are well-justified
+
+**Key Differences from Implementation Contributions:**
+- **design-doc.md is the primary artifact** (not context-handoff.md)
+- **Design contributions come BEFORE implementation** in the sequence
+- **Focus is on "what to build"** not "what was built"
+- **No code is implemented** in design contributions
+
+### When to Read Design Contributions
+
+**Before implementing:**
+- Check if previous contribution is a design contribution
+- Example: `005-phase-3-design-session-mgmt-design-contribute/` comes before `006-phase-3-implementation-session-validation/`
+- Read design-doc.md to understand what to implement and how
+
+**During review:**
+- Verify implementation matches design-doc.md specifications
+- Check if "Success Criteria" from design-doc.md are met
+
 ## Quality Indicators
 
 ### Well-Written Contributions
-- **Context-handoff.md provides clear guidance** for next contributors
+- **Context-handoff.md provides clear guidance** for next contributors (implementation contributions)
+- **Design-doc.md is implementer-ready** (design contributions)
 - **Decisions are justified with rationale** in decision-log.md
 - **Related documentation is properly linked**
 - **Assumptions and constraints are explicit**
@@ -175,16 +255,29 @@ This document provides strategies for efficiently reading and understanding cont
 
 ### Before Using Dev-Contribute
 1. Use read-contribution to understand existing work
-2. Identify your contribution type and phase
-3. Understand established patterns and constraints
+2. Check if previous contribution is a design contribution - if so, read design-doc.md
+3. Identify your contribution type and phase
+4. Understand established patterns and constraints
+
+### Before Using Design-Contribute
+1. Use read-contribution to understand implementation learnings
+2. Read recent context-handoff.md files to understand current state
+3. Identify constraints that emerged from implementation
 
 ### After Using Dev-Contribute
 1. Your contribution becomes part of the reading chain for future contributors
 2. Ensure your context-handoff.md follows progressive disclosure principles
 3. Reference relevant previous contributions in your decision-log.md
 
+### After Using Design-Contribute
+1. Your design-doc.md becomes the specification for next implementation contribution
+2. Ensure design-doc.md is implementer-ready (< 100 lines, clear guidance)
+3. Reference implementation learnings that informed the design
+
 ### Cross-Skill Compatibility
 This skill works with any *-contribute skill:
+- **dev-contribute**: Read previous implementation contributions for established patterns
+- **design-contribute**: Read design decisions before implementing (see Reading Design Contributions below)
 - **qa-contribute**: Read previous QA contributions for established testing patterns
 - **compliance-contribute**: Read all contributions for compliance assessment
 - **security-contribute**: Focus on security-related decisions and artifacts

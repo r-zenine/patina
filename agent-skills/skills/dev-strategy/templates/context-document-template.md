@@ -20,6 +20,11 @@ Example: "Build a user authentication system that allows users to register with 
 
 [List only actual constraints mentioned by user or discovered in codebase]
 
+## Local Repository Skills
+
+[List any local skills discovered in .claude/skills/, skills/, .skills/ etc. with their descriptions and when to use them]
+[If none found, state "No local skills detected"]
+
 ## Research Findings (if research step was executed)
 
 - **Technologies Researched**: [List of new technologies investigated]
