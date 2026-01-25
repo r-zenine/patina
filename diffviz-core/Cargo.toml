@@ -3,9 +3,6 @@ name = "diffviz-core"
 version = "0.1.0"
 edition = "2024"
 
-[[example]]
-name = "reviewable_diff_demo"
-path = "examples/reviewable_diff_demo.rs"
 
 [lib]
 doctest = true

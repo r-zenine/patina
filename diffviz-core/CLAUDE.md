@@ -84,24 +84,6 @@ tests/fixtures/{language}/
 - Tests document exact failure conditions
 - Ready for test-driven fixes per project guidelines
 
-## Examples & Development Tools
-
-**17 runnable examples** for development and debugging:
-
-### Core Demonstrations
-- `treesitter_ast_explorer.rs` - Interactive AST structure analysis
-- `semantic_partitioning_demo.rs` - Unit extraction visualization
-- `reviewable_diff_demo.rs` - End-to-end diff pipeline
-
-### Language-Specific Demos
-- Per-language examples: `{rust,python,go,typescript,java,c,cpp}_reviewable_diff_demo.rs`
-- Language-specific debugging: `java_debug.rs`, `test_c_semantic_tree.rs`
-
-### Advanced Features
-- `boundary_merging_demo.rs` - Context expansion algorithms
-- `import_merging_demo.rs` - Related change grouping
-- `renderable_line_range_demo.rs` - UI preparation pipeline
-
 ## Development Guidelines
 
 ### Core Principles

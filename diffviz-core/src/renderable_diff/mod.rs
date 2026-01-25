@@ -104,7 +104,6 @@ struct ByteRangeAnnotation {
 fn build_byte_range_annotations(
     node: &crate::reviewable_diff::DiffNode,
 ) -> Vec<ByteRangeAnnotation> {
-    eprint!("[DEBUG] {node}");
     let mut annotations = Vec::new();
 
     fn collect_recursive(
