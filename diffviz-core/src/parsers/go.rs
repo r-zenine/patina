@@ -58,6 +58,8 @@ impl LanguageParser for GoParser {
             | "selector_expression"
             | "index_expression"
             | "binary_expression" => SemanticNodeKind::Expression,
+            // Signature components
+            "parameter_list" | "parameter_declaration" | "result" => SemanticNodeKind::SignatureComponent,
             "comment" => SemanticNodeKind::Comment,
             "source_file" => SemanticNodeKind::SourceFile,
             _ => SemanticNodeKind::Other(node_kind.to_string()),

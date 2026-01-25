@@ -56,6 +56,13 @@ impl LanguageParser for TypeScriptParser {
                 SemanticNodeKind::Expression
             }
             "type_alias_declaration" => SemanticNodeKind::TypeDefinition,
+            // Signature components
+            "formal_parameters"
+            | "rest_parameter"
+            | "type_parameters"
+            | "type_parameter"
+            | "type_annotation"
+            | "return_type" => SemanticNodeKind::SignatureComponent,
             "comment" => SemanticNodeKind::Comment,
             "program" => SemanticNodeKind::SourceFile,
             _ => SemanticNodeKind::Other(node_kind.to_string()),

@@ -39,6 +39,11 @@ impl LanguageParser for JavaScriptParser {
         match node_kind {
             "function_declaration" => SemanticNodeKind::Function,
             "class_declaration" => SemanticNodeKind::Class,
+            // Signature components
+            "formal_parameters"
+            | "rest_parameter"
+            | "type_parameters"
+            | "type_parameter" => SemanticNodeKind::SignatureComponent,
             "program" => SemanticNodeKind::SourceFile,
             _ => SemanticNodeKind::Other(node_kind.to_string()),
         }

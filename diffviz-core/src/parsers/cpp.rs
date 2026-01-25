@@ -695,6 +695,13 @@ impl LanguageParser for CppParser {
         match node_kind {
             "function_definition" => SemanticNodeKind::Function,
             "class_specifier" => SemanticNodeKind::Class,
+            // Signature components
+            "parameter_list"
+            | "parameter_declaration"
+            | "template_parameter_list"
+            | "template_parameter"
+            | "pointer_declarator"
+            | "reference_declarator" => SemanticNodeKind::SignatureComponent,
             "translation_unit" => SemanticNodeKind::SourceFile,
             _ => SemanticNodeKind::Other(node_kind.to_string()),
         }

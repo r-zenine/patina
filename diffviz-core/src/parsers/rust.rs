@@ -889,6 +889,15 @@ impl LanguageParser for RustParser {
             // Type definitions
             "type_alias" => SemanticNodeKind::TypeDefinition,
 
+            // Signature components - visibility, modifiers, parameters, generics
+            "visibility_modifier"
+            | "function_modifiers"
+            | "parameters"
+            | "return_type"
+            | "type_parameters"
+            | "generic_type"
+            | "type_parameter" => SemanticNodeKind::SignatureComponent,
+
             // Comments
             "line_comment" | "block_comment" => SemanticNodeKind::Comment,
 
