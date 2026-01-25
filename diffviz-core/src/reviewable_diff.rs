@@ -284,6 +284,124 @@ fn get_ast_change_type<'source>(change: &ASTChange<'source>) -> ASTChangeType {
     }
 }
 
+/// Build a rich context tree from an AST change
+fn build_context_tree_from_change<'source>(
+    change: &ASTChange<'source>,
+    parser: &dyn crate::common::LanguageParser,
+) -> ChangeWithContext<'source> {
+    let primary_node = change.primary_node();
+
+    // Step 1: Find context boundary by walking up the tree
+    let context_boundary = find_context_boundary(primary_node, change.change_type(), parser);
+
+    // Step 2: Build rich context tree recursively from boundary
+    let context_tree = build_context_tree_recursive(&context_boundary, primary_node, parser, 0);
+
+    ChangeWithContext {
+        original_changes: vec![change.clone()],
+        context_boundary,
+        context_tree,
+    }
+}
+
+/// Find the appropriate context boundary by walking up the parent chain
+fn find_context_boundary<'source>(
+    change_node: &NodeRef<'source>,
+    change_type: ASTChangeType,
+    parser: &dyn crate::common::LanguageParser,
+) -> NodeRef<'source> {
+    // Get semantic kind of the change node
+    let change_semantic_kind = parser.classify_node_kind(change_node.kind());
+
+    // Get priority-ordered boundary kinds from parser
+    let boundary_kinds = parser.get_context_boundaries(&change_type, &change_semantic_kind);
+
+    // Walk up parent chain to find first matching boundary
+    let mut current = change_node.node;
+
+    while let Some(parent) = current.parent() {
+        let parent_semantic_kind = parser.classify_node_kind(parent.kind());
+
+        // Check if this parent matches any of our boundary kinds
+        if boundary_kinds.contains(&parent_semantic_kind) {
+            return NodeRef::new(parent);
+        }
+
+        current = parent;
+    }
+
+    // No matching boundary found - use the primary node itself
+    *change_node
+}
+
+/// Recursively build context tree with relevance scores
+fn build_context_tree_recursive<'source>(
+    node: &NodeRef<'source>,
+    change_node: &NodeRef<'source>,
+    parser: &dyn crate::common::LanguageParser,
+    depth: usize,
+) -> ContextNode<'source> {
+    use crate::ast_diff::ESSENTIAL;
+
+    const MAX_DEPTH: usize = 10;
+
+    // Prevent infinite recursion
+    if depth > MAX_DEPTH {
+        let semantic_kind = parser.classify_node_kind(node.kind());
+        let relevance = parser.classify_leaf_relevance(&semantic_kind);
+        return ContextNode::new(*node, relevance);
+    }
+
+    // Determine relevance for this node
+    let relevance = if is_on_change_path(node, change_node) {
+        ESSENTIAL
+    } else {
+        let semantic_kind = parser.classify_node_kind(node.kind());
+        parser.classify_leaf_relevance(&semantic_kind)
+    };
+
+    // Create node with initial relevance
+    let mut context_node = ContextNode::new(*node, relevance);
+
+    // Recursively build children using TreeSitter cursor pattern
+    let mut cursor = node.node.walk();
+    for child in node.node.children(&mut cursor) {
+        let child_ref = NodeRef::new(child);
+        let child_context =
+            build_context_tree_recursive(&child_ref, change_node, parser, depth + 1);
+        context_node.add_child(child_context);
+    }
+
+    context_node
+}
+
+/// Check if a node is on the path from root to change node
+fn is_on_change_path<'source>(node: &NodeRef<'source>, change_node: &NodeRef<'source>) -> bool {
+    // Walk up from change_node to see if we encounter node
+    let mut current = change_node.node;
+
+    // Check if we're at the change node itself
+    if nodes_equal(node, change_node) {
+        return true;
+    }
+
+    // Walk up parent chain
+    while let Some(parent) = current.parent() {
+        let parent_ref = NodeRef::new(parent);
+        if nodes_equal(&parent_ref, node) {
+            return true;
+        }
+        current = parent;
+    }
+
+    false
+}
+
+/// Compare two nodes for equality (by position and kind)
+fn nodes_equal<'source>(a: &NodeRef<'source>, b: &NodeRef<'source>) -> bool {
+    a.start_byte() == b.start_byte() && a.end_byte() == b.end_byte() && a.kind() == b.kind()
+}
+
 /// Convert AST changes to reviewable diffs with context expansion
 pub fn expand_changes_to_reviewable_diffs<'source>(
     changes: &[ASTChange<'source>],
@@ -294,16 +412,12 @@ pub fn expand_changes_to_reviewable_diffs<'source>(
 ) -> Vec<ReviewableDiff> {
     let start_time = Instant::now();
 
-    // Create a simple ReviewableDiff for each change
+    // Create a ReviewableDiff for each change with rich context expansion
     let reviewable_diffs: Vec<_> = changes
         .iter()
         .map(|change| {
-            // Create a simple ChangeWithContext for each AST change
-            let change_with_context = ChangeWithContext {
-                original_changes: vec![change.clone()],
-                context_boundary: *change.primary_node(),
-                context_tree: ContextNode::new(*change.primary_node(), crate::ast_diff::ESSENTIAL),
-            };
+            // Build rich context tree using context expansion algorithm
+            let change_with_context = build_context_tree_from_change(change, parser);
             ReviewableDiff::from_change_with_context(
                 change_with_context,
                 language,
