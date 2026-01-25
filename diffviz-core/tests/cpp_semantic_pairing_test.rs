@@ -168,6 +168,7 @@ enum class Status {
             ProgrammingLanguage::Cpp,
             &old_source,
             &new_source,
+            &parser,
         );
 
         // Test that we're getting proper semantic pairing

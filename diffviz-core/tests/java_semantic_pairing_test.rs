@@ -206,6 +206,7 @@ public class DataProcessor<T> {
             ProgrammingLanguage::Java,
             &old_source,
             &new_source,
+            &parser,
         );
 
         // Test that we're getting proper semantic pairing

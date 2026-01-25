@@ -2,6 +2,11 @@
 //!
 //! This module provides MockDiffProvider that loads curated test fixtures
 //! to enable predictable TUI testing without requiring git repositories.
+//!
+//! Phase 6: Context Expansion Integration
+//! MockDiffProvider works with ReviewEngineBuilder which applies context expansion
+//! to produce ReviewableDiffs with rich ContextNode trees and varied relevance scores.
+//! The pipeline: fixtures → MockDiffProvider → ReviewEngineBuilder → semantic analysis + context expansion → ReviewableDiffs
 
 use crate::entities::git_ref::{DiffQuery, GitRef};
 use crate::providers::{DiffProvider, FileStats, FileStatus};

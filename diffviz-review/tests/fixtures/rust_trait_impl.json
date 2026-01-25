@@ -1,16 +1,16 @@
 {
   "name": "rust_trait_impl_refactor",
-  "file_path": "src/models/user.rs",
+  "file_path": "src/models/calculator.rs",
   "language": "rust",
-  "description": "trait implementation changes",
-  "old_code": "struct Calculator;\n\nimpl Calculator {\n    fn add(a: i32, b: i32) -> i32 {\n        a + b\n    }\n\n    fn multiply(a: i32, b: i32) -> i32 {\n        a * b\n    }\n}",
-  "new_code": "trait Operations {\n    fn add(&self, a: i32, b: i32) -> i32;\n    fn multiply(&self, a: i32, b: i32) -> i32;\n    fn subtract(&self, a: i32, b: i32) -> i32;\n}\n\nstruct Calculator;\n\nimpl Operations for Calculator {\n    fn subtract(&self, a: i32, b: i32) -> i32 {\n        a - b\n    }\n\n    fn add(&self, a: i32, b: i32) -> i32 {\n        a + b\n    }\n\n    fn multiply(&self, a: i32, b: i32) -> i32 {\n        a * b\n    }\n}",
+  "description": "Enhanced trait implementation with realistic imports and comments",
+  "old_code": "//! Calculator module for mathematical operations\n//! \n//! This module provides basic arithmetic operations through a Calculator struct.\n//! Future enhancements may include floating-point support and advanced functions.\n\nuse std::fmt;\nuse std::error::Error;\n\n/// Represents calculation errors\n#[derive(Debug, Clone)]\npub enum CalcError {\n    DivisionByZero,\n    Overflow,\n}\n\nimpl fmt::Display for CalcError {\n    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {\n        match self {\n            CalcError::DivisionByZero => write!(f, \"Division by zero\"),\n            CalcError::Overflow => write!(f, \"Arithmetic overflow\"),\n        }\n    }\n}\n\nimpl Error for CalcError {}\n\n/// A simple calculator for basic arithmetic operations\n///\n/// The Calculator struct provides static methods for common\n/// mathematical operations. All operations work with 32-bit integers.\npub struct Calculator;\n\nimpl Calculator {\n    /// Adds two numbers together\n    pub fn add(a: i32, b: i32) -> i32 {\n        a + b\n    }\n\n    /// Multiplies two numbers together  \n    pub fn multiply(a: i32, b: i32) -> i32 {\n        a * b\n    }\n\n    /// Divides the first number by the second\n    pub fn divide(a: i32, b: i32) -> Result<i32, CalcError> {\n        if b == 0 {\n            Err(CalcError::DivisionByZero)\n        } else {\n            Ok(a / b)\n        }\n    }\n}\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_add() {\n        assert_eq!(Calculator::add(2, 3), 5);\n    }\n}",
+  "new_code": "//! Calculator module for mathematical operations\n//! \n//! This module provides basic arithmetic operations through a Calculator struct.\n//! Future enhancements may include floating-point support and advanced functions.\n\nuse std::fmt;\nuse std::error::Error;\n\n/// Represents calculation errors\n#[derive(Debug, Clone)]\npub enum CalcError {\n    DivisionByZero,\n    Overflow,\n}\n\nimpl fmt::Display for CalcError {\n    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {\n        match self {\n            CalcError::DivisionByZero => write!(f, \"Division by zero\"),\n            CalcError::Overflow => write!(f, \"Arithmetic overflow\"),\n        }\n    }\n}\n\nimpl Error for CalcError {}\n\n/// A simple calculator for basic arithmetic operations\n///\n/// The Calculator struct provides methods for common mathematical operations.\n/// All operations work with 32-bit integers and support error handling.\npub struct Calculator;\n\nimpl Calculator {\n    /// Adds two numbers together\n    pub fn add(a: i32, b: i32) -> i32 {\n        a + b\n    }\n\n    /// Multiplies two numbers together  \n    pub fn multiply(a: i32, b: i32) -> i32 {\n        a * b\n    }\n\n    /// Subtracts the second number from the first\n    pub fn subtract(a: i32, b: i32) -> i32 {\n        a - b\n    }\n\n    /// Divides the first number by the second\n    pub fn divide(a: i32, b: i32) -> Result<i32, CalcError> {\n        if b == 0 {\n            Err(CalcError::DivisionByZero)\n        } else {\n            Ok(a / b)\n        }\n    }\n}\n\n#[cfg(test)]\nmod tests {\n    use super::*;\n\n    #[test]\n    fn test_add() {\n        assert_eq!(Calculator::add(2, 3), 5);\n    }\n\n    #[test]\n    fn test_subtract() {\n        assert_eq!(Calculator::subtract(5, 3), 2);\n    }\n}",
   "expected_line_stats": {
-    "additions": 14,
-    "deletions": 9
+    "additions": 9,
+    "deletions": 4
   },
   "metadata": {
-    "complexity_level": "high",
-    "tags": ["trait", "impl", "method", "refactor", "reorder"]
+    "complexity_level": "medium",
+    "tags": ["trait", "impl", "method", "arithmetic", "error-handling"]
   }
 }

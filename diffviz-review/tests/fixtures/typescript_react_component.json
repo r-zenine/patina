@@ -2,15 +2,15 @@
   "name": "typescript_react_component_refactor",
   "file_path": "src/components/Greeting.tsx",
   "language": "typescript",
-  "description": "Class to hooks conversion",
-  "old_code": "import React from 'react';\n\ninterface Props {\n    name: string;\n}\n\nclass Greeting extends React.Component<Props> {\n    render() {\n        return <div>Hello, {this.props.name}!</div>;\n    }\n}",
-  "new_code": "import React, { useState } from 'react';\n\ninterface Props {\n    name: string;\n    showAge?: boolean;\n}\n\nconst Greeting: React.FC<Props> = ({ name, showAge = false }) => {\n    const [age, setAge] = useState<number>(0);\n\n    return (\n        <div>\n            <div>Hello, {name}!</div>\n            {showAge && <div>Age: {age}</div>}\n        </div>\n    );\n};",
+  "description": "Enhanced React component with realistic imports and hooks",
+  "old_code": "import React from 'react';\nimport { useContext } from 'react';\n\n// User profile type\ninterface UserProfile {\n  name: string;\n  email: string;\n  role: 'admin' | 'user' | 'guest';\n}\n\n// Props for the Greeting component\ninterface Props {\n  user: UserProfile;\n  onGreeted?: () => void;\n}\n\n/**\n * Greeting component - displays user greeting\n * @param props - Component props\n */\nclass Greeting extends React.Component<Props> {\n  componentDidMount() {\n    console.log('Component mounted');\n  }\n\n  render() {\n    const { user, onGreeted } = this.props;\n    return (\n      <div className=\"greeting-container\">\n        <h1>Welcome, {user.name}!</h1>\n        <p>Email: {user.email}</p>\n        <p>Role: {user.role}</p>\n        {onGreeted && (\n          <button onClick={onGreeted}>Acknowledged</button>\n        )}\n      </div>\n    );\n  }\n}",
+  "new_code": "import React, { useState, useEffect } from 'react';\nimport { useContext } from 'react';\n\n// User profile type\ninterface UserProfile {\n  name: string;\n  email: string;\n  role: 'admin' | 'user' | 'guest';\n}\n\n// Props for the Greeting component\ninterface Props {\n  user: UserProfile;\n  onGreeted?: () => void;\n}\n\n/**\n * Greeting component - displays user greeting using hooks\n * @param props - Component props\n */\nconst Greeting: React.FC<Props> = ({ user, onGreeted }) => {\n  const [isVisible, setIsVisible] = useState(true);\n  const [message, setMessage] = useState('');\n\n  useEffect(() => {\n    console.log('Component mounted');\n    setMessage(`Welcome, ${user.name}!`);\n  }, [user.name]);\n\n  const handleAcknowledge = () => {\n    if (onGreeted) {\n      onGreeted();\n    }\n    setIsVisible(false);\n  };\n\n  if (!isVisible) return null;\n\n  return (\n    <div className=\"greeting-container\">\n      <h1>{message}</h1>\n      <p>Email: {user.email}</p>\n      <p>Role: {user.role}</p>\n      {onGreeted && (\n        <button onClick={handleAcknowledge}>Acknowledged</button>\n      )}\n    </div>\n  );\n};",
   "expected_line_stats": {
-    "additions": 12,
-    "deletions": 8
+    "additions": 17,
+    "deletions": 14
   },
   "metadata": {
     "complexity_level": "high",
-    "tags": ["react", "component", "hooks", "useState", "refactor"]
+    "tags": ["react", "component", "hooks", "useState", "useEffect", "refactor"]
   }
 }

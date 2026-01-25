@@ -156,7 +156,7 @@ fn create_hardcoded_decisions() -> ReviewDecisions {
             },
             CodeImpact {
                 file: "src/components/Greeting.tsx".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 1, end: 17 }],
+                line_ranges: vec![DecisionLineRange { start: 1, end: 50 }],
                 change_type: ChangeType::Modification,
                 confidence: Confidence::Medium,
                 reasoning: "Add component lifecycle logging".to_string(),
@@ -167,6 +167,14 @@ fn create_hardcoded_decisions() -> ReviewDecisions {
                 change_type: ChangeType::Modification,
                 confidence: Confidence::High,
                 reasoning: "Add API type validation logging".to_string(),
+            },
+            // Phase 6: Enhanced calculator fixture for context folding validation
+            CodeImpact {
+                file: "src/models/calculator.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 1, end: 65 }],
+                change_type: ChangeType::Modification,
+                confidence: Confidence::High,
+                reasoning: "Calculator module with extensive context for folding test".to_string(),
             },
         ],
     });

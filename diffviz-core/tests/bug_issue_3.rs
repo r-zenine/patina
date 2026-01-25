@@ -94,6 +94,7 @@ func main() {
         ProgrammingLanguage::Go,
         &old_source,
         &new_source,
+        &parser,
     );
 
     // EXPECTED BEHAVIOR: Should have ~5 semantic boundaries:
@@ -201,6 +202,7 @@ func main() {
         ProgrammingLanguage::Go,
         &old_source,
         &new_source,
+        &parser,
     );
 
     // EXPECTED: Should have exactly 1 boundary for the new struct
@@ -284,6 +286,7 @@ func world() {
         ProgrammingLanguage::Go,
         &old_source,
         &new_source,
+        &parser,
     );
 
     // EXPECTED: Should have exactly 1 boundary for the new function

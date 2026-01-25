@@ -59,6 +59,7 @@ fn bug_1_phantom_changes_in_unchanged_functions() {
         ProgrammingLanguage::Rust,
         &old_source,
         &new_source,
+        &parser,
     );
 
     // Print debug info for investigation

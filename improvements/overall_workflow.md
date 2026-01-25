@@ -1,0 +1,18 @@
+- agent-skills/dev-contribute produces a yaml decision log file with a strict structure
+- agent-skills/dev-strategy creates a marker (.dev-strategy) file for each dev strategy
+    - marker contains 3 possible values 
+        - on going 
+        - dismissed 
+        - finished
+- diffviz-cli review works as follow 
+    - searches for .dev-strategy markers on startup, filters on `on going` 
+    - presents the user with a list of dev-strategy to choose from
+    - User selects one
+    - program looks at the `contributions/*` folder 
+    - loads the decision-log of the last non-reviewed contribution
+    - parses all the decisions 
+    - users review decisions and code changes
+        - for each user can approve, ask for changes 
+    - when all decisions have been reviewed ( user either approved or asked for changes for each one )
+    - program creates a marker in the contribution folder .review_status.json ( that serves for the next launch to identify a reviewed contribution )
+    - if the program is closed mid review, it persists the current state  in .review_status.json
