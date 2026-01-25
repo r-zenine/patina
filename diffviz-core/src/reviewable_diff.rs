@@ -10,6 +10,7 @@ use crate::ast_diff::{
 };
 use crate::common::ProgrammingLanguage;
 use crate::common::SemanticNodeKind;
+use core::fmt;
 use std::collections::HashMap;
 use std::time::Instant;
 
@@ -30,6 +31,26 @@ pub struct DiffNode {
     pub change_status: NodeChangeStatus,
     pub relevance: RelevanceScore,
     pub children: Vec<DiffNode>,
+}
+
+impl fmt::Display for DiffNode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[{}] {} -> {:?}\n",
+            self.relevance, self.node_type, self.change_status
+        )?;
+
+        for child in &self.children {
+            if child.node_type == "block" {
+                write!(f, "\t -- {}\n", child)?;
+            } else {
+                write!(f, "\t  {}\n", child)?;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 /// Symmetric enum for all change types with consistent old/new access

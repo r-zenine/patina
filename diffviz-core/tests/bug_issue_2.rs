@@ -95,6 +95,7 @@ if __name__ == "__main__":
         ProgrammingLanguage::Python,
         &old_source,
         &new_source,
+        &parser,
     );
 
     // EXPECTED BEHAVIOR: Should have ~5-6 semantic boundaries:
@@ -187,6 +188,7 @@ def world():
         ProgrammingLanguage::Python,
         &old_source,
         &new_source,
+        &parser,
     );
 
     // EXPECTED: Should have exactly 1 boundary for the new function

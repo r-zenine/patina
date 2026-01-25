@@ -163,9 +163,14 @@ impl ReviewEngineBuilder {
             ))
         })?;
 
-        // Step 6: Convert to core ReviewableDiffs
-        let core_reviewable_diffs =
-            semantic_pairs_to_reviewable_diffs(&semantic_pairs, language, &old_source, &new_source);
+        // Step 6: Convert to core ReviewableDiffs with context expansion (Phase 6)
+        let core_reviewable_diffs = semantic_pairs_to_reviewable_diffs(
+            &semantic_pairs,
+            language,
+            &old_source,
+            &new_source,
+            parser.as_ref(),
+        );
 
         // Step 7: Convert core ReviewableDiffs to review layer ReviewableDiffs
         let review_layer_diffs: Vec<ReviewableDiff> = core_reviewable_diffs
@@ -265,9 +270,14 @@ impl ReviewEngineBuilder {
             ))
         })?;
 
-        // Step 6: Convert to core ReviewableDiffs
-        let core_reviewable_diffs =
-            semantic_pairs_to_reviewable_diffs(&semantic_pairs, language, &old_source, &new_source);
+        // Step 6: Convert to core ReviewableDiffs with context expansion (Phase 6)
+        let core_reviewable_diffs = semantic_pairs_to_reviewable_diffs(
+            &semantic_pairs,
+            language,
+            &old_source,
+            &new_source,
+            parser.as_ref(),
+        );
 
         // Step 7: Convert core ReviewableDiffs to review layer format
         let review_layer_diffs: Vec<ReviewableDiff> = core_reviewable_diffs

@@ -91,6 +91,49 @@ pub enum SemanticAnchorType {
     EnumDeclaration,    // enum MyEnum {
 }
 
+/// Node annotation from DiffNode tree for byte range mapping
+#[derive(Debug, Clone)]
+struct ByteRangeAnnotation {
+    byte_range: (usize, usize),
+    relevance: RelevanceScore,
+}
+
+/// Build a map of byte ranges to relevance scores from DiffNode tree
+/// NOTE: Does NOT include the root node itself, only its children and their descendants
+/// TODO: upgrade such that the function signature is not folded
+fn build_byte_range_annotations(
+    node: &crate::reviewable_diff::DiffNode,
+) -> Vec<ByteRangeAnnotation> {
+    eprint!("[DEBUG] {node}");
+    let mut annotations = Vec::new();
+
+    fn collect_recursive(
+        node: &crate::reviewable_diff::DiffNode,
+        annotations: &mut Vec<ByteRangeAnnotation>,
+    ) {
+        // Add annotation for this node if it has a valid node reference
+        if let Some(node_ref) = get_display_node(&node.change_status) {
+            annotations.push(ByteRangeAnnotation {
+                byte_range: (node_ref.start_byte, node_ref.end_byte),
+                relevance: node.relevance,
+            });
+        }
+
+        // Recurse into children
+        for child in &node.children {
+            collect_recursive(child, annotations);
+        }
+    }
+
+    // Only collect from children, not the root node itself
+    // This prevents the boundary node's ESSENTIAL relevance from overriding all children
+    for child in &node.children {
+        collect_recursive(child, &mut annotations);
+    }
+
+    annotations
+}
+
 /// Helper function to create line-by-line diff for Modified changes using Myers algorithm
 fn create_line_by_line_diff_for_modified<'source>(
     reviewable: &'source ReviewableDiff,
@@ -122,6 +165,13 @@ fn create_line_by_line_diff_for_modified<'source>(
     // Use semantic Myers diff algorithm
     let diff_result = myers_diff_semantic(&old_lines_with_anchors, &new_lines_with_anchors);
 
+    // Build byte range annotations from DiffNode tree (all annotations with byte positions)
+    let byte_annotations = build_byte_range_annotations(&reviewable.boundary);
+    let boundary_start = new_node.start_byte;
+
+    // Track byte position relative to extracted text (will be offset by boundary_start)
+    let mut current_byte_offset = 0;
+
     // Convert Myers diff operations to RenderableLines
     let mut result_lines = Vec::new();
     let mut line_number = 1;
@@ -129,10 +179,22 @@ fn create_line_by_line_diff_for_modified<'source>(
     for op in &diff_result.ops {
         match op {
             DiffOp::Keep { line } => {
+                // Calculate byte range for this line in the full source
+                // (offset by boundary_start since we're working with extracted text)
+                let line_start_in_source = boundary_start + current_byte_offset;
+                let line_end_in_source = line_start_in_source + line.len();
+                let line_byte_range = (line_start_in_source, line_end_in_source);
+
+                // Determine relevance using precedence rule:
+                // - If ANY overlapping annotation is ESSENTIAL, use ESSENTIAL
+                // - Otherwise, use minimum (most important) relevance
+                let relevance =
+                    determine_line_relevance_with_precedence(line_byte_range, &byte_annotations);
+
                 let annotation = LineAnnotation {
                     start_col: 0,
                     end_col: line.len(),
-                    relevance: ESSENTIAL,
+                    relevance,
                     change_type: None, // No change
                     semantic_kind: reviewable.boundary.semantic_kind.clone(),
                     node_depth: 0,
@@ -149,6 +211,7 @@ fn create_line_by_line_diff_for_modified<'source>(
                     semantic_anchor: extract_semantic_anchor(content, reviewable, 0),
                 });
                 line_number += 1;
+                current_byte_offset = line_end_in_source - boundary_start + 1; // +1 for newline
             }
             DiffOp::Delete { line } => {
                 let annotation = LineAnnotation {
@@ -172,6 +235,11 @@ fn create_line_by_line_diff_for_modified<'source>(
                 line_number += 1;
             }
             DiffOp::Add { line } => {
+                // Calculate byte range for added line in the full source
+                let line_start_in_source = boundary_start + current_byte_offset;
+                let line_end_in_source = line_start_in_source + line.len();
+                current_byte_offset = line_end_in_source - boundary_start + 1; // +1 for newline
+
                 let annotation = LineAnnotation {
                     start_col: 0,
                     end_col: line.len(),
@@ -196,6 +264,34 @@ fn create_line_by_line_diff_for_modified<'source>(
     }
 
     Ok(result_lines)
+}
+
+/// Determine relevance for a line with precedence rule:
+/// - If ANY overlapping annotation is ESSENTIAL, line is ESSENTIAL
+/// - Otherwise, use minimum (most important) relevance
+fn determine_line_relevance_with_precedence(
+    line_byte_range: (usize, usize),
+    annotations: &[ByteRangeAnnotation],
+) -> RelevanceScore {
+    // First pass: check for ESSENTIAL (takes precedence)
+    for ann in annotations {
+        if ann.relevance == ESSENTIAL && ranges_overlap(ann.byte_range, line_byte_range) {
+            return ESSENTIAL;
+        }
+    }
+
+    // Second pass: find minimum (most important) relevance among overlapping annotations
+    annotations
+        .iter()
+        .filter(|ann| ranges_overlap(ann.byte_range, line_byte_range))
+        .map(|ann| ann.relevance)
+        .min()
+        .unwrap_or(ESSENTIAL)
+}
+
+/// Check if two byte ranges overlap
+fn ranges_overlap(range1: (usize, usize), range2: (usize, usize)) -> bool {
+    range1.0 < range2.1 && range2.0 < range1.1
 }
 
 /// Find the original line content with proper lifetime from the source slices

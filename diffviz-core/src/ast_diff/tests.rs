@@ -587,6 +587,7 @@ mod tests {
             ProgrammingLanguage::Rust,
             &old_source,
             &new_source,
+            &rust_parser, // Phase 6: Pass parser for context expansion
         );
 
         println!(

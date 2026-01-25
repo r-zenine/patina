@@ -144,6 +144,7 @@ fn process_data(data: &str) {
         ProgrammingLanguage::Rust,
         &old_source,
         &new_source,
+        &parser,
     );
 
     // Convert to renderable diffs and check semantic anchors across all diffs
@@ -305,6 +306,7 @@ fn main() {
         ProgrammingLanguage::Rust,
         &old_source,
         &new_source,
+        &parser,
     );
 
     for reviewable in &reviewable_diffs {
@@ -441,6 +443,7 @@ async fn make_request(&mut self, method: &str, url: &str, body: Option<String>) 
         ProgrammingLanguage::Rust,
         &old_source,
         &new_source,
+        &parser,
     );
 
     // Convert to renderable diffs and verify signature changes are shown

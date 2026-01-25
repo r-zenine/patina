@@ -3,6 +3,37 @@
 **Strategy**: Core-then-Integrate
 **Scope**: Context Expansion + TUI Validation
 
+## Current Status
+
+**Phases Complete**: 1-6 ✅
+**Current Phase**: Phase 7 - End-to-End Validation and Cleanup
+
+### Key Discovery
+
+Through diagnostic testing with `test_calculator_folding.rs`, we discovered:
+
+1. ✅ **Context expansion IS working** - `semantic_pairs_to_reviewable_diffs` creates DiffNode trees with 159 NOISE-classified nodes
+2. ✅ **`build_child_nodes_with_context` works correctly** - Walks tree-sitter children and assigns proper relevance scores
+3. ❌ **RenderableDiff creation ignores the DiffNode tree** - Does Myers diff on raw text instead of using relevance from tree
+4. ❌ **All RenderableLines get ESSENTIAL by default** - The 159 NOISE nodes are computed but never used
+
+**Diagnostic Evidence:**
+```
+Boundary children count: 7
+Node relevance distribution in DiffNode tree:
+  ESSENTIAL (0): 1
+  IMPORTANT (1): 1
+  BACKGROUND (2): 0
+  NOISE (3): 159    ← Context expansion working!
+
+But RenderableDiff shows:
+  Total lines: 31, Foldable: 0  ← All marked ESSENTIAL
+```
+
+**Root Cause**: `diffviz-core/src/renderable_diff/mod.rs:123`
+- `myers_diff_semantic(&old_lines_with_anchors, &new_lines_with_anchors)` operates on raw text
+- Never consults the ReviewableDiff.boundary DiffNode tree with its relevance scores
+
 ---
 
 ## Phase 1: Core Algorithm Implementation
@@ -244,19 +275,109 @@
 
 ---
 
-## Phase 6: Cleanup and Documentation
+## Phase 6: RenderableDiff Pipeline Fix
 
-**Objective**: Polish implementation and ensure quality
+**Objective**: Fix RenderableDiff creation to use DiffNode tree relevance scores
+
+### Context
+
+**Discovery from Phase 5 validation and diagnostic testing:**
+- ✅ Context expansion IS working - DiffNode trees have 159 NOISE nodes with varied relevance
+- ✅ `semantic_pairs_to_reviewable_diffs` correctly passes parser parameter
+- ✅ `build_child_nodes_with_context` creates rich trees with BACKGROUND/NOISE classifications
+- ❌ **RenderableDiff creation ignores the DiffNode tree completely**
+- ❌ `create_line_by_line_diff_for_modified()` does Myers diff on raw text, bypassing relevance scores
+- ❌ All RenderableLines get ESSENTIAL relevance by default
+
+**Root cause**: `diffviz-core/src/renderable_diff/mod.rs:95-125`
+- Line 123: `myers_diff_semantic(&old_lines_with_anchors, &new_lines_with_anchors)`
+- This operates on raw source text strings, not the DiffNode tree
+- The 159 carefully-classified NOISE nodes are never consulted
 
 ### Tasks
 
-1. **Run full workspace checks**
+1. **Create DiffNode → RenderableLine mapping utility**
+   - Location: `diffviz-core/src/renderable_diff/mod.rs` (new function)
+   - Function signature:
+     ```rust
+     fn map_source_lines_to_relevance(
+         diff_node: &DiffNode,
+         source: &dyn SourceProvider,
+     ) -> HashMap<usize, RelevanceScore>
+     ```
+   - Algorithm:
+     1. Walk DiffNode tree recursively
+     2. For each node, get its line range from source
+     3. Map line numbers to node's relevance score
+     4. Handle overlapping ranges (choose minimum relevance)
+
+2. **Refactor `create_line_by_line_diff_for_modified`**
+   - Current: Creates RenderableLines from Myers diff, all ESSENTIAL
+   - New: After Myers diff, lookup each line's relevance from DiffNode tree
+   - Steps:
+     1. Build line→relevance map from `reviewable.boundary` DiffNode
+     2. Run Myers diff as before
+     3. For each RenderableLine, set relevance from map
+     4. Default to ESSENTIAL if line not in map (safety)
+
+3. **Refactor `create_single_source_lines`**
+   - Location: `diffviz-core/src/renderable_diff/line_utils.rs`
+   - Similar changes: Use DiffNode tree to assign relevance to lines
+   - Handle Addition/Deletion cases where one side is empty
+
+4. **Create diagnostic test**
+   - Location: `diffviz-core/examples/test_calculator_folding.rs` (already exists)
+   - Test fixture: Function with multiple unchanged blocks, one changed block
+   - Expected: Unchanged blocks get BACKGROUND/NOISE, fold when enabled
+   - Verify: "X foldable lines" > 0 in diagnostic output
+
+5. **Run full test suite**
+   - Command: `cargo test --package diffviz-core`
+   - Fix any regressions in existing tests
+   - Verify: `test_calculator_folding` shows lines actually folding
+
+### Acceptance Criteria
+
+- `test_calculator_folding` shows foldable lines > 0
+- RenderableLines have varied relevance (not all ESSENTIAL)
+- Folded mode hides BACKGROUND/NOISE unchanged lines
+- All existing tests pass (zero warnings)
+- Diagnostic shows: "Displayed X lines, Hidden Y lines" where Y > 0
+
+---
+
+## Phase 7: End-to-End Validation and Cleanup
+
+**Objective**: Verify TUI folding works after Phase 6 fix, polish implementation
+
+### Tasks
+
+1. **TUI validation with test harness**
+   - Run: `cargo run --bin review-tui --features test-harness -- --test-input "<Enter>jjj<Enter>j<Enter>"`
+   - Navigate to calculator.rs diff
+   - Verify diagnostic shows foldable content exists
+
+2. **TUI folding visual test**
+   - Run: `cargo run --bin review-tui --features test-harness -- --test-full "<Enter>jjj<Enter>j<Enter><Space>tc"`
+   - Compare visual output before/after folding toggle
+   - Expected: Lines with `[B]` and `[N]` markers hidden in FOLDED mode
+   - Expected: "... X lines hidden ..." indicators appear
+
+3. **Interactive TUI validation**
+   - Build: `cargo build --package diffviz-review-tui`
+   - Run: `cargo run --package diffviz-review-tui`
+   - Navigate to calculator.rs or other fixture
+   - Toggle folding: Space+t+c
+   - Verify: Visual difference between full context and folded modes
+   - Verify: Status bar shows "Full Context" vs "Folded"
+
+4. **Run full workspace checks**
    - `cargo fmt --all` - Format code
    - `cargo clippy --workspace` - Fix all warnings
    - `cargo check --workspace` - Verify compilation
    - `cargo test --workspace` - Run all tests
 
-2. **Code review checklist**
+5. **Code review checklist**
    - No defensive programming (fail fast)
    - No string/regex operations (TreeSitter only)
    - All edge cases handled or explicitly panicked

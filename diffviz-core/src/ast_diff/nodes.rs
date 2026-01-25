@@ -1,3 +1,5 @@
+use core::fmt;
+
 use tree_sitter::Node;
 
 /// Trait for node-like objects that provide essential AST node information
@@ -17,11 +19,21 @@ pub trait NodeLike {
 }
 
 /// Owned node data extracted from TreeSitter Node - fully self-contained
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct OwnedNodeData {
     pub start_byte: usize,
     pub end_byte: usize,
     pub kind: String,
+}
+
+impl fmt::Debug for OwnedNodeData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "NodeData[{}]({},{})",
+            self.kind, self.start_byte, self.end_byte
+        )
+    }
 }
 
 impl OwnedNodeData {

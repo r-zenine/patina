@@ -2,24 +2,33 @@
 //!
 //! This module bridges the semantic AST analysis with the ReviewableDiff
 //! rendering pipeline, converting semantic pairs into reviewable structures.
+//!
+//! Phase 6: Integrated with Phase 1 context expansion to produce rich
+//! DiffNode trees with varied relevance scores for folding support.
 
 use crate::ast_diff::{
     ASTChangeType, BACKGROUND, ESSENTIAL, IMPORTANT, NOISE, OwnedNodeData, RelevanceScore,
     SourceProvider,
 };
-use crate::common::{ProgrammingLanguage, SemanticNodeKind};
+use crate::common::{LanguageParser, ProgrammingLanguage, SemanticNodeKind};
 use crate::renderable_diff::RenderableDiff;
 use crate::reviewable_diff::{DiffMetadata, DiffNode, NodeChangeStatus, ReviewableDiff};
 use crate::semantic_ast::{SemanticNode, SemanticPair, SemanticSimilarity, SemanticUnitType};
 use std::collections::HashMap;
 use std::time::Instant;
+use tree_sitter::Node;
 
 /// Convert semantic pairs to ReviewableDiffs
+///
+/// Phase 6: Now accepts a parser for context expansion with varied relevance scores.
+/// The parser is used to classify node kinds and assign relevance (ESSENTIAL, IMPORTANT,
+/// BACKGROUND, NOISE) to enable folding in the TUI.
 pub fn semantic_pairs_to_reviewable_diffs<'source>(
     pairs: &[SemanticPair<'source>],
     language: ProgrammingLanguage,
     old_source: &'source dyn SourceProvider,
     new_source: &'source dyn SourceProvider,
+    parser: &dyn LanguageParser,
 ) -> Vec<ReviewableDiff> {
     let start_time = Instant::now();
 
@@ -27,7 +36,9 @@ pub fn semantic_pairs_to_reviewable_diffs<'source>(
         .iter()
         .filter(|pair| should_create_diff_for_pair(pair))
         .map(|pair| {
-            create_reviewable_diff_from_pair(pair, language, old_source, new_source, start_time)
+            create_reviewable_diff_from_pair(
+                pair, language, old_source, new_source, start_time, parser,
+            )
         })
         .collect();
 
@@ -79,15 +90,16 @@ fn create_reviewable_diff_from_pair<'source>(
     old_source: &'source dyn SourceProvider,
     new_source: &'source dyn SourceProvider,
     start_time: Instant,
+    parser: &dyn LanguageParser,
 ) -> ReviewableDiff {
     let (boundary_node, metadata) = match pair {
         SemanticPair::Matched {
             old_unit,
             new_unit,
             similarity,
-        } => create_matched_diff(old_unit, new_unit, similarity, start_time),
-        SemanticPair::Addition { unit } => create_addition_diff(unit, start_time),
-        SemanticPair::Deletion { unit } => create_deletion_diff(unit, start_time),
+        } => create_matched_diff(old_unit, new_unit, similarity, start_time, parser),
+        SemanticPair::Addition { unit } => create_addition_diff(unit, start_time, parser),
+        SemanticPair::Deletion { unit } => create_deletion_diff(unit, start_time, parser),
     };
 
     ReviewableDiff {
@@ -105,11 +117,12 @@ fn create_matched_diff<'source>(
     new_unit: &SemanticNode<'source>,
     similarity: &SemanticSimilarity,
     start_time: Instant,
+    parser: &dyn LanguageParser,
 ) -> (DiffNode, DiffMetadata) {
     let change_type = similarity_to_change_type(similarity);
     let semantic_kind = unit_type_to_semantic_kind(&old_unit.unit_type);
 
-    // Create the boundary node
+    // Create the boundary node with children from context expansion (Phase 6)
     let boundary = DiffNode {
         node_type: get_unit_type_name(&old_unit.unit_type).to_string(),
         semantic_kind,
@@ -119,7 +132,7 @@ fn create_matched_diff<'source>(
             change_type,
         },
         relevance: calculate_relevance(&old_unit.unit_type),
-        children: build_child_nodes(old_unit, new_unit),
+        children: build_child_nodes_with_context(&new_unit.tree_sitter_node, parser),
     };
 
     let mut change_summary = HashMap::new();
@@ -159,6 +172,7 @@ fn create_matched_diff<'source>(
 fn create_addition_diff<'source>(
     unit: &SemanticNode<'source>,
     start_time: Instant,
+    parser: &dyn LanguageParser,
 ) -> (DiffNode, DiffMetadata) {
     let semantic_kind = unit_type_to_semantic_kind(&unit.unit_type);
 
@@ -169,11 +183,7 @@ fn create_addition_diff<'source>(
             node: OwnedNodeData::from_tree_sitter_node(&unit.tree_sitter_node),
         },
         relevance: calculate_relevance(&unit.unit_type),
-        children: unit
-            .children
-            .iter()
-            .map(|child| create_child_from_semantic(child, true))
-            .collect(),
+        children: build_child_nodes_with_context(&unit.tree_sitter_node, parser),
     };
 
     let mut change_summary = HashMap::new();
@@ -193,6 +203,7 @@ fn create_addition_diff<'source>(
 fn create_deletion_diff<'source>(
     unit: &SemanticNode<'source>,
     start_time: Instant,
+    parser: &dyn LanguageParser,
 ) -> (DiffNode, DiffMetadata) {
     let semantic_kind = unit_type_to_semantic_kind(&unit.unit_type);
 
@@ -203,11 +214,7 @@ fn create_deletion_diff<'source>(
             node: OwnedNodeData::from_tree_sitter_node(&unit.tree_sitter_node),
         },
         relevance: calculate_relevance(&unit.unit_type),
-        children: unit
-            .children
-            .iter()
-            .map(|child| create_child_from_semantic(child, false))
-            .collect(),
+        children: build_child_nodes_with_context(&unit.tree_sitter_node, parser),
     };
 
     let mut change_summary = HashMap::new();
@@ -223,37 +230,53 @@ fn create_deletion_diff<'source>(
     (boundary, metadata)
 }
 
-/// Build child nodes for matched semantic units
-fn build_child_nodes<'source>(
-    _old_unit: &SemanticNode<'source>,
-    _new_unit: &SemanticNode<'source>,
+/// Build child nodes with context expansion (Phase 6 integration with Phase 1)
+///
+/// Walks the tree-sitter AST children and assigns relevance scores using the
+/// parser's classification methods. This enables folding in the TUI by marking
+/// nodes as ESSENTIAL, IMPORTANT, BACKGROUND, or NOISE.
+fn build_child_nodes_with_context(node: &Node, parser: &dyn LanguageParser) -> Vec<DiffNode> {
+    build_child_nodes_recursive(node, parser, 0)
+}
+
+/// Recursively build child DiffNodes with relevance classification
+fn build_child_nodes_recursive(
+    node: &Node,
+    parser: &dyn LanguageParser,
+    depth: usize,
 ) -> Vec<DiffNode> {
-    // For now, return empty children - could be enhanced to show internal changes
-    Vec::new()
-}
+    const MAX_DEPTH: usize = 10;
 
-/// Create a child node from a semantic node
-fn create_child_from_semantic<'source>(unit: &SemanticNode<'source>, is_added: bool) -> DiffNode {
-    let semantic_kind = unit_type_to_semantic_kind(&unit.unit_type);
-    let change_status = if is_added {
-        NodeChangeStatus::Added {
-            node: OwnedNodeData::from_tree_sitter_node(&unit.tree_sitter_node),
-        }
-    } else {
-        NodeChangeStatus::Deleted {
-            node: OwnedNodeData::from_tree_sitter_node(&unit.tree_sitter_node),
-        }
-    };
-
-    DiffNode {
-        node_type: get_unit_type_name(&unit.unit_type).to_string(),
-        semantic_kind,
-        change_status,
-        relevance: calculate_relevance(&unit.unit_type),
-        children: Vec::new(),
+    if depth > MAX_DEPTH {
+        return Vec::new();
     }
-}
 
+    let mut children = Vec::new();
+    let mut cursor = node.walk();
+
+    for child in node.children(&mut cursor) {
+        // Classify the node kind using the parser
+        let semantic_kind = parser.classify_node_kind(child.kind());
+
+        // Assign relevance based on semantic classification (same as Phase 1)
+        let relevance = parser.classify_leaf_relevance(&semantic_kind);
+
+        // Build the DiffNode for this child
+        let diff_node = DiffNode {
+            node_type: child.kind().to_string(),
+            semantic_kind,
+            change_status: NodeChangeStatus::Unchanged {
+                node: OwnedNodeData::from_tree_sitter_node(&child),
+            },
+            relevance,
+            children: build_child_nodes_recursive(&child, parser, depth + 1),
+        };
+
+        children.push(diff_node);
+    }
+
+    children
+}
 /// Convert semantic similarity to AST change type
 fn similarity_to_change_type(similarity: &SemanticSimilarity) -> ASTChangeType {
     // Prioritize change types: Structural > Signature > Rename > Content
