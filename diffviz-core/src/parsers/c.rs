@@ -676,6 +676,10 @@ impl LanguageParser for CParser {
             "call_expression" | "field_expression" | "binary_expression" => {
                 SemanticNodeKind::Expression
             }
+            // Signature components
+            "parameter_list" | "parameter_declaration" | "pointer_declarator" => {
+                SemanticNodeKind::SignatureComponent
+            }
             "typedef_declaration" => SemanticNodeKind::TypeDefinition,
             "comment" => SemanticNodeKind::Comment,
             "translation_unit" => SemanticNodeKind::SourceFile,

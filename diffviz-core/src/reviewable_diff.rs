@@ -362,7 +362,8 @@ fn build_context_tree_recursive<'source>(
     parser: &dyn crate::common::LanguageParser,
     depth: usize,
 ) -> ContextNode<'source> {
-    use crate::ast_diff::ESSENTIAL;
+    use crate::ast_diff::{ESSENTIAL, IMPORTANT};
+    use crate::common::SemanticNodeKind;
 
     const MAX_DEPTH: usize = 10;
 
@@ -388,8 +389,16 @@ fn build_context_tree_recursive<'source>(
     let mut cursor = node.node.walk();
     for child in node.node.children(&mut cursor) {
         let child_ref = NodeRef::new(child);
-        let child_context =
+        let mut child_context =
             build_context_tree_recursive(&child_ref, change_node, parser, depth + 1);
+
+        // Signature components inherit their parent's relevance if parent is important
+        // This ensures that if we're showing a function (ESSENTIAL/IMPORTANT), we show its complete signature
+        let child_semantic_kind = parser.classify_node_kind(child.kind());
+        if child_semantic_kind == SemanticNodeKind::SignatureComponent && relevance <= IMPORTANT {
+            child_context.relevance = relevance;
+        }
+
         context_node.add_child(child_context);
     }
 

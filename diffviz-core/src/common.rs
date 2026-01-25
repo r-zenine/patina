@@ -38,7 +38,7 @@ pub enum SemanticNodeKind {
     Function,
     /// Class definition
     Class,
-    /// Struct definition  
+    /// Struct definition
     Struct,
     /// Enum definition
     Enum,
@@ -52,6 +52,9 @@ pub enum SemanticNodeKind {
     Import,
     /// Variable declaration
     Variable,
+    /// Signature component (visibility modifiers, parameters, type parameters, function modifiers, etc.)
+    /// These are essential parts of function/struct/enum/trait/module signatures
+    SignatureComponent,
     /// Statement within a function body
     Statement,
     /// Expression
@@ -228,10 +231,11 @@ pub trait LanguageParser: Send + Sync {
             | SemanticNodeKind::Enum
             | SemanticNodeKind::Interface => crate::ast_diff::ESSENTIAL,
 
-            // Important: Supporting constructs that affect understanding
+            // Important: Supporting constructs and signature components
             SemanticNodeKind::ImplBlock
             | SemanticNodeKind::TypeDefinition
-            | SemanticNodeKind::Variable => crate::ast_diff::IMPORTANT,
+            | SemanticNodeKind::Variable
+            | SemanticNodeKind::SignatureComponent => crate::ast_diff::IMPORTANT,
 
             // Background: Organizational constructs
             SemanticNodeKind::Module | SemanticNodeKind::Import => crate::ast_diff::BACKGROUND,

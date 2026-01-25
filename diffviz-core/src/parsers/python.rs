@@ -78,6 +78,11 @@ impl LanguageParser for PythonParser {
             | "unary_operator"
             | "comparison_operator" => SemanticNodeKind::Expression,
 
+            // Signature components
+            "parameters" | "parameter" | "default_parameter" | "typed_parameter" => {
+                SemanticNodeKind::SignatureComponent
+            }
+
             // Comments
             "comment" => SemanticNodeKind::Comment,
 
