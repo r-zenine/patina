@@ -1047,12 +1047,8 @@ impl LanguageParser for JavaParser {
                 SemanticNodeKind::Expression
             }
             // Signature components
-            "formal_parameters"
-            | "formal_parameter"
-            | "type_parameters"
-            | "type_parameter"
-            | "throws"
-            | "modifier" => SemanticNodeKind::SignatureComponent,
+            "formal_parameters" | "formal_parameter" | "type_parameters" | "type_parameter"
+            | "throws" | "modifier" => SemanticNodeKind::SignatureComponent,
             "comment" | "line_comment" | "block_comment" => SemanticNodeKind::Comment,
             "program" => SemanticNodeKind::SourceFile,
             _ => SemanticNodeKind::Other(node_kind.to_string()),

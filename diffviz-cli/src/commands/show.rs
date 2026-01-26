@@ -219,8 +219,13 @@ impl ShowCommand {
         )
         .map_err(|e| anyhow::anyhow!("Failed to build semantic pairs: {}", e))?;
 
-        let reviewable_diffs =
-            semantic_pairs_to_reviewable_diffs(&semantic_pairs, language, &old_source, &new_source, &*lang_parser);
+        let reviewable_diffs = semantic_pairs_to_reviewable_diffs(
+            &semantic_pairs,
+            language,
+            &old_source,
+            &new_source,
+            &*lang_parser,
+        );
 
         // Core already filters out diffs with no visible content
         if reviewable_diffs.is_empty() {
