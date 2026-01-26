@@ -1,0 +1,39 @@
+{
+  "name": "rust_function_signature_return_type_change",
+  "language": "rust",
+  "description": "Test detection of function signature changes when return type is modified",
+  "category": "content_changes",
+  "old_code": "use std::fs;\nuse std::io;\n\nfn read_config(path: &str) -> String {\n    let file = std::fs::read_to_string(path).unwrap();\n    file\n}",
+  "new_code": "use std::fs;\nuse std::io;\n\nfn read_config(path: &str) -> Result<String, io::Error> {\n    let contents = fs::read_to_string(path)?;\n    Ok(contents)\n}",
+  "expected_changes": [
+    {
+      "change_type": "Modified",
+      "node_kind": "function_item",
+      "detected_by_strategies": ["structural_content"],
+      "description": "Function signature return type changed from String to Result<String, io::Error>"
+    },
+    {
+      "change_type": "Modified",
+      "node_kind": "let_declaration",
+      "detected_by_strategies": ["structural_content"],
+      "description": "Variable assignment changed from unwrap() to ? operator"
+    },
+    {
+      "change_type": "Modified",
+      "node_kind": "return_expression",
+      "detected_by_strategies": ["structural_content"],
+      "description": "Return value changed from file identifier to Ok(contents) call"
+    }
+  ],
+  "should_not_detect": ["deletion_addition_split"],
+  "performance_expectations": {
+    "max_duration_ms": 150
+  },
+  "metadata": {
+    "author": "Claude",
+    "complexity_level": "intermediate",
+    "tags": ["function_signature", "return_type_change", "error_handling", "semantic_pairing"],
+    "regression_test": true,
+    "github_issue": null
+  }
+}

@@ -259,6 +259,56 @@ fn create_line_by_line_diff_for_modified<'source>(
                 });
                 line_number += 1;
             }
+            DiffOp::Modify { old_line, new_line } => {
+                // Modify operation: display as two lines - old (deleted) then new (added)
+                // This shows the semantic pairing while maintaining traditional diff view
+
+                // First, show the old line as deleted
+                let old_annotation = LineAnnotation {
+                    start_col: 0,
+                    end_col: old_line.len(),
+                    relevance: ESSENTIAL,
+                    change_type: Some(ChangeType::Deleted),
+                    semantic_kind: reviewable.boundary.semantic_kind.clone(),
+                    node_depth: 0,
+                };
+
+                let old_content = find_original_line_content(old_line, &old_lines, &[]);
+
+                result_lines.push(RenderableLine {
+                    line_number,
+                    content: old_content,
+                    byte_range: (0, old_line.len()),
+                    annotations: vec![old_annotation],
+                    semantic_anchor: extract_semantic_anchor(old_content, reviewable, 0),
+                });
+                line_number += 1;
+
+                // Then, show the new line as added
+                let line_start_in_source = boundary_start + current_byte_offset;
+                let line_end_in_source = line_start_in_source + new_line.len();
+                current_byte_offset = line_end_in_source - boundary_start + 1; // +1 for newline
+
+                let new_annotation = LineAnnotation {
+                    start_col: 0,
+                    end_col: new_line.len(),
+                    relevance: ESSENTIAL,
+                    change_type: Some(ChangeType::Added),
+                    semantic_kind: reviewable.boundary.semantic_kind.clone(),
+                    node_depth: 0,
+                };
+
+                let new_content = find_original_line_content(new_line, &[], &new_lines);
+
+                result_lines.push(RenderableLine {
+                    line_number,
+                    content: new_content,
+                    byte_range: (0, new_line.len()),
+                    annotations: vec![new_annotation],
+                    semantic_anchor: extract_semantic_anchor(new_content, reviewable, 0),
+                });
+                line_number += 1;
+            }
         }
     }
 

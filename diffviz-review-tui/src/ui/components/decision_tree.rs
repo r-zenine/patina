@@ -243,7 +243,11 @@ fn build_file_item(
     };
 
     // File name and line ranges
-    let file_name = file_path.split('/').next_back().unwrap_or(file_path).to_string();
+    let file_name = file_path
+        .split('/')
+        .next_back()
+        .unwrap_or(file_path)
+        .to_string();
     let lines_str = format!("(L{})", line_ranges.join(","));
 
     let line_content = if is_selected {
@@ -292,7 +296,11 @@ fn build_file_item(
             Span::raw(format!("{selection_indicator}{indent}")),
             Span::styled(
                 format!("{approval_icon} "),
-                Style::default().fg(if all_approved { Color::Green } else { Color::DarkGray }),
+                Style::default().fg(if all_approved {
+                    Color::Green
+                } else {
+                    Color::DarkGray
+                }),
             ),
             Span::raw(file_name),
             Span::styled(
@@ -340,7 +348,11 @@ fn build_chunk_item(
                 format!("{approval_icon} "),
                 Style::default()
                     .bg(Color::DarkGray)
-                    .fg(if is_approved { Color::Green } else { Color::DarkGray })
+                    .fg(if is_approved {
+                        Color::Green
+                    } else {
+                        Color::DarkGray
+                    })
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
@@ -356,7 +368,11 @@ fn build_chunk_item(
             Span::raw(format!("{selection_indicator}{indent}")),
             Span::styled(
                 format!("{approval_icon} "),
-                Style::default().fg(if is_approved { Color::Green } else { Color::DarkGray }),
+                Style::default().fg(if is_approved {
+                    Color::Green
+                } else {
+                    Color::DarkGray
+                }),
             ),
             Span::raw(chunk_repr),
         ]
