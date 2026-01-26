@@ -99,7 +99,7 @@ impl<const DIM: usize, const CHUNK_SIZE: usize> VectorTape<DIM, CHUNK_SIZE> {
     ) -> Result<&crate::memory::AlignedChunk<f32, CHUNK_SIZE>, String> {
         self.tape
             .get(idx)
-            .ok_or_else(|| format!("Chunk {} out of bounds", idx))
+            .ok_or_else(|| format!("Chunk {idx} out of bounds"))
     }
 
     /// Get all offsets for serialization
@@ -473,7 +473,7 @@ impl<K: Sized + Copy, const CHUNK_SIZE: usize> GraphTape<K, CHUNK_SIZE> {
     ) -> Result<&crate::memory::AlignedChunk<u8, CHUNK_SIZE>, String> {
         self.tape
             .get(idx)
-            .ok_or_else(|| format!("Chunk {} out of bounds", idx))
+            .ok_or_else(|| format!("Chunk {idx} out of bounds"))
     }
 
     /// Get all offsets for serialization

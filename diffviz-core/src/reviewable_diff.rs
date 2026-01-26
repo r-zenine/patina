@@ -35,17 +35,17 @@ pub struct DiffNode {
 
 impl fmt::Display for DiffNode {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
+        writeln!(
             f,
-            "[{}] {} -> {:?}\n",
+            "[{}] {} -> {:?}",
             self.relevance, self.node_type, self.change_status
         )?;
 
         for child in &self.children {
             if child.node_type == "block" {
-                write!(f, "\t -- {}\n", child)?;
+                writeln!(f, "\t -- {child}")?;
             } else {
-                write!(f, "\t  {}\n", child)?;
+                writeln!(f, "\t  {child}")?;
             }
         }
 

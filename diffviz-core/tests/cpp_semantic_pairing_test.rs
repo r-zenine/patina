@@ -203,5 +203,4 @@ enum class Status {
             reviewable_diffs.len()
         );
     }
-
 }

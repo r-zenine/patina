@@ -333,6 +333,12 @@ impl ParserState for KeyToRead {}
 pub struct LevelsToRead;
 impl ParserState for LevelsToRead {}
 
+type LevelReadResult<'a, K> = (
+    Option<(u8, &'a [NodeId], usize, usize, usize)>,
+    Option<NodeParser<'a, K, LevelsToRead>>,
+    usize,
+);
+
 pub struct NodeParser<'a, K, ReaderState: ParserState> {
     remaining: &'a [u8],
     next_level: u8,
@@ -458,13 +464,7 @@ impl<'a, K: Copy + Sized> NodeParser<'a, K, KeyToRead> {
 }
 
 impl<'a, K: Copy + Sized> NodeParser<'a, K, LevelsToRead> {
-    fn read_level_internal(
-        self,
-    ) -> (
-        Option<(u8, &'a [NodeId], usize, usize, usize)>,
-        Option<NodeParser<'a, K, LevelsToRead>>,
-        usize,
-    ) {
+    fn read_level_internal(self) -> LevelReadResult<'a, K> {
         if self.remaining.is_empty() {
             return (None, None, 0);
         }

@@ -86,12 +86,20 @@ impl GenericTrait<i32> for GenericStruct<i32> {
         }
     }
 
-    find_signature_nodes(tree.root_node(), None, &signature_node_kinds, &mut signature_nodes);
+    find_signature_nodes(
+        tree.root_node(),
+        None,
+        &signature_node_kinds,
+        &mut signature_nodes,
+    );
 
     eprintln!("Found {} signature-related nodes:", signature_nodes.len());
-    let mut grouped: std::collections::HashMap<(String, String), usize> = std::collections::HashMap::new();
+    let mut grouped: std::collections::HashMap<(String, String), usize> =
+        std::collections::HashMap::new();
     for (parent, node_kind, _) in &signature_nodes {
-        *grouped.entry((parent.clone(), node_kind.clone())).or_insert(0) += 1;
+        *grouped
+            .entry((parent.clone(), node_kind.clone()))
+            .or_insert(0) += 1;
     }
 
     for ((parent, node_kind), count) in grouped.iter() {
@@ -104,11 +112,18 @@ impl GenericTrait<i32> for GenericStruct<i32> {
             count,
             semantic_kind,
             relevance,
-            if relevance == 3 { "← NOISE (BUG!)" } else { "" }
+            if relevance == 3 {
+                "← NOISE (BUG!)"
+            } else {
+                ""
+            }
         );
     }
 
-    assert!(!signature_nodes.is_empty(), "Expected to find signature-related nodes");
+    assert!(
+        !signature_nodes.is_empty(),
+        "Expected to find signature-related nodes"
+    );
 }
 
 /// Test that function signature components are classified as IMPORTANT
@@ -181,5 +196,7 @@ fn signature_components_classified_as_important() {
     // After fix: visibility_modifier is classified as SignatureComponent with IMPORTANT relevance
     assert_eq!(
         relevance, expected_relevance,
-        "visibility_modifier should be classified as IMPORTANT ({}), not NOISE (3)", expected_relevance);
+        "visibility_modifier should be classified as IMPORTANT ({}), not NOISE (3)",
+        expected_relevance
+    );
 }
