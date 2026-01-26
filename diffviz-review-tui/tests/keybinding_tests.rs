@@ -26,44 +26,44 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
         .build(diff_query)
         .expect("Failed to build ReviewEngine");
 
-    // Set up hardcoded decisions like main.rs does
+    // Set up hardcoded decisions with file paths matching actual test fixtures
     let mut decisions = ReviewDecisions::new();
 
-    // Decision 1
+    // Decision 1: Uses rust_trait_impl.json fixture
     decisions.add_decision(Decision {
         number: 1,
-        title: "Refactor authentication module".to_string(),
-        summary: "Extract authentication logic into separate, testable module".to_string(),
+        title: "Refactor calculator implementation".to_string(),
+        summary: "Add subtract method to Calculator struct".to_string(),
         decision_log_line: Some(15),
         code_impacts: vec![CodeImpact {
-            file: "src/lib.rs".to_string(),
-            line_ranges: vec![DecisionLineRange { start: 1, end: 50 }],
+            file: "src/models/calculator.rs".to_string(),
+            line_ranges: vec![DecisionLineRange { start: 1, end: 80 }],
             change_type: ChangeType::Modification,
             confidence: Confidence::High,
-            reasoning: "Main library module imports new auth module".to_string(),
+            reasoning: "Calculator trait implementation".to_string(),
         }],
     });
 
-    // Decision 2
+    // Decision 2: Uses typescript_react_component.json fixture
     decisions.add_decision(Decision {
         number: 2,
-        title: "Improve error handling across modules".to_string(),
-        summary: "Standardize error types and add context to error messages".to_string(),
+        title: "Improve React component structure".to_string(),
+        summary: "Refactor component to use hooks".to_string(),
         decision_log_line: Some(28),
         code_impacts: vec![CodeImpact {
-            file: "src/lib.rs".to_string(),
-            line_ranges: vec![DecisionLineRange { start: 1, end: 50 }],
+            file: "src/components/Button.tsx".to_string(),
+            line_ranges: vec![DecisionLineRange { start: 1, end: 100 }],
             change_type: ChangeType::Modification,
             confidence: Confidence::Medium,
-            reasoning: "Adds error context to library result types".to_string(),
+            reasoning: "React component refactoring".to_string(),
         }],
     });
 
-    // Decision 3
+    // Decision 3: No file impacts (orphaned decision)
     decisions.add_decision(Decision {
         number: 3,
-        title: "Add structured logging throughout application".to_string(),
-        summary: "Architectural decision: use tracing crate for observability".to_string(),
+        title: "Documentation improvements".to_string(),
+        summary: "Update README with new examples".to_string(),
         decision_log_line: Some(42),
         code_impacts: vec![],
     });
@@ -348,4 +348,37 @@ fn test_modifier_keys_work() {
     let _alt_x = harness
         .run_sequence_final_state("<A-x>")
         .expect("Alt+x key");
+}
+
+// =============================================================================
+// Approval System Tests
+// =============================================================================
+
+#[test]
+fn test_file_approval_event_conversion() {
+    // Test that when at file level (depth 1), ToggleApprove converts to ApproveFile event
+    // This is the regression test for the bug where file-level approval was silently failing
+
+    let engine = create_test_engine();
+    let mut harness = InputTestHarness::new(engine);
+
+    // Expand decision (Enter) and navigate to file (j)
+    let snapshots = harness.run_sequence("<Enter>j").expect("Run sequence");
+
+    // Verify we're at file level (depth 1)
+    assert_eq!(snapshots[snapshots.len() - 1].decision_tree_path.1.is_some(), true);
+    assert_eq!(snapshots[snapshots.len() - 1].decision_tree_path.2, None);
+
+    // The key test: pressing Space+a+a at file level should invoke approval
+    // Previously this would silently fail because current_reviewable_id() returned None
+    // Now it should call ApproveFile because current_file_path() is available
+
+    // Verify leader is deactivated after approval (showing the action succeeded)
+    let results_after_approval = harness
+        .run_sequence("<Space>aa")
+        .expect("Approval sequence failed");
+
+    // After Space+a+a, leader should be deactivated
+    let final_state = &results_after_approval[results_after_approval.len() - 1];
+    assert_eq!(final_state.leader_active, false, "Leader should be deactivated after approval");
 }
