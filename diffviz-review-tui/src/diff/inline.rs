@@ -16,20 +16,31 @@ pub struct InlineOldLine {
 pub type InlineDiffMap = HashMap<usize, InlineOldLine>;
 
 /// Derive inline "old" snippets by pairing deleted lines with their corresponding additions.
+///
+/// Skip inline old text for Added lines immediately following a Deleted line,
+/// as the deleted line already shows the old version above.
 pub fn derive_inline_diff_map(diff: &RenderableDiff<'_>) -> InlineDiffMap {
     let mut map = InlineDiffMap::default();
     let mut deleted_queue: VecDeque<&RenderableLine<'_>> = VecDeque::new();
 
-    for line in &diff.lines {
+    for (idx, line) in diff.lines.iter().enumerate() {
         match line.primary_change_type() {
             Some(ChangeType::Deleted) => {
                 deleted_queue.push_back(line);
             }
             Some(ChangeType::Added) | Some(ChangeType::Modified) => {
                 if let Some(old_line) = deleted_queue.pop_front() {
-                    let segments = derive_inline_segments(old_line.content, line.content);
-                    if !segments.is_empty() {
-                        map.insert(line.line_number, InlineOldLine { segments });
+                    // Skip inline if the deleted line immediately precedes this line
+                    let is_adjacent = idx > 0 && matches!(
+                        diff.lines[idx - 1].primary_change_type(),
+                        Some(ChangeType::Deleted)
+                    );
+
+                    if !is_adjacent {
+                        let segments = derive_inline_segments(old_line.content, line.content);
+                        if !segments.is_empty() {
+                            map.insert(line.line_number, InlineOldLine { segments });
+                        }
                     }
                 }
             }
