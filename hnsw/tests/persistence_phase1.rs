@@ -18,7 +18,7 @@ fn test_serialize_and_load_index() {
         HnswIndex::new_euclidean(params);
 
     // Insert some test vectors
-    let vectors = vec![
+    let vectors = [
         [1.0, 0.0, 0.0, 0.0],
         [0.0, 1.0, 0.0, 0.0],
         [0.0, 0.0, 1.0, 0.0],
@@ -83,7 +83,7 @@ fn test_serialize_and_load_index() {
 
     // Verify offsets
     let offsets = loaded_index.offsets();
-    assert!(offsets.len() > 0, "Offsets should not be empty");
+    assert!(!offsets.is_empty(), "Offsets should not be empty");
 
     // Verify we can read back a vector
     let vec0 = loaded_index.get_vector::<4>(&node_ids[0]);
@@ -183,7 +183,7 @@ fn test_vector_persistence_round_trip() {
         HnswIndex::new_euclidean(params);
 
     // Create and insert vectors with specific values
-    let vectors = vec![
+    let vectors = [
         [0.5, 0.5, 0.5, 0.5],
         [1.0, 2.0, 3.0, 4.0],
         [-1.0, -2.0, -3.0, -4.0],
@@ -207,8 +207,8 @@ fn test_vector_persistence_round_trip() {
     for (i, &node_id) in node_ids.iter().enumerate() {
         let loaded_vec = loaded_index
             .get_vector::<4>(&node_id)
-            .expect(&format!("Should be able to read vector {}", i));
-        assert_eq!(loaded_vec, &vectors[i], "Vector {} should match", i);
+            .unwrap_or_else(|| panic!("Should be able to read vector {i}"));
+        assert_eq!(loaded_vec, &vectors[i], "Vector {i} should match");
     }
 
     println!("✓ Vector persistence round-trip test passed");

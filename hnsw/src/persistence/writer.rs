@@ -66,9 +66,7 @@ impl IndexWriter {
 
         // Write all chunks sequentially
         for chunk_idx in 0..chunk_count as usize {
-            let chunk = index
-                .get_graph_chunk(chunk_idx)
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+            let chunk = index.get_graph_chunk(chunk_idx).map_err(io::Error::other)?;
             writer.write_all(chunk.as_ref())?;
         }
 
@@ -105,7 +103,7 @@ impl IndexWriter {
         for chunk_idx in 0..chunk_count as usize {
             let chunk = index
                 .get_vector_chunk(chunk_idx)
-                .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+                .map_err(io::Error::other)?;
             // chunk is &[f32; VECTOR_CHUNK_SIZE], write as bytes
             let bytes = unsafe {
                 std::slice::from_raw_parts(
@@ -142,9 +140,7 @@ impl IndexWriter {
         header.write_to(&mut header_buf[0..6]);
 
         // Get vector offsets from index
-        let offsets = index
-            .get_vector_offsets()
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let offsets = index.get_vector_offsets().map_err(io::Error::other)?;
 
         // Write offset count at offset 8
         let count = offsets.len() as u64;
@@ -183,9 +179,7 @@ impl IndexWriter {
         writer.write_all(&header_buf)?;
 
         // Collect metadata from index
-        let metadata = index
-            .get_metadata()
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let metadata = index.get_metadata().map_err(io::Error::other)?;
 
         // Write metadata
         let mut meta_buf = Vec::new();

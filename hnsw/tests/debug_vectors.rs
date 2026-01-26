@@ -16,31 +16,30 @@ fn debug_vector_serialization() {
     let vector = [1.0, 2.0, 3.0, 4.0];
     let node_id = index.insert(42u32, vector).expect("Failed to insert");
 
-    println!("Node ID: {:?}", node_id);
-    println!("Vector: {:?}", vector);
+    println!("Node ID: {node_id:?}");
+    println!("Vector: {vector:?}");
 
     // Check offsets before serialization
     let offsets = index.get_vector_offsets().expect("Failed to get offsets");
-    println!("Vector offsets before serialization: {:?}", offsets);
+    println!("Vector offsets before serialization: {offsets:?}");
     if node_id.to_usize() < offsets.len() {
         println!("Vector offset for node: {}", offsets[node_id.to_usize()]);
     }
 
     // Check what's in the vector before serialization
     let stored_vec = index.get_node_vector(node_id);
-    println!("Stored vector in memory: {:?}", stored_vec);
+    println!("Stored vector in memory: {stored_vec:?}");
 
     // Serialize
     IndexWriter::write(&index, &base_path).expect("Failed to serialize");
-    println!("Serialized to: {:?}", base_path);
+    println!("Serialized to: {base_path:?}");
 
     // Check file sizes
     let tape_size = std::fs::metadata(base_path.join("main.tape")).map(|m| m.len());
     let vectors_size = std::fs::metadata(base_path.join("main.vectors")).map(|m| m.len());
     let offsets_size = std::fs::metadata(base_path.join("main.offsets")).map(|m| m.len());
     println!(
-        "File sizes - tape: {:?}, vectors: {:?}, offsets: {:?}",
-        tape_size, vectors_size, offsets_size
+        "File sizes - tape: {tape_size:?}, vectors: {vectors_size:?}, offsets: {offsets_size:?}"
     );
 
     // Load offsets file manually
@@ -58,13 +57,13 @@ fn debug_vector_serialization() {
             offsets_data[12],
             offsets_data[13],
         ]) as usize;
-        println!("Offset count: {}", count);
+        println!("Offset count: {count}");
         for i in 0..count.min(3) {
             let pos = 14 + i * 8;
             if pos + 8 <= offsets_data.len() {
                 let offset_bytes: [u8; 8] = offsets_data[pos..pos + 8].try_into().unwrap();
                 let offset = usize::from_le_bytes(offset_bytes);
-                println!("  Offset[{}]: {}", i, offset);
+                println!("  Offset[{i}]: {offset}");
             }
         }
     }
@@ -79,10 +78,10 @@ fn debug_vector_serialization() {
     );
 
     let loaded_offsets = loaded_index.offsets();
-    println!("Loaded offsets: {:?}", loaded_offsets);
+    println!("Loaded offsets: {loaded_offsets:?}");
 
     let loaded_vec = loaded_index.get_vector::<4>(&node_id);
-    println!("Loaded vector: {:?}", loaded_vec);
+    println!("Loaded vector: {loaded_vec:?}");
     if let Some(v) = loaded_vec {
         println!("Vector matches: {}", v == &vector);
     }

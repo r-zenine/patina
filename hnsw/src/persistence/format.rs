@@ -1,5 +1,4 @@
 /// Magic numbers and version constants for persistence format
-
 pub const MAGIC_TAPE: &[u8; 4] = b"HTAP";
 pub const MAGIC_VECTORS: &[u8; 4] = b"HVEC";
 pub const MAGIC_META: &[u8; 4] = b"HMET";

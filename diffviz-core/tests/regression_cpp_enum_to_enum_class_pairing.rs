@@ -17,10 +17,10 @@ After the fix:
 */
 
 use diffviz_core::{
+    LanguageParser,
     ast_diff::{LineRange, NodeLike, SourceError, SourceProvider},
     parsers::cpp::CppParser,
     semantic_ast::build_semantic_pairs,
-    LanguageParser,
 };
 
 #[derive(Clone)]

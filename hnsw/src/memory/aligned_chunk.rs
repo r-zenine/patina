@@ -6,6 +6,15 @@ pub struct AlignedChunk<T, const CHUNK_SIZE: usize> {
     data: [T; CHUNK_SIZE],
 }
 
+impl<T, const CHUNK_SIZE: usize> Default for AlignedChunk<T, CHUNK_SIZE>
+where
+    T: Copy + Default + Sized,
+{
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T, const CHUNK_SIZE: usize> AlignedChunk<T, CHUNK_SIZE>
 where
     T: Copy + Default + Sized,
