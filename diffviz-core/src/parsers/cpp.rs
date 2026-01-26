@@ -773,8 +773,25 @@ impl LanguageParser for CppParser {
                             // Template transformation - significant change but same entity
                             SemanticSimilarity::signature_change(true, 0.8)
                         } else {
-                            // Same template status - likely structural changes
-                            SemanticSimilarity::structural_refactor(0.9)
+                            // Check for enum -> enum class transformation
+                            let old_enum_type = self.check_enum_type(old);
+                            let new_enum_type = self.check_enum_type(new);
+
+                            if old_enum_type != new_enum_type {
+                                if matches!(
+                                    (&old_enum_type, &new_enum_type),
+                                    (Some(old), Some(new)) if (old == "enum" && new == "enum_class") || (old == "enum_class" && new == "enum")
+                                ) {
+                                    // Enum type transformation - significant signature change but same entity
+                                    SemanticSimilarity::signature_change(true, 0.8)
+                                } else {
+                                    // Same template status - likely structural changes
+                                    SemanticSimilarity::structural_refactor(0.9)
+                                }
+                            } else {
+                                // Same template and enum status - likely structural changes
+                                SemanticSimilarity::structural_refactor(0.9)
+                            }
                         }
                     }
                 } else {
@@ -885,6 +902,15 @@ impl CppParser {
             SemanticUnitType::DataStructure { is_generic, .. }
             | SemanticUnitType::Callable { is_generic, .. } => *is_generic,
             _ => false,
+        }
+    }
+
+    /// Check the enum type (enum vs enum class) from metadata
+    fn check_enum_type(&self, node: &SemanticNode) -> Option<String> {
+        if let SemanticUnitType::DataStructure { metadata, .. } = &node.unit_type {
+            metadata.get("type").cloned()
+        } else {
+            None
         }
     }
 }
