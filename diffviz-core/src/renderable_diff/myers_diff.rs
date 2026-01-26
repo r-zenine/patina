@@ -16,6 +16,8 @@ pub enum DiffOp {
     Add { line: String },
     /// Delete a line
     Delete { line: String },
+    /// Modify a line (old line changed to new line)
+    Modify { old_line: String, new_line: String },
 }
 
 /// Result of Myers diff algorithm
@@ -88,6 +90,11 @@ pub fn myers_diff_semantic(
         match op {
             DiffOp::Add { .. } => additions += 1,
             DiffOp::Delete { .. } => deletions += 1,
+            DiffOp::Modify { .. } => {
+                // Modify counts as both an addition and deletion from diff perspective
+                additions += 1;
+                deletions += 1;
+            }
             DiffOp::Keep { .. } => {}
         }
     }
@@ -151,6 +158,11 @@ pub fn myers_diff(old_lines: &[&str], new_lines: &[&str]) -> DiffResult {
         match op {
             DiffOp::Add { .. } => additions += 1,
             DiffOp::Delete { .. } => deletions += 1,
+            DiffOp::Modify { .. } => {
+                // Modify counts as both an addition and deletion from diff perspective
+                additions += 1;
+                deletions += 1;
+            }
             DiffOp::Keep { .. } => {}
         }
     }
@@ -337,12 +349,10 @@ fn backtrack_operations_semantic(
                         line: old_lines[(x - 1) as usize].0.to_string(),
                     });
                 } else {
-                    // Semantically related but different - generate Delete + Add
-                    operations.push(DiffOp::Delete {
-                        line: old_lines[(x - 1) as usize].0.to_string(),
-                    });
-                    operations.push(DiffOp::Add {
-                        line: new_lines[(y - 1) as usize].0.to_string(),
+                    // Semantically related but different - generate Modify operation
+                    operations.push(DiffOp::Modify {
+                        old_line: old_lines[(x - 1) as usize].0.to_string(),
+                        new_line: new_lines[(y - 1) as usize].0.to_string(),
                     });
                 }
                 x -= 1;

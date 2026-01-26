@@ -52,11 +52,10 @@ pub fn ui_event_to_business_event(ui_event: &UiEvent, ui_state: &UiState) -> Opt
             } else if let Some(reviewable_id) = ui_state.current_reviewable_id() {
                 // At depth 2 (chunk level), approve the chunk
                 Some(BusinessEvent::ToggleApprove { reviewable_id })
-            } else if let Some(file_path) = ui_state.current_file_path() {
-                // At depth 1 (file level), approve the entire file
-                Some(BusinessEvent::ApproveFile { file_path })
             } else {
-                None
+                ui_state
+                    .current_file_path()
+                    .map(|file_path| BusinessEvent::ApproveFile { file_path })
             }
         }
 

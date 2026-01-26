@@ -2,53 +2,57 @@
 //!
 //! This module defines colors, icons, and styles used throughout the interface,
 //! providing a consistent visual experience.
+//!
+//! Uses a Dracula-inspired color scheme for excellent readability and reduced eye strain.
 
-use ratatui::style::{Color, Style};
+use ratatui::style::{Color, Modifier, Style};
 
-/// Color palette for the TUI
+/// Color palette for the TUI (Dracula-inspired)
 pub struct Colors;
 
 impl Colors {
-    // Base colors
+    // Dracula base colors
+    // Background: #282a36, Foreground: #f8f8f2, Selection: #44475a, Comment: #6272a4
     pub const BACKGROUND: Color = Color::Reset;
-    pub const TEXT_PRIMARY: Color = Color::White;
-    pub const TEXT_SECONDARY: Color = Color::Gray;
-    pub const TEXT_MUTED: Color = Color::DarkGray;
+    pub const TEXT_PRIMARY: Color = Color::Rgb(248, 248, 242); // Off-white foreground
+    pub const TEXT_SECONDARY: Color = Color::Rgb(98, 114, 164); // Dracula comment
+    pub const TEXT_MUTED: Color = Color::Rgb(68, 71, 90); // Dracula selection
+    pub const ACCENT_1: Color = Color::Rgb(139, 233, 253); // Dracula cyan (bright)
+    pub const ACCENT_2: Color = Color::Rgb(189, 147, 249); // Dracula purple
+    pub const ACCENT_3: Color = Color::Rgb(255, 166, 0); // Saturated orange (high contrast)
 
-    // Status colors
-    pub const SUCCESS: Color = Color::Green;
-    pub const WARNING: Color = Color::Yellow;
-    pub const ERROR: Color = Color::Red;
-    pub const INFO: Color = Color::Blue;
+    // Status colors (Dracula-adjusted)
+    pub const SUCCESS: Color = Color::Rgb(80, 250, 123); // Dracula green (bright)
+    pub const WARNING: Color = Color::Rgb(214, 190, 110); // Muted golden yellow
+    pub const ERROR: Color = Color::Rgb(255, 121, 198); // Dracula pink
+    pub const INFO: Color = Color::Rgb(139, 233, 253); // Dracula cyan
 
-    // Diff colors
-    pub const DIFF_ADDED: Color = Color::Green;
-    pub const DIFF_REMOVED: Color = Color::Red;
-    pub const DIFF_CONTEXT: Color = Color::Gray;
-    pub const DIFF_ADDED_BG: Color = Color::Rgb(0, 64, 0);
-    pub const DIFF_REMOVED_BG: Color = Color::Rgb(64, 0, 0);
+    // Diff colors (Dracula-adjusted for better readability)
+    pub const DIFF_ADDED: Color = Color::Rgb(80, 250, 123); // Dracula green
+    pub const DIFF_REMOVED: Color = Color::Rgb(255, 121, 198); // Dracula pink
+    pub const DIFF_CONTEXT: Color = Color::Rgb(98, 114, 164); // Dracula comment
 
-    // File status colors
-    pub const FILE_ADDED: Color = Color::Green;
-    pub const FILE_DELETED: Color = Color::Red;
-    pub const FILE_MODIFIED: Color = Color::Yellow;
-    pub const FILE_RENAMED: Color = Color::Blue;
-    pub const FILE_COPIED: Color = Color::Cyan;
+    // File status colors (Dracula-adjusted)
+    pub const FILE_ADDED: Color = Color::Rgb(80, 250, 123); // Green
+    pub const FILE_DELETED: Color = Color::Rgb(255, 121, 198); // Pink
+    pub const FILE_MODIFIED: Color = Color::Rgb(214, 190, 110); // Muted golden yellow
+    pub const FILE_RENAMED: Color = Color::Rgb(139, 233, 253); // Cyan
+    pub const FILE_COPIED: Color = Color::Rgb(189, 147, 249); // Purple
 
-    // Additional UI colors
-    pub const CYAN: Color = Color::Cyan;
-    pub const RED: Color = Color::Red;
-    pub const GREEN: Color = Color::Green;
-    pub const BLUE: Color = Color::Blue;
-    pub const YELLOW: Color = Color::Yellow;
-    pub const WHITE: Color = Color::White;
-    pub const BLACK: Color = Color::Black;
+    // Additional UI colors (Dracula palette)
+    pub const CYAN: Color = Color::Rgb(139, 233, 253);
+    pub const RED: Color = Color::Rgb(255, 85, 85); // Dracula red
+    pub const GREEN: Color = Color::Rgb(80, 250, 123);
+    pub const BLUE: Color = Color::Rgb(139, 233, 253);
+    pub const YELLOW: Color = Color::Rgb(214, 190, 110); // Muted golden yellow
+    pub const WHITE: Color = Color::Rgb(248, 248, 242);
+    pub const BLACK: Color = Color::Rgb(40, 42, 54);
 
     // UI element colors
-    pub const BORDER: Color = Color::Gray;
-    pub const BORDER_FOCUSED: Color = Color::Blue;
-    pub const SELECTION: Color = Color::Blue;
-    pub const SELECTION_BG: Color = Color::Rgb(0, 32, 64);
+    pub const BORDER: Color = Color::Rgb(98, 114, 164); // Dracula comment
+    pub const BORDER_FOCUSED: Color = Color::Rgb(139, 233, 253); // Cyan for focus
+    pub const SELECTION: Color = Color::Rgb(248, 248, 242); // Primary text
+    pub const SELECTION_BG: Color = Color::Rgb(98, 114, 164); // Comment color bg
 }
 
 /// Icons and symbols used in the interface
@@ -146,16 +150,16 @@ impl Styles {
         Style::default().fg(Colors::DIFF_CONTEXT)
     }
 
-    pub fn diff_added_bg() -> Style {
+    pub fn diff_added_with_bg() -> Style {
         Style::default()
             .fg(Colors::DIFF_ADDED)
-            .bg(Colors::DIFF_ADDED_BG)
+            .add_modifier(Modifier::BOLD)
     }
 
-    pub fn diff_removed_bg() -> Style {
+    pub fn diff_removed_with_bg() -> Style {
         Style::default()
             .fg(Colors::DIFF_REMOVED)
-            .bg(Colors::DIFF_REMOVED_BG)
+            .add_modifier(Modifier::BOLD)
     }
 
     pub fn focused_border() -> Style {

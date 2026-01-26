@@ -1,4 +1,5 @@
 use crate::diff::inline::derive_inline_diff_map;
+use crate::theme::Colors;
 use diffviz_core::ast_diff::BACKGROUND;
 use diffviz_core::renderable_diff::{ChangeType, RenderableDiff, RenderableLine};
 use ratatui::{
@@ -272,28 +273,34 @@ fn line_to_spans(
 
     // Gutter bracket (2 chars)
     let bracket_text = render_gutter_bracket(gutter_position);
-    let bracket_style = Style::default().fg(Color::Cyan);
+    let bracket_style = Style::default().fg(Color::Cyan).bg(Color::Reset);
     spans.push(Span::styled(bracket_text, bracket_style));
 
     // Line number (4 chars, right-aligned)
     spans.push(Span::styled(
         format!("{:>4}", line.line_number),
         if is_cursor {
-            Style::default().fg(Color::Yellow)
+            Style::default()
+                .fg(Colors::SUCCESS)
+                .bg(Color::Reset)
+                .add_modifier(Modifier::BOLD)
         } else {
-            Style::default().fg(Color::DarkGray)
+            Style::default().fg(Color::DarkGray).bg(Color::Reset)
         },
     ));
 
     // Change indicator (1 char)
     let indicator_style = if is_cursor {
         Style::default()
-            .fg(Color::Yellow)
+            .fg(Colors::TEXT_PRIMARY)
+            .bg(Color::Reset)
             .add_modifier(Modifier::BOLD)
     } else if is_context_line {
-        Style::default().fg(Color::DarkGray)
+        Style::default().fg(Color::DarkGray).bg(Color::Reset)
     } else {
         style_for_change(change.as_ref())
+            .bg(Color::Reset)
+            .add_modifier(Modifier::BOLD)
     };
     spans.push(Span::styled(indicator, indicator_style));
 
@@ -301,9 +308,9 @@ fn line_to_spans(
     spans.push(Span::raw(" "));
 
     let content_style = if is_context_line {
-        Style::default().fg(Color::DarkGray)
+        Style::default().fg(Color::DarkGray).bg(Color::Reset)
     } else {
-        style_for_change(change.as_ref())
+        style_for_change(change.as_ref()).bg(Color::Reset)
     };
     spans.push(Span::styled(line.content.to_string(), content_style));
 
@@ -312,10 +319,12 @@ fn line_to_spans(
             let anchor_style = if is_context_line {
                 Style::default()
                     .fg(Color::DarkGray)
+                    .bg(Color::Reset)
                     .add_modifier(Modifier::ITALIC)
             } else {
                 Style::default()
                     .fg(Color::Cyan)
+                    .bg(Color::Reset)
                     .add_modifier(Modifier::ITALIC)
             };
             spans.push(Span::raw(" "));
@@ -328,10 +337,15 @@ fn line_to_spans(
 
     let mut rendered = Line::from(spans);
     if is_selected {
-        rendered = rendered.style(Style::default().bg(Color::DarkGray).fg(Color::White));
+        rendered = rendered.style(Style::default().fg(Colors::ACCENT_1).bg(Color::Reset));
     }
     if is_cursor {
-        rendered = rendered.style(Style::default().bg(Color::Yellow).fg(Color::Black));
+        rendered = rendered.style(
+            Style::default()
+                .fg(Colors::SUCCESS)
+                .bg(Color::Reset)
+                .add_modifier(Modifier::BOLD),
+        );
     }
 
     rendered
@@ -406,14 +420,20 @@ fn create_inline_old_line(
         .collect();
 
     let mut spans = Vec::new();
-    spans.push(Span::styled("    ", Style::default().fg(Color::DarkGray)));
+    spans.push(Span::styled(
+        "    ",
+        Style::default().fg(Color::DarkGray).bg(Color::Reset),
+    ));
     spans.push(Span::raw(" "));
-    spans.push(Span::styled("↺", Style::default().fg(Color::DarkGray)));
+    spans.push(Span::styled(
+        "↺",
+        Style::default().fg(Color::DarkGray).bg(Color::Reset),
+    ));
     spans.push(Span::raw(" "));
     if !indent.is_empty() {
         spans.push(Span::styled(
             indent.clone(),
-            Style::default().fg(Color::DarkGray),
+            Style::default().fg(Color::DarkGray).bg(Color::Reset),
         ));
     }
 
@@ -422,14 +442,18 @@ fn create_inline_old_line(
     for segment in &inline.segments {
         if segment.start_col > current_col {
             let pad = " ".repeat(segment.start_col - current_col);
-            spans.push(Span::styled(pad, Style::default().fg(Color::DarkGray)));
+            spans.push(Span::styled(
+                pad,
+                Style::default().fg(Color::DarkGray).bg(Color::Reset),
+            ));
             current_col = segment.start_col;
         }
 
         spans.push(Span::styled(
             segment.text.clone(),
             Style::default()
-                .fg(Color::LightMagenta)
+                .fg(Colors::ACCENT_1)
+                .bg(Color::Reset)
                 .add_modifier(Modifier::ITALIC),
         ));
         current_col += segment.text.chars().count();
@@ -451,11 +475,11 @@ fn change_indicator(change: Option<&ChangeType>) -> String {
 
 fn style_for_change(change: Option<&ChangeType>) -> Style {
     match change {
-        Some(ChangeType::Added) => Style::default().fg(Color::Green),
-        Some(ChangeType::Deleted) => Style::default().fg(Color::Red),
-        Some(ChangeType::Modified) => Style::default().fg(Color::Yellow),
-        Some(ChangeType::Moved) => Style::default().fg(Color::Blue),
-        Some(ChangeType::Reordered) => Style::default().fg(Color::Magenta),
+        Some(ChangeType::Added) => Style::default().fg(Colors::DIFF_ADDED),
+        Some(ChangeType::Deleted) => Style::default().fg(Colors::DIFF_REMOVED),
+        Some(ChangeType::Modified) => Style::default().fg(Colors::WARNING),
+        Some(ChangeType::Moved) => Style::default().fg(Colors::ACCENT_3),
+        Some(ChangeType::Reordered) => Style::default().fg(Colors::ACCENT_2),
         None => Style::default().fg(Color::Gray),
     }
 }

@@ -366,7 +366,13 @@ fn test_file_approval_event_conversion() {
     let snapshots = harness.run_sequence("<Enter>j").expect("Run sequence");
 
     // Verify we're at file level (depth 1)
-    assert_eq!(snapshots[snapshots.len() - 1].decision_tree_path.1.is_some(), true);
+    assert_eq!(
+        snapshots[snapshots.len() - 1]
+            .decision_tree_path
+            .1
+            .is_some(),
+        true
+    );
     assert_eq!(snapshots[snapshots.len() - 1].decision_tree_path.2, None);
 
     // The key test: pressing Space+a+a at file level should invoke approval
@@ -380,5 +386,8 @@ fn test_file_approval_event_conversion() {
 
     // After Space+a+a, leader should be deactivated
     let final_state = &results_after_approval[results_after_approval.len() - 1];
-    assert_eq!(final_state.leader_active, false, "Leader should be deactivated after approval");
+    assert_eq!(
+        final_state.leader_active, false,
+        "Leader should be deactivated after approval"
+    );
 }
