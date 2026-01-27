@@ -965,6 +965,10 @@ impl ReviewEngine {
     pub fn get_all_decisions(&self) -> Vec<&crate::entities::Decision> {
         self.state.decisions.all_decisions()
     }
+
+    pub fn get_approved_decisions_count(&self) -> usize {
+        self.state.decision_approvals.total_approved()
+    }
 }
 
 /// Review progress information

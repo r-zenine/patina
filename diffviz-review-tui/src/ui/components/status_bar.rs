@@ -83,32 +83,23 @@ fn create_state_info(ui_state: &UiState, review_engine: &ReviewEngine) -> Line<'
             format!("📄 {file_name}"),
             Style::default().fg(Colors::BLUE),
         ));
-
-        // Review progress for current file
-        let total_in_file = review_engine
-            .get_ordered_reviewable_ids()
-            .iter()
-            .filter(|id| id.file_path == file_path)
-            .count();
-
-        let approved_in_file = review_engine
-            .get_ordered_reviewable_ids()
-            .iter()
-            .filter(|id| id.file_path == *file_path && review_engine.state().is_approved(id))
-            .count();
-
-        spans.push(Span::styled(" | ", Styles::muted()));
-        spans.push(Span::styled(
-            format!("{approved_in_file}/{total_in_file} approved"),
-            if approved_in_file == total_in_file {
-                Style::default().fg(Colors::GREEN)
-            } else {
-                Style::default().fg(Colors::YELLOW)
-            },
-        ));
     }
 
+    let total_decisions = review_engine.get_all_decisions().len();
+    let approved_decisions = review_engine.get_approved_decisions_count();
+
+    spans.push(Span::styled(" | ", Styles::muted()));
+    spans.push(Span::styled(
+        format!("Decision: {approved_decisions}/{total_decisions}"),
+        if total_decisions == approved_decisions {
+            Style::default().fg(Colors::GREEN)
+        } else {
+            Style::default().fg(Colors::WHITE)
+        },
+    ));
+
     // Overall progress
+    //
     let total_reviewables = review_engine.get_ordered_reviewable_ids().len();
     let total_approved = review_engine
         .get_ordered_reviewable_ids()
