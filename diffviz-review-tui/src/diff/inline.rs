@@ -1,6 +1,6 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 
-use diffviz_core::renderable_diff::{ChangeType, RenderableDiff, RenderableLine};
+use diffviz_core::renderable_diff::RenderableDiff;
 
 #[derive(Debug, Clone)]
 pub struct InlineOldSegment {
@@ -17,38 +17,13 @@ pub type InlineDiffMap = HashMap<usize, InlineOldLine>;
 
 /// Derive inline "old" snippets by pairing deleted lines with their corresponding additions.
 ///
-/// Skip inline old text for Added lines immediately following a Deleted line,
-/// as the deleted line already shows the old version above.
-pub fn derive_inline_diff_map(diff: &RenderableDiff<'_>) -> InlineDiffMap {
-    let mut map = InlineDiffMap::default();
-    let mut deleted_queue: VecDeque<&RenderableLine<'_>> = VecDeque::new();
-
-    for (idx, line) in diff.lines.iter().enumerate() {
-        match line.primary_change_type() {
-            Some(ChangeType::Deleted) => {
-                deleted_queue.push_back(line);
-            }
-            Some(ChangeType::Added) | Some(ChangeType::Modified) => {
-                if let Some(old_line) = deleted_queue.pop_front() {
-                    // Skip inline if the deleted line immediately precedes this line
-                    let is_adjacent = idx > 0 && matches!(
-                        diff.lines[idx - 1].primary_change_type(),
-                        Some(ChangeType::Deleted)
-                    );
-
-                    if !is_adjacent {
-                        let segments = derive_inline_segments(old_line.content, line.content);
-                        if !segments.is_empty() {
-                            map.insert(line.line_number, InlineOldLine { segments });
-                        }
-                    }
-                }
-            }
-            _ => {}
-        }
-    }
-
-    map
+/// With semantic pairing enabled, all Deleted+Added pairs are now adjacent (from Modify operations),
+/// making inline old text visualization redundant. The Deleted line already shows the old version
+/// directly above the Added line.
+pub fn derive_inline_diff_map(_diff: &RenderableDiff<'_>) -> InlineDiffMap {
+    // Disabled: semantic pairing renders all modifications as adjacent Deleted+Added lines,
+    // making inline old text redundant. The deleted line is always directly above the added line.
+    InlineDiffMap::default()
 }
 
 /// Compute the differing fragment between two strings, returning start column and text.
