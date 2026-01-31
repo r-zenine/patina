@@ -1,42 +1,36 @@
-# Known Bugs - diffviz-core
+# Active Bugs - diffviz-core
 
-This file tracks known bugs in the diffviz-core crate. Each bug has a corresponding test case that reproduces the issue.
-
-## Active Bugs
-
-### Bug #1: Phantom changes detected in unchanged functions
-- **GitHub Issue**: https://github.com/r-zenine/diffviz/issues/1
-- **Test Location**: `tests/bug_issue_1.rs`
-- **Description**: DiffViz incorrectly identifies unchanged functions as having changes when only one function in a file is modified. For example, when modifying only `compare_semantic_units`, other functions like `build_impl_items` are incorrectly marked as changed.
-- **Status**: Active (test is ignored)
-- **Impact**: Creates false positive "phantom changes" that add noise to code reviews
-
-### Bug #2: Python semantic analysis creates excessive false positive boundaries
-- **GitHub Issue**: _To be created_
-- **Test Location**: `tests/bug_issue_2.rs`
-- **Description**: DiffViz Python parser over-decomposes semantic units, creating excessive boundaries with duplicates. Issues include: (1) enum values treated as separate functions and duplicated, (2) individual statements treated as separate boundaries, (3) file modifications treated as delete+add instead of modifications, (4) class definitions not properly grouped semantically.
-- **Status**: Active (test is ignored)
-- **Impact**: Creates 20+ semantic boundaries for simple changes that should have ~5-6, making reviews overwhelming with false positives
-- **Example**: Adding a class and enum to a basic Python script produces 20 boundaries instead of expected 5-6
-
-### Bug #3: Go semantic analysis creates duplicate boundaries and over-decomposition
-- **GitHub Issue**: _To be created_
-- **Test Location**: `tests/bug_issue_3.rs`
-- **Description**: DiffViz Go parser creates duplicate and over-decomposed semantic boundaries. Issues include: (1) package declarations shown as deleted+added instead of unchanged, (2) struct definitions decomposed into multiple separate boundaries (type+struct+name), (3) modules duplicated as separate boundaries, (4) "Unknown" semantic nodes created inappropriately.
-- **Status**: Active (test is ignored)
-- **Impact**: Creates 8+ semantic boundaries for changes that should have ~5, with duplicate modules and over-decomposed structs
-- **Example**: Adding struct and methods to basic Go program produces 8 boundaries instead of expected 5-6
-
-## Fixed Bugs
-
-_No fixed bugs yet - once a bug is fixed, remove the #[ignore] attribute from its test and move this entry to the Fixed Bugs section_
+(No active bugs tracked - see Fixed Bugs section below)
 
 ---
 
-## Test Commands
+# Fixed Bugs
 
-- Run all ignored bug tests: `cargo test --package diffviz-core -- --ignored`
-- Run specific bug test: `cargo test --package diffviz-core bug_1_phantom_changes -- --ignored`
-- Run Bug #2 tests: `cargo test --package diffviz-core bug_2_python -- --ignored`
-- Run Bug #3 tests: `cargo test --package diffviz-core bug_3_go -- --ignored`
-- Check all tests (including fixed): `cargo test --package diffviz-core`
+## ✅ Bug: Parent-Child Node Deletion Overlap (FIXED)
+
+**Issue**: When a parent AST node is deleted (e.g., a class declaration), the algorithm reported BOTH:
+1. The parent node deletion as a separate semantic pair
+2. All child node deletions (e.g., method definitions) as individual semantic pairs
+
+This created redundant/overlapping semantic pairs that represented the same structural change.
+
+**Impact**:
+- Review systems showed the same deletion at multiple nesting levels
+- Duplicate review items for logically identical changes
+- Confused reviewers about what actually changed
+
+**Affected Languages**: All languages (language-agnostic Tree-sitter bug)
+
+**Test Location**: `tests/bug_parent_child_deletion_overlap.rs`
+- `typescript_class_to_functional_refactor_overlap()` - [PASSING] ✅
+- `rust_struct_impl_deletion_overlap()` - [PASSING] ✅
+
+**Solution**: Modified `build_semantic_pairs()` and `build_semantic_pairs_with_coverage()` in `semantic_ast.rs` to call `mark_node_and_children_as_used()` after creating deletion/addition pairs in Phase 2. This ensures that when a parent node is processed as a deletion/addition, all its children are marked as used and won't create separate redundant pairs.
+
+**Changes**:
+- `semantic_ast.rs` lines 990-1001: Added child marking for `build_semantic_pairs()`
+- `semantic_ast.rs` lines 1089-1100: Added child marking for `build_semantic_pairs_with_coverage()`
+
+**Behavior Change**:
+- Before: Multiple overlapping deletion pairs for parent + all children
+- After: Single deletion pair for parent node (children implicitly included)

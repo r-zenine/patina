@@ -9,12 +9,14 @@ Orchestrates the code review workflow by managing review state, decisions, appro
 - State mutation through builder pattern: methods return `&mut Self` for chaining
 - DiffProvider trait for dependency inversion: infrastructure provides git capabilities to review layer
 - Decision-based review system: maps architectural decisions to code changes with reverse indexing
+- Fixture-based testing: JSON fixture files loaded via MockDiffProvider for predictable testing
 
 **Reusable DTOs/Types:**
 - `ReviewableDiffId`: Universal identifier combining (DiffQuery, file_path, LineRange) - use this everywhere for identifying review items
 - `ReviewState`: Central state container with approvals, instructions, decisions, and reviewable_diffs
 - `Decision`, `Approval`, `Instruction`: Core review entities organized by ReviewableDiffId
 - `DiffQuery` and `GitRef`: Type-safe git reference modeling (avoid hardcoded strings)
+- `ReviewFixture`: Test fixture structure for loading curated test data
 
 **Integration Points:**
 - Depends on diffviz-core for semantic analysis (ReviewableDiff, RenderableDiff, AST parsing)
@@ -23,24 +25,193 @@ Orchestrates the code review workflow by managing review state, decisions, appro
 
 ## Key Abstractions to Reuse
 
-### ReviewState (state/mod.rs)
-Central state container for all review data. Contains:
-- `reviewable_diffs: BTreeMap<ReviewableDiffId, ReviewableDiff>` - ordered by file and line range
-- `approvals: ReviewApprovals` - approval tracking by ReviewableDiffId
-- `instructions: ReviewInstructions` - instruction collection by ReviewableDiffId
-- `decisions: ReviewDecisions` - decision-to-code mapping with reverse index
-- `journey: ReviewJourney` - placeholder for review journey tracking (currently minimal)
+### ReviewEngineBuilder (review_engine_builder.rs) - CRITICAL PIPELINE ORCHESTRATOR
 
-Query methods: `is_approved()`, `get_instructions()`, `approval_progress()`, `check_instruction_overlap()`
-Mutation methods: `approve()`, `unapprove()`, `add_instruction()` (return `&mut Self`)
+**Purpose:** Transforms git diffs into ReviewEngine with semantic ReviewableDiffs.
+
+**Construction:**
+```rust
+let builder = ReviewEngineBuilder::new(
+    diff_provider: Box<dyn DiffProvider>,
+    author: String
+);
+```
+
+**The Complete Pipeline (build method):**
+
+1. **DiffProvider → Changed Files**
+   - Calls `diff_provider.get_changed_files(&query)`
+   - Returns `Vec<(String, FileStatus)>` of changed files
+   - FileStatus: Added, Modified, Deleted, Renamed, Copied, Untracked
+
+2. **File Filtering**
+   - Skips unsupported file types (only processes: rs, py, go, java, ts, tsx, js, jsx, c, h, cpp, cxx, hpp, hxx)
+   - Skips deleted files (semantic analysis requires both old and new content)
+   - Uses `is_supported_file()` helper for extension matching
+
+3. **Semantic Analysis Per File** (create_semantic_reviewable_diffs)
+   - **Step 3a: Get Parser** - `get_language_parser_for_file()` returns language-specific parser
+   - **Step 3b: Fetch Content** - DiffProvider gets old/new source code via `get_source_code(file, &query.from/to)`
+   - **Step 3c: Parse AST** - `parser.try_parse()` builds TreeSitter AST for old and new
+   - **Step 3d: Build Semantic Trees** - `parser.build_semantic_tree()` converts AST to semantic representation
+   - **Step 3e: Build Semantic Pairs** - `build_semantic_pairs(old, new, old_source, new_source)` detects changes
+   - **Step 3f: Convert to ReviewableDiffs** - `semantic_pairs_to_reviewable_diffs()` with context expansion
+   - **Step 3g: Wrap with Review Layer** - Create ReviewableDiffId and wrap core diff
+
+4. **ReviewEngine Creation**
+   - Collects all ReviewableDiffs from all files
+   - Calls `ReviewEngine::new(all_diffs, author, diff_provider)`
+   - Returns ready-to-use ReviewEngine
+
+**Special Handling:**
+- **Added/Untracked Files**: Old content = empty string (special method `create_semantic_reviewable_diffs_for_added_file`)
+- **Line Range Extraction**: Uses `extract_line_range_from_core_diff()` which:
+  - Inspects boundary node's change status (Unchanged/Added/Deleted/Modified/Moved/Reordered)
+  - Selects appropriate source provider (old or new)
+  - Calls `source_provider.line_range(node)` to get actual line range
+  - Converts core LineRange to review layer LineRange
+
+**ReviewableDiffId Generation:**
+- Format: `{file_path}#{index}` for uniqueness (e.g., "src/auth.rs#0", "src/auth.rs#1")
+- Index ensures multiple semantic pairs from same file get unique IDs
+- LineRange extracted from core diff boundary node
+
+### ReviewState (state/mod.rs) - CENTRAL STATE CONTAINER
+
+**Structure:**
+```rust
+pub struct ReviewState {
+    reviewable_diffs: BTreeMap<ReviewableDiffId, ReviewableDiff>,
+    approvals: ReviewApprovals,
+    instructions: ReviewInstructions,
+    decisions: ReviewDecisions,
+    decision_approvals: DecisionApprovals,
+    journey: ReviewJourney,
+    author: String,
+    session_metadata: Option<SessionMetadata>,
+}
+```
+
+**Relationship with ReviewableDiff:**
+- BTreeMap ensures ordered iteration by file path → query → line range
+- ReviewableDiff = wrapper around core ReviewableDiff with review metadata (id, file_path)
+- Each ReviewableDiff has unique ReviewableDiffId that serves as key for all review operations
+
+**Query Methods:**
+- `is_approved(&ReviewableDiffId)` - check approval status
+- `get_instructions(&ReviewableDiffId)` - get instructions for specific diff
+- `approval_progress()` - (approved, total, percentage)
+- `get_reviewable_diff(&ReviewableDiffId)` - retrieve specific diff
+- `get_reviewable_diffs_by_file()` - group diffs by file path
+- `get_ordered_reviewable_ids()` - ordered iteration of all IDs
+
+**Mutation Methods (return &mut Self for chaining):**
+- `approve(ReviewableDiffId, reviewer)` - approve a diff
+- `unapprove(&ReviewableDiffId)` - remove approval
+- `add_instruction(Instruction)` - add instruction
+- `approve_all_in_file(file_path, reviewer)` - bulk approve file
+
+### ReviewableDiff Wrapper (state/mod.rs)
+
+**Purpose:** Review layer wrapper around core ReviewableDiff from diffviz-core.
+
+**Structure:**
+```rust
+pub struct ReviewableDiff {
+    pub id: ReviewableDiffId,           // Review layer identifier
+    pub core_diff: CoreReviewableDiff,  // Core semantic diff from diffviz-core
+    pub file_path: String,              // Convenience field for review layer
+}
+```
+
+**Key Methods:**
+- `language()` - get programming language
+- `total_changes()` - get change count
+- `boundary_name()` - display name for boundary node
+
+**Relationship to ReviewableDiffId:**
+- ReviewableDiffId is constructed from: DiffQuery + file_path + LineRange
+- LineRange comes from core_diff.boundary node's position in source
+- file_path with #index suffix ensures uniqueness when multiple diffs from same file
 
 ### ReviewableDiffId (entities/reviewable_diff_id.rs)
+
 Universal identifier for review items. Triplet of:
 - `query: DiffQuery` - what comparison (HEAD..unstaged, commit..commit, etc.)
-- `file_path: String` - which file
+- `file_path: String` - which file (includes #index for uniqueness)
 - `line_range: LineRange` - which lines (1-based start/end, 0-based columns)
 
 Implements Ord for BTreeMap ordering (file → query → line range). Use `same_file_and_query()` to check overlap candidates.
+
+### Decision System (entities/decision.rs) - CRITICAL WORKFLOW
+
+**Decision Structure:**
+```rust
+pub struct Decision {
+    number: u32,
+    title: String,
+    summary: String,
+    decision_log_line: Option<usize>,
+    code_impacts: Vec<CodeImpact>,
+}
+
+pub struct CodeImpact {
+    file: String,
+    line_ranges: Vec<DecisionLineRange>,
+    change_type: ChangeType,
+    confidence: Confidence,
+    reasoning: String,
+}
+```
+
+**ReviewDecisions Collection:**
+```rust
+pub struct ReviewDecisions {
+    decisions: HashMap<u32, Decision>,
+    decision_index: HashMap<ReviewableDiffId, Vec<u32>>,  // REVERSE INDEX
+}
+```
+
+**The build_index_from_review_state() Method - CRITICAL:**
+
+**Purpose:** Builds reverse index mapping ReviewableDiffId → decision numbers that affect it.
+
+**Algorithm:**
+1. Clear existing decision_index
+2. Get all decision numbers, sort for consistent ordering
+3. For each decision and its code_impacts:
+   - For each ReviewableDiff in review_state.reviewable_diffs:
+     - Check if diff.file_path == impact.file
+     - Check if diff.line_range overlaps with any impact.line_ranges
+     - If overlap: add decision_number to decision_index[reviewable_diff_id]
+4. Result: decision_index maps each ReviewableDiffId to affecting decisions
+
+**Overlap Detection:**
+- Formula: `start1 <= end2 && start2 <= end1` (inclusive ranges)
+- Allows: exact matches, partial overlaps, nested ranges
+- Multiple decisions can affect same ReviewableDiffId
+
+**Critical Workflow Sequence:**
+```rust
+// 1. Add all decisions
+decisions.add_decision(decision1);
+decisions.add_decision(decision2);
+
+// 2. Build index - MUST happen before querying
+decisions.build_index_from_review_state(&review_state);
+
+// 3. Create Decision 0 for unmapped diffs (optional, only if unmapped exist)
+decisions.create_unmapped_decision(&review_state);
+
+// 4. Now can query
+let affecting = decisions.get_decisions_for_diff(&reviewable_id);
+```
+
+**create_unmapped_decision() Method:**
+- Finds ReviewableDiffs NOT in decision_index
+- Only creates Decision 0 if unmapped diffs exist
+- Adds all unmapped diffs to Decision 0's code_impacts
+- Updates decision_index to map unmapped diffs to Decision 0
 
 ### Review Entities (entities/)
 
@@ -55,27 +226,22 @@ Implements Ord for BTreeMap ordering (file → query → line range). Use `same_
 - Collection: `ReviewInstructions` with HashMap<ReviewableDiffId, Vec<Instruction>>
 - Methods: `add_instruction()`, `get_instructions()`, `get_instructions_by_status()`, `remove_instruction_by_id()`
 
-**Decision (decision.rs)**: Architectural decision mapping with code impact tracking
-- Structure: Decision has title, summary, and `code_impacts: Vec<CodeImpact>`
-- CodeImpact: Maps to file + line_ranges + change_type + confidence + reasoning
-- Collection: `ReviewDecisions` with:
-  - `decisions: HashMap<u32, Decision>` - indexed by decision number
-  - `decision_index: HashMap<ReviewableDiffId, Vec<u32>>` - reverse index (which decisions affect this code)
-- Key methods:
-  - `add_decision()` - add a decision
-  - `build_index_from_review_state()` - build reverse index by detecting overlaps
-  - `create_unmapped_decision()` - synthetic Decision 0 for unmapped code (only if unmapped diffs exist)
-  - `get_decisions_for_diff()` - find all decisions affecting a ReviewableDiffId
-- Overlap detection: ranges overlap if `start1 <= end2 && start2 <= end1`
-
 ### ReviewEngine (engines/review_engine.rs)
+
 Main business logic orchestrator. Contains:
 - `state: ReviewState` - current review state
 - `renderable_cache: HashMap<ReviewableDiffId, String>` - rendering cache (placeholder, would be RenderableDiff)
 - `diff_provider: Box<dyn DiffProvider>` - git operations abstraction
 
+**How ReviewEngine Creates ReviewableDiffs:**
+ReviewEngine itself doesn't create ReviewableDiffs - that's done by ReviewEngineBuilder. ReviewEngine receives pre-built ReviewableDiffs via constructor:
+```rust
+ReviewEngine::new(reviewable_diffs: Vec<ReviewableDiff>, author, diff_provider)
+```
+
 Key behaviors:
 - **Approve/reject**: invalidates renderable cache for affected ReviewableDiffId
+- **Reverse cascade**: when all chunks for a decision are approved, auto-approve the decision
 - **Instruction overlap auto-merge**: when overlap detected, extends to union range and concatenates content with separator
 - **File hash tracking**: calculates file_content_hash and content_snapshot for staleness detection
 - **Export/import**: JSON format with metadata for agent understanding (git context, query formats, examples)
@@ -85,24 +251,8 @@ Export/Import capabilities:
 - ExportedInstruction format includes: file, query, line_range, content, author, timestamp, status, file_content_hash, content_snapshot
 - ImportSummary tracks: total_imported, active_count, stale_count, errors
 
-### ReviewEngineBuilder (review_engine_builder.rs)
-Orchestrates the complete pipeline from git → ReviewEngine:
-1. Get changed files via DiffProvider (`get_changed_files(&DiffQuery)`)
-2. Filter to supported languages: Rust, Python, Go, Java, TypeScript, JavaScript, C, C++
-3. Run diffviz-core semantic analysis pipeline:
-   - Parse AST with TreeSitter using language-specific parser
-   - Build semantic trees with `parser.build_semantic_tree()`
-   - Build semantic pairs with `build_semantic_pairs()` (change detection)
-   - Convert to ReviewableDiffs with `semantic_pairs_to_reviewable_diffs()`
-4. Create ReviewEngine with populated state
-
-Special handling:
-- Added/untracked files: use empty string as old content
-- Deleted files: skipped (no new content to analyze)
-- Unsupported file types: skipped with error message
-- Line range extraction: uses `extract_line_range_from_core_diff()` based on boundary node's change status
-
 ### DiffProvider Trait (providers/mod.rs)
+
 Interface for git operations needed by review layer:
 - `get_changed_files(&DiffQuery) -> Vec<(String, FileStatus)>` - list files with changes
 - `get_file_stats(&file, &DiffQuery) -> FileStats` - git diffstat (additions/deletions/total_changes)
@@ -112,6 +262,57 @@ FileStatus enum: Added, Modified, Deleted, Renamed, Copied, Untracked
 FileStats helpers: `is_creation()`, `is_deletion()`, `is_modification()`, `is_unchanged()`
 
 Implemented by diffviz-git infrastructure layer. Use MockDiffProvider for testing.
+
+### MockDiffProvider (providers/mock_provider.rs) - TEST INFRASTRUCTURE
+
+**Two Creation Patterns:**
+
+**Pattern 1: Manual Construction**
+```rust
+let mut provider = MockDiffProvider::new();
+provider.add_file_content("file.rs", &GitRef::Head, "old content");
+provider.add_file_content("file.rs", &GitRef::Unstaged, "new content");
+```
+
+**Pattern 2: Fixture-Based (PREFERRED for integration tests)**
+```rust
+// Loads all JSON fixtures from tests/fixtures/
+let provider = MockDiffProvider::from_review_fixtures()?;
+```
+
+**ReviewFixture Structure:**
+```rust
+pub struct ReviewFixture {
+    name: String,                    // Fixture identifier
+    file_path: String,               // File path for this fixture
+    language: String,                // Programming language
+    description: String,             // What this fixture tests
+    old_code: String,                // Before state
+    new_code: String,                // After state
+    expected_line_stats: LineStats,  // Expected +/- lines
+    metadata: FixtureMetadata,       // complexity_level, tags
+}
+```
+
+**How from_review_fixtures() Works:**
+1. Scans `{CARGO_MANIFEST_DIR}/tests/fixtures/` for .json files
+2. Deserializes each JSON into ReviewFixture
+3. Populates `changed_files` with (file_path, FileStatus::Modified)
+4. Stores fixtures in HashMap indexed by file_path
+5. DiffProvider methods use fixtures to return old_code/new_code based on GitRef
+
+**Usage Pattern:**
+```rust
+// Load all fixtures
+let provider = MockDiffProvider::from_review_fixtures()?;
+
+// Build ReviewEngine with fixture data
+let builder = ReviewEngineBuilder::new(Box::new(provider), "test_author");
+let engine = builder.build(DiffQuery::head_to_unstaged())?;
+
+// All fixtures are now processed into ReviewableDiffs
+let diffs = &engine.state().reviewable_diffs;
+```
 
 ## Architectural Constraints
 
@@ -126,6 +327,7 @@ Implemented by diffviz-git infrastructure layer. Use MockDiffProvider for testin
 - BTreeMap ordering ensures consistent file/line traversal
 - Line ranges are 1-based (lines) and 0-based (columns) - follow this convention
 - Display format: `{query}:{file_path}:L{start}-{end}` (e.g., "working:src/main.rs:L10-20")
+- File path includes #index suffix for uniqueness (e.g., "src/auth.rs#0")
 
 **State Immutability Pattern:**
 - Mutation methods return `&mut Self` for builder-style chaining
@@ -166,10 +368,15 @@ diffviz-review/
 │   │   └── review_engine.rs  # Review operations + overlap auto-merge + export/import
 │   ├── providers/         # Infrastructure interfaces
 │   │   ├── mod.rs         # DiffProvider trait (get_changed_files/get_file_stats/get_source_code)
-│   │   └── mock_provider.rs  # Test provider
+│   │   └── mock_provider.rs  # Test provider with fixture loading
 │   ├── review_engine_builder.rs  # Pipeline orchestration (git → core → review)
 │   ├── errors.rs          # Structured errors (DiffVizError + ReviewError)
 │   └── lib.rs             # Public API exports
+├── tests/
+│   ├── fixtures/          # JSON fixture files for testing
+│   │   ├── *.json        # ReviewFixture format: name, file_path, language, old_code, new_code
+│   ├── fixture_semantic_pair_validation.rs  # Validates all fixtures produce semantic pairs
+│   └── semantic_pair_counter.rs            # Counts and analyzes semantic pairs per fixture
 ```
 
 ## Development Rules
@@ -204,8 +411,9 @@ diffviz-review/
 - Unit tests in entity modules verify serialization and business logic
 - State tests verify overlap detection and instruction management
 - Builder tests use MockDiffProvider to simulate git operations
+- Integration tests use `MockDiffProvider::from_review_fixtures()` for realistic data
+- Fixture validation tests ensure all fixtures produce semantic pairs
 - Avoid testing git/core integration - that's in higher layers
-- Test fixtures should create realistic ReviewableDiffs with proper core diffs
 
 ## Common Patterns
 
@@ -216,7 +424,7 @@ use crate::entities::git_ref::{DiffQuery, GitRef};
 
 let id = ReviewableDiffId::new(
     DiffQuery::head_to_unstaged(),
-    "src/main.rs".to_string(),
+    "src/main.rs#0".to_string(),  // Include #index for uniqueness
     LineRange { start_line: 10, end_line: 20, start_column: 0, end_column: 0 }
 );
 ```
@@ -231,13 +439,18 @@ state
     .add_instruction(instruction);
 ```
 
-### Building ReviewEngine from Git Query
+### Building ReviewEngine from Git Query (Full Pipeline)
 ```rust
 use crate::review_engine_builder::ReviewEngineBuilder;
 use crate::entities::git_ref::{DiffQuery, GitRef};
 
+// Creates ReviewEngine with complete semantic analysis pipeline
 let builder = ReviewEngineBuilder::new(diff_provider, "author".to_string());
 let engine = builder.build(DiffQuery::head_to_unstaged())?;
+
+// Engine now contains ReviewableDiffs from semantic analysis
+let state = engine.state();
+let diffs = &state.reviewable_diffs;
 ```
 
 ### Adding Decisions with Index (Critical Workflow)
@@ -274,7 +487,33 @@ engine.add_instruction(
 
 ## Testing Patterns
 
-### Using MockDiffProvider
+### Using MockDiffProvider with Fixtures (PREFERRED)
+```rust
+use crate::providers::mock_provider::MockDiffProvider;
+use crate::review_engine_builder::ReviewEngineBuilder;
+use crate::entities::git_ref::DiffQuery;
+
+// Load all JSON fixtures from tests/fixtures/
+let provider = MockDiffProvider::from_review_fixtures()
+    .expect("Failed to load fixtures");
+
+// Build ReviewEngine with fixture data
+let builder = ReviewEngineBuilder::new(Box::new(provider), "test_author".to_string());
+let engine = builder.build(DiffQuery::head_to_unstaged())
+    .expect("Failed to build review engine");
+
+// Access ReviewableDiffs created from fixtures
+let diffs = &engine.state().reviewable_diffs;
+
+// Group by file for analysis
+let mut files: HashMap<String, Vec<_>> = HashMap::new();
+for (id, diff) in diffs.iter() {
+    let file = id.file_path.split('#').next().unwrap_or("unknown");
+    files.entry(file.to_string()).or_default().push((id, diff));
+}
+```
+
+### Using MockDiffProvider Manually
 ```rust
 use crate::providers::{DiffProvider, FileStatus};
 
@@ -323,6 +562,26 @@ let core_diff = CoreReviewableDiff {
 let reviewable_diff = ReviewableDiff::new(reviewable_id, core_diff, file_path);
 ```
 
+### Creating ReviewFixture JSON Files
+```json
+{
+  "name": "rust_function_modification",
+  "file_path": "src/example.rs",
+  "language": "rust",
+  "description": "Simple function modification to test semantic pairing",
+  "old_code": "fn hello() {\n    println!(\"old\");\n}",
+  "new_code": "fn hello() {\n    println!(\"new\");\n}",
+  "expected_line_stats": {
+    "additions": 1,
+    "deletions": 1
+  },
+  "metadata": {
+    "complexity_level": "simple",
+    "tags": ["function", "modification"]
+  }
+}
+```
+
 ## Known Patterns and Anti-patterns
 
 **DO:**
@@ -331,6 +590,8 @@ let reviewable_diff = ReviewableDiff::new(reviewable_id, core_diff, file_path);
 - Invalidate cache when state changes
 - Return `&mut Self` from mutation methods
 - Use DiffProvider for git operations
+- Use `MockDiffProvider::from_review_fixtures()` for integration tests
+- Include #index suffix in file_path for ReviewableDiffId uniqueness
 
 **DON'T:**
 - Don't use legacy chunk IDs or ad-hoc string identifiers
@@ -338,7 +599,30 @@ let reviewable_diff = ReviewableDiff::new(reviewable_id, core_diff, file_path);
 - Don't skip `create_unmapped_decision()` (unmapped code becomes invisible)
 - Don't expose internal HashMap - provide query methods
 - Don't call git directly - use DiffProvider abstraction
+- Don't manually construct ReviewableDiffs in tests - use ReviewEngineBuilder with fixtures
+
+## Pipeline Flow Diagram
+
+```
+DiffProvider (git)
+    ↓ get_changed_files(&DiffQuery)
+    ↓ get_source_code(&file, &GitRef)
+ReviewEngineBuilder
+    ↓ Filter supported files
+    ↓ For each file:
+    ├─→ Parse AST (TreeSitter)
+    ├─→ Build semantic tree (diffviz-core)
+    ├─→ Build semantic pairs (change detection)
+    ├─→ Convert to ReviewableDiffs (context expansion)
+    └─→ Create ReviewableDiffId (file#index + line_range)
+ReviewEngine
+    ↓ ReviewState created with all ReviewableDiffs
+    ↓ Decisions added
+    ↓ build_index_from_review_state()
+    ↓ create_unmapped_decision()
+Ready for TUI/Review Operations
+```
 
 ---
 
-**Updated:** 2026-01-23 - Comprehensive analysis of current decision-based review system, instruction auto-merge, export/import capabilities, and ReviewEngineBuilder pipeline details.
+**Updated:** 2026-01-31 - Enhanced with detailed ReviewEngineBuilder pipeline flow, decision system index building, ReviewableDiff creation process, fixture-based testing patterns, and relationship between ReviewState/ReviewableDiff/ReviewableDiffId.

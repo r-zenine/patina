@@ -991,12 +991,28 @@ pub fn build_semantic_pairs<'a>(
     for (old_idx, old_unit) in old_units.iter().enumerate() {
         if !used_old[old_idx] {
             pairs.push(SemanticPair::Deletion { unit: old_unit });
+
+            // Only mark children as used if this is NOT a full-file Module
+            if should_mark_children_as_used(old_unit) {
+                mark_node_and_children_as_used(old_unit, &old_units, &mut used_old);
+            } else {
+                // For full-file Modules, only mark the Module itself
+                used_old[old_idx] = true;
+            }
         }
     }
 
     for (new_idx, new_unit) in new_units.iter().enumerate() {
         if !used_new[new_idx] {
             pairs.push(SemanticPair::Addition { unit: new_unit });
+
+            // Only mark children as used if this is NOT a full-file Module
+            if should_mark_children_as_used(new_unit) {
+                mark_node_and_children_as_used(new_unit, &new_units, &mut used_new);
+            } else {
+                // For full-file Modules, only mark the Module itself
+                used_new[new_idx] = true;
+            }
         }
     }
 
@@ -1018,6 +1034,23 @@ fn mark_node_and_children_as_used<'a>(
     // Recursively mark all children as used
     for child in &node.children {
         mark_node_and_children_as_used(child, all_units, used_flags);
+    }
+}
+
+/// Determine if children should be marked as used when parent is marked
+///
+/// For full-file Modules, we want children to get their own pairs,
+/// so we don't mark them as used. For all other semantic units,
+/// we mark children to prevent duplicate pairs.
+fn should_mark_children_as_used(unit: &SemanticNode) -> bool {
+    match &unit.unit_type {
+        SemanticUnitType::Module { module_type, .. } => {
+            // For full-file modules at byte 0, let children get their own pairs
+            let is_full_file = matches!(module_type, ModuleType::File)
+                && unit.tree_sitter_node.byte_range().start == 0;
+            !is_full_file // Mark children only if NOT a full-file module
+        }
+        _ => true, // For all other semantic units, mark children as used
     }
 }
 
@@ -1090,12 +1123,14 @@ pub fn build_semantic_pairs_with_coverage<'a>(
     for (old_idx, old_unit) in old_units.iter().enumerate() {
         if !used_old[old_idx] {
             pairs.push(SemanticPair::Deletion { unit: old_unit });
+            mark_node_and_children_as_used(old_unit, &old_units, &mut used_old);
         }
     }
 
     for (new_idx, new_unit) in new_units.iter().enumerate() {
         if !used_new[new_idx] {
             pairs.push(SemanticPair::Addition { unit: new_unit });
+            mark_node_and_children_as_used(new_unit, &new_units, &mut used_new);
         }
     }
 
