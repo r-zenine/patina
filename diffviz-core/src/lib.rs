@@ -6,6 +6,7 @@ pub mod common;
 pub mod parsers;
 
 pub mod ast_diff;
+pub mod decision_based_diff;
 pub mod renderable_diff;
 pub mod reviewable_diff;
 pub mod reviewable_diff_from_semantic;
@@ -34,4 +35,8 @@ pub use semantic_ast::{
     CoverageStats, ImportType, ModuleType, SemanticError, SemanticNode, SemanticPair,
     SemanticSimilarity, SemanticTree, SemanticUnitType as SemanticASTUnitType, SourceRange,
     build_semantic_pairs, build_semantic_pairs_with_coverage,
+};
+
+pub use decision_based_diff::{
+    ChangeClassification, DecisionDiffError, create_reviewable_diff_from_range,
 };
