@@ -92,19 +92,19 @@ fn create_test_review_engine() -> Result<diffviz_review::engines::ReviewEngine> 
 fn create_hardcoded_decisions() -> ReviewDecisions {
     let mut decisions = ReviewDecisions::new();
 
-    // Decision 1: Refactor user model module
+    // Decision 1: Refactor calculator model module
     decisions.add_decision(Decision {
         number: 1,
-        title: "Refactor user model module".to_string(),
-        summary: "Extract user model logic into separate, testable module".to_string(),
+        title: "Refactor calculator model module".to_string(),
+        summary: "Extract calculator logic into separate, testable module".to_string(),
         decision_log_line: Some(15),
         code_impacts: vec![
             CodeImpact {
-                file: "src/models/user.rs".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 1, end: 21 }],
+                file: "src/models/calculator.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 1, end: 72 }],
                 change_type: ChangeType::Modification,
                 confidence: Confidence::High,
-                reasoning: "User model structure refactoring".to_string(),
+                reasoning: "Calculator model structure refactoring".to_string(),
             },
             CodeImpact {
                 file: "src/config/reader.rs".to_string(),
@@ -131,11 +131,11 @@ fn create_hardcoded_decisions() -> ReviewDecisions {
                 reasoning: "Network error handling improvements".to_string(),
             },
             CodeImpact {
-                file: "src/models/user.rs".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 10, end: 21 }],
+                file: "src/models/calculator.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 20, end: 40 }],
                 change_type: ChangeType::Modification,
                 confidence: Confidence::High,
-                reasoning: "User model error handling enhancements".to_string(),
+                reasoning: "Calculator model error handling enhancements".to_string(),
             },
         ],
     });
@@ -171,7 +171,7 @@ fn create_hardcoded_decisions() -> ReviewDecisions {
             // Phase 6: Enhanced calculator fixture for context folding validation
             CodeImpact {
                 file: "src/models/calculator.rs".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 1, end: 65 }],
+                line_ranges: vec![DecisionLineRange { start: 1, end: 72 }],
                 change_type: ChangeType::Modification,
                 confidence: Confidence::High,
                 reasoning: "Calculator module with extensive context for folding test".to_string(),

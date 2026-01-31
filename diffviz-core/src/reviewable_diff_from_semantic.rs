@@ -57,7 +57,7 @@ fn should_create_diff_for_pair(pair: &SemanticPair) -> bool {
         SemanticPair::Deletion { unit } => is_root_file_module(unit),
     };
 
-    // Skip full-file module pairs - they're just containers
+    // Skip full-file module pairs - their unmatched children have their own pairs now
     if is_full_file_module {
         return false;
     }
