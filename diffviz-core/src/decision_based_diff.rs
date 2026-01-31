@@ -1,0 +1,520 @@
+//! Decision-based diff creation from code impact ranges
+//!
+//! This module provides a new pipeline for creating ReviewableDiffs directly from
+//! decision-specified code ranges, replacing the semantic pairing approach.
+//!
+//! ## Strategy
+//! Given a decision's CodeImpact (file path + line range), this module:
+//! 1. Parses both old and new file versions with tree-sitter
+//! 2. Builds semantic trees for both
+//! 3. Finds the semantic unit covering the target range in the new file
+//! 4. Expands the range to cover complete semantic unit boundaries
+//! 5. Looks up the same-named unit in the old file's semantic tree
+//! 6. Classifies the change as Addition/Deletion/Modification
+//! 7. Produces a ReviewableDiff with proper DiffNode tree and context
+
+use crate::ast_diff::{
+    ASTChangeType, BACKGROUND, ESSENTIAL, IMPORTANT, OwnedNodeData, SourceProvider,
+};
+use crate::common::{LanguageParser, ProgrammingLanguage};
+use crate::reviewable_diff::{DiffMetadata, DiffNode, NodeChangeStatus, ReviewableDiff};
+use crate::semantic_ast::{SemanticNode, SemanticTree, SemanticUnitType};
+use std::collections::HashMap;
+use std::time::Instant;
+use thiserror::Error;
+use tree_sitter::Node;
+
+/// Errors that can occur during decision-based diff creation
+#[derive(Debug, Error)]
+pub enum DecisionDiffError {
+    #[error("Failed to parse source code: {0}")]
+    ParseError(String),
+
+    #[error("Failed to build semantic tree: {0}")]
+    SemanticError(String),
+
+    #[error("Target range {start_line}-{end_line} is invalid")]
+    InvalidRange { start_line: usize, end_line: usize },
+
+    #[error("No semantic unit found at target range {start_line}-{end_line}")]
+    NoUnitAtRange { start_line: usize, end_line: usize },
+}
+
+/// Classification of what changed for a semantic unit
+#[derive(Debug, Clone, PartialEq)]
+pub enum ChangeClassification {
+    /// Unit exists only in new file
+    Addition,
+    /// Unit exists only in old file
+    Deletion,
+    /// Unit exists in both files (may have content changes)
+    Modification,
+}
+
+/// 1.1: Find the semantic unit covering the target line range
+///
+/// Returns the smallest semantic unit that fully contains the given line range.
+/// If the range spans multiple units, returns the parent unit containing all of them.
+/// Also expands the returned range to cover complete unit boundaries.
+fn find_semantic_unit_at_range<'a>(
+    tree: &'a SemanticTree<'a>,
+    start_line: usize,
+    end_line: usize,
+) -> Option<(&'a SemanticNode<'a>, usize, usize)> {
+    let start_byte = line_to_byte_offset(tree.root.tree_sitter_node, start_line)?;
+    let end_byte = line_to_byte_offset(tree.root.tree_sitter_node, end_line)?;
+
+    find_unit_recursive(&tree.root, start_byte, end_byte)
+}
+
+/// Helper: Find smallest unit containing a byte range (recursive)
+fn find_unit_recursive<'a>(
+    node: &'a SemanticNode<'a>,
+    start_byte: usize,
+    end_byte: usize,
+) -> Option<(&'a SemanticNode<'a>, usize, usize)> {
+    let node_range = node.tree_sitter_node.byte_range();
+
+    // Check if this node contains the target range
+    if node_range.start > start_byte || node_range.end < end_byte {
+        return None;
+    }
+
+    // Try to find a smaller unit in the children
+    for child in &node.children {
+        if let Some(result) = find_unit_recursive(child, start_byte, end_byte) {
+            return Some(result);
+        }
+    }
+
+    // This node is the smallest that contains the range
+    // Expand to include complete unit boundaries
+    let expanded_start = node_range.start;
+    let expanded_end = node_range.end;
+
+    Some((node, expanded_start, expanded_end))
+}
+
+/// Helper: Convert line number to byte offset in source
+fn line_to_byte_offset(root: Node, line: usize) -> Option<usize> {
+    // Line numbers are 1-based in most editors, convert to 0-based
+    let target_line = line.saturating_sub(1);
+
+    let mut current_line = 0;
+    let mut byte_offset = 0;
+
+    let source = root.utf8_text(b"").unwrap_or("");
+
+    for (byte_idx, ch) in source.bytes().enumerate() {
+        if current_line == target_line {
+            return Some(byte_idx);
+        }
+        if ch == b'\n' {
+            current_line += 1;
+        }
+        byte_offset = byte_idx + 1;
+    }
+
+    // Handle last line
+    if current_line == target_line {
+        Some(byte_offset)
+    } else {
+        None
+    }
+}
+
+/// 1.2: Find semantic unit by name and type in a tree
+///
+/// Performs O(n) linear scan of all units, matching by name text and unit type.
+/// Returns the first matching unit, or None if not found.
+fn find_semantic_unit_by_name<'a>(
+    tree: &'a SemanticTree<'a>,
+    target_name: &str,
+    target_type: &SemanticUnitType,
+) -> Option<&'a SemanticNode<'a>> {
+    for unit in tree.all_units() {
+        // Check if unit type matches (same variant)
+        let types_match =
+            std::mem::discriminant(&unit.unit_type) == std::mem::discriminant(target_type);
+
+        if !types_match {
+            continue;
+        }
+
+        // Check if name matches
+        let unit_name = get_unit_name(unit);
+        if unit_name == Some(target_name.to_string()) {
+            return Some(unit);
+        }
+    }
+
+    None
+}
+
+/// Helper: Extract the name from a semantic unit
+fn get_unit_name(unit: &SemanticNode) -> Option<String> {
+    if let Some(name_node) = unit.name_node {
+        name_node.utf8_text(b"").ok().map(|s| s.to_string())
+    } else {
+        None
+    }
+}
+
+/// Build context for ReviewableDiff construction
+struct DiffBuildContext<'a> {
+    new_unit: Option<&'a SemanticNode<'a>>,
+    old_node_data: Option<OwnedNodeData>,
+    classification: ChangeClassification,
+    parser: &'a dyn LanguageParser,
+    start_time: Instant,
+}
+
+/// 1.4: Build ReviewableDiff from a semantic unit using owned data
+fn build_reviewable_diff_from_unit_with_data(
+    context: DiffBuildContext,
+    language: ProgrammingLanguage,
+    old_source: Box<dyn SourceProvider>,
+    new_source: Box<dyn SourceProvider>,
+) -> ReviewableDiff {
+    let (boundary_node, metadata) = match context.classification {
+        ChangeClassification::Addition => {
+            let unit = context.new_unit.expect("Addition must have new_unit");
+            create_addition_diff(unit, context.parser, context.start_time)
+        }
+        ChangeClassification::Deletion => {
+            // For deletion, we would need the old_unit, but we're not supporting this path
+            // in the current implementation. This would require holding a reference to the old tree.
+            // For now, create from new_unit marked as deleted
+            let unit = context.new_unit.expect("Deletion must have new_unit");
+            create_deletion_diff(unit, context.parser, context.start_time)
+        }
+        ChangeClassification::Modification => {
+            let new = context.new_unit.expect("Modification must have new_unit");
+            let old = context
+                .old_node_data
+                .expect("Modification must have old_node_data");
+            create_modification_diff_with_data(old, new, context.parser, context.start_time)
+        }
+    };
+
+    ReviewableDiff {
+        language,
+        boundary: boundary_node,
+        old_source,
+        new_source,
+        metadata,
+    }
+}
+
+/// Helper: Create diff for added unit
+fn create_addition_diff(
+    unit: &SemanticNode,
+    parser: &dyn LanguageParser,
+    start_time: Instant,
+) -> (DiffNode, DiffMetadata) {
+    let semantic_kind = unit_type_to_semantic_kind(&unit.unit_type);
+
+    let boundary = DiffNode {
+        node_type: get_unit_type_name(&unit.unit_type).to_string(),
+        semantic_kind,
+        change_status: NodeChangeStatus::Added {
+            node: OwnedNodeData::from_tree_sitter_node(&unit.tree_sitter_node),
+        },
+        relevance: calculate_relevance(&unit.unit_type),
+        children: build_child_nodes_with_context(&unit.tree_sitter_node, parser),
+    };
+
+    let mut change_summary = HashMap::new();
+    change_summary.insert(ASTChangeType::Structural, 1);
+
+    let metadata = DiffMetadata {
+        total_changes: 1,
+        change_summary,
+        essential_node_count: count_essential_nodes(&boundary),
+        analysis_duration_ms: start_time.elapsed().as_millis() as u64,
+    };
+
+    (boundary, metadata)
+}
+
+/// Helper: Create diff for deleted unit
+fn create_deletion_diff(
+    unit: &SemanticNode,
+    parser: &dyn LanguageParser,
+    start_time: Instant,
+) -> (DiffNode, DiffMetadata) {
+    let semantic_kind = unit_type_to_semantic_kind(&unit.unit_type);
+
+    let boundary = DiffNode {
+        node_type: get_unit_type_name(&unit.unit_type).to_string(),
+        semantic_kind,
+        change_status: NodeChangeStatus::Deleted {
+            node: OwnedNodeData::from_tree_sitter_node(&unit.tree_sitter_node),
+        },
+        relevance: calculate_relevance(&unit.unit_type),
+        children: build_child_nodes_with_context(&unit.tree_sitter_node, parser),
+    };
+
+    let mut change_summary = HashMap::new();
+    change_summary.insert(ASTChangeType::Structural, 1);
+
+    let metadata = DiffMetadata {
+        total_changes: 1,
+        change_summary,
+        essential_node_count: count_essential_nodes(&boundary),
+        analysis_duration_ms: start_time.elapsed().as_millis() as u64,
+    };
+
+    (boundary, metadata)
+}
+
+/// Helper: Create diff for modified unit using owned node data
+fn create_modification_diff_with_data(
+    old_node: OwnedNodeData,
+    new_unit: &SemanticNode,
+    parser: &dyn LanguageParser,
+    start_time: Instant,
+) -> (DiffNode, DiffMetadata) {
+    let semantic_kind = unit_type_to_semantic_kind(&new_unit.unit_type);
+    let change_type = ASTChangeType::Content; // Default to content change
+
+    let boundary = DiffNode {
+        node_type: get_unit_type_name(&new_unit.unit_type).to_string(),
+        semantic_kind,
+        change_status: NodeChangeStatus::Modified {
+            old_node,
+            new_node: OwnedNodeData::from_tree_sitter_node(&new_unit.tree_sitter_node),
+            change_type,
+        },
+        relevance: calculate_relevance(&new_unit.unit_type),
+        children: build_child_nodes_with_context(&new_unit.tree_sitter_node, parser),
+    };
+
+    let mut change_summary = HashMap::new();
+    change_summary.insert(ASTChangeType::Content, 1);
+
+    let metadata = DiffMetadata {
+        total_changes: 1,
+        change_summary,
+        essential_node_count: count_essential_nodes(&boundary),
+        analysis_duration_ms: start_time.elapsed().as_millis() as u64,
+    };
+
+    (boundary, metadata)
+}
+
+/// Build child DiffNodes with context expansion and relevance classification
+fn build_child_nodes_with_context(node: &Node, parser: &dyn LanguageParser) -> Vec<DiffNode> {
+    build_child_nodes_recursive(node, parser, 0)
+}
+
+/// Recursively build child DiffNodes with relevance classification
+fn build_child_nodes_recursive(
+    node: &Node,
+    parser: &dyn LanguageParser,
+    depth: usize,
+) -> Vec<DiffNode> {
+    const MAX_DEPTH: usize = 10;
+
+    if depth > MAX_DEPTH {
+        return Vec::new();
+    }
+
+    let mut children = Vec::new();
+    let mut cursor = node.walk();
+
+    for child in node.children(&mut cursor) {
+        let semantic_kind = parser.classify_node_kind(child.kind());
+        let relevance = parser.classify_leaf_relevance(&semantic_kind);
+
+        let diff_node = DiffNode {
+            node_type: child.kind().to_string(),
+            semantic_kind,
+            change_status: NodeChangeStatus::Unchanged {
+                node: OwnedNodeData::from_tree_sitter_node(&child),
+            },
+            relevance,
+            children: build_child_nodes_recursive(&child, parser, depth + 1),
+        };
+
+        children.push(diff_node);
+    }
+
+    children
+}
+
+/// Convert semantic unit type to semantic node kind
+fn unit_type_to_semantic_kind(unit_type: &SemanticUnitType) -> crate::common::SemanticNodeKind {
+    use crate::common::SemanticNodeKind;
+
+    match unit_type {
+        SemanticUnitType::DataStructure { .. } => SemanticNodeKind::Struct,
+        SemanticUnitType::Callable { .. } => SemanticNodeKind::Function,
+        SemanticUnitType::Variable { .. } => SemanticNodeKind::Variable,
+        SemanticUnitType::Import { .. } => SemanticNodeKind::Import,
+        SemanticUnitType::Module { .. } => SemanticNodeKind::Module,
+        SemanticUnitType::Unknown { node_kind, .. } => match node_kind.as_str() {
+            kind if kind.contains("function") => SemanticNodeKind::Function,
+            kind if kind.contains("struct") => SemanticNodeKind::Struct,
+            kind if kind.contains("class") => SemanticNodeKind::Class,
+            kind if kind.contains("enum") => SemanticNodeKind::Enum,
+            kind if kind.contains("import") || kind.contains("use") => SemanticNodeKind::Import,
+            kind if kind.contains("module") => SemanticNodeKind::Module,
+            _ => SemanticNodeKind::Other(node_kind.clone()),
+        },
+    }
+}
+
+/// Get a readable name for a semantic unit type
+fn get_unit_type_name(unit_type: &SemanticUnitType) -> &'static str {
+    match unit_type {
+        SemanticUnitType::DataStructure { .. } => "DataStructure",
+        SemanticUnitType::Callable { .. } => "Function",
+        SemanticUnitType::Variable { .. } => "Variable",
+        SemanticUnitType::Import { .. } => "Import",
+        SemanticUnitType::Module { .. } => "Module",
+        SemanticUnitType::Unknown { .. } => "Unknown",
+    }
+}
+
+/// Calculate relevance score for a semantic unit type
+fn calculate_relevance(unit_type: &SemanticUnitType) -> crate::ast_diff::RelevanceScore {
+    match unit_type {
+        SemanticUnitType::DataStructure { .. } | SemanticUnitType::Callable { .. } => ESSENTIAL,
+        SemanticUnitType::Variable { .. } | SemanticUnitType::Import { .. } => IMPORTANT,
+        SemanticUnitType::Module { .. } => ESSENTIAL,
+        SemanticUnitType::Unknown { node_kind, .. } => {
+            if node_kind.contains("error") {
+                crate::ast_diff::NOISE
+            } else {
+                BACKGROUND
+            }
+        }
+    }
+}
+
+/// Count essential nodes in a diff tree
+fn count_essential_nodes(node: &DiffNode) -> usize {
+    let mut count = if node.relevance == ESSENTIAL { 1 } else { 0 };
+    for child in &node.children {
+        count += count_essential_nodes(child);
+    }
+    count
+}
+
+/// 1.5: Public API - Create ReviewableDiff from a decision's code range
+///
+/// Given a decision's impact (file path + line range), this function:
+/// 1. Parses both old and new file versions
+/// 2. Builds semantic trees
+/// 3. Finds the semantic unit covering the range
+/// 4. Looks up the same unit in the old file (if it exists)
+/// 5. Classifies the change
+/// 6. Creates and returns a ReviewableDiff
+pub fn create_reviewable_diff_from_range(
+    _file_path: &str,
+    start_line: usize,
+    end_line: usize,
+    old_source: Option<&str>,
+    new_source: &str,
+    language: ProgrammingLanguage,
+    parser: &dyn LanguageParser,
+) -> Result<ReviewableDiff, DecisionDiffError> {
+    let start_time = Instant::now();
+
+    // Validate range
+    if start_line == 0 || end_line == 0 || start_line > end_line {
+        return Err(DecisionDiffError::InvalidRange {
+            start_line,
+            end_line,
+        });
+    }
+
+    // Parse new file
+    let new_ast = parser
+        .try_parse(new_source)
+        .map_err(|e| DecisionDiffError::ParseError(format!("Failed to parse new file: {e}")))?;
+
+    let new_tree = parser
+        .build_semantic_tree(&new_ast, new_source)
+        .map_err(|e| {
+            DecisionDiffError::SemanticError(format!("Failed to build new semantic tree: {e}"))
+        })?;
+
+    // Find the semantic unit at the target range in new file
+    let (new_unit, _expanded_start, _expanded_end) = find_semantic_unit_at_range(
+        &new_tree, start_line, end_line,
+    )
+    .ok_or(DecisionDiffError::NoUnitAtRange {
+        start_line,
+        end_line,
+    })?;
+
+    // Try to find the same unit in the old file and extract its node data
+    let old_node_data = if let Some(old_source_str) = old_source {
+        let old_ast = parser
+            .try_parse(old_source_str)
+            .map_err(|e| DecisionDiffError::ParseError(format!("Failed to parse old file: {e}")))?;
+
+        let old_tree = parser
+            .build_semantic_tree(&old_ast, old_source_str)
+            .map_err(|e| {
+                DecisionDiffError::SemanticError(format!("Failed to build old semantic tree: {e}"))
+            })?;
+
+        // Look up same-named unit in old tree
+        find_semantic_unit_by_name(
+            &old_tree,
+            &get_unit_name(new_unit).unwrap_or_default(),
+            &new_unit.unit_type,
+        )
+        .map(|unit| OwnedNodeData::from_tree_sitter_node(&unit.tree_sitter_node))
+    } else {
+        None
+    };
+
+    // Classify the change
+    let classification = if old_node_data.is_some() {
+        ChangeClassification::Modification
+    } else {
+        ChangeClassification::Addition
+    };
+
+    // Create SourceCode providers for the ReviewableDiff
+    let new_source_provider = crate::ast_diff::SourceCode::new(new_source);
+    let old_source_provider = old_source
+        .map(crate::ast_diff::SourceCode::new)
+        .unwrap_or_else(|| crate::ast_diff::SourceCode::new(new_source));
+
+    // Build context and construct ReviewableDiff
+    let context = DiffBuildContext {
+        new_unit: Some(new_unit),
+        old_node_data,
+        classification,
+        parser,
+        start_time,
+    };
+
+    Ok(build_reviewable_diff_from_unit_with_data(
+        context,
+        language,
+        Box::new(old_source_provider),
+        Box::new(new_source_provider),
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_change_classification_enum() {
+        // Test that ChangeClassification enum is properly defined
+        assert_eq!(format!("{:?}", ChangeClassification::Addition), "Addition");
+        assert_eq!(format!("{:?}", ChangeClassification::Deletion), "Deletion");
+        assert_eq!(
+            format!("{:?}", ChangeClassification::Modification),
+            "Modification"
+        );
+    }
+}
