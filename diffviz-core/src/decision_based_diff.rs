@@ -14,7 +14,8 @@
 //! 7. Produces a ReviewableDiff with proper DiffNode tree and context
 
 use crate::ast_diff::{
-    ASTChangeType, BACKGROUND, ESSENTIAL, IMPORTANT, OwnedNodeData, SourceProvider,
+    ASTChangeType, BACKGROUND, ESSENTIAL, FullSourceProvider, IMPORTANT, OwnedNodeData,
+    SourceProvider,
 };
 use crate::common::{LanguageParser, ProgrammingLanguage};
 use crate::reviewable_diff::{DiffMetadata, DiffNode, NodeChangeStatus, ReviewableDiff};
@@ -415,8 +416,8 @@ pub fn create_reviewable_diff_from_range(
     _file_path: &str,
     start_line: usize,
     end_line: usize,
-    old_source: Option<&str>,
-    new_source: &str,
+    old_source: Option<&dyn FullSourceProvider>,
+    new_source: &dyn FullSourceProvider,
     language: ProgrammingLanguage,
     parser: &dyn LanguageParser,
 ) -> Result<ReviewableDiff, DecisionDiffError> {
@@ -430,13 +431,16 @@ pub fn create_reviewable_diff_from_range(
         });
     }
 
+    // Extract full source content from providers
+    let new_source_str = new_source.full_source();
+
     // Parse new file
     let new_ast = parser
-        .try_parse(new_source)
+        .try_parse(new_source_str)
         .map_err(|e| DecisionDiffError::ParseError(format!("Failed to parse new file: {e}")))?;
 
     let new_tree = parser
-        .build_semantic_tree(&new_ast, new_source)
+        .build_semantic_tree(&new_ast, new_source_str)
         .map_err(|e| {
             DecisionDiffError::SemanticError(format!("Failed to build new semantic tree: {e}"))
         })?;
@@ -451,7 +455,8 @@ pub fn create_reviewable_diff_from_range(
     })?;
 
     // Try to find the same unit in the old file and extract its node data
-    let old_node_data = if let Some(old_source_str) = old_source {
+    let old_node_data = if let Some(old_source_provider) = old_source {
+        let old_source_str = old_source_provider.full_source();
         let old_ast = parser
             .try_parse(old_source_str)
             .map_err(|e| DecisionDiffError::ParseError(format!("Failed to parse old file: {e}")))?;
@@ -480,12 +485,6 @@ pub fn create_reviewable_diff_from_range(
         ChangeClassification::Addition
     };
 
-    // Create SourceCode providers for the ReviewableDiff
-    let new_source_provider = crate::ast_diff::SourceCode::new(new_source);
-    let old_source_provider = old_source
-        .map(crate::ast_diff::SourceCode::new)
-        .unwrap_or_else(|| crate::ast_diff::SourceCode::new(new_source));
-
     // Build context and construct ReviewableDiff
     let context = DiffBuildContext {
         new_unit: Some(new_unit),
@@ -498,8 +497,10 @@ pub fn create_reviewable_diff_from_range(
     Ok(build_reviewable_diff_from_unit_with_data(
         context,
         language,
-        Box::new(old_source_provider),
-        Box::new(new_source_provider),
+        old_source
+            .map(|p| p.clone_box())
+            .unwrap_or_else(|| new_source.clone_box()),
+        new_source.clone_box(),
     ))
 }
 
