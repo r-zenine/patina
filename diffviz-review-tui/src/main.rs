@@ -8,7 +8,7 @@ use anyhow::Result;
 use diffviz_review::providers::mock_provider::MockDiffProvider;
 use diffviz_review::{
     ChangeType, CodeImpact, Confidence, Decision, DecisionLineRange, DiffQuery, GitRef,
-    ReviewDecisions, ReviewEngineBuilder,
+    ReviewEngineBuilder,
 };
 use diffviz_review_tui::ReviewTuiApp;
 use std::env;
@@ -70,116 +70,111 @@ fn create_test_review_engine() -> Result<diffviz_review::engines::ReviewEngine> 
     let mock_provider = MockDiffProvider::from_review_fixtures()
         .map_err(|e| anyhow::anyhow!("Failed to load test fixtures: {}", e))?;
 
-    // Standard ReviewEngine creation using ReviewEngineBuilder
+    // Use decision-based ReviewEngine creation
     let review_engine_builder =
         ReviewEngineBuilder::new(Box::new(mock_provider), "dev-user".to_string());
     let diff_query = DiffQuery::new(GitRef::Head, GitRef::Unstaged);
-    let mut review_engine = review_engine_builder
-        .build(diff_query)
-        .map_err(|e| anyhow::anyhow!("Failed to build ReviewEngine: {}", e))?;
 
-    // Phase 1: Add hardcoded decision data for TUI testing
-    // Use set_decisions_with_index() to automatically build decision index by detecting
-    // overlaps between CodeImpact line ranges and actual ReviewableDiffs in the review state
-    let decisions = create_hardcoded_decisions();
-    review_engine.set_decisions_with_index(decisions);
+    // Create hardcoded decisions for TUI testing
+    let decisions = create_hardcoded_decisions_vec();
+
+    // Build ReviewEngine using the decision-based pipeline
+    let review_engine = review_engine_builder
+        .build_from_decisions(decisions, diff_query)
+        .map_err(|e| anyhow::anyhow!("Failed to build ReviewEngine from decisions: {}", e))?;
 
     Ok(review_engine)
 }
 
-/// Create hardcoded decisions for Phase 1 TUI testing
-/// These demonstrate decision-based review structure without requiring JSON loading
-fn create_hardcoded_decisions() -> ReviewDecisions {
-    let mut decisions = ReviewDecisions::new();
-
-    // Decision 1: Refactor calculator model module
-    decisions.add_decision(Decision {
-        number: 1,
-        title: "Refactor calculator model module".to_string(),
-        summary: "Extract calculator logic into separate, testable module".to_string(),
-        decision_log_line: Some(15),
-        code_impacts: vec![
-            CodeImpact {
-                file: "src/models/calculator.rs".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 1, end: 72 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
-                reasoning: "Calculator model structure refactoring".to_string(),
-            },
-            CodeImpact {
-                file: "src/config/reader.rs".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 1, end: 7 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
-                reasoning: "Configuration reader updates".to_string(),
-            },
-        ],
-    });
-
-    // Decision 2: Improve network client error handling
-    decisions.add_decision(Decision {
-        number: 2,
-        title: "Improve error handling in network client".to_string(),
-        summary: "Standardize error types and add context to error messages".to_string(),
-        decision_log_line: Some(28),
-        code_impacts: vec![
-            CodeImpact {
-                file: "src/network/client.rs".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 1, end: 6 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::Medium,
-                reasoning: "Network error handling improvements".to_string(),
-            },
-            CodeImpact {
-                file: "src/models/calculator.rs".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 20, end: 40 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
-                reasoning: "Calculator model error handling enhancements".to_string(),
-            },
-        ],
-    });
-
-    // Decision 3: Add logging infrastructure
-    decisions.add_decision(Decision {
-        number: 3,
-        title: "Add structured logging throughout application".to_string(),
-        summary: "Architectural decision: use tracing crate for observability".to_string(),
-        decision_log_line: Some(42),
-        code_impacts: vec![
-            CodeImpact {
-                file: "src/data/fetcher.py".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 1, end: 5 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
-                reasoning: "Add logging to async data fetching operations".to_string(),
-            },
-            CodeImpact {
-                file: "src/components/Greeting.tsx".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 1, end: 50 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::Medium,
-                reasoning: "Add component lifecycle logging".to_string(),
-            },
-            CodeImpact {
-                file: "src/types/api.ts".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 1, end: 9 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
-                reasoning: "Add API type validation logging".to_string(),
-            },
-            // Phase 6: Enhanced calculator fixture for context folding validation
-            CodeImpact {
-                file: "src/models/calculator.rs".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 1, end: 72 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
-                reasoning: "Calculator module with extensive context for folding test".to_string(),
-            },
-        ],
-    });
-
-    decisions
+/// Create hardcoded decisions for TUI testing
+/// Returns Vec<Decision> for use with build_from_decisions()
+fn create_hardcoded_decisions_vec() -> Vec<Decision> {
+    vec![
+        // Decision 1: Refactor calculator model module
+        Decision {
+            number: 1,
+            title: "Refactor calculator model module".to_string(),
+            summary: "Extract calculator logic into separate, testable module".to_string(),
+            decision_log_line: Some(15),
+            code_impacts: vec![
+                CodeImpact {
+                    file: "src/models/calculator.rs".to_string(),
+                    line_ranges: vec![DecisionLineRange { start: 1, end: 72 }],
+                    change_type: ChangeType::Modification,
+                    confidence: Confidence::High,
+                    reasoning: "Calculator model structure refactoring".to_string(),
+                },
+                CodeImpact {
+                    file: "src/config/reader.rs".to_string(),
+                    line_ranges: vec![DecisionLineRange { start: 1, end: 7 }],
+                    change_type: ChangeType::Modification,
+                    confidence: Confidence::High,
+                    reasoning: "Configuration reader updates".to_string(),
+                },
+            ],
+        },
+        // Decision 2: Improve network client error handling
+        Decision {
+            number: 2,
+            title: "Improve error handling in network client".to_string(),
+            summary: "Standardize error types and add context to error messages".to_string(),
+            decision_log_line: Some(28),
+            code_impacts: vec![
+                CodeImpact {
+                    file: "src/network/client.rs".to_string(),
+                    line_ranges: vec![DecisionLineRange { start: 1, end: 6 }],
+                    change_type: ChangeType::Modification,
+                    confidence: Confidence::Medium,
+                    reasoning: "Network error handling improvements".to_string(),
+                },
+                CodeImpact {
+                    file: "src/models/calculator.rs".to_string(),
+                    line_ranges: vec![DecisionLineRange { start: 20, end: 40 }],
+                    change_type: ChangeType::Modification,
+                    confidence: Confidence::High,
+                    reasoning: "Calculator model error handling enhancements".to_string(),
+                },
+            ],
+        },
+        // Decision 3: Add logging infrastructure
+        Decision {
+            number: 3,
+            title: "Add structured logging throughout application".to_string(),
+            summary: "Architectural decision: use tracing crate for observability".to_string(),
+            decision_log_line: Some(42),
+            code_impacts: vec![
+                CodeImpact {
+                    file: "src/data/fetcher.py".to_string(),
+                    line_ranges: vec![DecisionLineRange { start: 1, end: 5 }],
+                    change_type: ChangeType::Modification,
+                    confidence: Confidence::High,
+                    reasoning: "Add logging to async data fetching operations".to_string(),
+                },
+                CodeImpact {
+                    file: "src/components/Greeting.tsx".to_string(),
+                    line_ranges: vec![DecisionLineRange { start: 1, end: 50 }],
+                    change_type: ChangeType::Modification,
+                    confidence: Confidence::Medium,
+                    reasoning: "Add component lifecycle logging".to_string(),
+                },
+                CodeImpact {
+                    file: "src/types/api.ts".to_string(),
+                    line_ranges: vec![DecisionLineRange { start: 1, end: 9 }],
+                    change_type: ChangeType::Modification,
+                    confidence: Confidence::High,
+                    reasoning: "Add API type validation logging".to_string(),
+                },
+                // Phase 6: Enhanced calculator fixture for context folding validation
+                CodeImpact {
+                    file: "src/models/calculator.rs".to_string(),
+                    line_ranges: vec![DecisionLineRange { start: 1, end: 72 }],
+                    change_type: ChangeType::Modification,
+                    confidence: Confidence::High,
+                    reasoning: "Calculator module with extensive context for folding test".to_string(),
+                },
+            ],
+        },
+    ]
 }
 
 /// Run input sequence test mode (feature-gated)
