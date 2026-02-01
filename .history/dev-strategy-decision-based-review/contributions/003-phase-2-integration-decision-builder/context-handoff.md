@@ -42,7 +42,8 @@ pub fn build_from_decisions(
 - Wraps sources appropriately for core API (FullSourceProvider)
 - Clear error handling with proper propagation
 - Logs warnings for unsupported files (continues processing)
-- Unique ReviewableDiffId format: `{file_path}#d{decision_number}`
+- Unique ReviewableDiffId format: `{file_path}#d{decision_number}:{start_line}-{end_line}`
+  - Handles multiple ranges per decision per file without collisions
 
 ## How It Integrates with Existing Code
 
@@ -198,9 +199,10 @@ use diffviz_core::decision_based_diff::create_reviewable_diff_from_range;
    - Currently always calls `set_decisions_with_index()`
    - Future: Could make this optional for performance
 
-3. **No Custom ID Format**
-   - ReviewableDiffId format is fixed: `{file_path}#d{decision_number}`
-   - Future: Could allow customization if needed
+3. **ID Format Includes Line Range**
+   - ReviewableDiffId format: `{file_path}#d{decision_number}:{start_line}-{end_line}`
+   - Ensures uniqueness when a decision has multiple ranges for the same file
+   - Examples: `src/auth.rs#d1:10-20`, `src/auth.rs#d1:50-60` are distinct
 
 4. **Silent Skipping of Unsupported Files**
    - Logged as warning but doesn't fail

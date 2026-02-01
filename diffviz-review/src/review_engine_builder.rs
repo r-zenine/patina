@@ -138,10 +138,10 @@ impl ReviewEngineBuilder {
                         .diff_provider
                         .get_source_code(file_path, &query.to)
                         .map_err(|e| {
-                            crate::errors::DiffVizError::Git(format!(
-                                "Failed to get new source for {file_path}: {e}"
-                            ))
-                        })?;
+                        crate::errors::DiffVizError::Git(format!(
+                            "Failed to get new source for {file_path}: {e}"
+                        ))
+                    })?;
 
                     let old_source_str = self
                         .diff_provider
@@ -188,9 +188,13 @@ impl ReviewEngineBuilder {
                     })?;
 
                     // Create review-layer ReviewableDiff
+                    // ID format includes line range to handle multiple ranges per decision per file
                     let reviewable_id = ReviewableDiffId::new(
                         query.clone(),
-                        format!("{file_path}#d{}", decision.number),
+                        format!(
+                            "{}#d{}:{}-{}",
+                            file_path, decision.number, range.start, range.end
+                        ),
                         line_range,
                     );
 
