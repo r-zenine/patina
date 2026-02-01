@@ -415,79 +415,6 @@ impl SimilarityMetrics {
     }
 }
 
-/// Pairing result between semantic units from old and new versions
-#[derive(Debug, Clone)]
-pub enum SemanticPair<'a> {
-    /// Matched pair with similarity analysis
-    Matched {
-        old_unit: &'a SemanticNode<'a>,
-        new_unit: &'a SemanticNode<'a>,
-        similarity: SemanticSimilarity,
-    },
-
-    /// Unit that exists only in the new version (addition)
-    Addition { unit: &'a SemanticNode<'a> },
-
-    /// Unit that exists only in the old version (deletion)
-    Deletion { unit: &'a SemanticNode<'a> },
-}
-
-/// Statistics about AST coverage in semantic pairing
-#[derive(Debug, Clone)]
-pub struct CoverageStats {
-    /// Total number of nodes in the old tree
-    pub total_old_nodes: usize,
-    /// Total number of nodes in the new tree
-    pub total_new_nodes: usize,
-    /// Number of matched pairs (nodes that appear in both trees)
-    pub matched_pairs: usize,
-    /// Number of deletions (nodes only in old tree)
-    pub deletions: usize,
-    /// Number of additions (nodes only in new tree)
-    pub additions: usize,
-}
-
-impl CoverageStats {
-    /// Calculate the percentage of nodes that were successfully matched
-    /// This represents how many nodes found exact counterparts in the other tree
-    pub fn match_percentage(&self) -> f64 {
-        let total = self.total_old_nodes + self.total_new_nodes;
-        if total == 0 {
-            return 100.0;
-        }
-
-        (self.matched_pairs * 2) as f64 / total as f64 * 100.0
-    }
-
-    /// Get total coverage percentage (should always be 100% if exhaustive)
-    pub fn coverage_percentage(&self) -> f64 {
-        if !self.is_exhaustive() {
-            return 0.0; // Invalid state
-        }
-        100.0 // All nodes are accounted for
-    }
-
-    /// Get a breakdown of how nodes were handled
-    pub fn coverage_breakdown(&self) -> (f64, f64, f64) {
-        let total = self.total_old_nodes + self.total_new_nodes;
-        if total == 0 {
-            return (0.0, 0.0, 0.0);
-        }
-
-        let matched_pct = (self.matched_pairs * 2) as f64 / total as f64 * 100.0;
-        let deleted_pct = self.deletions as f64 / total as f64 * 100.0;
-        let added_pct = self.additions as f64 / total as f64 * 100.0;
-
-        (matched_pct, deleted_pct, added_pct)
-    }
-
-    /// Check if all nodes are accounted for (100% coverage)
-    pub fn is_exhaustive(&self) -> bool {
-        self.matched_pairs + self.deletions == self.total_old_nodes
-            && self.matched_pairs + self.additions == self.total_new_nodes
-    }
-}
-
 impl<'a> SemanticTree<'a> {
     /// Create a new semantic tree
     pub fn new(root: SemanticNode<'a>, language: ProgrammingLanguage) -> Self {
@@ -873,54 +800,6 @@ impl<'a> SemanticNode<'a> {
             }
             (None, None) => true,
             _ => false, // One has node, other doesn't
-        }
-    }
-}
-
-impl<'a> SemanticPair<'a> {
-    /// Check if this pair represents a change that should be diffed in detail
-    pub fn should_diff(&self) -> bool {
-        match self {
-            SemanticPair::Matched { similarity, .. } => similarity.has_changes(),
-            SemanticPair::Addition { .. } | SemanticPair::Deletion { .. } => true,
-        }
-    }
-
-    /// Get a human-readable description of this pairing
-    pub fn description(&self) -> String {
-        match self {
-            SemanticPair::Matched { similarity, .. } => {
-                if similarity.is_identical() {
-                    "No changes".to_string()
-                } else {
-                    let mut changes = Vec::new();
-
-                    if similarity.name_changed {
-                        changes.push("Name changed");
-                    }
-                    if similarity.signature_changed {
-                        changes.push("Signature changed");
-                    }
-                    if similarity.body_changed {
-                        changes.push("Body changed");
-                    }
-                    if similarity.structural_changed {
-                        changes.push("Structure changed");
-                    }
-
-                    if changes.is_empty() {
-                        "Unknown change".to_string()
-                    } else {
-                        format!(
-                            "{} (confidence: {:.1}%)",
-                            changes.join(", "),
-                            similarity.match_confidence * 100.0
-                        )
-                    }
-                }
-            }
-            SemanticPair::Addition { .. } => "Added".to_string(),
-            SemanticPair::Deletion { .. } => "Deleted".to_string(),
         }
     }
 }

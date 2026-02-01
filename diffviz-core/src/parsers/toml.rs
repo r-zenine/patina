@@ -1,5 +1,5 @@
 use crate::common::{ASTError, LanguageParser, Result, SemanticNodeKind};
-use crate::semantic_ast::{SemanticError, SemanticNode, SemanticSimilarity, SemanticTree};
+use crate::semantic_ast::{SemanticError, SemanticTree};
 use tree_sitter::{Parser, Tree};
 
 pub struct TomlParser;
@@ -47,15 +47,5 @@ impl LanguageParser for TomlParser {
         Err(SemanticError::UnsupportedLanguage(
             "TOML semantic tree building not implemented yet".to_string(),
         ))
-    }
-
-    fn compare_semantic_units(
-        &self,
-        _old: &SemanticNode,
-        _new: &SemanticNode,
-        _old_source: &dyn crate::ast_diff::SourceProvider,
-        _new_source: &dyn crate::ast_diff::SourceProvider,
-    ) -> SemanticSimilarity {
-        SemanticSimilarity::unrelated()
     }
 }

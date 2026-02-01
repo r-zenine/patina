@@ -2,8 +2,7 @@
 
 use crate::common::{ASTError, LanguageParser, Result, SemanticNodeKind};
 use crate::semantic_ast::{
-    MetadataNode, MetadataPosition, SemanticError, SemanticNode, SemanticSimilarity, SemanticTree,
-    SemanticUnitType,
+    MetadataNode, MetadataPosition, SemanticError, SemanticNode, SemanticTree, SemanticUnitType,
 };
 use std::collections::HashMap;
 use tree_sitter::{Parser, Tree};
@@ -77,40 +76,6 @@ impl LanguageParser for TypeScriptParser {
             semantic_root,
             crate::common::ProgrammingLanguage::TypeScript,
         ))
-    }
-
-    fn compare_semantic_units(
-        &self,
-        old: &SemanticNode,
-        new: &SemanticNode,
-        _old_source: &dyn crate::ast_diff::SourceProvider,
-        _new_source: &dyn crate::ast_diff::SourceProvider,
-    ) -> SemanticSimilarity {
-        // Must be same unit type to be comparable
-        if old.unit_type_name() != new.unit_type_name() {
-            return SemanticSimilarity::unrelated();
-        }
-
-        let old_name = old
-            .name_node
-            .and_then(|node| _old_source.node_text(&node).ok())
-            .map(|s| s.to_string());
-        let new_name = new
-            .name_node
-            .and_then(|node| _new_source.node_text(&node).ok())
-            .map(|s| s.to_string());
-
-        match (&old_name, &new_name) {
-            (Some(old_n), Some(new_n)) if old_n == new_n => {
-                // Same name - check for basic changes
-                SemanticSimilarity::body_change() // Simple implementation for now
-            }
-            (Some(_), Some(_)) => {
-                // Different names
-                SemanticSimilarity::name_refactor(0.5)
-            }
-            _ => SemanticSimilarity::unrelated(),
-        }
     }
 }
 

@@ -147,24 +147,6 @@ pub trait LanguageParser: Send + Sync {
         crate::semantic_ast::SemanticError,
     >;
 
-    /// Compare two semantic units and determine their similarity relationship
-    ///
-    /// This method performs language-specific analysis to understand how two
-    /// semantic units relate to each other. It can detect:
-    /// - Identical units (no changes)
-    /// - Body changes (same signature, different implementation)
-    /// - Name refactors (same structure, different name)
-    /// - Signature changes (same name, different parameters/return type)
-    /// - Structural refactors (major changes but same concept)
-    /// - Unrelated units
-    fn compare_semantic_units(
-        &self,
-        old: &crate::semantic_ast::SemanticNode,
-        new: &crate::semantic_ast::SemanticNode,
-        old_source: &dyn crate::ast_diff::SourceProvider,
-        new_source: &dyn crate::ast_diff::SourceProvider,
-    ) -> crate::semantic_ast::SemanticSimilarity;
-
     /// Classify TreeSitter node kinds into semantic categories  
     fn classify_node_kind(&self, node_kind: &str) -> SemanticNodeKind;
 
