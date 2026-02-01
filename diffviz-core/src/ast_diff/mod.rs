@@ -31,7 +31,7 @@ pub use merkle::{
     diff_ast_trees_with_strategies, diff_children_merkle, diff_merkle_trees,
 };
 pub use nodes::{NodeLike, NodeRef, OwnedNodeData};
-pub use source::{LineRange, SourceCode, SourceProvider};
+pub use source::{FullSourceProvider, LineRange, SourceCode, SourceProvider};
 pub use strategies::{
     ASTChangeType, ChangeDetectionStrategies, ChangeDetectionStrategy, ChildOrderStrategy,
     ChildSetStrategy, UnifiedStructuralStrategy, is_literal_node,

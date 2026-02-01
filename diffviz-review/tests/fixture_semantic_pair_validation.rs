@@ -48,8 +48,7 @@ fn test_each_fixture_produces_semantic_pairs() {
     );
 
     // Build a single review engine with all fixtures
-    let mock_provider =
-        MockDiffProvider::from_review_fixtures().expect("Failed to load fixtures");
+    let mock_provider = MockDiffProvider::from_review_fixtures().expect("Failed to load fixtures");
     let builder = ReviewEngineBuilder::new(Box::new(mock_provider), "test_author".to_string());
     let engine = builder
         .build(DiffQuery::head_to_unstaged())
@@ -60,11 +59,13 @@ fn test_each_fixture_produces_semantic_pairs() {
     // Group semantic pairs by file path
     let mut pairs_by_file: HashMap<String, Vec<_>> = HashMap::new();
     for (id, diff) in all_diffs.iter() {
-        let file_path = id.file_path.split('#').next().unwrap_or("unknown").to_string();
-        pairs_by_file
-            .entry(file_path)
-            .or_default()
-            .push((id, diff));
+        let file_path = id
+            .file_path
+            .split('#')
+            .next()
+            .unwrap_or("unknown")
+            .to_string();
+        pairs_by_file.entry(file_path).or_default().push((id, diff));
     }
 
     // Track results
@@ -73,13 +74,13 @@ fn test_each_fixture_produces_semantic_pairs() {
 
     // Check each fixture
     for (fixture_name, fixture) in &fixtures {
-        let pairs = pairs_by_file.get(&fixture.file_path).map(|v| v.len()).unwrap_or(0);
+        let pairs = pairs_by_file
+            .get(&fixture.file_path)
+            .map(|v| v.len())
+            .unwrap_or(0);
 
         if pairs > 0 {
-            println!(
-                "✓ {} - {} semantic pairs produced",
-                fixture_name, pairs
-            );
+            println!("✓ {} - {} semantic pairs produced", fixture_name, pairs);
             println!("  File: {}", fixture.file_path);
             println!("  Language: {}", fixture.language);
 
@@ -103,9 +104,9 @@ fn test_each_fixture_produces_semantic_pairs() {
             println!("  File: {}", fixture.file_path);
             println!("  Language: {}", fixture.language);
             println!("  Description: {}", fixture.description);
-            println!("  Expected changes: +{} -{}",
-                fixture.expected_line_stats.additions,
-                fixture.expected_line_stats.deletions
+            println!(
+                "  Expected changes: +{} -{}",
+                fixture.expected_line_stats.additions, fixture.expected_line_stats.deletions
             );
             println!();
             failing_fixtures.push(fixture_name.clone());
@@ -115,11 +116,13 @@ fn test_each_fixture_produces_semantic_pairs() {
     // Print summary
     println!("\n=== Summary ===");
     println!("Total fixtures: {}", fixtures.len());
-    println!("Passing fixtures: {} ({}%)",
+    println!(
+        "Passing fixtures: {} ({}%)",
         passing_fixtures.len(),
         (passing_fixtures.len() * 100) / fixtures.len()
     );
-    println!("Failing fixtures: {} ({}%)",
+    println!(
+        "Failing fixtures: {} ({}%)",
         failing_fixtures.len(),
         (failing_fixtures.len() * 100) / fixtures.len()
     );
@@ -141,8 +144,7 @@ fn test_each_fixture_produces_semantic_pairs() {
 
 #[test]
 fn test_overall_semantic_pair_count() {
-    let mock_provider =
-        MockDiffProvider::from_review_fixtures().expect("Failed to load fixtures");
+    let mock_provider = MockDiffProvider::from_review_fixtures().expect("Failed to load fixtures");
     let builder = ReviewEngineBuilder::new(Box::new(mock_provider), "test_author".to_string());
     let engine = builder
         .build(DiffQuery::head_to_unstaged())
@@ -150,7 +152,10 @@ fn test_overall_semantic_pair_count() {
 
     let total_pairs = engine.state().reviewable_diffs.len();
 
-    println!("\nTotal semantic pairs produced across all fixtures: {}", total_pairs);
+    println!(
+        "\nTotal semantic pairs produced across all fixtures: {}",
+        total_pairs
+    );
 
     // Assert we got a reasonable number of pairs
     assert!(
