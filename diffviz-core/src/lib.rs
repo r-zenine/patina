@@ -9,7 +9,6 @@ pub mod ast_diff;
 pub mod decision_based_diff;
 pub mod renderable_diff;
 pub mod reviewable_diff;
-pub mod reviewable_diff_from_semantic;
 pub mod semantic_ast;
 pub mod semantic_unit_partitioner;
 // Re-export key types for external use
@@ -32,9 +31,8 @@ pub use semantic_unit_partitioner::{
 };
 
 pub use semantic_ast::{
-    CoverageStats, ImportType, ModuleType, SemanticError, SemanticNode, SemanticPair,
+    ImportType, ModuleType, SemanticError, SemanticNode, SemanticPair,
     SemanticSimilarity, SemanticTree, SemanticUnitType as SemanticASTUnitType, SourceRange,
-    build_semantic_pairs, build_semantic_pairs_with_coverage,
 };
 
 pub use decision_based_diff::{

@@ -40,20 +40,20 @@ pub enum TerminalBackend {
 pub struct Environment {
     #[allow(dead_code)] // Used in tests
     config: Config,
-    git_repo: GitRepository,
 }
 
 impl Environment {
     /// Create a new environment with the given configuration
     pub fn new(config: Config) -> CoreResult<Self> {
-        let git_repo = GitRepository::open(&config.repo_path).map_err(|e| {
+        // Validate that the repository exists (for connection testing)
+        let _ = GitRepository::open(&config.repo_path).map_err(|e| {
             diffviz_review::errors::DiffVizError::Repository(format!(
                 "Failed to open repository at '{}': {}",
                 config.repo_path, e
             ))
         })?;
 
-        Ok(Self { config, git_repo })
+        Ok(Self { config })
     }
 
     /// Create environment from a repository path (used by tests)
@@ -66,15 +66,6 @@ impl Environment {
         Self::new(config)
     }
 
-    /// Get a reference to the git repository
-    pub fn git_repository(&self) -> &GitRepository {
-        &self.git_repo
-    }
-
-    /// Take ownership of the git repository (consumes self)
-    pub fn into_git_repository(self) -> GitRepository {
-        self.git_repo
-    }
 }
 
 /// Builder for creating environments with different configurations

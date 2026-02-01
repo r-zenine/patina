@@ -4,7 +4,6 @@
 //! following clean separation of concerns and the Environment pattern.
 
 pub mod diagnose;
-pub mod formatter;
 pub mod review;
 pub mod show;
 
