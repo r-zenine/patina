@@ -152,7 +152,7 @@ fn create_hardcoded_decisions_vec() -> Vec<Decision> {
                 },
                 CodeImpact {
                     file: "src/components/Greeting.tsx".to_string(),
-                    line_ranges: vec![DecisionLineRange { start: 1, end: 50 }],
+                    line_ranges: vec![DecisionLineRange { start: 1, end: 49 }],
                     change_type: ChangeType::Modification,
                     confidence: Confidence::Medium,
                     reasoning: "Add component lifecycle logging".to_string(),
@@ -170,7 +170,8 @@ fn create_hardcoded_decisions_vec() -> Vec<Decision> {
                     line_ranges: vec![DecisionLineRange { start: 1, end: 72 }],
                     change_type: ChangeType::Modification,
                     confidence: Confidence::High,
-                    reasoning: "Calculator module with extensive context for folding test".to_string(),
+                    reasoning: "Calculator module with extensive context for folding test"
+                        .to_string(),
                 },
             ],
         },

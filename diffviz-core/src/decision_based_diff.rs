@@ -37,6 +37,15 @@ pub enum DecisionDiffError {
     #[error("Target range {start_line}-{end_line} is invalid")]
     InvalidRange { start_line: usize, end_line: usize },
 
+    #[error(
+        "Line range {start_line}-{end_line} exceeds source bounds (file has {actual_lines} lines)"
+    )]
+    LineRangeOutOfBounds {
+        start_line: usize,
+        end_line: usize,
+        actual_lines: usize,
+    },
+
     #[error("No semantic unit found at target range {start_line}-{end_line}")]
     NoUnitAtRange { start_line: usize, end_line: usize },
 }
@@ -59,11 +68,13 @@ pub enum ChangeClassification {
 /// Also expands the returned range to cover complete unit boundaries.
 fn find_semantic_unit_at_range<'a>(
     tree: &'a SemanticTree<'a>,
+    source: &str,
     start_line: usize,
     end_line: usize,
 ) -> Option<(&'a SemanticNode<'a>, usize, usize)> {
-    let start_byte = line_to_byte_offset(tree.root.tree_sitter_node, start_line)?;
-    let end_byte = line_to_byte_offset(tree.root.tree_sitter_node, end_line)?;
+    let start_byte =
+        line_to_byte_offset(tree.root.tree_sitter_node, source.as_bytes(), start_line)?;
+    let end_byte = line_to_byte_offset(tree.root.tree_sitter_node, source.as_bytes(), end_line)?;
 
     find_unit_recursive(&tree.root, start_byte, end_byte)
 }
@@ -96,21 +107,47 @@ fn find_unit_recursive<'a>(
     Some((node, expanded_start, expanded_end))
 }
 
+/// Helper: Count total lines in source
+fn count_lines(source: &str) -> usize {
+    if source.is_empty() {
+        return 0;
+    }
+    // Count newlines and add 1 for the last line (which may not end with \n)
+    source.bytes().filter(|&b| b == b'\n').count() + 1
+}
+
+/// Helper: Validate line range is within source bounds
+fn validate_line_range(
+    source: &str,
+    start_line: usize,
+    end_line: usize,
+) -> Result<(), DecisionDiffError> {
+    let actual_lines = count_lines(source);
+
+    if end_line > actual_lines {
+        return Err(DecisionDiffError::LineRangeOutOfBounds {
+            start_line,
+            end_line,
+            actual_lines,
+        });
+    }
+
+    Ok(())
+}
+
 /// Helper: Convert line number to byte offset in source
-fn line_to_byte_offset(root: Node, line: usize) -> Option<usize> {
+fn line_to_byte_offset(_root: Node, source: &[u8], line: usize) -> Option<usize> {
     // Line numbers are 1-based in most editors, convert to 0-based
     let target_line = line.saturating_sub(1);
 
     let mut current_line = 0;
     let mut byte_offset = 0;
 
-    let source = root.utf8_text(b"").unwrap_or("");
-
-    for (byte_idx, ch) in source.bytes().enumerate() {
+    for (byte_idx, ch) in source.iter().enumerate() {
         if current_line == target_line {
             return Some(byte_idx);
         }
-        if ch == b'\n' {
+        if *ch == b'\n' {
             current_line += 1;
         }
         byte_offset = byte_idx + 1;
@@ -130,6 +167,7 @@ fn line_to_byte_offset(root: Node, line: usize) -> Option<usize> {
 /// Returns the first matching unit, or None if not found.
 fn find_semantic_unit_by_name<'a>(
     tree: &'a SemanticTree<'a>,
+    source: &str,
     target_name: &str,
     target_type: &SemanticUnitType,
 ) -> Option<&'a SemanticNode<'a>> {
@@ -143,7 +181,7 @@ fn find_semantic_unit_by_name<'a>(
         }
 
         // Check if name matches
-        let unit_name = get_unit_name(unit);
+        let unit_name = get_unit_name(unit, source.as_bytes());
         if unit_name == Some(target_name.to_string()) {
             return Some(unit);
         }
@@ -153,9 +191,9 @@ fn find_semantic_unit_by_name<'a>(
 }
 
 /// Helper: Extract the name from a semantic unit
-fn get_unit_name(unit: &SemanticNode) -> Option<String> {
+fn get_unit_name(unit: &SemanticNode, source: &[u8]) -> Option<String> {
     if let Some(name_node) = unit.name_node {
-        name_node.utf8_text(b"").ok().map(|s| s.to_string())
+        name_node.utf8_text(source).ok().map(|s| s.to_string())
     } else {
         None
     }
@@ -434,6 +472,9 @@ pub fn create_reviewable_diff_from_range(
     // Extract full source content from providers
     let new_source_str = new_source.full_source();
 
+    // Validate line range is within source bounds
+    validate_line_range(new_source_str, start_line, end_line)?;
+
     // Parse new file
     let new_ast = parser
         .try_parse(new_source_str)
@@ -446,13 +487,13 @@ pub fn create_reviewable_diff_from_range(
         })?;
 
     // Find the semantic unit at the target range in new file
-    let (new_unit, _expanded_start, _expanded_end) = find_semantic_unit_at_range(
-        &new_tree, start_line, end_line,
-    )
-    .ok_or(DecisionDiffError::NoUnitAtRange {
-        start_line,
-        end_line,
-    })?;
+    let (new_unit, _expanded_start, _expanded_end) =
+        find_semantic_unit_at_range(&new_tree, new_source_str, start_line, end_line).ok_or(
+            DecisionDiffError::NoUnitAtRange {
+                start_line,
+                end_line,
+            },
+        )?;
 
     // Try to find the same unit in the old file and extract its node data
     let old_node_data = if let Some(old_source_provider) = old_source {
@@ -470,7 +511,8 @@ pub fn create_reviewable_diff_from_range(
         // Look up same-named unit in old tree
         find_semantic_unit_by_name(
             &old_tree,
-            &get_unit_name(new_unit).unwrap_or_default(),
+            old_source_str,
+            &get_unit_name(new_unit, new_source_str.as_bytes()).unwrap_or_default(),
             &new_unit.unit_type,
         )
         .map(|unit| OwnedNodeData::from_tree_sitter_node(&unit.tree_sitter_node))

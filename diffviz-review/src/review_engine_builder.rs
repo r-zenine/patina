@@ -40,7 +40,6 @@ impl ReviewEngineBuilder {
         }
     }
 
-
     /// Build a ReviewEngine from decisions using the decision-based diff pipeline
     ///
     /// This new pipeline (Phase 2.1) uses architectural decisions as the primary input
@@ -160,8 +159,6 @@ impl ReviewEngineBuilder {
 
         Ok(engine)
     }
-
-
 }
 
 /// Extract line range from a core ReviewableDiff boundary
@@ -298,4 +295,3 @@ fn get_language_parser_for_file(
 //
 //     Ok(review_layer_diffs)
 // }
-
