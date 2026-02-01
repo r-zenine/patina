@@ -2,9 +2,11 @@
 
 **Strategy**: Core-then-Integrate
 
+**Status**: Phase 3 Complete ✅
+
 ---
 
-## Phase 1: Core Module (diffviz-core)
+## Phase 1: Core Module (diffviz-core) ✅ COMPLETE
 
 Build `decision_based_diff.rs` with pure business logic and comprehensive tests.
 
@@ -56,7 +58,7 @@ Build `decision_based_diff.rs` with pure business logic and comprehensive tests.
 
 ---
 
-## Phase 2: Integration (diffviz-review)
+## Phase 2: Integration (diffviz-review) ✅ COMPLETE
 
 Wire the new module into ReviewEngineBuilder.
 
@@ -85,7 +87,7 @@ Wire the new module into ReviewEngineBuilder.
 
 ---
 
-## Phase 3: TUI Validation
+## Phase 3: TUI Validation ✅ COMPLETE
 
 Use the diffviz-tui-contribution skill's test harness to verify the TUI works end-to-end.
 
@@ -107,7 +109,7 @@ Use the diffviz-tui-contribution skill's test harness to verify the TUI works en
 
 ---
 
-## Phase 4: Remove Old Path
+## Phase 4: Remove Old Path ⏳ NEXT
 
 Delete `build_semantic_pairs()` and its direct callers.
 
@@ -133,7 +135,7 @@ Delete `build_semantic_pairs()` and its direct callers.
 
 ---
 
-## Phase 5: Cleanup
+## Phase 5: Cleanup ⏳ PENDING
 
 Sweep all remaining dead code that supported semantic pairing.
 
