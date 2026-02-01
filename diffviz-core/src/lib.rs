@@ -31,8 +31,8 @@ pub use semantic_unit_partitioner::{
 };
 
 pub use semantic_ast::{
-    ImportType, ModuleType, SemanticError, SemanticNode, SemanticPair,
-    SemanticSimilarity, SemanticTree, SemanticUnitType as SemanticASTUnitType, SourceRange,
+    ImportType, ModuleType, SemanticError, SemanticNode, SemanticPair, SemanticSimilarity,
+    SemanticTree, SemanticUnitType as SemanticASTUnitType, SourceRange,
 };
 
 pub use decision_based_diff::{

@@ -65,7 +65,6 @@ impl Environment {
         };
         Self::new(config)
     }
-
 }
 
 /// Builder for creating environments with different configurations
