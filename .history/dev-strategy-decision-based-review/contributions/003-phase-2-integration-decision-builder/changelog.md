@@ -42,6 +42,8 @@ Successfully integrated the Phase 1 decision_based_diff module into ReviewEngine
 - Added import: `entities::decision::{Decision, ReviewDecisions}`
 - New public method: `build_from_decisions(decisions, query)`
 - Implementation handles language detection, source fetching, and error propagation
+- ReviewableDiffId format: `{file_path}#d{decision_number}:{start_line}-{end_line}`
+  - Includes line range to avoid collisions when decision impacts multiple ranges in same file
 
 ## Backward Compatibility
 

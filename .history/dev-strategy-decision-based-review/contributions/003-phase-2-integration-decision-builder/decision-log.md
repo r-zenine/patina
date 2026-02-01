@@ -69,15 +69,44 @@ let old_provider = old_source_str.map(|src|
 
 ## D5: Decision-to-Diff ID Mapping
 
-**Decision**: Use format `{file_path}#d{decision_number}` for ReviewableDiffId.
+**REVISED DECISION**: Use format `{file_path}#d{decision_number}:{start_line}-{end_line}` for ReviewableDiffId.
 
 **Rationale**:
-- Unique per decision and file (allows multiple diffs per file from different decisions)
-- Distinguishable from git-driven diffs which might use different format in future
-- Decision number clearly visible in ID for debugging
-- Semantic: the `#d` prefix indicates "decision-based"
+- Handles multiple line ranges in a single CodeImpact for the same file
+- Uniqueness guaranteed: decision number + file + exact line range
+- Distinguishable from git-driven diffs (clear decision-based prefix)
+- Decision number visible for debugging
+- Line range explicitly encoded for unambiguous reference
 
-**Example**: `src/auth.rs#d1` means the diff created from Decision 1's impact on src/auth.rs
+**Why the Revision**:
+- Original format `{file_path}#d{decision_number}` would collide if a decision's CodeImpact included multiple ranges for the same file (e.g., lines 10-20 AND lines 50-60)
+- Example collision: Both ranges would create ID `src/auth.rs#d1`
+- Line range inclusion eliminates this ambiguity
+
+**Examples**:
+- `src/auth.rs#d1:10-20` - Decision 1's first range
+- `src/auth.rs#d1:50-60` - Decision 1's second range in same file
+- `src/utils.rs#d2:5-15` - Decision 2's impact on different file
+
+**Implementation**:
+```rust
+let reviewable_id = ReviewableDiffId::new(
+    query.clone(),
+    format!(
+        "{}#d{}:{}-{}",
+        file_path,
+        decision.number,
+        range.start,
+        range.end
+    ),
+    line_range,
+);
+```
+
+**Trade-offs**:
+- Longer ID strings (minor performance impact)
+- More verbose but more explicit and debuggable
+- Line ranges are already in `ReviewableDiffId` via `line_range` field, so this is redundant but clarifying
 
 ## D6: Loop Structure for Code Impacts
 
