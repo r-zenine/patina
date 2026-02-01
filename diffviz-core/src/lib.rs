@@ -10,7 +10,6 @@ pub mod decision_based_diff;
 pub mod renderable_diff;
 pub mod reviewable_diff;
 pub mod semantic_ast;
-pub mod semantic_unit_partitioner;
 // Re-export key types for external use
 pub use ast_diff::{
     ASTChange, ASTChangeType, ASTDiff, ChangeDetectionStrategies, ChangeDetectionStrategy,
@@ -25,14 +24,9 @@ pub use reviewable_diff::{
 
 pub use renderable_diff::{RenderableDiff, RenderableLine, RenderableMetadata};
 
-pub use semantic_unit_partitioner::{
-    PartitioningConfig, PartitioningError, SemanticUnit, SemanticUnitExtractor, SemanticUnitType,
-    UnitPair, partition_ast_trees,
-};
-
 pub use semantic_ast::{
-    ImportType, ModuleType, SemanticError, SemanticNode, SemanticPair, SemanticSimilarity,
-    SemanticTree, SemanticUnitType as SemanticASTUnitType, SourceRange,
+    ImportType, ModuleType, SemanticError, SemanticNode, SemanticSimilarity, SemanticTree,
+    SemanticUnitType as SemanticASTUnitType, SourceRange,
 };
 
 pub use decision_based_diff::{

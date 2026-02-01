@@ -2,7 +2,7 @@
 
 **Strategy**: Core-then-Integrate
 
-**Status**: Phase 3 Complete ✅
+**Status**: Phase 5 Complete ✅
 
 ---
 
@@ -135,7 +135,7 @@ Delete `build_semantic_pairs()` and its direct callers.
 
 ---
 
-## Phase 5: Cleanup ⏳ PENDING
+## Phase 5: Cleanup ✅ COMPLETE
 
 Sweep all remaining dead code that supported semantic pairing.
 

@@ -2,8 +2,7 @@
 
 use crate::common::{ASTError, LanguageParser, ProgrammingLanguage, Result, SemanticNodeKind};
 use crate::semantic_ast::{
-    ImportType, ModuleType, SemanticError, SemanticNode, SemanticSimilarity, SemanticTree,
-    SemanticUnitType,
+    ImportType, ModuleType, SemanticError, SemanticNode, SemanticTree, SemanticUnitType,
 };
 use std::collections::HashMap;
 use tree_sitter::{Node, Parser, Tree};
@@ -696,94 +695,5 @@ impl LanguageParser for CParser {
         let semantic_root = self.build_semantic_node(root_node, source, None, None)?;
 
         Ok(SemanticTree::new(semantic_root, ProgrammingLanguage::C))
-    }
-
-    fn compare_semantic_units(
-        &self,
-        old: &SemanticNode,
-        new: &SemanticNode,
-        old_source: &dyn crate::ast_diff::SourceProvider,
-        new_source: &dyn crate::ast_diff::SourceProvider,
-    ) -> SemanticSimilarity {
-        // Basic structural comparison for C units
-        match (&old.unit_type, &new.unit_type) {
-            // Compare functions
-            (SemanticUnitType::Callable { .. }, SemanticUnitType::Callable { .. }) => {
-                let old_name = old
-                    .name_node
-                    .and_then(|n| old_source.node_text(&n).ok().map(|s| s.to_string()));
-                let new_name = new
-                    .name_node
-                    .and_then(|n| new_source.node_text(&n).ok().map(|s| s.to_string()));
-                if old_name == new_name {
-                    // Same function name - check if signatures match
-                    let old_text = old_source
-                        .node_text(&old.tree_sitter_node)
-                        .unwrap_or_default();
-                    let new_text = new_source
-                        .node_text(&new.tree_sitter_node)
-                        .unwrap_or_default();
-
-                    if old_text == new_text {
-                        SemanticSimilarity::identical()
-                    } else {
-                        SemanticSimilarity::signature_change(true, 0.5)
-                    }
-                } else {
-                    SemanticSimilarity::unrelated()
-                }
-            }
-
-            // Compare structs and enums
-            (SemanticUnitType::DataStructure { .. }, SemanticUnitType::DataStructure { .. }) => {
-                let old_name = old
-                    .name_node
-                    .and_then(|n| old_source.node_text(&n).ok().map(|s| s.to_string()));
-                let new_name = new
-                    .name_node
-                    .and_then(|n| new_source.node_text(&n).ok().map(|s| s.to_string()));
-                if old_name == new_name {
-                    SemanticSimilarity::structural_refactor(0.8)
-                } else {
-                    SemanticSimilarity::unrelated()
-                }
-            }
-
-            // Compare variables
-            (SemanticUnitType::Variable { .. }, SemanticUnitType::Variable { .. }) => {
-                let old_name = old
-                    .name_node
-                    .and_then(|n| old_source.node_text(&n).ok().map(|s| s.to_string()));
-                let new_name = new
-                    .name_node
-                    .and_then(|n| new_source.node_text(&n).ok().map(|s| s.to_string()));
-                if old_name == new_name {
-                    SemanticSimilarity::body_change()
-                } else {
-                    SemanticSimilarity::unrelated()
-                }
-            }
-
-            // Compare preprocessor directives
-            (
-                SemanticUnitType::Import {
-                    source_module: old_module,
-                    ..
-                },
-                SemanticUnitType::Import {
-                    source_module: new_module,
-                    ..
-                },
-            ) => {
-                if old_module == new_module {
-                    SemanticSimilarity::identical()
-                } else {
-                    SemanticSimilarity::unrelated()
-                }
-            }
-
-            // Different types are unrelated
-            _ => SemanticSimilarity::unrelated(),
-        }
     }
 }

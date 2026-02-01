@@ -5,8 +5,8 @@
 
 use crate::common::{ASTError, LanguageParser, Result, SemanticNodeKind};
 use crate::semantic_ast::{
-    ImportType, MetadataNode, MetadataPosition, SemanticError, SemanticNode, SemanticSimilarity,
-    SemanticTree, SemanticUnitType,
+    ImportType, MetadataNode, MetadataPosition, SemanticError, SemanticNode, SemanticTree,
+    SemanticUnitType,
 };
 use std::collections::HashMap;
 use tree_sitter::{Parser, Tree};
@@ -154,49 +154,6 @@ impl LanguageParser for PythonParser {
             semantic_root,
             crate::common::ProgrammingLanguage::Python,
         ))
-    }
-
-    fn compare_semantic_units(
-        &self,
-        old: &SemanticNode,
-        new: &SemanticNode,
-        old_source: &dyn crate::ast_diff::SourceProvider,
-        new_source: &dyn crate::ast_diff::SourceProvider,
-    ) -> SemanticSimilarity {
-        // Must be same unit type to be comparable
-        if old.unit_type_name() != new.unit_type_name() {
-            return SemanticSimilarity::unrelated();
-        }
-
-        let old_name = old
-            .name_node
-            .and_then(|node| old_source.node_text(&node).ok())
-            .map(|s| s.to_string());
-        let new_name = new
-            .name_node
-            .and_then(|node| new_source.node_text(&node).ok())
-            .map(|s| s.to_string());
-
-        match (&old_name, &new_name) {
-            (Some(old_n), Some(new_n)) if old_n == new_n => {
-                // Same name - check for body changes based on unit type
-                match (&old.unit_type, &new.unit_type) {
-                    (SemanticUnitType::Callable { .. }, SemanticUnitType::Callable { .. }) => {
-                        self.compare_python_callables(old, new, old_source, new_source)
-                    }
-                    (
-                        SemanticUnitType::DataStructure { .. },
-                        SemanticUnitType::DataStructure { .. },
-                    ) => self.compare_python_data_structures(old, new, old_source, new_source),
-                    _ => SemanticSimilarity::body_change(), // Default for other types
-                }
-            }
-            (Some(_), Some(_)) => {
-                // Different names - could be rename or structural change
-                self.analyze_potential_rename(old, new, old_source, new_source)
-            }
-            _ => SemanticSimilarity::unrelated(), // One or both have no name
-        }
     }
 }
 
@@ -751,149 +708,5 @@ impl PythonParser {
         };
 
         (module_path, alias, is_wildcard)
-    }
-
-    /// Python-specific similarity comparison for callables
-    fn compare_python_callables(
-        &self,
-        old: &SemanticNode,
-        new: &SemanticNode,
-        old_source: &dyn crate::ast_diff::SourceProvider,
-        new_source: &dyn crate::ast_diff::SourceProvider,
-    ) -> SemanticSimilarity {
-        if let (
-            SemanticUnitType::Callable {
-                parameter_count: old_params,
-                return_type: old_ret,
-                is_async: old_async,
-                ..
-            },
-            SemanticUnitType::Callable {
-                parameter_count: new_params,
-                return_type: new_ret,
-                is_async: new_async,
-                ..
-            },
-        ) = (&old.unit_type, &new.unit_type)
-        {
-            // Check for decorator changes
-            let decorators_changed = self.compare_metadata_nodes(old, new, old_source, new_source);
-
-            if old_params == new_params
-                && old_ret == new_ret
-                && old_async == new_async
-                && !decorators_changed
-            {
-                SemanticSimilarity::body_change()
-            } else {
-                let param_similarity = if old_params == new_params { 0.3 } else { 0.0 };
-                let return_similarity = if old_ret == new_ret { 0.3 } else { 0.0 };
-                let async_similarity = if old_async == new_async { 0.2 } else { 0.0 };
-                let decorator_similarity = if !decorators_changed { 0.2 } else { 0.0 };
-
-                SemanticSimilarity::signature_change(
-                    true,
-                    param_similarity + return_similarity + async_similarity + decorator_similarity,
-                )
-            }
-        } else {
-            SemanticSimilarity::unrelated()
-        }
-    }
-
-    /// Python-specific similarity comparison for data structures (classes)
-    fn compare_python_data_structures(
-        &self,
-        old: &SemanticNode,
-        new: &SemanticNode,
-        old_source: &dyn crate::ast_diff::SourceProvider,
-        new_source: &dyn crate::ast_diff::SourceProvider,
-    ) -> SemanticSimilarity {
-        if let (
-            SemanticUnitType::DataStructure {
-                field_count: old_fields,
-                inheritance: old_inheritance,
-                ..
-            },
-            SemanticUnitType::DataStructure {
-                field_count: new_fields,
-                inheritance: new_inheritance,
-                ..
-            },
-        ) = (&old.unit_type, &new.unit_type)
-        {
-            // Check for structural changes: field count, inheritance, or decorators
-            let fields_changed = old_fields != new_fields;
-            let inheritance_changed = old_inheritance != new_inheritance;
-            let decorators_changed = self.compare_metadata_nodes(old, new, old_source, new_source);
-
-            if fields_changed || inheritance_changed || decorators_changed {
-                SemanticSimilarity::structural_refactor(0.8)
-            } else {
-                SemanticSimilarity::body_change()
-            }
-        } else {
-            SemanticSimilarity::unrelated()
-        }
-    }
-
-    /// Compare metadata nodes (decorators) between old and new semantic units
-    fn compare_metadata_nodes(
-        &self,
-        old: &SemanticNode,
-        new: &SemanticNode,
-        old_source: &dyn crate::ast_diff::SourceProvider,
-        new_source: &dyn crate::ast_diff::SourceProvider,
-    ) -> bool {
-        // If different number of metadata nodes, they're different
-        if old.metadata_nodes.len() != new.metadata_nodes.len() {
-            return true;
-        }
-
-        // Compare each metadata node's text content
-        for (old_meta, new_meta) in old.metadata_nodes.iter().zip(new.metadata_nodes.iter()) {
-            let old_text = old_source.node_text(&old_meta.node).unwrap_or_default();
-            let new_text = new_source.node_text(&new_meta.node).unwrap_or_default();
-
-            if old_text != new_text {
-                return true;
-            }
-        }
-
-        false // No differences found
-    }
-
-    /// Analyze potential rename for Python nodes
-    fn analyze_potential_rename(
-        &self,
-        old: &SemanticNode,
-        new: &SemanticNode,
-        _old_source: &dyn crate::ast_diff::SourceProvider,
-        _new_source: &dyn crate::ast_diff::SourceProvider,
-    ) -> SemanticSimilarity {
-        // For renames, compare structural similarity
-        match (&old.unit_type, &new.unit_type) {
-            (
-                SemanticUnitType::Callable {
-                    parameter_count: old_params,
-                    return_type: old_ret,
-                    is_async: old_async,
-                    ..
-                },
-                SemanticUnitType::Callable {
-                    parameter_count: new_params,
-                    return_type: new_ret,
-                    is_async: new_async,
-                    ..
-                },
-            ) => {
-                if old_params == new_params && old_ret == new_ret && old_async == new_async {
-                    SemanticSimilarity::name_refactor(0.9)
-                } else {
-                    SemanticSimilarity::structural_refactor(0.6)
-                }
-            }
-            _ => SemanticSimilarity::structural_refactor(0.5),
-        }
     }
 }
