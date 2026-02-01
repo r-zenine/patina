@@ -4,6 +4,7 @@
 //! core, and review layers to create fully populated ReviewEngine instances.
 
 use crate::engines::ReviewEngine;
+use crate::entities::decision::{Decision, ReviewDecisions};
 use crate::entities::git_ref::{DiffQuery, GitRef};
 use crate::entities::reviewable_diff_id::{LineRange, ReviewableDiffId};
 use crate::providers::DiffProvider;
@@ -14,6 +15,7 @@ use diffviz_core::parsers::{CParser, CppParser, JavaParser, JavaScriptParser, Ty
 use diffviz_core::{
     ast_diff::SourceCode,
     common::{LanguageParser, ProgrammingLanguage},
+    decision_based_diff::create_reviewable_diff_from_range,
     parsers::{GoParser, PythonParser, RustParser},
     reviewable_diff::ReviewableDiff as CoreReviewableDiff,
     reviewable_diff_from_semantic::semantic_pairs_to_reviewable_diffs,
@@ -90,6 +92,122 @@ impl ReviewEngineBuilder {
             self.author,
             self.diff_provider,
         ))
+    }
+
+    /// Build a ReviewEngine from decisions using the decision-based diff pipeline
+    ///
+    /// This new pipeline (Phase 2.1) uses architectural decisions as the primary input
+    /// instead of discovering changes from git. For each decision and its code impacts:
+    /// 1. Fetch old/new source via DiffProvider
+    /// 2. Call create_reviewable_diff_from_range() from diffviz-core
+    /// 3. Wrap result in review-layer ReviewableDiff with ReviewableDiffId
+    ///
+    /// The decision-to-diff relationship is established at creation time, eliminating
+    /// the need for post-hoc overlap detection via build_index_from_review_state().
+    pub fn build_from_decisions(
+        self,
+        decisions: Vec<Decision>,
+        query: DiffQuery,
+    ) -> Result<ReviewEngine, crate::errors::DiffVizError> {
+        let mut all_reviewable_diffs = Vec::new();
+        let mut review_decisions = ReviewDecisions::new();
+
+        // Process each decision to create ReviewableDiffs
+        for decision in decisions {
+            review_decisions.add_decision(decision.clone());
+
+            for code_impact in &decision.code_impacts {
+                let file_path = &code_impact.file;
+
+                // Skip unsupported files
+                if !is_supported_file(file_path) {
+                    eprintln!(
+                        "Skipping unsupported file in decision {}: {}",
+                        decision.number, file_path
+                    );
+                    continue;
+                }
+
+                // Get language parser for this file
+                let (parser, language) = get_language_parser_for_file(file_path)?;
+
+                // Process each line range in the code impact
+                for range in &code_impact.line_ranges {
+                    // Get source code for old and new versions
+                    let new_source_str = self
+                        .diff_provider
+                        .get_source_code(file_path, &query.to)
+                        .map_err(|e| {
+                            crate::errors::DiffVizError::Git(format!(
+                                "Failed to get new source for {file_path}: {e}"
+                            ))
+                        })?;
+
+                    let old_source_str = self
+                        .diff_provider
+                        .get_source_code(file_path, &query.from)
+                        .ok();
+
+                    // Create providers for the sources
+                    let new_provider = Box::new(SourceCode::new(new_source_str.clone()))
+                        as Box<dyn diffviz_core::ast_diff::FullSourceProvider>;
+                    let old_provider = old_source_str.as_ref().map(|src| {
+                        Box::new(SourceCode::new(src.clone()))
+                            as Box<dyn diffviz_core::ast_diff::FullSourceProvider>
+                    });
+
+                    // Call decision-based diff creation
+                    let core_diff = create_reviewable_diff_from_range(
+                        file_path,
+                        range.start,
+                        range.end,
+                        old_provider.as_deref(),
+                        new_provider.as_ref(),
+                        language,
+                        parser.as_ref(),
+                    )
+                    .map_err(|e| {
+                        crate::errors::DiffVizError::ProcessingFailed(format!(
+                            "Failed to create diff for {} (decision {}): {}",
+                            file_path, decision.number, e
+                        ))
+                    })?;
+
+                    // Extract line range from the core diff
+                    let new_source_provider = SourceCode::new(new_source_str);
+                    let old_source_provider = old_source_str.map(SourceCode::new);
+                    let line_range = extract_line_range_from_core_diff(
+                        &core_diff,
+                        &new_source_provider,
+                        old_source_provider.as_ref().unwrap_or(&new_source_provider),
+                    )
+                    .ok_or_else(|| {
+                        crate::errors::DiffVizError::ProcessingFailed(
+                            "Failed to extract line range from diff".to_string(),
+                        )
+                    })?;
+
+                    // Create review-layer ReviewableDiff
+                    let reviewable_id = ReviewableDiffId::new(
+                        query.clone(),
+                        format!("{file_path}#d{}", decision.number),
+                        line_range,
+                    );
+
+                    let reviewable_diff =
+                        ReviewableDiff::new(reviewable_id, core_diff, file_path.to_string());
+                    all_reviewable_diffs.push(reviewable_diff);
+                }
+            }
+        }
+
+        // Create engine with ReviewableDiffs
+        let mut engine = ReviewEngine::new(all_reviewable_diffs, self.author, self.diff_provider);
+
+        // Set decisions with index (maps ReviewableDiffIds to decision numbers)
+        engine.set_decisions_with_index(review_decisions);
+
+        Ok(engine)
     }
 
     /// Create ReviewableDiffs using semantic analysis pipeline
