@@ -363,9 +363,15 @@ fn get_chunks_for_file_in_decision(
         for code_impact in &decision.code_impacts {
             if code_impact.file == file_path {
                 // Find ReviewableDiffs that match this code impact's line ranges
+                // Only include diffs created by this decision (ID file_path contains #d{decision_number}:)
+                let decision_marker = format!("#d{decision_number}:");
                 let all_diffs = review_engine.get_ordered_reviewable_ids();
                 for id_ref in &all_diffs {
                     let id = (*id_ref).clone();
+                    // Filter by decision number to avoid showing chunks from other decisions
+                    if !id.file_path.contains(&decision_marker) {
+                        continue;
+                    }
                     if let Some(diff) = review_engine.get_reviewable_diff(&id) {
                         if diff.file_path == file_path {
                             // Check if diff overlaps with any line range in this code impact
