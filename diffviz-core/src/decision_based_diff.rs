@@ -180,9 +180,18 @@ fn find_semantic_unit_by_name<'a>(
             continue;
         }
 
-        // Check if name matches
+        // Check if name matches (handle nameless units like source_file)
         let unit_name = get_unit_name(unit, source.as_bytes());
-        if unit_name == Some(target_name.to_string()) {
+        let names_match = match (unit_name.as_deref(), target_name) {
+            // Both nameless (e.g., source_file units)
+            (None, "") => true,
+            // Both have matching names
+            (Some(name), target) if name == target => true,
+            // Name mismatch
+            _ => false,
+        };
+
+        if names_match {
             return Some(unit);
         }
     }

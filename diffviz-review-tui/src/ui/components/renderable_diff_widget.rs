@@ -276,18 +276,8 @@ fn line_to_spans(
     let bracket_style = Style::default().fg(Color::Cyan).bg(Color::Reset);
     spans.push(Span::styled(bracket_text, bracket_style));
 
-    // Line number (4 chars, right-aligned)
-    spans.push(Span::styled(
-        format!("{:>4}", line.line_number),
-        if is_cursor {
-            Style::default()
-                .fg(Colors::SUCCESS)
-                .bg(Color::Reset)
-                .add_modifier(Modifier::BOLD)
-        } else {
-            Style::default().fg(Color::DarkGray).bg(Color::Reset)
-        },
-    ));
+    // Line numbers disabled due to alignment issues in Myers diff
+    // TODO: Re-enable once RenderableDiff line numbering is fixed
 
     // Change indicator (1 char)
     let indicator_style = if is_cursor {

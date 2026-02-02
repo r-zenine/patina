@@ -124,8 +124,8 @@ impl ReviewEngineBuilder {
                     let old_source_provider = old_source_str.map(SourceCode::new);
                     let line_range = extract_line_range_from_core_diff(
                         &core_diff,
-                        &new_source_provider,
                         old_source_provider.as_ref().unwrap_or(&new_source_provider),
+                        &new_source_provider,
                     )
                     .ok_or_else(|| {
                         crate::errors::DiffVizError::ProcessingFailed(

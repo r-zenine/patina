@@ -164,15 +164,6 @@ fn create_hardcoded_decisions_vec() -> Vec<Decision> {
                     confidence: Confidence::High,
                     reasoning: "Add API type validation logging".to_string(),
                 },
-                // Phase 6: Enhanced calculator fixture for context folding validation
-                CodeImpact {
-                    file: "src/models/calculator.rs".to_string(),
-                    line_ranges: vec![DecisionLineRange { start: 1, end: 72 }],
-                    change_type: ChangeType::Modification,
-                    confidence: Confidence::High,
-                    reasoning: "Calculator module with extensive context for folding test"
-                        .to_string(),
-                },
             ],
         },
     ]
