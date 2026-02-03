@@ -23,7 +23,7 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
         ReviewEngineBuilder::new(Box::new(mock_provider), "test-user".to_string());
     let diff_query = DiffQuery::new(GitRef::Head, GitRef::Unstaged);
     let mut review_engine = review_engine_builder
-        .build(diff_query)
+        .build_from_decisions(vec![], diff_query)
         .expect("Failed to build ReviewEngine");
 
     // Set up hardcoded decisions with file paths matching actual test fixtures
@@ -371,11 +371,11 @@ fn test_file_approval_event_conversion() {
             .decision_tree_path
             .1
             .is_some(),
-        true
+        true,
+        "Should be at chunk depth (depth 1)"
     );
-    assert_eq!(snapshots[snapshots.len() - 1].decision_tree_path.2, None);
 
-    // The key test: pressing Space+a+a at file level should invoke approval
+    // The key test: pressing Space+a+a at chunk level should invoke approval
     // Previously this would silently fail because current_reviewable_id() returned None
     // Now it should call ApproveFile because current_file_path() is available
 

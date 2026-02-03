@@ -19,7 +19,7 @@
 use diffviz_review::providers::mock_provider::MockDiffProvider;
 use diffviz_review::{
     ChangeType, CodeImpact, Confidence, Decision, DecisionLineRange, DiffQuery, GitRef,
-    ReviewDecisions, ReviewEngineBuilder,
+    ReviewEngineBuilder,
 };
 use diffviz_review_tui::test_harness::InputTestHarness;
 
@@ -27,80 +27,76 @@ use diffviz_review_tui::test_harness::InputTestHarness;
 // Test Setup
 // =============================================================================
 
-/// Create a test ReviewEngine with 2 decisions, each with 2 files, each with 2 chunks
+/// Create a test ReviewEngine with 2 decisions with multiple chunks
 /// This provides rich structure for expansion/collapse testing
+/// Uses real fixture files with valid line ranges
 fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
     let mock_provider =
         MockDiffProvider::from_review_fixtures().expect("Failed to load test fixtures");
     let review_engine_builder =
         ReviewEngineBuilder::new(Box::new(mock_provider), "test-user".to_string());
     let diff_query = DiffQuery::new(GitRef::Head, GitRef::Unstaged);
-    let mut review_engine = review_engine_builder
-        .build(diff_query)
-        .expect("Failed to build ReviewEngine");
 
-    // Set up 2 test decisions with multiple files/chunks for tree expansion testing
-    let mut decisions = ReviewDecisions::new();
+    // Set up 2 test decisions with multiple chunks for tree expansion testing
+    // File sizes: calculator.rs: 72, base.py: 20, Greeting.tsx: 49
+    let decisions = vec![
+        // Decision 1: Multiple impacts across files
+        Decision {
+            number: 1,
+            title: "Decision 1: Calculator Refactor".to_string(),
+            summary: "Refactor calculator logic for better maintainability".to_string(),
+            decision_log_line: Some(1),
+            code_impacts: vec![
+                CodeImpact {
+                    file: "src/models/calculator.rs".to_string(),
+                    line_ranges: vec![
+                        DecisionLineRange { start: 1, end: 30 },
+                        DecisionLineRange { start: 40, end: 60 },
+                    ],
+                    change_type: ChangeType::Modification,
+                    confidence: Confidence::High,
+                    reasoning: "Refactored for clarity".to_string(),
+                },
+                CodeImpact {
+                    file: "src/models/base.py".to_string(),
+                    line_ranges: vec![DecisionLineRange { start: 1, end: 20 }],
+                    change_type: ChangeType::Addition,
+                    confidence: Confidence::Medium,
+                    reasoning: "Added base model".to_string(),
+                },
+            ],
+        },
+        // Decision 2: Multiple impacts
+        Decision {
+            number: 2,
+            title: "Decision 2: Component Updates".to_string(),
+            summary: "Improve React components throughout codebase".to_string(),
+            decision_log_line: Some(2),
+            code_impacts: vec![
+                CodeImpact {
+                    file: "src/components/Greeting.tsx".to_string(),
+                    line_ranges: vec![
+                        DecisionLineRange { start: 1, end: 25 },
+                        DecisionLineRange { start: 26, end: 49 },
+                    ],
+                    change_type: ChangeType::Modification,
+                    confidence: Confidence::High,
+                    reasoning: "Enhanced component logic".to_string(),
+                },
+                CodeImpact {
+                    file: "src/types/api.ts".to_string(),
+                    line_ranges: vec![DecisionLineRange { start: 1, end: 9 }],
+                    change_type: ChangeType::Modification,
+                    confidence: Confidence::Low,
+                    reasoning: "Updated types".to_string(),
+                },
+            ],
+        },
+    ];
 
-    // Decision 1: Multiple impacts across files
-    decisions.add_decision(Decision {
-        number: 1,
-        title: "Decision 1: Core Logic Refactor".to_string(),
-        summary: "Refactor core logic for better maintainability".to_string(),
-        decision_log_line: Some(1),
-        code_impacts: vec![
-            CodeImpact {
-                file: "src/core/logic.rs".to_string(),
-                line_ranges: vec![
-                    DecisionLineRange { start: 1, end: 10 },
-                    DecisionLineRange { start: 50, end: 60 },
-                ],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
-                reasoning: "Refactored for clarity".to_string(),
-            },
-            CodeImpact {
-                file: "src/utils/helpers.rs".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 1, end: 20 }],
-                change_type: ChangeType::Addition,
-                confidence: Confidence::Medium,
-                reasoning: "Added new helper function".to_string(),
-            },
-        ],
-    });
-
-    // Decision 2: Multiple impacts
-    decisions.add_decision(Decision {
-        number: 2,
-        title: "Decision 2: Error Handling".to_string(),
-        summary: "Improve error handling throughout codebase".to_string(),
-        decision_log_line: Some(2),
-        code_impacts: vec![
-            CodeImpact {
-                file: "src/error/handler.rs".to_string(),
-                line_ranges: vec![
-                    DecisionLineRange { start: 1, end: 30 },
-                    DecisionLineRange {
-                        start: 100,
-                        end: 120,
-                    },
-                ],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
-                reasoning: "Enhanced error handling".to_string(),
-            },
-            CodeImpact {
-                file: "src/lib.rs".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 1, end: 5 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::Low,
-                reasoning: "Updated imports".to_string(),
-            },
-        ],
-    });
-
-    review_engine.set_decisions_with_index(decisions);
-    review_engine
+    review_engine_builder
+        .build_from_decisions(decisions, diff_query)
+        .expect("Failed to build ReviewEngine")
 }
 
 // =============================================================================
@@ -122,10 +118,6 @@ fn test_expansion_tab_toggles_first_decision_expansion() {
     );
     assert_eq!(
         snapshots[0].decision_tree_path.1, None,
-        "Initial file index should be None (depth 0)"
-    );
-    assert_eq!(
-        snapshots[0].decision_tree_path.2, None,
         "Initial chunk index should be None (depth 0)"
     );
     // After Tab, we should still be at depth 0 but tree structure changes
@@ -228,11 +220,9 @@ fn test_expansion_tab_and_enter_have_same_effect() {
 // Depth-Based Navigation Tests
 // =============================================================================
 
-/// Calculate depth from tuple path (0=decision, 1=file, 2=chunk)
-fn calculate_depth(path: &(usize, Option<usize>, Option<usize>)) -> usize {
-    if path.2.is_some() {
-        2
-    } else if path.1.is_some() {
+/// Calculate depth from tuple path (0=decision, 1=chunk)
+fn calculate_depth(path: &(usize, Option<usize>)) -> usize {
+    if path.1.is_some() {
         1
     } else {
         0
@@ -389,41 +379,33 @@ fn test_expansion_state_independent_per_decision() {
 }
 
 #[test]
-fn test_expand_decision1_navigate_to_first_file_correct_flattened_behavior() {
+fn test_expand_decision1_navigate_to_first_chunk_correct_flattened_behavior() {
     let mut harness = InputTestHarness::new(create_test_engine());
 
-    // Start at decision 0, depth 0: (0, None, None)
+    // Start at decision 0, depth 0: (0, None)
     let snapshots0 = harness.run_sequence("").expect("Get initial state");
     let initial_path = &snapshots0.last().unwrap().decision_tree_path;
     assert_eq!(initial_path.0, 0, "Initially at decision 0");
-    assert_eq!(initial_path.1, None, "Initially no file selected");
-    assert_eq!(initial_path.2, None, "Initially no chunk selected");
+    assert_eq!(initial_path.1, None, "Initially no chunk selected");
 
-    // Expand first decision - tree now shows decision 0 with its files visible
+    // Expand first decision - tree now shows decision 0 with its chunks visible
     harness.run_sequence("<Tab>").expect("Expand decision 1");
 
-    // Navigate down with j - should go to first file of expanded decision 0
+    // Navigate down with j - should go to first chunk of expanded decision 0
     // This is correct flattened-tree behavior: expanded nodes show their children
-    let snapshots_after_j = harness.run_sequence("j").expect("Navigate to first file");
+    let snapshots_after_j = harness.run_sequence("j").expect("Navigate to first chunk");
     let path_after_j = &snapshots_after_j.last().unwrap().decision_tree_path;
 
     assert_eq!(path_after_j.0, 0, "Still at decision 0");
     assert_eq!(
         path_after_j.1,
         Some(0),
-        "Now at first file of decision 0 (file depth)"
+        "Now at first chunk of decision 0 (chunk depth)"
     );
-    assert_eq!(path_after_j.2, None, "Not yet at chunk level");
 
-    // Verify depth is 1 (file level)
-    let depth = if path_after_j.2.is_some() {
-        2
-    } else if path_after_j.1.is_some() {
-        1
-    } else {
-        0
-    };
-    assert_eq!(depth, 1, "Should be at file depth (1)");
+    // Verify depth is 1 (chunk level)
+    let depth = if path_after_j.1.is_some() { 1 } else { 0 };
+    assert_eq!(depth, 1, "Should be at chunk depth (1)");
 }
 
 // =============================================================================
@@ -519,8 +501,8 @@ fn test_expansion_depth_routing_consistency() {
 
     for snapshot in &snapshots {
         let depth = calculate_depth(&snapshot.decision_tree_path);
-        // Depth should be 0-2 throughout
-        assert!(depth <= 2, "Depth out of valid range: {}", depth);
+        // Depth should be 0-1 throughout
+        assert!(depth <= 1, "Depth out of valid range: {}", depth);
     }
 }
 

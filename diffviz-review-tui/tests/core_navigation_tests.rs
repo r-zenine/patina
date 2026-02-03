@@ -33,7 +33,7 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
         ReviewEngineBuilder::new(Box::new(mock_provider), "test-user".to_string());
     let diff_query = DiffQuery::new(GitRef::Head, GitRef::Unstaged);
     let mut review_engine = review_engine_builder
-        .build(diff_query)
+        .build_from_decisions(vec![], diff_query)
         .expect("Failed to build ReviewEngine");
 
     // Set up 3 test decisions for consistent navigation testing

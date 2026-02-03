@@ -22,43 +22,30 @@ pub struct DecisionNode {
     /// Decision number
     pub decision_number: u32,
 
-    /// Whether this decision is expanded to show its files
+    /// Whether this decision is expanded to show its chunks
     pub expanded: bool,
 
-    /// Files contained in this decision
-    pub files: Vec<FileNode>,
-}
-
-/// A file node within a decision
-#[derive(Debug, Clone)]
-pub struct FileNode {
-    /// File path
-    pub path: String,
-
-    /// Whether this file is expanded to show its chunks
-    pub expanded: bool,
-
-    /// Chunks (diffs) within this file
+    /// Chunks contained directly in this decision
     pub chunks: Vec<ChunkNode>,
 }
 
-/// A chunk (ReviewableDiff) within a file
+/// A chunk (ReviewableDiff) within a decision
 #[derive(Debug, Clone)]
 pub struct ChunkNode {
     /// The ReviewableDiff identifier
     pub chunk_id: ReviewableDiffId,
+
+    /// Display name for this chunk (e.g., "file.rs" or "file.rs#[10-20]")
+    pub display_name: String,
 }
 
-/// Path to a node in the tree (which decision/file/chunk is selected)
+/// Path to a node in the tree (which decision/chunk is selected)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TreePath {
     /// Index into decisions array
     pub decision_index: usize,
 
-    /// If Some, index into files array of selected decision
-    pub file_index: Option<usize>,
-
-    /// If Some, index into chunks array of selected file
+    /// If Some, index into chunks array of selected decision
     pub chunk_index: Option<usize>,
 }
 
@@ -67,34 +54,21 @@ impl TreePath {
     pub fn decision(index: usize) -> Self {
         Self {
             decision_index: index,
-            file_index: None,
-            chunk_index: None,
-        }
-    }
-
-    /// Create a path pointing to a file
-    pub fn file(decision_index: usize, file_index: usize) -> Self {
-        Self {
-            decision_index,
-            file_index: Some(file_index),
             chunk_index: None,
         }
     }
 
     /// Create a path pointing to a chunk
-    pub fn chunk(decision_index: usize, file_index: usize, chunk_index: usize) -> Self {
+    pub fn chunk(decision_index: usize, chunk_index: usize) -> Self {
         Self {
             decision_index,
-            file_index: Some(file_index),
             chunk_index: Some(chunk_index),
         }
     }
 
-    /// Get the depth of this path (0=decision, 1=file, 2=chunk)
+    /// Get the depth of this path (0=decision, 1=chunk)
     pub fn depth(&self) -> usize {
         if self.chunk_index.is_some() {
-            2
-        } else if self.file_index.is_some() {
             1
         } else {
             0
@@ -118,15 +92,10 @@ pub enum FlattenedNodeKind {
         number: u32,
         expanded: bool,
     },
-    File {
-        decision_num: u32,
-        path: String,
-        expanded: bool,
-    },
     Chunk {
         decision_num: u32,
-        file_path: String,
         chunk_id: ReviewableDiffId,
+        display_name: String,
     },
 }
 
@@ -145,38 +114,37 @@ impl DecisionNavigationTree {
         let mut nodes = Vec::new();
 
         for decision in decisions {
-            // Collect unique files for this decision
-            let mut file_paths = Vec::new();
-            for impact in &decision.code_impacts {
-                if !file_paths.contains(&impact.file) {
-                    file_paths.push(impact.file.clone());
-                }
+            // Collect all chunks for this decision
+            let all_chunks = get_all_chunks_for_decision(review_engine, decision.number);
+
+            // Group chunks by file_path
+            let mut chunks_by_file: std::collections::HashMap<String, Vec<ReviewableDiffId>> =
+                std::collections::HashMap::new();
+            for chunk_id in &all_chunks {
+                chunks_by_file
+                    .entry(chunk_id.file_path.clone())
+                    .or_default()
+                    .push(chunk_id.clone());
             }
-            file_paths.sort();
 
-            // Build file nodes for each file
-            let mut files = Vec::new();
-            for file_path in file_paths {
-                // Get chunks for this file
-                let chunks =
-                    get_chunks_for_file_in_decision(review_engine, decision.number, &file_path);
+            // Create chunk nodes with smart display names
+            let mut chunk_nodes = Vec::new();
+            for chunk_id in all_chunks {
+                let file_path = &chunk_id.file_path;
+                let file_chunk_count = chunks_by_file.get(file_path).map(|v| v.len()).unwrap_or(1);
+                let display_name =
+                    format_chunk_display_name(file_path, &chunk_id, file_chunk_count);
 
-                let chunk_nodes = chunks
-                    .into_iter()
-                    .map(|chunk_id| ChunkNode { chunk_id })
-                    .collect();
-
-                files.push(FileNode {
-                    path: file_path,
-                    expanded: false,
-                    chunks: chunk_nodes,
+                chunk_nodes.push(ChunkNode {
+                    chunk_id,
+                    display_name,
                 });
             }
 
             nodes.push(DecisionNode {
                 decision_number: decision.number,
                 expanded: false,
-                files,
+                chunks: chunk_nodes,
             });
         }
 
@@ -200,31 +168,17 @@ impl DecisionNavigationTree {
                 },
             });
 
-            // If decision is expanded, add its files
+            // If decision is expanded, add its chunks directly
             if decision_node.expanded {
-                for (file_idx, file_node) in decision_node.files.iter().enumerate() {
+                for (chunk_idx, chunk_node) in decision_node.chunks.iter().enumerate() {
                     result.push(FlattenedNode {
-                        path: TreePath::file(decision_idx, file_idx),
-                        kind: FlattenedNodeKind::File {
+                        path: TreePath::chunk(decision_idx, chunk_idx),
+                        kind: FlattenedNodeKind::Chunk {
                             decision_num: decision_node.decision_number,
-                            path: file_node.path.clone(),
-                            expanded: file_node.expanded,
+                            chunk_id: chunk_node.chunk_id.clone(),
+                            display_name: chunk_node.display_name.clone(),
                         },
                     });
-
-                    // If file is expanded, add its chunks
-                    if file_node.expanded {
-                        for (chunk_idx, chunk_node) in file_node.chunks.iter().enumerate() {
-                            result.push(FlattenedNode {
-                                path: TreePath::chunk(decision_idx, file_idx, chunk_idx),
-                                kind: FlattenedNodeKind::Chunk {
-                                    decision_num: decision_node.decision_number,
-                                    file_path: file_node.path.clone(),
-                                    chunk_id: chunk_node.chunk_id.clone(),
-                                },
-                            });
-                        }
-                    }
                 }
             }
         }
@@ -264,33 +218,25 @@ impl DecisionNavigationTree {
         }
     }
 
-    /// Toggle expansion of the currently selected node
+    /// Toggle expansion of the currently selected node (decisions only)
     pub fn toggle_expansion(&mut self) {
         let path = &self.selected_path;
 
-        if let Some(decision) = self.nodes.get_mut(path.decision_index) {
-            if let Some(file_idx) = path.file_index {
-                // Toggle file expansion
-                if let Some(file) = decision.files.get_mut(file_idx) {
-                    file.expanded = !file.expanded;
-                }
-            } else {
-                // Toggle decision expansion
+        // Only decisions can be expanded/collapsed now
+        if path.chunk_index.is_none() {
+            if let Some(decision) = self.nodes.get_mut(path.decision_index) {
                 decision.expanded = !decision.expanded;
             }
         }
     }
 
-    /// Expand the currently selected node
+    /// Expand the currently selected node (decisions only)
     pub fn expand_current(&mut self) {
         let path = &self.selected_path;
 
-        if let Some(decision) = self.nodes.get_mut(path.decision_index) {
-            if let Some(file_idx) = path.file_index {
-                if let Some(file) = decision.files.get_mut(file_idx) {
-                    file.expanded = true;
-                }
-            } else {
+        // Only decisions can be expanded
+        if path.chunk_index.is_none() {
+            if let Some(decision) = self.nodes.get_mut(path.decision_index) {
                 decision.expanded = true;
             }
         }
@@ -303,25 +249,12 @@ impl DecisionNavigationTree {
             .map(|d| d.decision_number)
     }
 
-    /// Get the currently selected file path
-    pub fn selected_file_path(&self) -> Option<String> {
-        let path = &self.selected_path;
-        self.nodes
-            .get(path.decision_index)
-            .and_then(|d| path.file_index.and_then(|f_idx| d.files.get(f_idx)))
-            .map(|f| f.path.clone())
-    }
-
     /// Get the currently selected chunk ID
     pub fn selected_chunk_id(&self) -> Option<ReviewableDiffId> {
         let path = &self.selected_path;
         self.nodes
             .get(path.decision_index)
-            .and_then(|d| {
-                path.file_index
-                    .and_then(|f_idx| d.files.get(f_idx))
-                    .and_then(|f| path.chunk_index.and_then(|c_idx| f.chunks.get(c_idx)))
-            })
+            .and_then(|d| path.chunk_index.and_then(|c_idx| d.chunks.get(c_idx)))
             .map(|c| c.chunk_id.clone())
     }
 
@@ -338,9 +271,6 @@ impl DecisionNavigationTree {
     pub fn reset(&mut self) {
         for node in &mut self.nodes {
             node.expanded = false;
-            for file in &mut node.files {
-                file.expanded = false;
-            }
         }
         self.selected_path = TreePath::decision(0);
     }
@@ -352,38 +282,35 @@ impl Default for DecisionNavigationTree {
     }
 }
 
-/// Helper to get chunks for a specific file within a decision
-fn get_chunks_for_file_in_decision(
+/// Helper to get all chunks for a decision
+fn get_all_chunks_for_decision(
     review_engine: &ReviewEngine,
     decision_number: u32,
-    file_path: &str,
 ) -> Vec<ReviewableDiffId> {
     if let Some(decision) = review_engine.get_decision(decision_number) {
         let mut chunk_ids: Vec<ReviewableDiffId> = Vec::new();
-        for code_impact in &decision.code_impacts {
-            if code_impact.file == file_path {
-                // Find ReviewableDiffs that match this code impact's line ranges
-                // Only include diffs created by this decision (ID file_path contains #d{decision_number}:)
-                let decision_marker = format!("#d{decision_number}:");
-                let all_diffs = review_engine.get_ordered_reviewable_ids();
-                for id_ref in &all_diffs {
-                    let id = (*id_ref).clone();
-                    // Filter by decision number to avoid showing chunks from other decisions
-                    if !id.file_path.contains(&decision_marker) {
-                        continue;
-                    }
-                    if let Some(diff) = review_engine.get_reviewable_diff(&id) {
-                        if diff.file_path == file_path {
-                            // Check if diff overlaps with any line range in this code impact
-                            for line_range in &code_impact.line_ranges {
-                                if diff.id.line_range.end_line >= line_range.start
-                                    && diff.id.line_range.start_line <= line_range.end
-                                {
-                                    if !chunk_ids.contains(&id) {
-                                        chunk_ids.push(id.clone());
-                                    }
-                                    break;
+        let decision_marker = format!("#d{decision_number}:");
+        let all_diffs = review_engine.get_ordered_reviewable_ids();
+
+        for id_ref in &all_diffs {
+            let id = (*id_ref).clone();
+            // Filter by decision number to avoid showing chunks from other decisions
+            if !id.file_path.contains(&decision_marker) {
+                continue;
+            }
+
+            if let Some(diff) = review_engine.get_reviewable_diff(&id) {
+                // Check if diff overlaps with any code impact in this decision
+                for code_impact in &decision.code_impacts {
+                    if diff.file_path == code_impact.file {
+                        for line_range in &code_impact.line_ranges {
+                            if diff.id.line_range.end_line >= line_range.start
+                                && diff.id.line_range.start_line <= line_range.end
+                            {
+                                if !chunk_ids.contains(&id) {
+                                    chunk_ids.push(id.clone());
                                 }
+                                break;
                             }
                         }
                     }
@@ -396,6 +323,25 @@ fn get_chunks_for_file_in_decision(
     }
 }
 
+/// Format chunk display name with smart naming
+/// Single-chunk files display as "file.rs", multi-chunk files display as "file.rs#[10-20]"
+fn format_chunk_display_name(
+    file_path: &str,
+    chunk_id: &ReviewableDiffId,
+    file_chunk_count: usize,
+) -> String {
+    let basename = file_path.split('/').next_back().unwrap_or(file_path);
+
+    if file_chunk_count == 1 {
+        basename.to_string()
+    } else {
+        format!(
+            "{}#[{}-{}]",
+            basename, chunk_id.line_range.start_line, chunk_id.line_range.end_line
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -403,8 +349,7 @@ mod tests {
     #[test]
     fn test_tree_path_depth() {
         assert_eq!(TreePath::decision(0).depth(), 0);
-        assert_eq!(TreePath::file(0, 0).depth(), 1);
-        assert_eq!(TreePath::chunk(0, 0, 0).depth(), 2);
+        assert_eq!(TreePath::chunk(0, 0).depth(), 1);
     }
 
     #[test]

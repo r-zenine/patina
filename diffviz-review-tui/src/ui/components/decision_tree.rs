@@ -1,7 +1,7 @@
 //! Decision tree component - hierarchical view for decision-based review
 //!
-//! Displays decisions with expandable files and chunks in a tree structure.
-//! Tree layout: Decision (level 0) → Files (level 1) → Chunks (level 2)
+//! Displays decisions with expandable chunks in a tree structure.
+//! Tree layout: Decision (level 0) → Chunks (level 1)
 
 use ratatui::{
     layout::Rect,
@@ -11,7 +11,7 @@ use ratatui::{
     Frame,
 };
 
-use crate::decision_navigation::{DecisionNavigationTree, FlattenedNodeKind};
+use crate::decision_navigation::FlattenedNodeKind;
 use crate::state::UiState;
 use crate::theme::Icons;
 use diffviz_review::engines::ReviewEngine;
@@ -36,23 +36,11 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &Rev
             FlattenedNodeKind::Decision { number, expanded } => {
                 build_decision_item(*number, *expanded, is_selected, review_engine, area.width)
             }
-            FlattenedNodeKind::File {
-                decision_num,
-                path,
-                expanded: _,
-            } => build_file_item(
-                *decision_num,
-                path,
-                is_selected,
-                review_engine,
-                area.width,
-                &ui_state.decision_tree,
-            ),
             FlattenedNodeKind::Chunk {
                 decision_num: _,
-                file_path: _,
                 chunk_id,
-            } => build_chunk_item(chunk_id, is_selected, review_engine),
+                display_name,
+            } => build_chunk_item(chunk_id, display_name, is_selected, review_engine),
         };
 
         items.push(ListItem::new(item_line));
@@ -192,135 +180,15 @@ fn build_decision_item<'a>(
     Line::from(line_content)
 }
 
-/// Build a line for a file tree node
-fn build_file_item(
-    decision_num: u32,
-    file_path: &str,
-    is_selected: bool,
-    review_engine: &ReviewEngine,
-    area_width: u16,
-    decision_tree: &DecisionNavigationTree,
-) -> Line<'static> {
-    // Get line ranges for this file in this decision
-    let decision = review_engine.get_decision(decision_num).unwrap();
-    let mut line_ranges = Vec::new();
-    for impact in &decision.code_impacts {
-        if impact.file == file_path {
-            for range in &impact.line_ranges {
-                line_ranges.push(format!("{}-{}", range.start, range.end));
-            }
-        }
-    }
-
-    let selection_indicator = if is_selected { "►" } else { " " };
-    let indent = "  ";
-
-    // Approval status for file: check if all chunks in this file are approved
-    // Get chunks for this file from the decision tree
-    let mut all_approved = true;
-    let mut has_chunks = false;
-
-    for decision_node in &decision_tree.nodes {
-        if decision_node.decision_number == decision_num {
-            for file_node in &decision_node.files {
-                if file_node.path == file_path {
-                    has_chunks = !file_node.chunks.is_empty();
-                    all_approved = file_node
-                        .chunks
-                        .iter()
-                        .all(|chunk| review_engine.state().is_approved(&chunk.chunk_id));
-                }
-            }
-        }
-    }
-
-    let all_approved = has_chunks && all_approved;
-
-    let approval_icon = if all_approved {
-        Icons::APPROVED
-    } else {
-        Icons::NOT_APPROVED
-    };
-
-    // File name and line ranges
-    let file_name = file_path
-        .split('/')
-        .next_back()
-        .unwrap_or(file_path)
-        .to_string();
-    let lines_str = format!("(L{})", line_ranges.join(","));
-
-    let line_content = if is_selected {
-        vec![
-            Span::raw(selection_indicator.to_string()),
-            Span::styled(
-                format!("{approval_icon} "),
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .fg(if all_approved {
-                        Color::Green
-                    } else {
-                        Color::DarkGray
-                    })
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                format!("{indent}{file_name}"),
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .fg(Color::White)
-                    .add_modifier(Modifier::BOLD),
-            ),
-            Span::styled(
-                " ".repeat((area_width as usize).saturating_sub(
-                    selection_indicator.len()
-                        + approval_icon.len()
-                        + 1
-                        + indent.len()
-                        + file_name.len()
-                        + lines_str.len()
-                        + 1,
-                )),
-                Style::default().bg(Color::DarkGray),
-            ),
-            Span::styled(
-                lines_str,
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .fg(Color::DarkGray)
-                    .add_modifier(Modifier::DIM),
-            ),
-        ]
-    } else {
-        vec![
-            Span::raw(format!("{selection_indicator}{indent}")),
-            Span::styled(
-                format!("{approval_icon} "),
-                Style::default().fg(if all_approved {
-                    Color::Green
-                } else {
-                    Color::DarkGray
-                }),
-            ),
-            Span::raw(file_name),
-            Span::styled(
-                format!("  {lines_str}"),
-                Style::default().fg(Color::DarkGray),
-            ),
-        ]
-    };
-
-    Line::from(line_content)
-}
-
 /// Build a line for a chunk tree node
 fn build_chunk_item(
     chunk_id: &diffviz_review::ReviewableDiffId,
+    display_name: &str,
     is_selected: bool,
     review_engine: &ReviewEngine,
 ) -> Line<'static> {
     let selection_indicator = if is_selected { "►" } else { " " };
-    let indent = "    ";
+    let indent = "  ";
 
     // Approval status
     let is_approved = review_engine.state().is_approved(chunk_id);
@@ -329,11 +197,6 @@ fn build_chunk_item(
     } else {
         Icons::NOT_APPROVED
     };
-
-    let chunk_repr = format!(
-        "L{}-{}",
-        chunk_id.line_range.start_line, chunk_id.line_range.end_line
-    );
 
     let line_content = if is_selected {
         vec![
@@ -356,7 +219,7 @@ fn build_chunk_item(
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
-                chunk_repr,
+                display_name.to_string(),
                 Style::default()
                     .bg(Color::DarkGray)
                     .fg(Color::White)
@@ -374,7 +237,7 @@ fn build_chunk_item(
                     Color::DarkGray
                 }),
             ),
-            Span::raw(chunk_repr),
+            Span::raw(display_name.to_string()),
         ]
     };
 

@@ -9,20 +9,15 @@
 #![cfg(feature = "test-harness")]
 
 use diffviz_review::providers::mock_provider::MockDiffProvider;
-use diffviz_review::{
-    ChangeType, CodeImpact, Confidence, Decision, DecisionLineRange, ReviewDecisions,
-};
+use diffviz_review::{ChangeType, CodeImpact, Confidence, Decision, DecisionLineRange};
 use diffviz_review::{DiffQuery, GitRef, ReviewEngineBuilder};
 use diffviz_review_tui::test_harness::{CombinedTestHarness, InputTestHarness, RenderTestHarness};
 
 /// Calculate depth from decision tree path tuple
-/// Depth 0: decision_index only (file_index and chunk_index are None)
-/// Depth 1: decision_index and file_index set (chunk_index is None)
-/// Depth 2: all three indices are Some
-fn calculate_depth(path: &(usize, Option<usize>, Option<usize>)) -> usize {
-    if path.2.is_some() {
-        2
-    } else if path.1.is_some() {
+/// Depth 0: decision_index only (chunk_index is None)
+/// Depth 1: both decision_index and chunk_index are set
+fn calculate_depth(path: &(usize, Option<usize>)) -> usize {
+    if path.1.is_some() {
         1
     } else {
         0
@@ -36,169 +31,158 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
     let review_engine_builder =
         ReviewEngineBuilder::new(Box::new(mock_provider), "test-user".to_string());
     let diff_query = DiffQuery::new(GitRef::Head, GitRef::Unstaged);
-    let mut review_engine = review_engine_builder
-        .build(diff_query)
-        .expect("Failed to build ReviewEngine");
 
-    // Set up decisions with multiple file impacts
-    let mut decisions = ReviewDecisions::new();
+    // Set up decisions with multiple file impacts using real fixture files
+    // Line ranges must match actual file sizes (calculator.rs: 72 lines, base.py: 20 lines, etc.)
+    let decisions = vec![
+        // Decision 1: Affects multiple chunks in calculator module (72 lines available)
+        Decision {
+            number: 1,
+            title: "Refactor calculator operations".to_string(),
+            summary: "Add new arithmetic operations to calculator module".to_string(),
+            decision_log_line: Some(15),
+            code_impacts: vec![CodeImpact {
+                file: "src/models/calculator.rs".to_string(),
+                line_ranges: vec![
+                    DecisionLineRange { start: 1, end: 30 },
+                    DecisionLineRange { start: 40, end: 60 },
+                ],
+                change_type: ChangeType::Modification,
+                confidence: Confidence::High,
+                reasoning: "Add subtract method to Calculator".to_string(),
+            }],
+        },
+        // Decision 2: For testing independent decisions (config reader: 7 lines)
+        Decision {
+            number: 2,
+            title: "Improve config error handling".to_string(),
+            summary: "Standardize error types in config reader".to_string(),
+            decision_log_line: Some(28),
+            code_impacts: vec![CodeImpact {
+                file: "src/config/reader.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 1, end: 7 }],
+                change_type: ChangeType::Modification,
+                confidence: Confidence::Medium,
+                reasoning: "Add better error context to config operations".to_string(),
+            }],
+        },
+        // Decision 3: Decision with no initial chunks (edge case)
+        Decision {
+            number: 3,
+            title: "Add structured logging throughout application".to_string(),
+            summary: "Architectural decision: use tracing crate for observability".to_string(),
+            decision_log_line: Some(42),
+            code_impacts: vec![],
+        },
+    ];
 
-    // Decision 1: Affects multiple chunks that can be approved independently
-    decisions.add_decision(Decision {
-        number: 1,
-        title: "Refactor authentication module".to_string(),
-        summary: "Extract authentication logic into separate, testable module".to_string(),
-        decision_log_line: Some(15),
-        code_impacts: vec![CodeImpact {
-            file: "src/lib.rs".to_string(),
-            line_ranges: vec![
-                DecisionLineRange { start: 1, end: 30 },
-                DecisionLineRange { start: 40, end: 50 },
-            ],
-            change_type: ChangeType::Modification,
-            confidence: Confidence::High,
-            reasoning: "Main library module imports new auth module".to_string(),
-        }],
-    });
-
-    // Decision 2: For testing independent decisions
-    decisions.add_decision(Decision {
-        number: 2,
-        title: "Improve error handling across modules".to_string(),
-        summary: "Standardize error types and add context to error messages".to_string(),
-        decision_log_line: Some(28),
-        code_impacts: vec![CodeImpact {
-            file: "src/lib.rs".to_string(),
-            line_ranges: vec![DecisionLineRange { start: 60, end: 80 }],
-            change_type: ChangeType::Modification,
-            confidence: Confidence::Medium,
-            reasoning: "Adds error context to library result types".to_string(),
-        }],
-    });
-
-    // Decision 3: Decision with no initial chunks (edge case)
-    decisions.add_decision(Decision {
-        number: 3,
-        title: "Add structured logging throughout application".to_string(),
-        summary: "Architectural decision: use tracing crate for observability".to_string(),
-        decision_log_line: Some(42),
-        code_impacts: vec![],
-    });
-
-    review_engine.set_decisions_with_index(decisions);
-    review_engine
+    review_engine_builder
+        .build_from_decisions(decisions, diff_query)
+        .expect("Failed to build ReviewEngine")
 }
 
 /// Create an enriched test engine with multiple files per decision for depth testing
-/// This fixture supports navigating to depth 1 (file) and depth 2 (chunk levels)
+/// This fixture supports navigating to depth 0 (decision) and depth 1 (chunk levels)
 fn create_enriched_test_engine() -> diffviz_review::engines::ReviewEngine {
     let mock_provider =
         MockDiffProvider::from_review_fixtures().expect("Failed to load test fixtures");
     let review_engine_builder =
         ReviewEngineBuilder::new(Box::new(mock_provider), "test-user".to_string());
     let diff_query = DiffQuery::new(GitRef::Head, GitRef::Unstaged);
-    let mut review_engine = review_engine_builder
-        .build(diff_query)
-        .expect("Failed to build ReviewEngine");
 
-    // Set up decisions with multiple files per decision (enables depth 0→1→2 navigation)
-    let mut decisions = ReviewDecisions::new();
-
-    // Decision 1: Multiple files, each with chunks (supports depth 1 and 2 testing)
-    decisions.add_decision(Decision {
-        number: 1,
-        title: "Refactor authentication system".to_string(),
-        summary: "Extract auth logic into separate, testable module with multiple files"
-            .to_string(),
-        decision_log_line: Some(15),
-        code_impacts: vec![
-            CodeImpact {
-                file: "src/auth/mod.rs".to_string(),
-                line_ranges: vec![
-                    DecisionLineRange { start: 1, end: 30 },
-                    DecisionLineRange { start: 40, end: 50 },
-                ],
-                change_type: ChangeType::Addition,
-                confidence: Confidence::High,
-                reasoning: "New auth module file".to_string(),
-            },
-            CodeImpact {
-                file: "src/lib.rs".to_string(),
-                line_ranges: vec![
-                    DecisionLineRange { start: 10, end: 20 },
-                    DecisionLineRange { start: 60, end: 70 },
-                ],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
-                reasoning: "Import new auth module".to_string(),
-            },
-            CodeImpact {
-                file: "src/auth/token.rs".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 1, end: 100 }],
-                change_type: ChangeType::Addition,
-                confidence: Confidence::Medium,
-                reasoning: "Token handling implementation".to_string(),
-            },
-        ],
-    });
-
-    // Decision 2: Multiple files for testing file-level operations
-    decisions.add_decision(Decision {
-        number: 2,
-        title: "Standardize error handling".to_string(),
-        summary: "Apply consistent error types across multiple modules".to_string(),
-        decision_log_line: Some(28),
-        code_impacts: vec![
-            CodeImpact {
-                file: "src/error.rs".to_string(),
-                line_ranges: vec![
-                    DecisionLineRange { start: 1, end: 50 },
-                    DecisionLineRange { start: 60, end: 80 },
-                ],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
-                reasoning: "Define standard error types".to_string(),
-            },
-            CodeImpact {
-                file: "src/api/handlers.rs".to_string(),
-                line_ranges: vec![
-                    DecisionLineRange { start: 30, end: 60 },
-                    DecisionLineRange {
-                        start: 100,
-                        end: 120,
-                    },
-                ],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::Medium,
-                reasoning: "Use standard errors in handlers".to_string(),
-            },
-        ],
-    });
-
-    // Decision 3: Single file with multiple chunks
-    decisions.add_decision(Decision {
-        number: 3,
-        title: "Add comprehensive logging".to_string(),
-        summary: "Instrument code with structured logging".to_string(),
-        decision_log_line: Some(42),
-        code_impacts: vec![CodeImpact {
-            file: "src/logging.rs".to_string(),
-            line_ranges: vec![
-                DecisionLineRange { start: 1, end: 50 },
-                DecisionLineRange { start: 60, end: 90 },
-                DecisionLineRange {
-                    start: 100,
-                    end: 120,
+    // Set up decisions with multiple files per decision (enables depth 0→1 navigation)
+    // Using real fixture files with valid line ranges
+    // File sizes: calculator.rs: 72, base.py: 20, Greeting.tsx: 49, api.ts: 9, reader.rs: 7, client.rs: 6
+    let decisions = vec![
+        // Decision 1: Multiple files, each with chunks (supports depth 1 testing)
+        Decision {
+            number: 1,
+            title: "Refactor calculator and config system".to_string(),
+            summary: "Update calculator operations and config handling with multiple files"
+                .to_string(),
+            decision_log_line: Some(15),
+            code_impacts: vec![
+                CodeImpact {
+                    file: "src/models/calculator.rs".to_string(),
+                    line_ranges: vec![
+                        DecisionLineRange { start: 1, end: 30 },
+                        DecisionLineRange { start: 40, end: 60 },
+                    ],
+                    change_type: ChangeType::Modification,
+                    confidence: Confidence::High,
+                    reasoning: "Add new arithmetic operations".to_string(),
+                },
+                CodeImpact {
+                    file: "src/config/reader.rs".to_string(),
+                    line_ranges: vec![
+                        DecisionLineRange { start: 1, end: 4 },
+                        DecisionLineRange { start: 5, end: 7 },
+                    ],
+                    change_type: ChangeType::Modification,
+                    confidence: Confidence::High,
+                    reasoning: "Update config handling".to_string(),
+                },
+                CodeImpact {
+                    file: "src/network/client.rs".to_string(),
+                    line_ranges: vec![DecisionLineRange { start: 1, end: 6 }],
+                    change_type: ChangeType::Modification,
+                    confidence: Confidence::Medium,
+                    reasoning: "Add network client support".to_string(),
                 },
             ],
-            change_type: ChangeType::Addition,
-            confidence: Confidence::Medium,
-            reasoning: "New logging infrastructure".to_string(),
-        }],
-    });
+        },
+        // Decision 2: Multiple files for testing file-level operations
+        Decision {
+            number: 2,
+            title: "Enhance Python and TypeScript modules".to_string(),
+            summary: "Add features across different language modules".to_string(),
+            decision_log_line: Some(28),
+            code_impacts: vec![
+                CodeImpact {
+                    file: "src/models/base.py".to_string(),
+                    line_ranges: vec![
+                        DecisionLineRange { start: 1, end: 10 },
+                        DecisionLineRange { start: 11, end: 20 },
+                    ],
+                    change_type: ChangeType::Modification,
+                    confidence: Confidence::High,
+                    reasoning: "Update base model classes".to_string(),
+                },
+                CodeImpact {
+                    file: "src/components/Greeting.tsx".to_string(),
+                    line_ranges: vec![
+                        DecisionLineRange { start: 1, end: 25 },
+                        DecisionLineRange { start: 26, end: 49 },
+                    ],
+                    change_type: ChangeType::Modification,
+                    confidence: Confidence::Medium,
+                    reasoning: "Update React component".to_string(),
+                },
+            ],
+        },
+        // Decision 3: Single file with multiple chunks
+        Decision {
+            number: 3,
+            title: "Add comprehensive type definitions".to_string(),
+            summary: "Extend TypeScript API type definitions".to_string(),
+            decision_log_line: Some(42),
+            code_impacts: vec![CodeImpact {
+                file: "src/types/api.ts".to_string(),
+                line_ranges: vec![
+                    DecisionLineRange { start: 1, end: 3 },
+                    DecisionLineRange { start: 4, end: 6 },
+                    DecisionLineRange { start: 7, end: 9 },
+                ],
+                change_type: ChangeType::Addition,
+                confidence: Confidence::Medium,
+                reasoning: "New API type definitions".to_string(),
+            }],
+        },
+    ];
 
-    review_engine.set_decisions_with_index(decisions);
-    review_engine
+    review_engine_builder
+        .build_from_decisions(decisions, diff_query)
+        .expect("Failed to build ReviewEngine")
 }
 
 // =============================================================================
@@ -741,7 +725,7 @@ fn test_partial_approval_state_mixed_chunks() {
     let final_state = harness.run_sequence_final_state("").expect("Final state");
     // Just verify we're still in a valid depth range
     let final_depth = calculate_depth(&final_state.decision_tree_path);
-    assert!(final_depth <= 2, "Final depth should be 0, 1, or 2");
+    assert!(final_depth <= 1, "Final depth should be 0 or 1");
 }
 
 /// Test unapproval workflow (toggle twice returns to unapproved)
@@ -921,7 +905,7 @@ fn test_complex_workflow_navigate_expand_approve() {
     // Final state - verify we're still in valid state
     let final_state = harness.run_sequence_final_state("").expect("Final");
     let final_depth = calculate_depth(&final_state.decision_tree_path);
-    assert!(final_depth <= 2, "Should be at valid depth after approval");
+    assert!(final_depth <= 1, "Should be at valid depth after approval");
 }
 
 /// Test workflow: approve multiple chunks then whole decision
