@@ -128,9 +128,11 @@ impl UiState {
         self.decision_tree.selected_chunk_id()
     }
 
-    /// Get currently selected file path (computed from tree)
+    /// Get currently selected file path (extracted from chunk_id when at chunk depth)
     pub fn current_file_path(&self) -> Option<String> {
-        self.decision_tree.selected_file_path()
+        self.decision_tree
+            .selected_chunk_id()
+            .map(|chunk_id| chunk_id.file_path.clone())
     }
 
     /// Get currently selected decision number when at depth 0 (decision level)

@@ -50,7 +50,7 @@ pub fn ui_event_to_business_event(ui_event: &UiEvent, ui_state: &UiState) -> Opt
             if let Some(decision_number) = ui_state.current_decision_number() {
                 Some(BusinessEvent::ToggleApproveDecision { decision_number })
             } else if let Some(reviewable_id) = ui_state.current_reviewable_id() {
-                // At depth 2 (chunk level), approve the chunk
+                // At depth 1 (chunk level), approve the chunk
                 Some(BusinessEvent::ToggleApprove { reviewable_id })
             } else {
                 ui_state

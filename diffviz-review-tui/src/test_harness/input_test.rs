@@ -64,7 +64,7 @@ mod tests {
             ReviewEngineBuilder::new(Box::new(mock_provider), "test-user".to_string());
         let diff_query = DiffQuery::new(GitRef::Head, GitRef::Unstaged);
         review_engine_builder
-            .build(diff_query)
+            .build_from_decisions(vec![], diff_query)
             .expect("Failed to build ReviewEngine")
     }
 

@@ -29,11 +29,7 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &Rev
             render_decision_details(f, area, ui_state, review_engine, is_focused);
         }
         1 => {
-            // File selected - show placeholder (future: file summary)
-            render_no_diff_selected(f, area, is_focused);
-        }
-        2 => {
-            // Chunk selected - show diff content (existing behavior)
+            // Chunk selected - show diff content
             if let Some(reviewable_id) = ui_state.current_reviewable_id() {
                 if let Some(reviewable_diff) = review_engine.get_reviewable_diff(&reviewable_id) {
                     render_diff_content(

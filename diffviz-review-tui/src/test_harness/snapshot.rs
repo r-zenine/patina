@@ -60,8 +60,8 @@ pub struct StateSnapshot {
     /// Currently expanded files in the tree
     pub expanded_files: Vec<String>,
 
-    /// Current decision tree selection path (decision_index, file_index, chunk_index)
-    pub decision_tree_path: (usize, Option<usize>, Option<usize>),
+    /// Current decision tree selection path (decision_index, chunk_index)
+    pub decision_tree_path: (usize, Option<usize>),
 }
 
 impl StateSnapshot {
@@ -94,7 +94,6 @@ impl StateSnapshot {
             expanded_files: ui_state.expanded_files.iter().cloned().collect(),
             decision_tree_path: (
                 ui_state.decision_tree.selected_path.decision_index,
-                ui_state.decision_tree.selected_path.file_index,
                 ui_state.decision_tree.selected_path.chunk_index,
             ),
         }
@@ -135,7 +134,7 @@ mod tests {
             selection_anchor: None,
             selection_range: None,
             expanded_files: vec![],
-            decision_tree_path: (0, None, None),
+            decision_tree_path: (0, None),
         };
 
         let json = snapshot.to_json().unwrap();
