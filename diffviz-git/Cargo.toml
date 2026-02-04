@@ -10,6 +10,7 @@ git2 = "0.18"
 thiserror = { workspace = true }
 serde = { workspace = true }
 log = { workspace = true }
+sha2 = { workspace = true }
 
 [dev-dependencies]
 diffviz-review = { path = "../diffviz-review", features = ["test-utils"] }

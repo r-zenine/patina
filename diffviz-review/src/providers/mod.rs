@@ -87,4 +87,22 @@ pub trait DiffProvider {
         file_path: &str,
         git_ref: &GitRef,
     ) -> std::result::Result<String, Box<dyn std::error::Error>>;
+
+    /// Calculate content hash for a file at a specific Git reference
+    /// Used for staleness detection in review instructions
+    /// Implementation should normalize line endings (CRLF -> LF) before hashing
+    fn get_file_hash(
+        &self,
+        file_path: &str,
+        git_ref: &GitRef,
+    ) -> std::result::Result<String, Box<dyn std::error::Error>>;
+
+    /// Extract content snapshot from a specific line range
+    /// Returns None if the range is invalid or out of bounds
+    fn get_content_snapshot(
+        &self,
+        file_path: &str,
+        git_ref: &GitRef,
+        line_range: &crate::entities::reviewable_diff_id::LineRange,
+    ) -> std::result::Result<Option<String>, Box<dyn std::error::Error>>;
 }

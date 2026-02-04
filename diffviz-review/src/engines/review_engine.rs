@@ -272,9 +272,20 @@ impl ReviewEngine {
             // Calculate hash and snapshot for extended range
             let file_path = extended_id.file_path();
             let git_ref = &extended_id.query().to;
-            let file_content_hash = self.calculate_file_hash(file_path, git_ref)?;
-            let content_snapshot =
-                self.extract_content_snapshot(file_path, git_ref, &extended_id.line_range())?;
+            let file_content_hash = self
+                .diff_provider
+                .get_file_hash(file_path, git_ref)
+                .map_err(|e| {
+                    crate::errors::DiffVizError::Git(format!("Failed to calculate file hash: {e}"))
+                })?;
+            let content_snapshot = self
+                .diff_provider
+                .get_content_snapshot(file_path, git_ref, &extended_id.line_range())
+                .map_err(|e| {
+                    crate::errors::DiffVizError::Git(format!(
+                        "Failed to extract content snapshot: {e}"
+                    ))
+                })?;
 
             // Create new instruction with extended range and merged content
             let instruction = Instruction {
@@ -314,9 +325,18 @@ impl ReviewEngine {
         // Calculate hash and snapshot
         let file_path = reviewable_id.file_path();
         let git_ref = &reviewable_id.query().to;
-        let file_content_hash = self.calculate_file_hash(file_path, git_ref)?;
-        let content_snapshot =
-            self.extract_content_snapshot(file_path, git_ref, &reviewable_id.line_range())?;
+        let file_content_hash = self
+            .diff_provider
+            .get_file_hash(file_path, git_ref)
+            .map_err(|e| {
+                crate::errors::DiffVizError::Git(format!("Failed to calculate file hash: {e}"))
+            })?;
+        let content_snapshot = self
+            .diff_provider
+            .get_content_snapshot(file_path, git_ref, &reviewable_id.line_range())
+            .map_err(|e| {
+                crate::errors::DiffVizError::Git(format!("Failed to extract content snapshot: {e}"))
+            })?;
 
         let instruction = Instruction {
             id: uuid::Uuid::new_v4().to_string(),
@@ -342,63 +362,13 @@ impl ReviewEngine {
         Ok(())
     }
 
-    /// Calculate SHA256 hash of file content with line ending normalization
-    fn calculate_file_hash(&self, file_path: &str, git_ref: &GitRef) -> Result<String> {
-        // Get file content via diff_provider
-        let content = self
-            .diff_provider
-            .get_source_code(file_path, git_ref)
-            .map_err(|e| {
-                crate::errors::DiffVizError::Git(format!("Failed to get file content: {e}"))
-            })?;
-
-        // Normalize line endings (CRLF → LF)
-        let normalized = content.replace("\r\n", "\n");
-
-        // Calculate SHA256
-        use sha2::{Digest, Sha256};
-        let mut hasher = Sha256::new();
-        hasher.update(normalized.as_bytes());
-        let result = hasher.finalize();
-
-        // Return hex-encoded string
-        Ok(format!("{result:x}"))
-    }
-
-    /// Extract content snapshot from specific line range
-    fn extract_content_snapshot(
-        &self,
-        file_path: &str,
-        git_ref: &GitRef,
-        line_range: &LineRange,
-    ) -> Result<Option<String>> {
-        let content = self
-            .diff_provider
-            .get_source_code(file_path, git_ref)
-            .map_err(|e| {
-                crate::errors::DiffVizError::Git(format!("Failed to get file content: {e}"))
-            })?;
-        let lines: Vec<&str> = content.lines().collect();
-
-        // 1-based to 0-based index conversion
-        let start_idx = (line_range.start_line.saturating_sub(1)).min(lines.len());
-        let end_idx = line_range.end_line.min(lines.len());
-
-        if start_idx >= lines.len() {
-            return Ok(None);
-        }
-
-        let snapshot = lines[start_idx..end_idx].join("\n");
-        Ok(Some(snapshot))
-    }
-
     /// Verify instruction hash against current file content
     #[allow(dead_code)] // Used in Phase 4 (import functionality)
     fn verify_instruction_hash(&self, instruction: &Instruction) -> InstructionStatus {
         let file_path = instruction.reviewable_id.file_path();
         let git_ref = &instruction.reviewable_id.query().to;
 
-        match self.calculate_file_hash(file_path, git_ref) {
+        match self.diff_provider.get_file_hash(file_path, git_ref) {
             Ok(current_hash) => {
                 if current_hash == instruction.file_content_hash {
                     InstructionStatus::Active
@@ -800,7 +770,7 @@ impl ReviewEngine {
             let file_path = exported_inst.file.as_str();
             let git_ref = self.parse_git_ref_from_query(&exported_inst.query);
 
-            let current_hash = self.calculate_file_hash(file_path, &git_ref);
+            let current_hash = self.diff_provider.get_file_hash(file_path, &git_ref);
 
             // Determine status based on hash verification
             let (status, hash_to_store) = match current_hash {
@@ -1971,17 +1941,15 @@ mod tests {
 
     #[test]
     fn test_calculate_file_hash_known_content() {
+        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
         use sha2::{Digest, Sha256};
 
         let mut mock_provider = MockDiffProvider::new();
         mock_provider.add_file_content("test.rs", &GitRef::head(), "hello world\n");
 
-        let engine =
-            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
-
-        let hash = engine
-            .calculate_file_hash("test.rs", &GitRef::head())
+        let hash = mock_provider
+            .get_file_hash("test.rs", &GitRef::head())
             .unwrap();
 
         // Calculate expected hash
@@ -1994,20 +1962,18 @@ mod tests {
 
     #[test]
     fn test_calculate_file_hash_identical_content_identical_hash() {
+        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
 
         let mut mock_provider = MockDiffProvider::new();
         mock_provider.add_file_content("file1.rs", &GitRef::head(), "same content\n");
         mock_provider.add_file_content("file2.rs", &GitRef::head(), "same content\n");
 
-        let engine =
-            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
-
-        let hash1 = engine
-            .calculate_file_hash("file1.rs", &GitRef::head())
+        let hash1 = mock_provider
+            .get_file_hash("file1.rs", &GitRef::head())
             .unwrap();
-        let hash2 = engine
-            .calculate_file_hash("file2.rs", &GitRef::head())
+        let hash2 = mock_provider
+            .get_file_hash("file2.rs", &GitRef::head())
             .unwrap();
 
         assert_eq!(hash1, hash2);
@@ -2015,20 +1981,18 @@ mod tests {
 
     #[test]
     fn test_calculate_file_hash_different_content_different_hash() {
+        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
 
         let mut mock_provider = MockDiffProvider::new();
         mock_provider.add_file_content("file1.rs", &GitRef::head(), "content A\n");
         mock_provider.add_file_content("file2.rs", &GitRef::head(), "content B\n");
 
-        let engine =
-            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
-
-        let hash1 = engine
-            .calculate_file_hash("file1.rs", &GitRef::head())
+        let hash1 = mock_provider
+            .get_file_hash("file1.rs", &GitRef::head())
             .unwrap();
-        let hash2 = engine
-            .calculate_file_hash("file2.rs", &GitRef::head())
+        let hash2 = mock_provider
+            .get_file_hash("file2.rs", &GitRef::head())
             .unwrap();
 
         assert_ne!(hash1, hash2);
@@ -2036,20 +2000,18 @@ mod tests {
 
     #[test]
     fn test_calculate_file_hash_crlf_normalization() {
+        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
 
         let mut mock_provider = MockDiffProvider::new();
         mock_provider.add_file_content("crlf.rs", &GitRef::head(), "line1\r\nline2\r\n");
         mock_provider.add_file_content("lf.rs", &GitRef::head(), "line1\nline2\n");
 
-        let engine =
-            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
-
-        let hash_crlf = engine
-            .calculate_file_hash("crlf.rs", &GitRef::head())
+        let hash_crlf = mock_provider
+            .get_file_hash("crlf.rs", &GitRef::head())
             .unwrap();
-        let hash_lf = engine
-            .calculate_file_hash("lf.rs", &GitRef::head())
+        let hash_lf = mock_provider
+            .get_file_hash("lf.rs", &GitRef::head())
             .unwrap();
 
         // Should be identical after normalization
@@ -2058,6 +2020,7 @@ mod tests {
 
     #[test]
     fn test_calculate_file_hash_lf_unchanged() {
+        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
         use sha2::{Digest, Sha256};
 
@@ -2065,11 +2028,8 @@ mod tests {
         let content = "line1\nline2\n";
         mock_provider.add_file_content("test.rs", &GitRef::head(), content);
 
-        let engine =
-            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
-
-        let hash = engine
-            .calculate_file_hash("test.rs", &GitRef::head())
+        let hash = mock_provider
+            .get_file_hash("test.rs", &GitRef::head())
             .unwrap();
 
         // Calculate expected hash directly from LF content
@@ -2084,14 +2044,12 @@ mod tests {
 
     #[test]
     fn test_extract_content_snapshot_middle_lines() {
+        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
 
         let mut mock_provider = MockDiffProvider::new();
         let content = "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10\n";
         mock_provider.add_file_content("test.rs", &GitRef::head(), content);
-
-        let engine =
-            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
 
         let line_range = LineRange {
             start_line: 3,
@@ -2100,8 +2058,8 @@ mod tests {
             end_column: 0,
         };
 
-        let snapshot = engine
-            .extract_content_snapshot("test.rs", &GitRef::head(), &line_range)
+        let snapshot = mock_provider
+            .get_content_snapshot("test.rs", &GitRef::head(), &line_range)
             .unwrap();
 
         assert_eq!(snapshot, Some("line3\nline4\nline5".to_string()));
@@ -2109,14 +2067,12 @@ mod tests {
 
     #[test]
     fn test_extract_content_snapshot_start_of_file() {
+        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
 
         let mut mock_provider = MockDiffProvider::new();
         let content = "line1\nline2\nline3\n";
         mock_provider.add_file_content("test.rs", &GitRef::head(), content);
-
-        let engine =
-            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
 
         let line_range = LineRange {
             start_line: 1,
@@ -2125,8 +2081,8 @@ mod tests {
             end_column: 0,
         };
 
-        let snapshot = engine
-            .extract_content_snapshot("test.rs", &GitRef::head(), &line_range)
+        let snapshot = mock_provider
+            .get_content_snapshot("test.rs", &GitRef::head(), &line_range)
             .unwrap();
 
         assert_eq!(snapshot, Some("line1\nline2".to_string()));
@@ -2134,14 +2090,12 @@ mod tests {
 
     #[test]
     fn test_extract_content_snapshot_end_of_file() {
+        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
 
         let mut mock_provider = MockDiffProvider::new();
         let content = "line1\nline2\nline3\n";
         mock_provider.add_file_content("test.rs", &GitRef::head(), content);
-
-        let engine =
-            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
 
         let line_range = LineRange {
             start_line: 2,
@@ -2150,8 +2104,8 @@ mod tests {
             end_column: 0,
         };
 
-        let snapshot = engine
-            .extract_content_snapshot("test.rs", &GitRef::head(), &line_range)
+        let snapshot = mock_provider
+            .get_content_snapshot("test.rs", &GitRef::head(), &line_range)
             .unwrap();
 
         assert_eq!(snapshot, Some("line2\nline3".to_string()));
@@ -2159,14 +2113,12 @@ mod tests {
 
     #[test]
     fn test_extract_content_snapshot_beyond_file_bounds() {
+        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
 
         let mut mock_provider = MockDiffProvider::new();
         let content = "line1\nline2\nline3\n";
         mock_provider.add_file_content("test.rs", &GitRef::head(), content);
-
-        let engine =
-            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
 
         let line_range = LineRange {
             start_line: 10,
@@ -2175,8 +2127,8 @@ mod tests {
             end_column: 0,
         };
 
-        let snapshot = engine
-            .extract_content_snapshot("test.rs", &GitRef::head(), &line_range)
+        let snapshot = mock_provider
+            .get_content_snapshot("test.rs", &GitRef::head(), &line_range)
             .unwrap();
 
         assert_eq!(snapshot, None);
@@ -2184,14 +2136,12 @@ mod tests {
 
     #[test]
     fn test_extract_content_snapshot_empty_range() {
+        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
 
         let mut mock_provider = MockDiffProvider::new();
         let content = "line1\nline2\nline3\n";
         mock_provider.add_file_content("test.rs", &GitRef::head(), content);
-
-        let engine =
-            ReviewEngine::with_provider(vec![], "test_author".to_string(), Box::new(mock_provider));
 
         let line_range = LineRange {
             start_line: 2,
@@ -2200,8 +2150,8 @@ mod tests {
             end_column: 0,
         };
 
-        let snapshot = engine
-            .extract_content_snapshot("test.rs", &GitRef::head(), &line_range)
+        let snapshot = mock_provider
+            .get_content_snapshot("test.rs", &GitRef::head(), &line_range)
             .unwrap();
 
         assert_eq!(snapshot, Some("line2".to_string()));
@@ -2726,7 +2676,8 @@ mod tests {
 
         // Calculate actual hash from mock provider content
         let actual_hash = engine
-            .calculate_file_hash("src/main.rs", &GitRef::unstaged())
+            .diff_provider
+            .get_file_hash("src/main.rs", &GitRef::unstaged())
             .unwrap();
 
         let json = format!(
@@ -2825,7 +2776,8 @@ mod tests {
 
         // Get actual hash for file1
         let hash_file1 = engine
-            .calculate_file_hash("src/file1.rs", &GitRef::unstaged())
+            .diff_provider
+            .get_file_hash("src/file1.rs", &GitRef::unstaged())
             .unwrap();
 
         let json = format!(
