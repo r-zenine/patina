@@ -187,4 +187,56 @@ impl DiffProvider for MockDiffProvider {
             _ => Ok(fixture.old_code.clone()),            // Default to old_code for other refs
         }
     }
+
+    fn get_file_hash(
+        &self,
+        file_path: &str,
+        git_ref: &GitRef,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        use sha2::{Digest, Sha256};
+
+        // Get the content (reuse get_source_code)
+        let content = self.get_source_code(file_path, git_ref)?;
+
+        // Normalize line endings (CRLF -> LF)
+        let normalized_content = content.replace("\r\n", "\n");
+
+        // Calculate SHA-256 hash
+        let mut hasher = Sha256::new();
+        hasher.update(normalized_content.as_bytes());
+        let hash = hasher.finalize();
+
+        Ok(format!("{hash:x}"))
+    }
+
+    fn get_content_snapshot(
+        &self,
+        file_path: &str,
+        git_ref: &GitRef,
+        line_range: &crate::entities::reviewable_diff_id::LineRange,
+    ) -> Result<Option<String>, Box<dyn std::error::Error>> {
+        // Get the full content
+        let content = self.get_source_code(file_path, git_ref)?;
+        let lines: Vec<&str> = content.lines().collect();
+
+        // Validate line range (1-based)
+        if line_range.start_line == 0 || line_range.end_line == 0 {
+            return Ok(None);
+        }
+
+        if line_range.start_line > lines.len() || line_range.end_line > lines.len() {
+            return Ok(None);
+        }
+
+        if line_range.start_line > line_range.end_line {
+            return Ok(None);
+        }
+
+        // Extract the requested lines (convert from 1-based to 0-based indexing)
+        let start_idx = line_range.start_line - 1;
+        let end_idx = line_range.end_line; // end_line is inclusive, so this is correct for slicing
+
+        let snapshot = lines[start_idx..end_idx].join("\n");
+        Ok(Some(snapshot))
+    }
 }
