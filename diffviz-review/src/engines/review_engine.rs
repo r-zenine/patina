@@ -2911,9 +2911,7 @@ mod tests {
 
     /// Helper to set up a decision with multiple chunks
     fn create_engine_with_decision_and_chunks() -> ReviewEngine {
-        use crate::entities::decision::{
-            ChangeType, CodeImpact, Confidence, Decision, DecisionLineRange,
-        };
+        use crate::entities::decision::{CodeImpact, Decision, DecisionLineRange};
 
         // Create 3 chunks in the same file
         let chunks = vec![
@@ -2929,13 +2927,11 @@ mod tests {
         let decision = Decision {
             number: 1,
             title: "Add authentication module".to_string(),
-            summary: "Implement user authentication".to_string(),
+            rationale: Some("Implement user authentication".to_string()),
             decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "main.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 1, end: 45 }],
-                change_type: ChangeType::Addition,
-                confidence: Confidence::High,
                 reasoning: "Affects main function and helpers".to_string(),
             }],
         };
@@ -3127,9 +3123,7 @@ mod tests {
 
     #[test]
     fn test_multiple_decisions_independent() {
-        use crate::entities::decision::{
-            ChangeType, CodeImpact, Confidence, Decision, DecisionLineRange,
-        };
+        use crate::entities::decision::{CodeImpact, Decision, DecisionLineRange};
 
         // Create 4 chunks: 2 for decision 1, 2 for decision 2
         let chunks = vec![
@@ -3146,13 +3140,11 @@ mod tests {
         let decision1 = Decision {
             number: 1,
             title: "Module 1 changes".to_string(),
-            summary: "Changes to module 1".to_string(),
+            rationale: Some("Changes to module 1".to_string()),
             decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "module1.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 1, end: 100 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
                 reasoning: "All module1 changes".to_string(),
             }],
         };
@@ -3161,13 +3153,11 @@ mod tests {
         let decision2 = Decision {
             number: 2,
             title: "Module 2 changes".to_string(),
-            summary: "Changes to module 2".to_string(),
+            rationale: Some("Changes to module 2".to_string()),
             decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "module2.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 1, end: 100 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
                 reasoning: "All module2 changes".to_string(),
             }],
         };
