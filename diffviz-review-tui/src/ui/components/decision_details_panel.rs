@@ -72,13 +72,11 @@ pub fn render(
 
     lines.push(Line::from("")); // Spacer
 
-    // Summary
-    lines.push(Line::from(vec![Span::styled(
-        &decision.summary,
-        Styles::primary(),
-    )]));
-
-    lines.push(Line::from("")); // Spacer
+    // Rationale (optional)
+    if let Some(rationale) = &decision.rationale {
+        lines.push(Line::from(vec![Span::styled(rationale, Styles::primary())]));
+        lines.push(Line::from("")); // Spacer
+    }
 
     // Decision log reference
     if let Some(log_line) = decision.decision_log_line {
@@ -135,37 +133,13 @@ pub fn render(
                 Span::styled(format!(" (lines {ranges})"), Styles::muted()),
             ]));
 
-            // Change type and confidence
-            let change_type_str = match impact.change_type {
-                diffviz_review::entities::decision::ChangeType::Addition => "Addition",
-                diffviz_review::entities::decision::ChangeType::Modification => "Modification",
-                diffviz_review::entities::decision::ChangeType::Deletion => "Deletion",
-            };
-
-            let confidence_str = match impact.confidence {
-                diffviz_review::entities::decision::Confidence::High => "HIGH",
-                diffviz_review::entities::decision::Confidence::Medium => "MEDIUM",
-                diffviz_review::entities::decision::Confidence::Low => "LOW",
-            };
-
-            let confidence_style = match impact.confidence {
-                diffviz_review::entities::decision::Confidence::High => Styles::success(),
-                diffviz_review::entities::decision::Confidence::Medium => Styles::warning(),
-                diffviz_review::entities::decision::Confidence::Low => Styles::error(),
-            };
-
-            lines.push(Line::from(vec![
-                Span::raw("    "),
-                Span::styled(change_type_str, Styles::secondary()),
-                Span::raw(" • "),
-                Span::styled(confidence_str, confidence_style),
-            ]));
-
             // Reasoning
-            lines.push(Line::from(vec![Span::styled(
-                format!("    {}", impact.reasoning),
-                Styles::muted(),
-            )]));
+            if !impact.reasoning.is_empty() {
+                lines.push(Line::from(vec![Span::styled(
+                    format!("    {}", impact.reasoning),
+                    Styles::muted(),
+                )]));
+            }
 
             // Add space between impacts (except after last one)
             if idx < decision.code_impacts.len() - 1 {

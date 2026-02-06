@@ -7,8 +7,7 @@
 use anyhow::Result;
 use diffviz_review::providers::mock_provider::MockDiffProvider;
 use diffviz_review::{
-    ChangeType, CodeImpact, Confidence, Decision, DecisionLineRange, DiffQuery, GitRef,
-    ReviewEngineBuilder,
+    CodeImpact, Decision, DecisionLineRange, DiffQuery, GitRef, ReviewEngineBuilder,
 };
 use diffviz_review_tui::ReviewTuiApp;
 use std::env;
@@ -94,21 +93,17 @@ fn create_hardcoded_decisions_vec() -> Vec<Decision> {
         Decision {
             number: 1,
             title: "Refactor calculator model module".to_string(),
-            summary: "Extract calculator logic into separate, testable module".to_string(),
+            rationale: Some("Extract calculator logic into separate, testable module".to_string()),
             decision_log_line: Some(15),
             code_impacts: vec![
                 CodeImpact {
                     file: "src/models/calculator.rs".to_string(),
                     line_ranges: vec![DecisionLineRange { start: 1, end: 72 }],
-                    change_type: ChangeType::Modification,
-                    confidence: Confidence::High,
                     reasoning: "Calculator model structure refactoring".to_string(),
                 },
                 CodeImpact {
                     file: "src/config/reader.rs".to_string(),
                     line_ranges: vec![DecisionLineRange { start: 1, end: 7 }],
-                    change_type: ChangeType::Modification,
-                    confidence: Confidence::High,
                     reasoning: "Configuration reader updates".to_string(),
                 },
             ],
@@ -117,21 +112,19 @@ fn create_hardcoded_decisions_vec() -> Vec<Decision> {
         Decision {
             number: 2,
             title: "Improve error handling in network client".to_string(),
-            summary: "Standardize error types and add context to error messages".to_string(),
+            rationale: Some(
+                "Standardize error types and add context to error messages".to_string(),
+            ),
             decision_log_line: Some(28),
             code_impacts: vec![
                 CodeImpact {
                     file: "src/network/client.rs".to_string(),
                     line_ranges: vec![DecisionLineRange { start: 1, end: 6 }],
-                    change_type: ChangeType::Modification,
-                    confidence: Confidence::Medium,
                     reasoning: "Network error handling improvements".to_string(),
                 },
                 CodeImpact {
                     file: "src/models/calculator.rs".to_string(),
                     line_ranges: vec![DecisionLineRange { start: 20, end: 40 }],
-                    change_type: ChangeType::Modification,
-                    confidence: Confidence::High,
                     reasoning: "Calculator model error handling enhancements".to_string(),
                 },
             ],
@@ -140,28 +133,24 @@ fn create_hardcoded_decisions_vec() -> Vec<Decision> {
         Decision {
             number: 3,
             title: "Add structured logging throughout application".to_string(),
-            summary: "Architectural decision: use tracing crate for observability".to_string(),
+            rationale: Some(
+                "Architectural decision: use tracing crate for observability".to_string(),
+            ),
             decision_log_line: Some(42),
             code_impacts: vec![
                 CodeImpact {
                     file: "src/data/fetcher.py".to_string(),
                     line_ranges: vec![DecisionLineRange { start: 1, end: 5 }],
-                    change_type: ChangeType::Modification,
-                    confidence: Confidence::High,
                     reasoning: "Add logging to async data fetching operations".to_string(),
                 },
                 CodeImpact {
                     file: "src/components/Greeting.tsx".to_string(),
                     line_ranges: vec![DecisionLineRange { start: 1, end: 49 }],
-                    change_type: ChangeType::Modification,
-                    confidence: Confidence::Medium,
                     reasoning: "Add component lifecycle logging".to_string(),
                 },
                 CodeImpact {
                     file: "src/types/api.ts".to_string(),
                     line_ranges: vec![DecisionLineRange { start: 1, end: 9 }],
-                    change_type: ChangeType::Modification,
-                    confidence: Confidence::High,
                     reasoning: "Add API type validation logging".to_string(),
                 },
             ],
