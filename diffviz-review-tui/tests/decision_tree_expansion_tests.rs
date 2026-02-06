@@ -18,7 +18,7 @@
 
 use diffviz_review::providers::mock_provider::MockDiffProvider;
 use diffviz_review::{
-    ChangeType, CodeImpact, Confidence, Decision, DecisionLineRange, DiffQuery, GitRef,
+    CodeImpact, Decision, DecisionLineRange, DiffQuery, GitRef,
     ReviewEngineBuilder,
 };
 use diffviz_review_tui::test_harness::InputTestHarness;
@@ -44,7 +44,7 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
         Decision {
             number: 1,
             title: "Decision 1: Calculator Refactor".to_string(),
-            summary: "Refactor calculator logic for better maintainability".to_string(),
+            rationale: Some("Refactor calculator logic for better maintainability".to_string()),
             decision_log_line: Some(1),
             code_impacts: vec![
                 CodeImpact {
@@ -53,15 +53,11 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
                         DecisionLineRange { start: 1, end: 30 },
                         DecisionLineRange { start: 40, end: 60 },
                     ],
-                    change_type: ChangeType::Modification,
-                    confidence: Confidence::High,
                     reasoning: "Refactored for clarity".to_string(),
                 },
                 CodeImpact {
                     file: "src/models/base.py".to_string(),
                     line_ranges: vec![DecisionLineRange { start: 1, end: 20 }],
-                    change_type: ChangeType::Addition,
-                    confidence: Confidence::Medium,
                     reasoning: "Added base model".to_string(),
                 },
             ],
@@ -70,7 +66,7 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
         Decision {
             number: 2,
             title: "Decision 2: Component Updates".to_string(),
-            summary: "Improve React components throughout codebase".to_string(),
+            rationale: Some("Improve React components throughout codebase".to_string()),
             decision_log_line: Some(2),
             code_impacts: vec![
                 CodeImpact {
@@ -79,15 +75,11 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
                         DecisionLineRange { start: 1, end: 25 },
                         DecisionLineRange { start: 26, end: 49 },
                     ],
-                    change_type: ChangeType::Modification,
-                    confidence: Confidence::High,
                     reasoning: "Enhanced component logic".to_string(),
                 },
                 CodeImpact {
                     file: "src/types/api.ts".to_string(),
                     line_ranges: vec![DecisionLineRange { start: 1, end: 9 }],
-                    change_type: ChangeType::Modification,
-                    confidence: Confidence::Low,
                     reasoning: "Updated types".to_string(),
                 },
             ],

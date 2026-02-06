@@ -11,7 +11,7 @@
 
 use diffviz_review::providers::mock_provider::MockDiffProvider;
 use diffviz_review::{
-    ChangeType, CodeImpact, Confidence, Decision, DecisionLineRange, DiffQuery, GitRef,
+    CodeImpact, Decision, DecisionLineRange, DiffQuery, GitRef,
     ReviewDecisions, ReviewEngineBuilder,
 };
 use diffviz_review_tui::test_harness::{CombinedTestHarness, InputTestHarness};
@@ -32,13 +32,11 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
     decisions.add_decision(Decision {
         number: 1,
         title: "Refactor authentication module".to_string(),
-        summary: "Extract authentication logic into separate module".to_string(),
+        rationale: Some("Extract authentication logic into separate module".to_string()),
         decision_log_line: Some(15),
         code_impacts: vec![CodeImpact {
             file: "src/lib.rs".to_string(),
             line_ranges: vec![DecisionLineRange { start: 1, end: 30 }],
-            change_type: ChangeType::Modification,
-            confidence: Confidence::High,
             reasoning: "Main library imports auth module".to_string(),
         }],
     });
@@ -46,13 +44,11 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
     decisions.add_decision(Decision {
         number: 2,
         title: "Improve error handling".to_string(),
-        summary: "Standardize error types".to_string(),
+        rationale: Some("Standardize error types".to_string()),
         decision_log_line: Some(28),
         code_impacts: vec![CodeImpact {
             file: "src/error.rs".to_string(),
             line_ranges: vec![DecisionLineRange { start: 40, end: 60 }],
-            change_type: ChangeType::Addition,
-            confidence: Confidence::Medium,
             reasoning: "New error types for modules".to_string(),
         }],
     });
