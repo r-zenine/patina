@@ -9,24 +9,6 @@ use crate::state::ReviewState;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Type of code change produced by a decision
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum ChangeType {
-    Addition,
-    Modification,
-    Deletion,
-}
-
-/// Confidence level in the decision-to-code mapping
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Confidence {
-    High,
-    Medium,
-    Low,
-}
-
 /// A range of lines in source code
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DecisionLineRange {
@@ -40,8 +22,6 @@ pub struct DecisionLineRange {
 pub struct CodeImpact {
     pub file: String,
     pub line_ranges: Vec<DecisionLineRange>,
-    pub change_type: ChangeType,
-    pub confidence: Confidence,
     pub reasoning: String,
 }
 
@@ -50,7 +30,8 @@ pub struct CodeImpact {
 pub struct Decision {
     pub number: u32,
     pub title: String,
-    pub summary: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rationale: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub decision_log_line: Option<usize>,
     pub code_impacts: Vec<CodeImpact>,
@@ -177,8 +158,6 @@ impl ReviewDecisions {
                         start: diff.id.line_range().start_line,
                         end: diff.id.line_range().end_line,
                     }],
-                    change_type: ChangeType::Modification,
-                    confidence: Confidence::Medium,
                     reasoning: "Code change not mapped to any architectural decision".to_string(),
                 });
             }
@@ -186,8 +165,9 @@ impl ReviewDecisions {
             let unmapped_decision = Decision {
                 number: 0,
                 title: "Unmapped Changes".to_string(),
-                summary: "Code changes that are not mapped to any architectural decision"
-                    .to_string(),
+                rationale: Some(
+                    "Code changes that are not mapped to any architectural decision".to_string(),
+                ),
                 decision_log_line: None,
                 code_impacts,
             };
@@ -284,13 +264,11 @@ mod tests {
         Decision {
             number: 1,
             title: "Refactor authentication module".to_string(),
-            summary: "Extract auth logic into separate module for clarity".to_string(),
+            rationale: Some("Extract auth logic into separate module for clarity".to_string()),
             decision_log_line: Some(15),
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 10, end: 50 }],
-                change_type: ChangeType::Addition,
-                confidence: Confidence::High,
                 reasoning: "New authentication module implementation".to_string(),
             }],
         }
@@ -365,7 +343,7 @@ mod tests {
         decisions.add_decision(Decision {
             number: 2,
             title: "Second decision".to_string(),
-            summary: "Summary 2".to_string(),
+            rationale: None,
             decision_log_line: None,
             code_impacts: vec![],
         });
@@ -373,7 +351,7 @@ mod tests {
         decisions.add_decision(Decision {
             number: 1,
             title: "First decision".to_string(),
-            summary: "Summary 1".to_string(),
+            rationale: None,
             decision_log_line: None,
             code_impacts: vec![],
         });
@@ -390,13 +368,11 @@ mod tests {
         decisions.add_decision(Decision {
             number: 1,
             title: "Decision 1".to_string(),
-            summary: "Summary".to_string(),
+            rationale: None,
             decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 10, end: 20 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
                 reasoning: "Auth changes".to_string(),
             }],
         });
@@ -417,13 +393,11 @@ mod tests {
         decisions.add_decision(Decision {
             number: 1,
             title: "Decision 1".to_string(),
-            summary: "Summary".to_string(),
+            rationale: None,
             decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 10, end: 30 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
                 reasoning: "Auth changes".to_string(),
             }],
         });
@@ -445,13 +419,11 @@ mod tests {
         decisions.add_decision(Decision {
             number: 1,
             title: "Decision 1".to_string(),
-            summary: "Summary".to_string(),
+            rationale: None,
             decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 10, end: 20 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
                 reasoning: "Auth changes".to_string(),
             }],
         });
@@ -472,13 +444,11 @@ mod tests {
         decisions.add_decision(Decision {
             number: 1,
             title: "Decision 1".to_string(),
-            summary: "Summary".to_string(),
+            rationale: None,
             decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 10, end: 20 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
                 reasoning: "Auth changes".to_string(),
             }],
         });
@@ -499,13 +469,11 @@ mod tests {
         decisions.add_decision(Decision {
             number: 1,
             title: "Decision 1".to_string(),
-            summary: "Summary".to_string(),
+            rationale: None,
             decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 10, end: 30 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
                 reasoning: "Auth changes".to_string(),
             }],
         });
@@ -513,13 +481,11 @@ mod tests {
         decisions.add_decision(Decision {
             number: 2,
             title: "Decision 2".to_string(),
-            summary: "Summary".to_string(),
+            rationale: None,
             decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 15, end: 25 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
                 reasoning: "More auth changes".to_string(),
             }],
         });
@@ -542,13 +508,11 @@ mod tests {
         decisions.add_decision(Decision {
             number: 1,
             title: "Decision 1".to_string(),
-            summary: "Summary".to_string(),
+            rationale: None,
             decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 10, end: 50 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
                 reasoning: "Large refactor".to_string(),
             }],
         });
@@ -573,38 +537,16 @@ mod tests {
     }
 
     #[test]
-    fn test_confidence_serialization() {
-        let confidence = Confidence::High;
-        let json = serde_json::to_string(&confidence).unwrap();
-        assert_eq!(json, "\"high\"");
-
-        let deserialized: Confidence = serde_json::from_str(&json).unwrap();
-        assert_eq!(confidence, deserialized);
-    }
-
-    #[test]
-    fn test_change_type_serialization() {
-        let change_type = ChangeType::Addition;
-        let json = serde_json::to_string(&change_type).unwrap();
-        assert_eq!(json, "\"addition\"");
-
-        let deserialized: ChangeType = serde_json::from_str(&json).unwrap();
-        assert_eq!(change_type, deserialized);
-    }
-
-    #[test]
     fn test_create_unmapped_decision_with_unmapped_diffs() {
         let mut decisions = ReviewDecisions::new();
         decisions.add_decision(Decision {
             number: 1,
             title: "Decision 1".to_string(),
-            summary: "Summary".to_string(),
+            rationale: None,
             decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 10, end: 20 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
                 reasoning: "Auth changes".to_string(),
             }],
         });
@@ -646,13 +588,11 @@ mod tests {
         decisions.add_decision(Decision {
             number: 1,
             title: "Decision 1".to_string(),
-            summary: "Summary".to_string(),
+            rationale: None,
             decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 10, end: 20 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
                 reasoning: "Auth changes".to_string(),
             }],
         });
@@ -724,13 +664,11 @@ mod tests {
         decisions.add_decision(Decision {
             number: 1,
             title: "Decision 1".to_string(),
-            summary: "Summary 1".to_string(),
+            rationale: None,
             decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/file1.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 1, end: 10 }],
-                change_type: ChangeType::Addition,
-                confidence: Confidence::High,
                 reasoning: "Change 1".to_string(),
             }],
         });
@@ -738,13 +676,11 @@ mod tests {
         decisions.add_decision(Decision {
             number: 2,
             title: "Decision 2".to_string(),
-            summary: "Summary 2".to_string(),
+            rationale: None,
             decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/file2.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 20, end: 30 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
                 reasoning: "Change 2".to_string(),
             }],
         });
