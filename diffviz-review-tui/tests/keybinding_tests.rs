@@ -14,7 +14,7 @@ use diffviz_review_tui::test_harness::{
 /// Create a test ReviewEngine for testing
 fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
     use diffviz_review::{
-        ChangeType, CodeImpact, Confidence, Decision, DecisionLineRange, ReviewDecisions,
+        CodeImpact, Decision, DecisionLineRange, ReviewDecisions,
     };
 
     let mock_provider =
@@ -33,13 +33,11 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
     decisions.add_decision(Decision {
         number: 1,
         title: "Refactor calculator implementation".to_string(),
-        summary: "Add subtract method to Calculator struct".to_string(),
+        rationale: Some("Add subtract method to Calculator struct".to_string()),
         decision_log_line: Some(15),
         code_impacts: vec![CodeImpact {
             file: "src/models/calculator.rs".to_string(),
             line_ranges: vec![DecisionLineRange { start: 1, end: 80 }],
-            change_type: ChangeType::Modification,
-            confidence: Confidence::High,
             reasoning: "Calculator trait implementation".to_string(),
         }],
     });
@@ -48,13 +46,11 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
     decisions.add_decision(Decision {
         number: 2,
         title: "Improve React component structure".to_string(),
-        summary: "Refactor component to use hooks".to_string(),
+        rationale: Some("Refactor component to use hooks".to_string()),
         decision_log_line: Some(28),
         code_impacts: vec![CodeImpact {
             file: "src/components/Button.tsx".to_string(),
             line_ranges: vec![DecisionLineRange { start: 1, end: 100 }],
-            change_type: ChangeType::Modification,
-            confidence: Confidence::Medium,
             reasoning: "React component refactoring".to_string(),
         }],
     });
@@ -63,7 +59,7 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
     decisions.add_decision(Decision {
         number: 3,
         title: "Documentation improvements".to_string(),
-        summary: "Update README with new examples".to_string(),
+        rationale: Some("Update README with new examples".to_string()),
         decision_log_line: Some(42),
         code_impacts: vec![],
     });

@@ -9,7 +9,7 @@
 #![cfg(feature = "test-harness")]
 
 use diffviz_review::providers::mock_provider::MockDiffProvider;
-use diffviz_review::{ChangeType, CodeImpact, Confidence, Decision, DecisionLineRange};
+use diffviz_review::{CodeImpact, Decision, DecisionLineRange};
 use diffviz_review::{DiffQuery, GitRef, ReviewEngineBuilder};
 use diffviz_review_tui::test_harness::{CombinedTestHarness, InputTestHarness, RenderTestHarness};
 
@@ -39,7 +39,7 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
         Decision {
             number: 1,
             title: "Refactor calculator operations".to_string(),
-            summary: "Add new arithmetic operations to calculator module".to_string(),
+            rationale: Some("Add new arithmetic operations to calculator module".to_string()),
             decision_log_line: Some(15),
             code_impacts: vec![CodeImpact {
                 file: "src/models/calculator.rs".to_string(),
@@ -47,8 +47,6 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
                     DecisionLineRange { start: 1, end: 30 },
                     DecisionLineRange { start: 40, end: 60 },
                 ],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::High,
                 reasoning: "Add subtract method to Calculator".to_string(),
             }],
         },
@@ -56,13 +54,11 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
         Decision {
             number: 2,
             title: "Improve config error handling".to_string(),
-            summary: "Standardize error types in config reader".to_string(),
+            rationale: Some("Standardize error types in config reader".to_string()),
             decision_log_line: Some(28),
             code_impacts: vec![CodeImpact {
                 file: "src/config/reader.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 1, end: 7 }],
-                change_type: ChangeType::Modification,
-                confidence: Confidence::Medium,
                 reasoning: "Add better error context to config operations".to_string(),
             }],
         },
@@ -70,7 +66,7 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
         Decision {
             number: 3,
             title: "Add structured logging throughout application".to_string(),
-            summary: "Architectural decision: use tracing crate for observability".to_string(),
+            rationale: Some("Architectural decision: use tracing crate for observability".to_string()),
             decision_log_line: Some(42),
             code_impacts: vec![],
         },
@@ -98,8 +94,8 @@ fn create_enriched_test_engine() -> diffviz_review::engines::ReviewEngine {
         Decision {
             number: 1,
             title: "Refactor calculator and config system".to_string(),
-            summary: "Update calculator operations and config handling with multiple files"
-                .to_string(),
+            rationale: Some("Update calculator operations and config handling with multiple files"
+                .to_string()),
             decision_log_line: Some(15),
             code_impacts: vec![
                 CodeImpact {
@@ -108,8 +104,6 @@ fn create_enriched_test_engine() -> diffviz_review::engines::ReviewEngine {
                         DecisionLineRange { start: 1, end: 30 },
                         DecisionLineRange { start: 40, end: 60 },
                     ],
-                    change_type: ChangeType::Modification,
-                    confidence: Confidence::High,
                     reasoning: "Add new arithmetic operations".to_string(),
                 },
                 CodeImpact {
@@ -118,15 +112,11 @@ fn create_enriched_test_engine() -> diffviz_review::engines::ReviewEngine {
                         DecisionLineRange { start: 1, end: 4 },
                         DecisionLineRange { start: 5, end: 7 },
                     ],
-                    change_type: ChangeType::Modification,
-                    confidence: Confidence::High,
                     reasoning: "Update config handling".to_string(),
                 },
                 CodeImpact {
                     file: "src/network/client.rs".to_string(),
                     line_ranges: vec![DecisionLineRange { start: 1, end: 6 }],
-                    change_type: ChangeType::Modification,
-                    confidence: Confidence::Medium,
                     reasoning: "Add network client support".to_string(),
                 },
             ],
@@ -135,7 +125,7 @@ fn create_enriched_test_engine() -> diffviz_review::engines::ReviewEngine {
         Decision {
             number: 2,
             title: "Enhance Python and TypeScript modules".to_string(),
-            summary: "Add features across different language modules".to_string(),
+            rationale: Some("Add features across different language modules".to_string()),
             decision_log_line: Some(28),
             code_impacts: vec![
                 CodeImpact {
@@ -144,8 +134,6 @@ fn create_enriched_test_engine() -> diffviz_review::engines::ReviewEngine {
                         DecisionLineRange { start: 1, end: 10 },
                         DecisionLineRange { start: 11, end: 20 },
                     ],
-                    change_type: ChangeType::Modification,
-                    confidence: Confidence::High,
                     reasoning: "Update base model classes".to_string(),
                 },
                 CodeImpact {
@@ -154,8 +142,6 @@ fn create_enriched_test_engine() -> diffviz_review::engines::ReviewEngine {
                         DecisionLineRange { start: 1, end: 25 },
                         DecisionLineRange { start: 26, end: 49 },
                     ],
-                    change_type: ChangeType::Modification,
-                    confidence: Confidence::Medium,
                     reasoning: "Update React component".to_string(),
                 },
             ],
@@ -164,7 +150,7 @@ fn create_enriched_test_engine() -> diffviz_review::engines::ReviewEngine {
         Decision {
             number: 3,
             title: "Add comprehensive type definitions".to_string(),
-            summary: "Extend TypeScript API type definitions".to_string(),
+            rationale: Some("Extend TypeScript API type definitions".to_string()),
             decision_log_line: Some(42),
             code_impacts: vec![CodeImpact {
                 file: "src/types/api.ts".to_string(),
@@ -173,8 +159,6 @@ fn create_enriched_test_engine() -> diffviz_review::engines::ReviewEngine {
                     DecisionLineRange { start: 4, end: 6 },
                     DecisionLineRange { start: 7, end: 9 },
                 ],
-                change_type: ChangeType::Addition,
-                confidence: Confidence::Medium,
                 reasoning: "New API type definitions".to_string(),
             }],
         },
