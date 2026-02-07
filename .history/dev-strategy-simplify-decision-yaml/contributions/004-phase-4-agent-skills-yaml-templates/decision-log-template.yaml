@@ -1,0 +1,78 @@
+# Decision Log Template for Agent Contributions
+#
+# This template documents decisions made during a contribution.
+# Used by both dev-contribute and dev-strategy skills.
+#
+# REQUIRED sections: contribution, decisions
+# Each decision requires: id, title, choice
+# Optional sections: rationale, impact
+
+# REQUIRED: Contribution metadata for indexing
+contribution:
+  number: <phase-number>
+  phase: "<phase-name>"
+  title: "<contribution-title>"
+
+# REQUIRED: List of decisions made during this contribution
+# Each entry documents a choice point and its resolution
+decisions:
+  - id: "D1"
+    title: "<decision-topic>"
+    # What choice was made? (e.g., "Use tree-sitter for parsing")
+    choice: "<what-was-chosen>"
+
+    # FREE-FORM: Why this choice? What alternatives were considered?
+    # Agents can write prose, bullet points, or structured format
+    rationale: |
+      <explanation of why, alternatives considered, trade-offs>
+
+    # OPTIONAL: What does this impact?
+    # List affected files, breaking changes, implications
+    impact: |
+      <files affected, breaking changes, architectural implications>
+
+  - id: "D2"
+    title: "<another-decision>"
+    choice: "<choice>"
+    rationale: |
+      <explanation>
+    impact: |
+      <implications>
+
+# EXAMPLE: Minimal style (just essential info)
+#
+# contribution:
+#   number: 1
+#   phase: "Phase 1"
+#   title: "Entity structure updates"
+#
+# decisions:
+#   - id: "D1"
+#     title: "Remove summary field"
+#     choice: "Replace with optional rationale field"
+#   - id: "D2"
+#     title: "Delete ChangeType enum"
+#     choice: "Removed from codebase, not used in core logic"
+
+# EXAMPLE: Verbose style (detailed reasoning)
+#
+# contribution:
+#   number: 1
+#   phase: "Phase 1"
+#   title: "Entity structure updates"
+#
+# decisions:
+#   - id: "D1"
+#     title: "Remove summary field from Decision struct"
+#     choice: "Replace with optional rationale field"
+#     rationale: |
+#       The summary field duplicated what should be in title.
+#       A new rationale field allows free-form explanation of why/alternatives.
+#       This aligns with architectural decision log concepts.
+#       Alternative: Keep summary but rename to 'details' - rejected because
+#       rationale better captures the semantic intent.
+#     impact: |
+#       Breaking change to Decision public API.
+#       Affects all code that constructs Decision structs.
+#       TUI rendering updated to show rationale (optional).
+#       Serialization: rationale omitted from YAML when None.

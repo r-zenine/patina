@@ -76,7 +76,7 @@ The skill generates structured artifacts in `./dev-strategy-[FEATURE-NAME]/`:
 **Core Artifacts:**
 - **Code Context** - Relevant classes/functions with line references
 - **Context Document** - Behavioral spec + architecture summary + research findings
-- **Decision Log** - User choices and constraints (extensible)
+- **Decision Log** (YAML) - Technical decisions made during strategy development (structured YAML format)
 - **Implementation Roadmap** - Phased execution plan with strategy
 
 **Research Artifacts** (when research step is triggered):
