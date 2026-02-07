@@ -47,7 +47,7 @@ Enables any agent to contribute to a dev-strategy by:
 
 Every contribution generates:
 - **changelog.md** - High-level impact and accomplishments
-- **decision-log.md** - New decisions made during work
+- **decision-log.yaml** - Technical decisions made during work (structured YAML format)
 - **context-handoff.md** - Reasoning, exploration, and future guidance
 
 ## Directory Structure
