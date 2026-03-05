@@ -34,33 +34,21 @@ Enables design at the Last Responsible Moment through human collaboration:
 
 **💡 Tip**: Instead of manually invoking this skill, users can use **dev-continue** skill which automatically determines if design or implementation is needed next.
 
-## Two-Gate System Against Over-Engineering
+## Two-Gate Context
 
-**Gate 1 - dev-strategy**: Only defer design when implementation will reveal better constraints
-- Don't defer if design is straightforward
-- Defer when implementation learning will inform better choices
+This skill operates at **Gate 2** of the Two-Gate System Against Over-Engineering. Design was deferred during planning (Gate 1) to gather implementation constraints. Now design with those learned constraints.
 
-**Gate 2 - design-contribute (this skill)**: Design simplest viable approach with current learned constraints
-- No hypothetical features
-- No "what if" scenarios
-- Only what current phase requires
-- Always present simplest option first
+For the full Two-Gate System explanation, see [`context-engineering/references/two-gate-system.md`](../context-engineering/references/two-gate-system.md).
 
 ## Human-in-the-Loop Design Philosophy
 
-**Design is inherently collaborative and iterative:**
-- User has context about business needs, team capabilities, future direction
-- Design decisions benefit from dialogue, not just documentation
-- Interactive exploration reveals constraints and preferences
-- Quick feedback loops prevent wrong directions
-- Present options → gather feedback → refine → validate
+Design is inherently collaborative and iterative. Use AskUserQuestion to:
+- Understand priorities and validate assumptions
+- Present 2-3 options with clear trade-offs (simplest first)
+- Get explicit user choice through dialogue, not inference
+- Iterate based on user feedback (max 2-3 rounds)
 
-**This skill emphasizes:**
-- Using AskUserQuestion to understand priorities and validate assumptions
-- Presenting 2-3 options with clear trade-offs (simplest first)
-- Iterative refinement based on user input
-- Collaborative exploration of constraints
-- Getting user choice through dialogue, not inference
+For interactive techniques and AskUserQuestion patterns, see [`context-engineering/references/constraint-discovery.md`](../context-engineering/references/constraint-discovery.md).
 
 ## Process Overview
 
@@ -72,10 +60,10 @@ Enables design at the Last Responsible Moment through human collaboration:
 
 ## Key Outputs
 
-Every design contribution generates:
+Every design contribution generates exactly 3 files (schemas in [`contribution-artifacts/references/design-artifacts.md`](../contribution-artifacts/references/design-artifacts.md)):
 - **design-doc.md** - Target < 100 lines (combines design spec + implementer handoff)
 - **decision-log.md** - Design decisions with rationale
-- **context-handoff.md** - Target < 30 lines ( what problem did we solve ( 5 lines ), high level overview of the strategy ( 15 lines ), a short reading guide for `design-doc.md` 
+- **context-handoff.md** - Target < 30 lines (problem solved + design overview + reading guide)
 
 **That's it. Just 3 files. No code, no prototypes, no comprehensive specs.**
 
@@ -86,41 +74,7 @@ Example: `contributions/005-phase-3-design-session-mgmt-design-contribute/`
 
 ## Core Principles
 
-**YAGNI (You Aren't Gonna Need It) - Primary Principle**
-- Design only what the current phase explicitly requires
-- Don't design for hypothetical future needs
-- If it's not needed now, don't design it
-- Choose the simplest design that solves the immediate problem
-
-**Last Responsible Moment**
-- You've deferred design to learn from implementation
-- Now design with the constraints you've learned
-- Don't defer further - you have the information you need
-
-**KISS (Keep It Simple, Stupid)**
-- Always present simplest option first with clear rationale
-- Max 3 design options (if needing 4th → simplify instead)
-- Choose the simplest design that works
-- Avoid clever architectures or over-engineering
-
-**Sufficient Design**
-- Design enough to enable implementation, not comprehensive documentation
-- Focus on "what to build" and "how it integrates"
-- Target < 100 lines for design-doc.md
-- Document decisions, don't over-explain
-
-**Human-in-the-Loop**
-- Design is collaborative - present options, gather feedback, iterate
-- Use AskUserQuestion to understand priorities and validate assumptions
-- Interactive exploration reveals constraints and preferences
-- Quick feedback loops prevent wrong directions
-
-**Interactive Exploration**
-- Ask questions first, then generate options
-- Present options with clear trade-offs
-- Discuss which trade-offs matter most
-- Refine based on user feedback
-- Validate assumptions throughout
+For all core principles (YAGNI, Last Responsible Moment, KISS, Sufficient Design, Human-in-the-Loop), see [`design-principles` skill](../design-principles/SKILL.md).
 
 ## Additional Instructions
 

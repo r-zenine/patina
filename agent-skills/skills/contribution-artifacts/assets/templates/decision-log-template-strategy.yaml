@@ -1,0 +1,26 @@
+# Decision Log Template — Strategy/Planning contributions
+# Use this template for decision-log.yaml in dev-strategy plans.
+# This is the planning-level decision log. Contribution-level decisions use decision-log-template.yaml.
+
+decisions:
+  - number: 1
+    title: "[Decision made during strategy development]"
+    rationale: "[Why this choice was made]"  # optional
+    code_impacts:
+      - file: "[path/to/affected/file]"
+        reasoning: "[Why this file is affected by this decision]"
+        line_ranges:
+          - start: 1
+            end: 50
+
+  # Common strategy decisions to document:
+  # - Selected implementation strategy (TDD / Steel Thread / Core-then-Integrate)
+  # - Technology choices
+  # - Architectural constraints accepted
+  # - Design decisions deferred to later phases
+
+  # Example:
+  # - number: 1
+  #   title: "Use Steel Thread strategy"
+  #   rationale: "Uncertain requirements; need early feedback from working system"
+  #   code_impacts: []
