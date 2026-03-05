@@ -1,0 +1,14 @@
+[Unit]
+Description=<project-name>
+After=network.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/<project-name>
+ExecStart=uv run python main.py --channel slack
+Restart=always
+RestartSec=5
+EnvironmentFile=/home/pi/<project-name>/.env
+
+[Install]
+WantedBy=multi-user.target

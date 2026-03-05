@@ -1,0 +1,24 @@
+# Decision Log Template — Implementation/Contribution contributions
+# Use this template for decision-log.yaml in implementation, review, audit, revision, foundation, expansion, etc.
+
+decisions:
+  - number: 1
+    title: "[Decision made in one sentence]"
+    rationale: "[Why this choice was made — constraints, user priorities, trade-offs]"  # optional
+    code_impacts:
+      - file: "[path/to/file.rs]"
+        reasoning: "[Why this file is affected by this decision]"
+        line_ranges:
+          - start: 1
+            end: 50
+
+  # Add additional decisions as needed:
+  # - number: 2
+  #   title: "[Next decision]"
+  #   rationale: "[Rationale]"
+  #   code_impacts:
+  #     - file: "[path/to/file.rs]"
+  #       reasoning: "[Why affected]"
+  #       line_ranges:
+  #         - start: 1
+  #           end: 50

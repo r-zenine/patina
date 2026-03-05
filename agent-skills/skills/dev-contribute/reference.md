@@ -15,11 +15,10 @@ This document provides instructions for contributing to dev-strategy implementat
 - [Contribution Validation](#contribution-validation)
 - [Common Patterns by Strategy](#common-patterns-by-strategy)
 - [Research Integration Examples](#research-integration-examples)
-- [Test Pyramid Principles (Martin Fowler)](#test-pyramid-principles-martin-fowler)
 
 ## Overview
 
-The dev-contribute skill enables structured contributions to existing dev-strategy plans. Each contribution follows the selected implementation strategy (TDD, Steel Thread, or Core-then-Integrate) and creates proper documentation for knowledge transfer.
+The dev-contribute skill enables structured contributions to existing dev-strategy plans. Each contribution follows the selected implementation strategy and creates proper documentation for knowledge transfer.
 
 ## Step 1: Read and Understand Dev-Strategy Plan
 
@@ -30,13 +29,14 @@ Understand the context before contributing.
 1. **Read all dev-strategy artifacts:**
    - `code-context.md` - Relevant code references
    - `context-document.md` - Behavioral spec and architecture (includes research findings if available)
-   - `decision-log.md` - Previous decisions made
+   - `decision-log.yaml` - Previous decisions made
    - `implementation-roadmap.md` - Planned phases and strategy
    - `research/` directory (if present) - Technical research findings and recommendations
 
 2. **Identify the implementation strategy:**
-   - Look for strategy choice in decision-log.md
+   - Look for strategy choice in decision-log.yaml
    - Understand the planned approach (TDD, Steel Thread, Core-then-Integrate)
+   - For strategy details → see [`dev-strategies` skill](../dev-strategies/SKILL.md)
 
 3. **Review research findings (when relevant):**
    - If implementing new technologies or unfamiliar patterns, check for `research/` directory
@@ -56,17 +56,9 @@ Ensure a clean baseline before starting contribution work.
 ### Process
 **MANDATORY: The contribution CANNOT proceed if any of these checks fail.**
 
-1. **Run compilation/build:**
-   - Execute the project's build command
-   - All compilation must succeed with zero errors
-
-2. **Run linter:**
-   - Execute the project's linting command
-   - All linting must pass with zero warnings
-
-3. **Run test suite:**
-   - Execute the project's test suite
-   - All tests must pass with zero failures
+1. **Run compilation/build:** All compilation must succeed with zero errors
+2. **Run linter:** All linting must pass with zero warnings
+3. **Run test suite:** All tests must pass with zero failures
 
 ### If Validation Fails
 - STOP immediately
@@ -82,50 +74,15 @@ Contributions must start from a clean, working baseline to ensure:
 
 ## Step 2: Follow Strategy Approach
 
-### Test-Driven Development (TDD)
+For complete strategy execution details, contribution sequences, and contribution type definitions, see the [`dev-strategies` skill](../dev-strategies/SKILL.md):
+- TDD → [`dev-strategies/references/tdd.md`](../dev-strategies/references/tdd.md)
+- Steel Thread → [`dev-strategies/references/steel-thread.md`](../dev-strategies/references/steel-thread.md)
+- Core-then-Integrate → [`dev-strategies/references/core-then-integrate.md`](../dev-strategies/references/core-then-integrate.md)
 
-**Contribution Types in Order:**
-1. **Test Designer** - Creates sufficient test suite
-2. **Test Validator** - Reviews and validates tests
-3. **Implementation Agent** - Implements code to pass tests
-
-**TDD Process:**
-- Focus on one phase at a time from roadmap
-- Test Designer reads behavioral spec and creates failing tests
-- Test Validator ensures tests cover all requirements and edge cases
-- Implementation Agent writes minimal code to make tests pass
-
-**Test Pyramid Guidance** (Follow Martin Fowler's principles):
-- **Many Unit Tests**: Fast, isolated tests for business logic and individual components
-- **Some Integration Tests**: Test component interactions, APIs, database connections
-- **Few End-to-End Tests**: Critical user journeys and system validation
-- Aim for fast feedback loops and reliable, maintainable test suites
-
-### Steel Thread
-
-**Contribution Types in Order:**
-1. **Pathfinder** - Maps minimal viable path
-2. **Foundation Builder** - Implements basic working flow
-3. **Capability Expander** - Adds features iteratively
-
-**Steel Thread Process:**
-- Start with thinnest possible end-to-end working version
-- Each contribution builds on previous working state
-- Maintain working system throughout development
-
-### Core-then-Integrate
-
-**Contribution Types in Order:**
-1. **Domain Modeler** - Pure business logic with unit tests
-2. **Port Designer** - Interface contracts and integration points
-3. **Adapter Builder** - External system integrations
-4. **Integration Orchestrator** - Wires everything together
-
-**Core-then-Integrate Process:**
-- Build testable core logic first (no external dependencies)
-- Design clear interfaces between core and external systems
-- Implement adapters for databases, APIs, UI
-- Integrate components with sufficient testing
+**Quick reference:**
+- **TDD**: Test Design → Test Validation → Implementation
+- **Steel Thread**: Pathfinder → Foundation Builder → Capability Expander
+- **Core-then-Integrate**: Domain Modeler → Port Designer → Adapter Builder → Integration Orchestrator
 
 ## Step 3: Create Numbered Contribution Folder
 
@@ -145,63 +102,29 @@ Create sequentially numbered folder for chronological ordering.
    mkdir contributions/003-phase-2-test-design-tdd-general-purpose/
    ```
 
-3. **Folder naming convention:**
-   `NNN-phase-X-[contribution-type]-[specialty]-[agent-name]`
-
-   **Contribution Types:**
-   - `implementation` - Code, features, infrastructure
-   - `review` - Code review, architecture review, quality assessment
-   - `audit` - Security, performance, compliance analysis
-   - `revision` - Revisiting a previous decision with code updates
-   - `test-design` - Test creation (TDD Test Designer)
-   - `test-validation` - Test review (TDD Test Validator)
-   - `foundation` - Basic working implementation (Steel Thread Foundation Builder)
-   - `expansion` - Feature additions (Steel Thread Capability Expander)
-   - `domain-logic` - Business logic implementation (Core-then-Integrate Domain Modeler)
-   - `port-design` - Interface design (Core-then-Integrate Port Designer)
-   - `adapter` - External integrations (Core-then-Integrate Adapter Builder)
-   - `integration` - System integration (Core-then-Integrate Integration Orchestrator)
-
-   **Specialties:**
-   - `code` - General coding
-   - `frontend` - UI/UX implementation
-   - `backend` - Server-side logic
-   - `database` - Data layer
-   - `security` - Security-focused work
-   - `performance` - Optimization-focused work
-   - `tdd` - Test-driven development
-   - `api` - API design/implementation
+For complete folder naming convention, contribution type definitions, and specialty list, see [`contribution-artifacts` skill](../contribution-artifacts/SKILL.md).
 
 ## Step 4: Perform Specialized Work
 
 ### Implementation Guidelines by Strategy
 
-**For TDD Contributions:**
-- Test Designer: Create sufficient, failing tests that prove requirements (follow Test Pyramid - many unit tests, some integration, few E2E)
-- Test Validator: Ensure tests are sufficient, readable, cover edge cases, and maintain proper pyramid proportions
-- Implementation Agent: Write minimal code to make tests pass, refactor for clarity
-
-**For Steel Thread Contributions:**
-- Pathfinder: Identify and document the minimal viable path through the system
-- Foundation Builder: Implement basic working flow with placeholders for future features
-- Capability Expander: Add one capability at a time while maintaining working system
-
-**For Core-then-Integrate Contributions:**
-- Domain Modeler: Focus purely on business logic, no external dependencies
-- Port Designer: Define clear interfaces and contracts
-- Adapter Builder: Implement specific external system integrations
-- Integration Orchestrator: Wire components together with error handling
+Follow the execution guidance for your strategy:
+- **TDD** → [`dev-strategies/references/tdd.md`](../dev-strategies/references/tdd.md)
+- **Steel Thread** → [`dev-strategies/references/steel-thread.md`](../dev-strategies/references/steel-thread.md)
+- **Core-then-Integrate** → [`dev-strategies/references/core-then-integrate.md`](../dev-strategies/references/core-then-integrate.md)
 
 ### Quality Standards
 
 **All Contributions Must:**
 - Follow existing code patterns from context-document.md
-- Respect constraints from decision-log.md
+- Respect constraints from decision-log.yaml
 - Maintain or improve test coverage
 - Handle expected errors for the current scope
 - Follow basic security practices from existing code
 
 **Sufficient Implementation Principle**: Focus on making it work correctly, not perfectly. Avoid over-polishing, excessive error handling for edge cases that won't occur, or adding features not required for the current phase.
+
+See [`design-principles` skill](../design-principles/SKILL.md) for full principles.
 
 **When Research Artifacts Are Most Valuable:**
 - First implementation of new technologies mentioned in research/
@@ -214,20 +137,21 @@ Create sequentially numbered folder for chronological ordering.
 ### Goal
 Create three required artifacts for knowledge transfer and project continuity.
 
+For complete artifact schemas and templates, see [`contribution-artifacts/references/implementation-artifacts.md`](../contribution-artifacts/references/implementation-artifacts.md).
+
 ### Process
 
 **1. Create changelog.md**
-- Use [changelog-template.md](templates/changelog-template.md)
+- Use [changelog-template.md](../contribution-artifacts/assets/templates/changelog-template.md)
 - Focus on delivered value and what this enables
 - Keep to 3-4 lines maximum
 
-**2. Create decision-log.md**
-- Use [decision-log-template.md](templates/decision-log-template.md)
+**2. Create decision-log.yaml**
+- Use [decision-log-template.yaml](../contribution-artifacts/assets/templates/decision-log-template.yaml)
 - Document only NEW decisions made during this contribution
-- Use inline format: **Decision** (reason) → Impact
 
 **3. Create context-handoff.md**
-- Use [context-handoff-template.md](templates/context-handoff-template.md)
+- Use [context-handoff-template.md](../contribution-artifacts/assets/templates/context-handoff-template.md)
 - Lead with what you built and key insights
 - Structure as: What works/What's fragile/What's missing
 - Provide specific guidance for next contributors
@@ -238,7 +162,7 @@ Create three required artifacts for knowledge transfer and project continuity.
 - Does each file serve its distinct purpose without overlap?
 
 ### Optional Artifacts
-For specialized contributions, see [optional-artifacts-templates.md](templates/optional-artifacts-templates.md) for additional documentation types.
+For specialized contributions, see [optional-artifacts-templates.md](../contribution-artifacts/assets/templates/optional-artifacts-templates.md) for additional documentation types.
 
 ## Step 6: Handling Decision Revisions
 
@@ -246,7 +170,7 @@ For specialized contributions, see [optional-artifacts-templates.md](templates/o
 Provide clear workflow when users disagree with logged decisions from previous contributions.
 
 ### When to Use This
-After reviewing a contribution's decision-log.md, if the user disagrees with a decision and wants to revisit it.
+After reviewing a contribution's decision-log.yaml, if the user disagrees with a decision and wants to revisit it.
 
 ### Process
 
@@ -260,43 +184,18 @@ After reviewing a contribution's decision-log.md, if the user disagrees with a d
 - Ensure changes are complete and align with the revised approach
 - Follow same quality standards as original contribution
 
-**3. Document in new contribution's decision-log.md:**
+**3. Document in new contribution's decision-log.yaml:**
 - Reference original contribution number
 - Explain what decision is being revised and why
-- Document the new decision with its rationale
-- Example format:
-  ```markdown
-  ## ⚡ Critical Decisions
-  **Revision of Contribution 002 - [Original Decision]**: [New decision] → **Impact**: [How this changes future work]
-  **Rationale**: [Why the original decision needed revisiting]
-  ```
 
 **4. Generate all mandatory documentation:**
 - **changelog.md**: Indicate this revises contribution NNN, explain what changed
-- **decision-log.md**: New decision with revision context and reference to original
+- **decision-log.yaml**: New decision with revision context and reference to original
 - **context-handoff.md**: Explain impact of revision on existing work and future contributions
 
 **5. Run validation checks:**
 - Same mandatory quality gates as any contribution
 - Ensure build, lint, and tests all pass
-
-### Example Revision Flow
-
-```
-Original contribution:
-002-phase-1-implementation-code-general-purpose/
-  ├── decision-log.md (decided to use REST API)
-  └── ...
-
-User disagrees with REST decision, prefers GraphQL
-
-New revision contribution:
-004-phase-1-revision-code-general-purpose/
-  ├── changelog.md (notes revision of 002, switched REST to GraphQL)
-  ├── decision-log.md (documents GraphQL decision, references 002)
-  ├── context-handoff.md (explains migration impact)
-  └── ...
-```
 
 ### Key Principles
 - **Always create new folder** - Don't edit previous contribution folders
@@ -315,12 +214,7 @@ Before finalizing your contribution:
    - **Run linter:** All linting must pass with zero warnings
    - **Run test suite:** All tests must pass with zero failures
 
-   If any check fails:
-   - Fix all issues before completing the contribution
-   - Do NOT mark contribution as complete
-   - Do NOT generate final documentation until all checks pass
-
-   Rationale: Every contribution must maintain or improve project health.
+   If any check fails: fix all issues before completing the contribution.
 
 1. **Strategy Compliance Check:**
    - Does this follow the chosen strategy approach?
@@ -382,27 +276,3 @@ Before finalizing your contribution:
 **Later Phase (Research Less Relevant):**
 - Contribution 012 adding another CRUD endpoint → Skip research review, focus on established patterns
 - Contribution 015 refining existing UI components → Research likely not needed
-
-## Test Pyramid Principles (Martin Fowler)
-
-When creating tests in any contribution type, follow the Test Pyramid approach for optimal test suite design:
-
-**Foundation - Unit Tests (Many)**
-- Test individual functions, components, and business logic in isolation
-- Fast execution, no external dependencies
-- Should comprise the majority of your test suite (~70-80%)
-- Provide immediate feedback during development
-
-**Middle - Integration Tests (Some)**
-- Test interactions between components, modules, or services
-- Include database connections, API calls, file system operations
-- Moderate execution speed, some external dependencies
-- Should be a smaller portion of tests (~15-25%)
-
-**Top - End-to-End Tests (Few)**
-- Test key user workflows and critical system paths
-- Slow execution, full system dependencies
-- Should be minimal but cover essential functionality (~5-10%)
-- Focus on high-value user scenarios
-
-**Reference**: [Martin Fowler's Practical Test Pyramid](https://martinfowler.com/articles/practical-test-pyramid.html)

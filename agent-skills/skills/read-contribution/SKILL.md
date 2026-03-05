@@ -32,10 +32,12 @@ Provides structured approaches to reading and understanding contributions made t
 
 ## Progressive Disclosure Principle
 
-**Start Here Always:** `context-handoff.md` - Contains everything most contributors need
+For full progressive disclosure technique and role-specific reading strategies, see [`context-engineering/references/progressive-disclosure.md`](../context-engineering/references/progressive-disclosure.md).
+
+**Start Here Always:** `context-handoff.md` — Contains everything most contributors need
 **Dive Deeper Only If:** You need specific technical decisions or completion details
 
-## Reading Strategies
+## Reading Strategies (Quick Reference)
 
 Different roles have different information needs:
 
@@ -49,7 +51,7 @@ Different roles have different information needs:
 ```
 contributions/NNN-phase-X-type-specialty-agent/
 ├── context-handoff.md     ← START HERE
-├── decision-log.md        ← Read if you need technical choices
+├── decision-log.yaml      ← Read if you need technical choices
 ├── changelog.md           ← Read for completion summary
 └── [optional artifacts]   ← Read for specialized analysis
 ```
@@ -58,8 +60,11 @@ contributions/NNN-phase-X-type-specialty-agent/
 ```
 contributions/NNN-phase-X-design-[topic]-design-contribute/
 ├── design-doc.md          ← START HERE (< 100 lines)
-└── decision-log.md        ← Design decisions and rationale
+├── decision-log.md        ← Design decisions and rationale
+└── context-handoff.md     ← Reading guide + problem + overview
 ```
+
+For artifact schemas and quality indicators, see [`contribution-artifacts` skill](../contribution-artifacts/SKILL.md).
 
 ## Detailed Instructions
 
