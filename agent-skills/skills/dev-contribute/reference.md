@@ -141,16 +141,11 @@ For complete artifact schemas and templates, see [`contribution-artifacts/refere
 
 ### Process
 
-**1. Create changelog.md**
-- Use [changelog-template.md](../contribution-artifacts/assets/templates/changelog-template.md)
-- Focus on delivered value and what this enables
-- Keep to 3-4 lines maximum
-
-**2. Create decision-log.yaml**
+**1. Create decision-log.yaml**
 - Use [decision-log-template.yaml](../contribution-artifacts/assets/templates/decision-log-template.yaml)
 - Document only NEW decisions made during this contribution
 
-**3. Create context-handoff.md**
+**2. Create context-handoff.md**
 - Use [context-handoff-template.md](../contribution-artifacts/assets/templates/context-handoff-template.md)
 - Lead with what you built and key insights
 - Structure as: What works/What's fragile/What's missing
@@ -189,7 +184,6 @@ After reviewing a contribution's decision-log.yaml, if the user disagrees with a
 - Explain what decision is being revised and why
 
 **4. Generate all mandatory documentation:**
-- **changelog.md**: Indicate this revises contribution NNN, explain what changed
 - **decision-log.yaml**: New decision with revision context and reference to original
 - **context-handoff.md**: Explain impact of revision on existing work and future contributions
 
@@ -225,7 +219,6 @@ Before finalizing your contribution:
    - All mandatory files created and complete?
    - Context handoff explains reasoning and alternatives?
    - Decision log captures new choices made?
-   - Changelog summarizes impact clearly?
 
 3. **Knowledge Transfer:**
    - Would another agent understand what was done and why?
