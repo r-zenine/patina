@@ -1,43 +1,10 @@
 # Implementation Contribution Artifacts
 
-Schemas for the 3 mandatory files in every implementation, review, audit, or revision contribution.
+Schemas for the 2 mandatory files in every implementation, review, audit, or revision contribution.
 
 ---
 
-## 1. `changelog.md`
-
-**Purpose**: Quick status update for agents scanning project progress. Keep to 3–4 lines maximum.
-
-**Schema:**
-```markdown
-# Changelog - Phase X [Contribution Type]
-
-## 🔍 Essential (Agents scan first)
-**Delivered**: [Main accomplishment with key technical detail]
-**Status**: [Ready for next phase | Needs review | Blocked on X]
-
-## ✅ Validation (Strategy compliance)
-**Strategy Followed**: [TDD | Steel Thread | Core-then-Integrate approach used]
-**Phase Objectives**: [Met | Partially met with X remaining]
-
-## ➡️ Next Steps (Agent handoff)
-**Unlocks**: [What type of contribution can happen next]
-**Priority**: [What should be tackled first]
-
----
-## 📋 Human Context (Supporting details)
-**Files Changed**: [Key files modified - for human review]
-**Testing**: [What was tested and how]
-```
-
-**Rules:**
-- Focus on delivered value and what this enables
-- No code examples
-- Do NOT include a changelog for design contributions (design contributions use design-doc.md + decision-log.md only)
-
----
-
-## 2. `decision-log.yaml`
+## 1. `decision-log.yaml`
 
 **Purpose**: Structured record of technical decisions made during this contribution (YAML format).
 
@@ -61,7 +28,7 @@ decisions:
 
 ---
 
-## 3. `context-handoff.md`
+## 2. `context-handoff.md`
 
 **Purpose**: Guide next agents with essential context and specific next steps.
 
@@ -89,7 +56,6 @@ decisions:
 
 ## 📋 Reference Links
 - [decision-log.yaml](decision-log.yaml) - Technical choices made
-- [changelog.md](changelog.md) - Phase completion summary
 ```
 
 **Rules:**

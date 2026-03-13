@@ -13,7 +13,7 @@ Make structured contributions to dev-strategy implementation plans with proper d
 Enables any agent to contribute to a dev-strategy by:
 - Reading and understanding the existing plan (including research findings when relevant)
 - Creating sequentially numbered contribution folders
-- Generating mandatory documentation (changelog, decisions, context handoff)
+- Generating mandatory documentation (decisions, context handoff)
 - Maintaining project continuity and knowledge transfer
 - Handling decision revisions when previous choices need revisiting
 
@@ -45,8 +45,7 @@ Enables any agent to contribute to a dev-strategy by:
 
 ## Key Outputs
 
-Every contribution generates 3 mandatory files (schemas in [`contribution-artifacts/references/implementation-artifacts.md`](../contribution-artifacts/references/implementation-artifacts.md)):
-- **changelog.md** - High-level impact and accomplishments
+Every contribution generates 2 mandatory files (schemas in [`contribution-artifacts/references/implementation-artifacts.md`](../contribution-artifacts/references/implementation-artifacts.md)):
 - **decision-log.yaml** - Technical decisions made during work (structured YAML format)
 - **context-handoff.md** - Reasoning, exploration, and future guidance
 
