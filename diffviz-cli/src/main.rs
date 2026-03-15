@@ -168,14 +168,19 @@ fn save_review_state(folder: &Path, engine: &diffviz_review::ReviewEngine) -> Re
 fn run_contribution_review(folder: &str, repo_path: &str, author: &str) -> Result<()> {
     let folder_path = Path::new(folder);
     let content = std::fs::read_to_string(folder_path.join("decision-log.yaml"))?;
-    let decisions = DecisionLog::parse(&content)
+    let log = DecisionLog::parse(&content)
         .map_err(|e| anyhow::anyhow!("Failed to parse decision-log.yaml: {}", e))?;
+    let query = log
+        .base_commit
+        .clone()
+        .map(DiffQuery::commit_to_head)
+        .unwrap_or_else(DiffQuery::head_to_unstaged);
 
     let git_repo = GitRepository::open(repo_path)
         .map_err(|e| anyhow::anyhow!("Failed to open repository: {}", e))?;
 
     let mut engine = ReviewEngineBuilder::new(Box::new(git_repo), author.to_string())
-        .build_from_decisions(decisions, DiffQuery::head_to_unstaged())
+        .build_from_decisions(log.decisions, query)
         .map_err(|e| anyhow::anyhow!("Failed to build review engine: {}", e))?;
 
     load_review_state(folder_path, &mut engine)?;
@@ -225,10 +230,16 @@ fn run_debug_expansion(
 ) -> Result<()> {
     let folder_path = Path::new(folder);
     let content = std::fs::read_to_string(folder_path.join("decision-log.yaml"))?;
-    let decisions = DecisionLog::parse(&content)
+    let log = DecisionLog::parse(&content)
         .map_err(|e| anyhow::anyhow!("Failed to parse decision-log.yaml: {}", e))?;
+    let query = log
+        .base_commit
+        .clone()
+        .map(DiffQuery::commit_to_head)
+        .unwrap_or_else(DiffQuery::head_to_unstaged);
 
-    let decision = decisions
+    let decision = log
+        .decisions
         .iter()
         .find(|d| d.number == decision_number)
         .ok_or_else(|| anyhow::anyhow!("Decision #{decision_number} not found"))?;
@@ -246,7 +257,6 @@ fn run_debug_expansion(
 
     let git_repo = GitRepository::open(repo_path)
         .map_err(|e| anyhow::anyhow!("Failed to open repository: {}", e))?;
-    let query = DiffQuery::head_to_unstaged();
 
     let new_source = git_repo
         .get_source_code(file_path, &query.to)
@@ -279,7 +289,11 @@ fn run_debug_expansion(
             parser.as_ref(),
         ) {
             Ok(diffs) => {
-                let mode = if diffs.len() == 1 { "Expand" } else { "Decompose" };
+                let mode = if diffs.len() == 1 {
+                    "Expand"
+                } else {
+                    "Decompose"
+                };
                 println!("  Mode        : {mode} ({} unit(s))", diffs.len());
                 for (i, diff) in diffs.iter().enumerate() {
                     let (start_byte, end_byte) = match &diff.boundary.change_status {
