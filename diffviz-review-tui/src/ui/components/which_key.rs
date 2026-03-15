@@ -29,7 +29,6 @@ pub fn render(f: &mut Frame, ui_state: &UiState) {
     let content = match ui_state.leader_submenu {
         None => create_root_menu(ui_state),
         Some('a') => create_actions_submenu(ui_state),
-        Some('c') => create_comments_submenu(),
         Some('i') => create_instructions_submenu(),
         Some('t') => create_toggles_submenu(),
         _ => create_root_menu(ui_state),
@@ -38,7 +37,6 @@ pub fn render(f: &mut Frame, ui_state: &UiState) {
     let title = match ui_state.leader_submenu {
         None => " Leader Menu (Space)",
         Some('a') => " Actions (Space + a)",
-        Some('c') => " Comments (Space + c)",
         Some('i') => " Instructions (Space + i)",
         Some('t') => " Toggles (Space + t)",
         _ => " Leader Menu",
@@ -65,11 +63,8 @@ fn create_root_menu(_ui_state: &UiState) -> Vec<Line<'static>> {
         Line::from(""),
         create_compact_line(vec![
             ("a", "Actions"),
-            ("c", "Comments"),
-            ("d", "Decision"),
             ("i", "Instructions"),
             ("t", "Toggles"),
-            ("e", "Edit"),
         ]),
         Line::from(""),
         Line::from(vec![
@@ -91,19 +86,6 @@ fn create_actions_submenu(ui_state: &UiState) -> Vec<Line<'static>> {
     vec![
         Line::from(""),
         create_compact_line(items),
-        Line::from(""),
-        Line::from(vec![
-            Span::styled("  ", Style::default()),
-            Span::styled("Esc", Style::default().fg(Colors::CYAN)),
-            Span::styled(" back", Styles::muted()),
-        ]),
-    ]
-}
-
-fn create_comments_submenu() -> Vec<Line<'static>> {
-    vec![
-        Line::from(""),
-        create_compact_line(vec![("c", "Add comment"), ("t", "Toggle view")]),
         Line::from(""),
         Line::from(vec![
             Span::styled("  ", Style::default()),

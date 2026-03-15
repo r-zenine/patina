@@ -67,7 +67,7 @@ fn buffer_to_string(buffer: &Buffer, width: u16, height: u16) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_harness::StateSnapshot;
+
     use diffviz_review::providers::mock_provider::MockDiffProvider;
     use diffviz_review::{DiffQuery, GitRef, ReviewEngineBuilder};
 
@@ -122,6 +122,6 @@ mod tests {
         let lines: Vec<&str> = output.lines().collect();
 
         // Should have multiple lines of output
-        assert!(lines.len() > 0, "Output should contain at least one line");
+        assert!(!lines.is_empty(), "Output should contain at least one line");
     }
 }

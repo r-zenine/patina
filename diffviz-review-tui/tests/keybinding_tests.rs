@@ -13,60 +13,46 @@ use diffviz_review_tui::test_harness::{
 
 /// Create a test ReviewEngine for testing
 fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
-    use diffviz_review::{
-        CodeImpact, Decision, DecisionLineRange, ReviewDecisions,
-    };
+    use diffviz_review::{CodeImpact, Decision, DecisionLineRange};
 
     let mock_provider =
         MockDiffProvider::from_review_fixtures().expect("Failed to load test fixtures");
     let review_engine_builder =
         ReviewEngineBuilder::new(Box::new(mock_provider), "test-user".to_string());
     let diff_query = DiffQuery::new(GitRef::Head, GitRef::Unstaged);
-    let mut review_engine = review_engine_builder
-        .build_from_decisions(vec![], diff_query)
-        .expect("Failed to build ReviewEngine");
 
-    // Set up hardcoded decisions with file paths matching actual test fixtures
-    let mut decisions = ReviewDecisions::new();
+    let decisions = vec![
+        Decision {
+            number: 1,
+            title: "Refactor calculator implementation".to_string(),
+            rationale: Some("Add subtract method to Calculator struct".to_string()),
+            code_impacts: vec![CodeImpact {
+                file: "src/models/calculator.rs".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 1, end: 72 }],
+                reasoning: "Calculator trait implementation".to_string(),
+            }],
+        },
+        Decision {
+            number: 2,
+            title: "Improve React component structure".to_string(),
+            rationale: Some("Refactor component to use hooks".to_string()),
+            code_impacts: vec![CodeImpact {
+                file: "src/components/Greeting.tsx".to_string(),
+                line_ranges: vec![DecisionLineRange { start: 1, end: 49 }],
+                reasoning: "React component refactoring".to_string(),
+            }],
+        },
+        Decision {
+            number: 3,
+            title: "Documentation improvements".to_string(),
+            rationale: Some("Update README with new examples".to_string()),
+            code_impacts: vec![],
+        },
+    ];
 
-    // Decision 1: Uses rust_trait_impl.json fixture
-    decisions.add_decision(Decision {
-        number: 1,
-        title: "Refactor calculator implementation".to_string(),
-        rationale: Some("Add subtract method to Calculator struct".to_string()),
-        decision_log_line: Some(15),
-        code_impacts: vec![CodeImpact {
-            file: "src/models/calculator.rs".to_string(),
-            line_ranges: vec![DecisionLineRange { start: 1, end: 80 }],
-            reasoning: "Calculator trait implementation".to_string(),
-        }],
-    });
-
-    // Decision 2: Uses typescript_react_component.json fixture
-    decisions.add_decision(Decision {
-        number: 2,
-        title: "Improve React component structure".to_string(),
-        rationale: Some("Refactor component to use hooks".to_string()),
-        decision_log_line: Some(28),
-        code_impacts: vec![CodeImpact {
-            file: "src/components/Button.tsx".to_string(),
-            line_ranges: vec![DecisionLineRange { start: 1, end: 100 }],
-            reasoning: "React component refactoring".to_string(),
-        }],
-    });
-
-    // Decision 3: No file impacts (orphaned decision)
-    decisions.add_decision(Decision {
-        number: 3,
-        title: "Documentation improvements".to_string(),
-        rationale: Some("Update README with new examples".to_string()),
-        decision_log_line: Some(42),
-        code_impacts: vec![],
-    });
-
-    review_engine.set_decisions_with_index(decisions);
-
-    review_engine
+    review_engine_builder
+        .build_from_decisions(decisions, diff_query)
+        .expect("Failed to build ReviewEngine")
 }
 
 // =============================================================================
@@ -207,7 +193,7 @@ fn test_render_initial_state() {
 
     // Visual output should contain expected UI elements
     assert!(visual.contains("Decisions"));
-    assert!(visual.contains("Diff View"));
+    assert!(visual.contains("Decision Details"));
     assert!(!visual.is_empty());
 }
 

@@ -224,13 +224,8 @@ fn should_hide_line(line: &RenderableLine<'_>) -> bool {
 }
 
 /// Renders the gutter bracket based on the instruction position
-fn render_gutter_bracket(position: GutterPosition) -> &'static str {
-    match position {
-        GutterPosition::None => "  ",
-        GutterPosition::InstructionStart => "📋┐",
-        GutterPosition::InstructionMiddle => " │",
-        GutterPosition::InstructionEnd => " └",
-    }
+fn render_gutter_bracket(_position: GutterPosition) -> &'static str {
+    "  "
 }
 
 /// Context for rendering a single line

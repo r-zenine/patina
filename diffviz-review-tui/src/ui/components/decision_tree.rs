@@ -198,6 +198,17 @@ fn build_chunk_item(
         Icons::NOT_APPROVED
     };
 
+    // Instruction count indicator
+    let instruction_count = review_engine
+        .state()
+        .get_instructions(chunk_id)
+        .map_or(0, |i| i.len());
+    let instruction_badge = if instruction_count > 0 {
+        format!(" {} {}", Icons::INSTRUCTION_MODE, instruction_count)
+    } else {
+        String::new()
+    };
+
     let line_content = if is_selected {
         vec![
             Span::styled(
@@ -225,6 +236,13 @@ fn build_chunk_item(
                     .fg(Color::White)
                     .add_modifier(Modifier::BOLD),
             ),
+            Span::styled(
+                instruction_badge,
+                Style::default()
+                    .bg(Color::DarkGray)
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]
     } else {
         vec![
@@ -238,6 +256,10 @@ fn build_chunk_item(
                 }),
             ),
             Span::raw(display_name.to_string()),
+            Span::styled(
+                instruction_badge,
+                Style::default().fg(Color::Yellow),
+            ),
         ]
     };
 

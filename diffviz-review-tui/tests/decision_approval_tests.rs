@@ -40,7 +40,6 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
             number: 1,
             title: "Refactor calculator operations".to_string(),
             rationale: Some("Add new arithmetic operations to calculator module".to_string()),
-            decision_log_line: Some(15),
             code_impacts: vec![CodeImpact {
                 file: "src/models/calculator.rs".to_string(),
                 line_ranges: vec![
@@ -55,7 +54,6 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
             number: 2,
             title: "Improve config error handling".to_string(),
             rationale: Some("Standardize error types in config reader".to_string()),
-            decision_log_line: Some(28),
             code_impacts: vec![CodeImpact {
                 file: "src/config/reader.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 1, end: 7 }],
@@ -66,8 +64,9 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
         Decision {
             number: 3,
             title: "Add structured logging throughout application".to_string(),
-            rationale: Some("Architectural decision: use tracing crate for observability".to_string()),
-            decision_log_line: Some(42),
+            rationale: Some(
+                "Architectural decision: use tracing crate for observability".to_string(),
+            ),
             code_impacts: vec![],
         },
     ];
@@ -94,9 +93,9 @@ fn create_enriched_test_engine() -> diffviz_review::engines::ReviewEngine {
         Decision {
             number: 1,
             title: "Refactor calculator and config system".to_string(),
-            rationale: Some("Update calculator operations and config handling with multiple files"
-                .to_string()),
-            decision_log_line: Some(15),
+            rationale: Some(
+                "Update calculator operations and config handling with multiple files".to_string(),
+            ),
             code_impacts: vec![
                 CodeImpact {
                     file: "src/models/calculator.rs".to_string(),
@@ -126,7 +125,6 @@ fn create_enriched_test_engine() -> diffviz_review::engines::ReviewEngine {
             number: 2,
             title: "Enhance Python and TypeScript modules".to_string(),
             rationale: Some("Add features across different language modules".to_string()),
-            decision_log_line: Some(28),
             code_impacts: vec![
                 CodeImpact {
                     file: "src/models/base.py".to_string(),
@@ -151,7 +149,6 @@ fn create_enriched_test_engine() -> diffviz_review::engines::ReviewEngine {
             number: 3,
             title: "Add comprehensive type definitions".to_string(),
             rationale: Some("Extend TypeScript API type definitions".to_string()),
-            decision_log_line: Some(42),
             code_impacts: vec![CodeImpact {
                 file: "src/types/api.ts".to_string(),
                 line_ranges: vec![

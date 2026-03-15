@@ -150,16 +150,13 @@ Implements Ord for BTreeMap ordering (file → query → line range). Use `same_
 pub struct Decision {
     number: u32,
     title: String,
-    summary: String,
-    decision_log_line: Option<usize>,
+    rationale: Option<String>,
     code_impacts: Vec<CodeImpact>,
 }
 
 pub struct CodeImpact {
     file: String,
     line_ranges: Vec<DecisionLineRange>,
-    change_type: ChangeType,
-    confidence: Confidence,
     reasoning: String,
 }
 ```

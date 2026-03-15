@@ -196,7 +196,6 @@ fn signature_components_classified_as_important() {
     // After fix: visibility_modifier is classified as SignatureComponent with IMPORTANT relevance
     assert_eq!(
         relevance, expected_relevance,
-        "visibility_modifier should be classified as IMPORTANT ({}), not NOISE (3)",
-        expected_relevance
+        "visibility_modifier should be classified as IMPORTANT ({expected_relevance}), not NOISE (3)"
     );
 }

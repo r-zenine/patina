@@ -273,10 +273,8 @@ fn handle_leader_keys(key: KeyEvent, submenu: Option<char>) -> Option<UiEvent> {
     match (submenu, key.code) {
         // First level - entering submenus
         (None, KeyCode::Char('a')) => Some(UiEvent::EnterLeaderSubmenu('a')),
-        (None, KeyCode::Char('c')) => Some(UiEvent::EnterLeaderSubmenu('c')),
         (None, KeyCode::Char('i')) => Some(UiEvent::EnterLeaderSubmenu('i')),
         (None, KeyCode::Char('t')) => Some(UiEvent::EnterLeaderSubmenu('t')),
-        (None, KeyCode::Char('e')) => Some(UiEvent::EnterLeaderSubmenu('e')),
 
         // Actions submenu (Space + a + ?)
         (Some('a'), KeyCode::Char('a')) => Some(UiEvent::ToggleApprove),
@@ -287,11 +285,6 @@ fn handle_leader_keys(key: KeyEvent, submenu: Option<char>) -> Option<UiEvent> {
         (Some('i'), KeyCode::Char('i')) => Some(UiEvent::EnterInstructionMode),
         (Some('i'), KeyCode::Char('e')) => Some(UiEvent::EnterEditMode),
         (Some('i'), KeyCode::Char('t')) => Some(UiEvent::ToggleInstructions),
-
-        // Export submenu (Space + e + ?)
-        (Some('e'), KeyCode::Char('f')) => Some(UiEvent::ExportFile),
-        (Some('e'), KeyCode::Char('e')) => Some(UiEvent::ExportSingleInstruction),
-        (Some('e'), KeyCode::Char('a')) => Some(UiEvent::ExportAll),
 
         // Toggles submenu (Space + t + ?)
         (Some('t'), KeyCode::Char('s')) => Some(UiEvent::ToggleSemanticHighlight),
