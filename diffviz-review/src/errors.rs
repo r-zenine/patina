@@ -17,6 +17,9 @@ pub enum DiffVizError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
+    #[error("YAML parse error: {0}")]
+    YamlParse(#[from] serde_yaml::Error),
+
     // Review-specific errors
     #[error("Review operation failed")]
     Review(#[from] ReviewError),

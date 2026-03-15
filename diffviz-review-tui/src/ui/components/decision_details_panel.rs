@@ -144,7 +144,6 @@ pub fn render(
         )]));
     }
 
-
     // Create paragraph with appropriate border style
     let border_style = if is_focused {
         Styles::border_focused()

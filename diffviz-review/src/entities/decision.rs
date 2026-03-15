@@ -5,6 +5,7 @@
 //! that produced them.
 
 use crate::entities::reviewable_diff_id::ReviewableDiffId;
+use crate::errors::Result;
 use crate::state::ReviewState;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -33,6 +34,21 @@ pub struct Decision {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rationale: Option<String>,
     pub code_impacts: Vec<CodeImpact>,
+}
+
+/// Container for deserializing a decision-log.yaml file
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DecisionLog {
+    pub decisions: Vec<Decision>,
+}
+
+impl DecisionLog {
+    /// Parse decisions from YAML content. The caller is responsible for reading the source.
+    /// Returns `Err` if the content cannot be deserialized.
+    pub fn parse(content: &str) -> Result<Vec<Decision>> {
+        let log: DecisionLog = serde_yaml::from_str(content)?;
+        Ok(log.decisions)
+    }
 }
 
 /// A value type pairing a ReviewableDiffId with the decision it belongs to.
@@ -258,6 +274,50 @@ mod tests {
     use crate::entities::git_ref::DiffQuery;
     use crate::entities::reviewable_diff_id::LineRange;
     use crate::state::ReviewableDiff;
+
+    #[test]
+    fn test_decision_log_parse_deserializes_correctly() {
+        let yaml = r#"
+decisions:
+  - number: 1
+    title: "Use Core-then-Integrate strategy"
+    rationale: "Three independent layers with a clear dependency order."
+    code_impacts:
+      - file: "diffviz-review/src/entities/decision.rs"
+        reasoning: "Add DecisionLog struct here"
+        line_ranges:
+          - start: 1
+            end: 36
+  - number: 2
+    title: "DecisionLog lives in diffviz-review"
+    code_impacts: []
+"#;
+        let decisions = DecisionLog::parse(yaml).unwrap();
+
+        assert_eq!(decisions.len(), 2);
+        assert_eq!(decisions[0].number, 1);
+        assert_eq!(decisions[0].title, "Use Core-then-Integrate strategy");
+        assert_eq!(
+            decisions[0].rationale,
+            Some("Three independent layers with a clear dependency order.".to_string())
+        );
+        assert_eq!(decisions[0].code_impacts.len(), 1);
+        assert_eq!(
+            decisions[0].code_impacts[0].file,
+            "diffviz-review/src/entities/decision.rs"
+        );
+        assert_eq!(decisions[0].code_impacts[0].line_ranges[0].start, 1);
+        assert_eq!(decisions[0].code_impacts[0].line_ranges[0].end, 36);
+        assert_eq!(decisions[1].number, 2);
+        assert_eq!(decisions[1].rationale, None);
+        assert!(decisions[1].code_impacts.is_empty());
+    }
+
+    #[test]
+    fn test_decision_log_parse_invalid_yaml_returns_err() {
+        let result = DecisionLog::parse("not: valid: yaml: [{{");
+        assert!(result.is_err());
+    }
     use diffviz_core::ast_diff::{OwnedNodeData, SourceCode};
     use diffviz_core::common::{ProgrammingLanguage, SemanticNodeKind};
     use diffviz_core::reviewable_diff::{
