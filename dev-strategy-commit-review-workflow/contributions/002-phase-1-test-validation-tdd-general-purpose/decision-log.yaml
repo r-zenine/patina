@@ -1,0 +1,17 @@
+base_commit: "c2a804a0dcce2bf455ad8fe17b0e7cab162b8e7a"
+
+decisions:
+  - number: 1
+    title: "Test suite coverage is sufficient for Phase 1 — no additional tests needed"
+    rationale: "Three unit tests cover the three behavioral requirements: (1) parse() returns DecisionLog, (2) base_commit absent → None, (3) base_commit present → Some(hash). The routing logic in main.rs has no unit test surface — it is verified by the roadmap's end-to-end criterion. Pyramid proportions are correct: all unit tests, no integration or E2E needed for a pure struct contract change."
+    code_impacts: []
+
+  - number: 2
+    title: "Existing test test_decision_log_parse_deserializes_correctly must be updated by implementation contributor"
+    rationale: "That test binds to the old API (calling .len() and indexing directly on the parse() result). It will compile-error alongside the new tests. The implementation contributor must update it to use log.decisions.len() etc. This is not a gap in the new tests — it is a known migration point."
+    code_impacts:
+      - file: "diffviz-review/src/entities/decision.rs"
+        reasoning: "Line ~297: let decisions = DecisionLog::parse(...) then decisions.len() — must become log.decisions.len() after return type change"
+        line_ranges:
+          - start: 278
+            end: 316
