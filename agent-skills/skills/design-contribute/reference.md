@@ -224,6 +224,14 @@ For templates, see [`contribution-artifacts/assets/templates/`](../contribution-
 - ❌ No design for future phases
 - ❌ No "nice to have" features
 
+### Commit the design artifacts
+
+After the design document is created and all quality checks pass:
+```bash
+git add <contribution-folder>/
+git commit -m "design(NNN): <description>"
+```
+
 ## Validation Strategy
 
 For complete anti-patterns (over-engineering and under-engineering signals), see [`design-principles/references/anti-patterns.md`](../design-principles/references/anti-patterns.md).

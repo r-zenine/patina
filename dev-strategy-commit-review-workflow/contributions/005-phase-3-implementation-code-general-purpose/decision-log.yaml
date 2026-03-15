@@ -1,0 +1,22 @@
+base_commit: "f38ca9e120a3ba861c7d511fcc8e6a6659209417"
+
+decisions:
+  - number: 1
+    title: "Commit step added as ### sub-section at end of Step 6 in dev-strategy"
+    rationale: "Step 6 is the final step that creates all plan artifacts. Appending the commit there keeps the step self-contained: create artifacts → commit them. Using ### keeps it visually subordinate to the ## Step 6 heading."
+    code_impacts:
+      - file: "agent-skills/skills/dev-strategy/reference.md"
+        reasoning: "New ### block appended after file organization section and before Implementation Tips"
+        line_ranges:
+          - start: 229
+            end: 237
+
+  - number: 2
+    title: "Commit step added as ### sub-section at end of What NOT to Include in design-contribute Step 5"
+    rationale: "The 'What NOT to Include' list is the last sub-section before Step 5 ends and Validation Strategy begins. Appending the commit there makes it the final action in Step 5."
+    code_impacts:
+      - file: "agent-skills/skills/design-contribute/reference.md"
+        reasoning: "New ### block appended after the NOT to Include list and before Validation Strategy"
+        line_ranges:
+          - start: 225
+            end: 234

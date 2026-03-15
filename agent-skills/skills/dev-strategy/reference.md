@@ -227,6 +227,14 @@ Use clear, descriptive feature names:
 - ❌ `dev-strategy-2024-01-15/`
 - ❌ `dev-strategy-feature1/`
 
+### Commit the strategy artifacts
+
+After all artifacts are created in `dev-strategy-<feature-name>/`:
+```bash
+git add dev-strategy-<feature-name>/
+git commit -m "dev-strategy: <feature name>"
+```
+
 ## Implementation Tips
 
 ### Making Phases Actionable
