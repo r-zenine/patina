@@ -14,8 +14,9 @@ pub use engines::{CacheStats, ReviewEngine, ReviewProgress, ReviewSummary};
 pub use entities::git_ref::{DiffQuery, GitRef};
 pub use entities::reviewable_diff_id::{LineRange, ReviewableDiffId};
 pub use entities::{
-    Approval, CodeImpact, Decision, DecisionLineRange, DecisionLog, DecisionReviewableDiff,
-    Instruction, ReviewApprovals, ReviewDecisions, ReviewInstructions,
+    Approval, CodeImpact, Decision, DecisionApproval, DecisionApprovals, DecisionLineRange,
+    DecisionLog, DecisionReviewableDiff, Instruction, ReviewApprovals, ReviewDecisions,
+    ReviewInstructions,
 };
 pub use providers::{DiffProvider, FileStats, FileStatus};
 pub use review_engine_builder::ReviewEngineBuilder;

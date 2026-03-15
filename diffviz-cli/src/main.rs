@@ -3,10 +3,18 @@ mod environment;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
+use serde::{Deserialize, Serialize};
+use std::path::Path;
 
 use commands::{
     CommandExecutor, diagnose::DiagnoseCommand, review::ReviewCommand, show::ShowCommand,
 };
+use diffviz_git::GitRepository;
+use diffviz_review::{
+    Approval, DecisionApproval, DecisionApprovals, DecisionLog, DiffQuery, ReviewApprovals,
+    ReviewEngineBuilder, engines::review_engine::ExportScope,
+};
+use diffviz_review_tui::ReviewTuiApp;
 use environment::{EnvironmentBuilder, TerminalBackend};
 
 #[derive(Parser)]
@@ -14,6 +22,10 @@ use environment::{EnvironmentBuilder, TerminalBackend};
 #[command(about = "A TUI for reviewing code diffs with semantic analysis")]
 #[command(version)]
 struct Cli {
+    /// Folder containing decision-log.yaml to review
+    #[arg(index = 1)]
+    folder: Option<String>,
+
     /// Repository path (defaults to current directory)
     #[arg(short, long, default_value = ".", global = true)]
     repo_path: String,
@@ -32,7 +44,7 @@ struct Cli {
     verbose: bool,
 
     #[command(subcommand)]
-    command: Commands,
+    command: Option<Commands>,
 }
 
 #[derive(Subcommand)]
@@ -68,6 +80,94 @@ enum Commands {
     },
 }
 
+/// Persisted review state: chunk approvals + instructions + decision approvals in one file.
+/// Approvals stored as Vec because HashMap<ReviewableDiffId, Approval> keys are structs,
+/// not strings, which serde_json rejects as map keys.
+#[derive(Serialize, Deserialize)]
+struct ReviewStateFile {
+    approvals: Vec<Approval>,
+    instructions: serde_json::Value,
+    #[serde(default)]
+    decision_approvals: Vec<DecisionApproval>,
+}
+
+fn load_review_state(folder: &Path, engine: &mut diffviz_review::ReviewEngine) -> Result<()> {
+    let path = folder.join("review-state.json");
+    if !path.exists() {
+        return Ok(());
+    }
+    let json = std::fs::read_to_string(&path)?;
+    let state_file: ReviewStateFile = serde_json::from_str(&json)?;
+    let mut approvals = ReviewApprovals::new();
+    for approval in state_file.approvals {
+        approvals.approvals.insert(approval.reviewable_id.clone(), approval);
+    }
+    engine.load_approvals(approvals);
+    let mut decision_approvals = DecisionApprovals::new();
+    for da in state_file.decision_approvals {
+        decision_approvals.approvals.insert(da.decision_number, da);
+    }
+    engine.load_decision_approvals(decision_approvals);
+    let instructions_str = serde_json::to_string(&state_file.instructions)?;
+    engine
+        .import_instructions_json(&instructions_str)
+        .map_err(|e| anyhow::anyhow!("Failed to import instructions: {}", e))?;
+    Ok(())
+}
+
+fn save_review_state(folder: &Path, engine: &diffviz_review::ReviewEngine) -> Result<()> {
+    let instructions_str = engine
+        .export_instructions_json(ExportScope::All)
+        .map_err(|e| anyhow::anyhow!("Failed to export instructions: {}", e))?;
+    let instructions: serde_json::Value = serde_json::from_str(&instructions_str)?;
+    let approvals_vec: Vec<Approval> = engine
+        .state()
+        .approvals
+        .approvals
+        .values()
+        .cloned()
+        .collect();
+    let decision_approvals_vec: Vec<DecisionApproval> = engine
+        .state()
+        .decision_approvals
+        .approvals
+        .values()
+        .cloned()
+        .collect();
+    let state_file = ReviewStateFile {
+        approvals: approvals_vec,
+        instructions,
+        decision_approvals: decision_approvals_vec,
+    };
+    let json = serde_json::to_string_pretty(&state_file)?;
+    std::fs::write(folder.join("review-state.json"), json)?;
+    Ok(())
+}
+
+fn run_contribution_review(folder: &str, repo_path: &str, author: &str) -> Result<()> {
+    let folder_path = Path::new(folder);
+    let content = std::fs::read_to_string(folder_path.join("decision-log.yaml"))?;
+    let decisions = DecisionLog::parse(&content)
+        .map_err(|e| anyhow::anyhow!("Failed to parse decision-log.yaml: {}", e))?;
+
+    let git_repo = GitRepository::open(repo_path)
+        .map_err(|e| anyhow::anyhow!("Failed to open repository: {}", e))?;
+
+    let mut engine = ReviewEngineBuilder::new(Box::new(git_repo), author.to_string())
+        .build_from_decisions(decisions, DiffQuery::head_to_unstaged())
+        .map_err(|e| anyhow::anyhow!("Failed to build review engine: {}", e))?;
+
+    load_review_state(folder_path, &mut engine)?;
+
+    let mut app =
+        ReviewTuiApp::new(engine).map_err(|e| anyhow::anyhow!("Failed to launch TUI: {}", e))?;
+    app.run().map_err(|e| anyhow::anyhow!("TUI error: {}", e))?;
+    let engine = app.into_review_engine();
+
+    save_review_state(folder_path, &engine)?;
+    Ok(())
+}
+
 fn main() -> Result<()> {
     // Initialize logging
     use log::LevelFilter;
@@ -88,44 +188,60 @@ fn main() -> Result<()> {
     // Parse command line arguments
     let cli = Cli::parse();
 
-    // Build environment with dependency injection
-    let mut env_builder = EnvironmentBuilder::new()
-        .repo_path(&cli.repo_path)
-        .verbose(cli.verbose)
-        .terminal_backend(TerminalBackend::Crossterm);
+    let author = cli.author.clone().unwrap_or_else(whoami::username);
 
-    if let Some(ref author) = cli.author {
-        env_builder = env_builder.author(author.clone());
-    }
+    match (cli.folder, cli.command) {
+        (Some(folder), None) => run_contribution_review(&folder, &cli.repo_path, &author),
 
-    let environment = env_builder
-        .build()
-        .map_err(|e| anyhow::anyhow!("Failed to create environment: {}", e))?;
+        (None, Some(command)) => {
+            let mut env_builder = EnvironmentBuilder::new()
+                .repo_path(&cli.repo_path)
+                .verbose(cli.verbose)
+                .terminal_backend(TerminalBackend::Crossterm);
 
-    // Dispatch to subcommand handlers
-    match cli.command {
-        Commands::Show {
-            file_path,
-            from_commit,
-            to_commit,
-            staged,
-            unstaged,
-        } => {
-            let show_command =
-                ShowCommand::new(file_path, from_commit, to_commit, staged, unstaged);
-            show_command.execute(environment)
+            if let Some(ref a) = cli.author {
+                env_builder = env_builder.author(a.clone());
+            }
+
+            let environment = env_builder
+                .build()
+                .map_err(|e| anyhow::anyhow!("Failed to create environment: {}", e))?;
+
+            match command {
+                Commands::Show {
+                    file_path,
+                    from_commit,
+                    to_commit,
+                    staged,
+                    unstaged,
+                } => {
+                    let show_command =
+                        ShowCommand::new(file_path, from_commit, to_commit, staged, unstaged);
+                    show_command.execute(environment)
+                }
+                Commands::Review {
+                    file_filter,
+                    from_commit,
+                    to_commit,
+                } => {
+                    let review_command = ReviewCommand::new(file_filter, from_commit, to_commit);
+                    review_command.execute(environment)
+                }
+                Commands::Diagnose { file_path } => {
+                    let diagnose_command = DiagnoseCommand::new(file_path);
+                    diagnose_command.execute(environment)
+                }
+            }
         }
-        Commands::Review {
-            file_filter,
-            from_commit,
-            to_commit,
-        } => {
-            let review_command = ReviewCommand::new(file_filter, from_commit, to_commit);
-            review_command.execute(environment)
+
+        (None, None) => {
+            eprintln!("Usage: diffviz <folder> | diffviz <subcommand>");
+            std::process::exit(1);
         }
-        Commands::Diagnose { file_path } => {
-            let diagnose_command = DiagnoseCommand::new(file_path);
-            diagnose_command.execute(environment)
+
+        (Some(_), Some(_)) => {
+            eprintln!("Error: cannot specify both a folder and a subcommand");
+            std::process::exit(1);
         }
     }
 }

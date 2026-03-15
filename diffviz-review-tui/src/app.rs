@@ -70,6 +70,22 @@ impl ReviewTuiApp {
         ui_state
     }
 
+    /// Consume the app and return the underlying ReviewEngine.
+    ///
+    /// Performs terminal cleanup before returning (since Drop will not run via ManuallyDrop).
+    pub fn into_review_engine(self) -> ReviewEngine {
+        let mut manual = std::mem::ManuallyDrop::new(self);
+        // Manually run terminal teardown (Drop is suppressed by ManuallyDrop)
+        let _ = disable_raw_mode();
+        let _ = execute!(manual.terminal.backend_mut(), LeaveAlternateScreen);
+        let _ = manual.terminal.show_cursor();
+        // SAFETY: ManuallyDrop prevents automatic Drop. We take sole ownership of
+        // review_engine via ptr::read. The remaining fields (ui_state, terminal) are
+        // leaked, which is acceptable — their cleanup has been done manually above and
+        // the process exits shortly after this call.
+        unsafe { std::ptr::read(std::ptr::addr_of!(manual.review_engine)) }
+    }
+
     /// Run the main application loop
     pub fn run(&mut self) -> Result<()> {
         loop {
