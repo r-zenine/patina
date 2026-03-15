@@ -256,10 +256,7 @@ fn build_chunk_item(
                 }),
             ),
             Span::raw(display_name.to_string()),
-            Span::styled(
-                instruction_badge,
-                Style::default().fg(Color::Yellow),
-            ),
+            Span::styled(instruction_badge, Style::default().fg(Color::Yellow)),
         ]
     };
 
