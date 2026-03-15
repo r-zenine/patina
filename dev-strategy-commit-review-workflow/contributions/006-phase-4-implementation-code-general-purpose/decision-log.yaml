@@ -1,0 +1,12 @@
+base_commit: "d54eeffb215a6d1360f2ac9e9a622b9a798ace6f"
+
+decisions:
+  - number: 1
+    title: "base_commit field placed before decisions: with an inline comment"
+    rationale: "Placing it first makes it the first thing contributors fill in (matching Step 3.1 which captures it before any code changes). The inline comment points to Step 3.1 so contributors know where the value comes from without needing to look elsewhere."
+    code_impacts:
+      - file: "agent-skills/skills/contribution-artifacts/assets/templates/decision-log-template.yaml"
+        reasoning: "New base_commit field and comment added after the header comments and before decisions:"
+        line_ranges:
+          - start: 1
+            end: 6

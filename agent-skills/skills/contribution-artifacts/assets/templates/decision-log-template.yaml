@@ -1,5 +1,7 @@
 # Decision Log Template — Implementation/Contribution contributions
 # Use this template for decision-log.yaml in implementation, review, audit, revision, foundation, expansion, etc.
+# base_commit: populated by dev-contribute Step 3.1 (git rev-parse HEAD before any changes)
+base_commit: ""
 
 decisions:
   - number: 1
