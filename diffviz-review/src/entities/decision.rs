@@ -32,9 +32,15 @@ pub struct Decision {
     pub title: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rationale: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub decision_log_line: Option<usize>,
     pub code_impacts: Vec<CodeImpact>,
+}
+
+/// A value type pairing a ReviewableDiffId with the decision it belongs to.
+/// Produced by ReviewEngine::get_decision_reviewable_diffs() and consumed by the navigation tree.
+#[derive(Debug, Clone)]
+pub struct DecisionReviewableDiff {
+    pub chunk_id: ReviewableDiffId,
+    pub decision_number: u32,
 }
 
 /// Collection of decisions organized for quick lookup and indexing
@@ -168,7 +174,6 @@ impl ReviewDecisions {
                 rationale: Some(
                     "Code changes that are not mapped to any architectural decision".to_string(),
                 ),
-                decision_log_line: None,
                 code_impacts,
             };
 
@@ -265,7 +270,6 @@ mod tests {
             number: 1,
             title: "Refactor authentication module".to_string(),
             rationale: Some("Extract auth logic into separate module for clarity".to_string()),
-            decision_log_line: Some(15),
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 10, end: 50 }],
@@ -344,7 +348,6 @@ mod tests {
             number: 2,
             title: "Second decision".to_string(),
             rationale: None,
-            decision_log_line: None,
             code_impacts: vec![],
         });
 
@@ -352,7 +355,6 @@ mod tests {
             number: 1,
             title: "First decision".to_string(),
             rationale: None,
-            decision_log_line: None,
             code_impacts: vec![],
         });
 
@@ -369,7 +371,6 @@ mod tests {
             number: 1,
             title: "Decision 1".to_string(),
             rationale: None,
-            decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 10, end: 20 }],
@@ -394,7 +395,6 @@ mod tests {
             number: 1,
             title: "Decision 1".to_string(),
             rationale: None,
-            decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 10, end: 30 }],
@@ -420,7 +420,6 @@ mod tests {
             number: 1,
             title: "Decision 1".to_string(),
             rationale: None,
-            decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 10, end: 20 }],
@@ -445,7 +444,6 @@ mod tests {
             number: 1,
             title: "Decision 1".to_string(),
             rationale: None,
-            decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 10, end: 20 }],
@@ -470,7 +468,6 @@ mod tests {
             number: 1,
             title: "Decision 1".to_string(),
             rationale: None,
-            decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 10, end: 30 }],
@@ -482,7 +479,6 @@ mod tests {
             number: 2,
             title: "Decision 2".to_string(),
             rationale: None,
-            decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 15, end: 25 }],
@@ -509,7 +505,6 @@ mod tests {
             number: 1,
             title: "Decision 1".to_string(),
             rationale: None,
-            decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 10, end: 50 }],
@@ -543,7 +538,6 @@ mod tests {
             number: 1,
             title: "Decision 1".to_string(),
             rationale: None,
-            decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 10, end: 20 }],
@@ -589,7 +583,6 @@ mod tests {
             number: 1,
             title: "Decision 1".to_string(),
             rationale: None,
-            decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/auth.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 10, end: 20 }],
@@ -665,7 +658,6 @@ mod tests {
             number: 1,
             title: "Decision 1".to_string(),
             rationale: None,
-            decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/file1.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 1, end: 10 }],
@@ -677,7 +669,6 @@ mod tests {
             number: 2,
             title: "Decision 2".to_string(),
             rationale: None,
-            decision_log_line: None,
             code_impacts: vec![CodeImpact {
                 file: "src/file2.rs".to_string(),
                 line_ranges: vec![DecisionLineRange { start: 20, end: 30 }],

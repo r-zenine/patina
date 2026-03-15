@@ -78,15 +78,6 @@ pub fn render(
         lines.push(Line::from("")); // Spacer
     }
 
-    // Decision log reference
-    if let Some(log_line) = decision.decision_log_line {
-        lines.push(Line::from(vec![
-            Span::styled("From decision log: ", Styles::muted()),
-            Span::styled(format!("line {log_line}"), Styles::secondary()),
-        ]));
-        lines.push(Line::from("")); // Spacer
-    }
-
     // Code impacts summary
     let impact_count = decision.code_impacts.len();
     let file_count = decision
@@ -153,17 +144,6 @@ pub fn render(
         )]));
     }
 
-    lines.push(Line::from("")); // Spacer before footer
-
-    // Footer with navigation hints
-    lines.push(Line::from(vec![
-        Span::styled("[Enter]", Styles::info()),
-        Span::raw(" expand files  "),
-        Span::styled("[j/k]", Styles::info()),
-        Span::raw(" navigate  "),
-        Span::styled("[Space]", Styles::info()),
-        Span::raw(" actions"),
-    ]));
 
     // Create paragraph with appropriate border style
     let border_style = if is_focused {

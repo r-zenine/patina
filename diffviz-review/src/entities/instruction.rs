@@ -11,10 +11,8 @@ use std::collections::HashMap;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum InstructionStatus {
-    /// File hash matches, instruction points to correct code
+    /// Instruction points to correct code
     Active,
-    /// File hash changed, instruction may no longer apply
-    Stale,
     /// User marked instruction as handled/completed
     Addressed,
 }
@@ -29,16 +27,11 @@ impl Default for InstructionStatus {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Instruction {
     pub id: String,
-    pub reviewable_id: ReviewableDiffId,
     pub author: String,
     pub timestamp: String,
     pub content: String,
     #[serde(default)]
     pub status: InstructionStatus,
-    #[serde(default)]
-    pub file_content_hash: String,
-    #[serde(default)]
-    pub content_snapshot: Option<String>,
 }
 
 /// Collection of instructions organized by ReviewableDiffId
@@ -54,8 +47,7 @@ impl ReviewInstructions {
         }
     }
 
-    pub fn add_instruction(&mut self, instruction: Instruction) {
-        let reviewable_id = instruction.reviewable_id.clone();
+    pub fn add_instruction(&mut self, reviewable_id: ReviewableDiffId, instruction: Instruction) {
         self.instructions
             .entry(reviewable_id)
             .or_default()
@@ -141,6 +133,16 @@ mod tests {
         )
     }
 
+    fn make_instruction(id: &str, content: &str) -> Instruction {
+        Instruction {
+            id: id.to_string(),
+            content: content.to_string(),
+            author: "reviewer".to_string(),
+            timestamp: "2023-01-01T00:00:00Z".to_string(),
+            status: InstructionStatus::Active,
+        }
+    }
+
     // ===== InstructionStatus Tests =====
 
     #[test]
@@ -148,13 +150,6 @@ mod tests {
         let status = InstructionStatus::Active;
         let json = serde_json::to_string(&status).unwrap();
         assert_eq!(json, "\"active\"");
-    }
-
-    #[test]
-    fn test_instruction_status_serialize_stale() {
-        let status = InstructionStatus::Stale;
-        let json = serde_json::to_string(&status).unwrap();
-        assert_eq!(json, "\"stale\"");
     }
 
     #[test]
@@ -169,13 +164,6 @@ mod tests {
         let json = "\"active\"";
         let status: InstructionStatus = serde_json::from_str(json).unwrap();
         assert_eq!(status, InstructionStatus::Active);
-    }
-
-    #[test]
-    fn test_instruction_status_deserialize_stale() {
-        let json = "\"stale\"";
-        let status: InstructionStatus = serde_json::from_str(json).unwrap();
-        assert_eq!(status, InstructionStatus::Stale);
     }
 
     #[test]
@@ -195,20 +183,15 @@ mod tests {
 
     #[test]
     fn test_instruction_creation() {
-        let reviewable_id = create_test_reviewable_id();
         let instruction = Instruction {
             id: "instruction_1".to_string(),
-            reviewable_id: reviewable_id.clone(),
             content: "Please add error handling".to_string(),
             author: "reviewer".to_string(),
             timestamp: "2023-01-01T00:00:00Z".to_string(),
             status: InstructionStatus::Active,
-            file_content_hash: "test_hash".to_string(),
-            content_snapshot: None,
         };
 
         assert_eq!(instruction.id, "instruction_1");
-        assert_eq!(instruction.reviewable_id, reviewable_id);
         assert_eq!(instruction.content, "Please add error handling");
         assert_eq!(instruction.author, "reviewer");
     }
@@ -223,17 +206,10 @@ mod tests {
         assert_eq!(instructions.total_instructions(), 0);
 
         // Add an instruction
-        let instruction = Instruction {
-            id: "instruction_1".to_string(),
-            reviewable_id: reviewable_id.clone(),
-            content: "Please add error handling".to_string(),
-            author: "reviewer".to_string(),
-            timestamp: "2023-01-01T00:00:00Z".to_string(),
-            status: InstructionStatus::Active,
-            file_content_hash: "test_hash".to_string(),
-            content_snapshot: None,
-        };
-        instructions.add_instruction(instruction);
+        instructions.add_instruction(
+            reviewable_id.clone(),
+            make_instruction("instruction_1", "Please add error handling"),
+        );
 
         // Verify instruction added
         assert!(instructions.has_instructions(&reviewable_id));
@@ -244,112 +220,19 @@ mod tests {
         );
     }
 
-    // ===== Enhanced Instruction Tests =====
-
     #[test]
-    fn test_instruction_with_all_new_fields() {
-        let reviewable_id = create_test_reviewable_id();
-        let instruction = Instruction {
-            id: "instruction_1".to_string(),
-            reviewable_id: reviewable_id.clone(),
-            content: "Extract to function".to_string(),
-            author: "reviewer".to_string(),
-            timestamp: "2023-01-01T00:00:00Z".to_string(),
-            status: InstructionStatus::Active,
-            file_content_hash: "abc123".to_string(),
-            content_snapshot: Some("let x = 10;\nlet y = 20;".to_string()),
-        };
+    fn test_instruction_deserialize() {
+        let json = r#"{
+            "id": "instruction_1",
+            "content": "Test",
+            "author": "reviewer",
+            "timestamp": "2023-01-01T00:00:00Z",
+            "status": "active"
+        }"#;
 
+        let instruction: Instruction = serde_json::from_str(json).unwrap();
         assert_eq!(instruction.status, InstructionStatus::Active);
-        assert_eq!(instruction.file_content_hash, "abc123");
-        assert_eq!(
-            instruction.content_snapshot,
-            Some("let x = 10;\nlet y = 20;".to_string())
-        );
-    }
-
-    #[test]
-    fn test_instruction_serialize_with_new_fields() {
-        let reviewable_id = create_test_reviewable_id();
-        let instruction = Instruction {
-            id: "instruction_1".to_string(),
-            reviewable_id,
-            content: "Fix bug".to_string(),
-            author: "reviewer".to_string(),
-            timestamp: "2023-01-01T00:00:00Z".to_string(),
-            status: InstructionStatus::Stale,
-            file_content_hash: "def456".to_string(),
-            content_snapshot: Some("code snippet".to_string()),
-        };
-
-        let json = serde_json::to_string(&instruction).unwrap();
-        assert!(json.contains("\"status\":\"stale\""));
-        assert!(json.contains("\"file_content_hash\":\"def456\""));
-        assert!(json.contains("\"content_snapshot\":\"code snippet\""));
-    }
-
-    #[test]
-    fn test_instruction_deserialize_with_new_fields() {
-        let reviewable_id = create_test_reviewable_id();
-        let json = format!(
-            r#"{{
-                "id": "instruction_1",
-                "reviewable_id": {},
-                "content": "Test",
-                "author": "reviewer",
-                "timestamp": "2023-01-01T00:00:00Z",
-                "status": "active",
-                "file_content_hash": "xyz789",
-                "content_snapshot": "snippet"
-            }}"#,
-            serde_json::to_string(&reviewable_id).unwrap()
-        );
-
-        let instruction: Instruction = serde_json::from_str(&json).unwrap();
-        assert_eq!(instruction.status, InstructionStatus::Active);
-        assert_eq!(instruction.file_content_hash, "xyz789");
-        assert_eq!(instruction.content_snapshot, Some("snippet".to_string()));
-    }
-
-    #[test]
-    fn test_instruction_deserialize_legacy_without_new_fields() {
-        let reviewable_id = create_test_reviewable_id();
-        let json = format!(
-            r#"{{
-                "id": "instruction_1",
-                "reviewable_id": {},
-                "content": "Legacy instruction",
-                "author": "reviewer",
-                "timestamp": "2023-01-01T00:00:00Z"
-            }}"#,
-            serde_json::to_string(&reviewable_id).unwrap()
-        );
-
-        let instruction: Instruction = serde_json::from_str(&json).unwrap();
-        // Should deserialize with default values
-        assert_eq!(instruction.content, "Legacy instruction");
-    }
-
-    #[test]
-    fn test_instruction_optional_content_snapshot_none() {
-        let reviewable_id = create_test_reviewable_id();
-        let instruction = Instruction {
-            id: "instruction_1".to_string(),
-            reviewable_id,
-            content: "Test".to_string(),
-            author: "reviewer".to_string(),
-            timestamp: "2023-01-01T00:00:00Z".to_string(),
-            status: InstructionStatus::Active,
-            file_content_hash: "hash123".to_string(),
-            content_snapshot: None,
-        };
-
-        assert_eq!(instruction.content_snapshot, None);
-
-        // Serialize and verify None is handled correctly
-        let json = serde_json::to_string(&instruction).unwrap();
-        let deserialized: Instruction = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.content_snapshot, None);
+        assert_eq!(instruction.content, "Test");
     }
 
     // ===== ReviewInstructions Enhanced Methods Tests =====
@@ -362,29 +245,14 @@ mod tests {
         let mut reviewable_id_2 = create_test_reviewable_id();
         reviewable_id_2.line_range.start_line = 20;
 
-        // Add active instruction
-        instructions.add_instruction(Instruction {
-            id: "instruction_1".to_string(),
-            reviewable_id: reviewable_id_1.clone(),
-            content: "Active instruction".to_string(),
-            author: "reviewer".to_string(),
-            timestamp: "2023-01-01T00:00:00Z".to_string(),
-            status: InstructionStatus::Active,
-            file_content_hash: "hash1".to_string(),
-            content_snapshot: None,
-        });
+        instructions.add_instruction(
+            reviewable_id_1.clone(),
+            make_instruction("instruction_1", "Active instruction"),
+        );
 
-        // Add stale instruction
-        instructions.add_instruction(Instruction {
-            id: "instruction_2".to_string(),
-            reviewable_id: reviewable_id_2,
-            content: "Stale instruction".to_string(),
-            author: "reviewer".to_string(),
-            timestamp: "2023-01-01T00:00:00Z".to_string(),
-            status: InstructionStatus::Stale,
-            file_content_hash: "hash2".to_string(),
-            content_snapshot: None,
-        });
+        let mut addressed = make_instruction("instruction_2", "Addressed instruction");
+        addressed.status = InstructionStatus::Addressed;
+        instructions.add_instruction(reviewable_id_2, addressed);
 
         let active_instructions =
             instructions.get_instructions_by_status(&InstructionStatus::Active);
@@ -393,47 +261,17 @@ mod tests {
     }
 
     #[test]
-    fn test_get_instructions_by_status_stale() {
-        let mut instructions = ReviewInstructions::new();
-        let reviewable_id = create_test_reviewable_id();
-
-        // Add stale instruction
-        instructions.add_instruction(Instruction {
-            id: "instruction_1".to_string(),
-            reviewable_id,
-            content: "Stale instruction".to_string(),
-            author: "reviewer".to_string(),
-            timestamp: "2023-01-01T00:00:00Z".to_string(),
-            status: InstructionStatus::Stale,
-            file_content_hash: "hash1".to_string(),
-            content_snapshot: None,
-        });
-
-        let stale_instructions = instructions.get_instructions_by_status(&InstructionStatus::Stale);
-        assert_eq!(stale_instructions.len(), 1);
-        assert_eq!(stale_instructions[0].id, "instruction_1");
-    }
-
-    #[test]
     fn test_remove_instruction_by_id_success() {
         let mut instructions = ReviewInstructions::new();
         let reviewable_id = create_test_reviewable_id();
 
-        // Add instruction
-        instructions.add_instruction(Instruction {
-            id: "instruction_1".to_string(),
-            reviewable_id: reviewable_id.clone(),
-            content: "Test".to_string(),
-            author: "reviewer".to_string(),
-            timestamp: "2023-01-01T00:00:00Z".to_string(),
-            status: InstructionStatus::Active,
-            file_content_hash: "hash1".to_string(),
-            content_snapshot: None,
-        });
+        instructions.add_instruction(
+            reviewable_id.clone(),
+            make_instruction("instruction_1", "Test"),
+        );
 
         assert_eq!(instructions.total_instructions(), 1);
 
-        // Remove by ID
         let removed = instructions.remove_instruction_by_id("instruction_1");
         assert!(removed.is_some());
         assert_eq!(removed.unwrap().id, "instruction_1");
@@ -445,19 +283,8 @@ mod tests {
         let mut instructions = ReviewInstructions::new();
         let reviewable_id = create_test_reviewable_id();
 
-        // Add instruction
-        instructions.add_instruction(Instruction {
-            id: "instruction_1".to_string(),
-            reviewable_id,
-            content: "Test".to_string(),
-            author: "reviewer".to_string(),
-            timestamp: "2023-01-01T00:00:00Z".to_string(),
-            status: InstructionStatus::Active,
-            file_content_hash: "hash1".to_string(),
-            content_snapshot: None,
-        });
+        instructions.add_instruction(reviewable_id, make_instruction("instruction_1", "Test"));
 
-        // Try to remove non-existent ID
         let removed = instructions.remove_instruction_by_id("nonexistent");
         assert!(removed.is_none());
         assert_eq!(instructions.total_instructions(), 1);

@@ -94,7 +94,6 @@ fn create_hardcoded_decisions_vec() -> Vec<Decision> {
             number: 1,
             title: "Refactor calculator model module".to_string(),
             rationale: Some("Extract calculator logic into separate, testable module".to_string()),
-            decision_log_line: Some(15),
             code_impacts: vec![
                 CodeImpact {
                     file: "src/models/calculator.rs".to_string(),
@@ -115,7 +114,6 @@ fn create_hardcoded_decisions_vec() -> Vec<Decision> {
             rationale: Some(
                 "Standardize error types and add context to error messages".to_string(),
             ),
-            decision_log_line: Some(28),
             code_impacts: vec![
                 CodeImpact {
                     file: "src/network/client.rs".to_string(),
@@ -136,7 +134,6 @@ fn create_hardcoded_decisions_vec() -> Vec<Decision> {
             rationale: Some(
                 "Architectural decision: use tracing crate for observability".to_string(),
             ),
-            decision_log_line: Some(42),
             code_impacts: vec![
                 CodeImpact {
                     file: "src/data/fetcher.py".to_string(),
@@ -169,11 +166,11 @@ fn run_input_test(input_sequence: &str) -> Result<()> {
     match harness.run_sequence_final_state(input_sequence) {
         Ok(snapshot) => {
             let json = snapshot.to_json()?;
-            println!("{}", json);
+            println!("{json}");
             Ok(())
         }
         Err(e) => {
-            eprintln!("Error running input test: {}", e);
+            eprintln!("Error running input test: {e}");
             Err(e)
         }
     }
@@ -212,10 +209,10 @@ fn run_combined_test(input_sequence: &str) -> Result<()> {
     match harness.run_sequence_with_renders(input_sequence) {
         Ok(results) => {
             for (i, result) in results.iter().enumerate() {
-                println!("=== Step {} ===", i);
+                println!("=== Step {i} ===");
                 println!("State:");
                 let json = result.state.to_json()?;
-                println!("{}", json);
+                println!("{json}");
                 println!("\nVisual:");
                 println!("{}", result.visual);
                 println!();
@@ -223,7 +220,7 @@ fn run_combined_test(input_sequence: &str) -> Result<()> {
             Ok(())
         }
         Err(e) => {
-            eprintln!("Error running combined test: {}", e);
+            eprintln!("Error running combined test: {e}");
             Err(e)
         }
     }

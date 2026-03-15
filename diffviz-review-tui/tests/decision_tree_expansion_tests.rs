@@ -18,8 +18,7 @@
 
 use diffviz_review::providers::mock_provider::MockDiffProvider;
 use diffviz_review::{
-    CodeImpact, Decision, DecisionLineRange, DiffQuery, GitRef,
-    ReviewEngineBuilder,
+    CodeImpact, Decision, DecisionLineRange, DiffQuery, GitRef, ReviewEngineBuilder,
 };
 use diffviz_review_tui::test_harness::InputTestHarness;
 
@@ -45,7 +44,6 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
             number: 1,
             title: "Decision 1: Calculator Refactor".to_string(),
             rationale: Some("Refactor calculator logic for better maintainability".to_string()),
-            decision_log_line: Some(1),
             code_impacts: vec![
                 CodeImpact {
                     file: "src/models/calculator.rs".to_string(),
@@ -67,7 +65,6 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
             number: 2,
             title: "Decision 2: Component Updates".to_string(),
             rationale: Some("Improve React components throughout codebase".to_string()),
-            decision_log_line: Some(2),
             code_impacts: vec![
                 CodeImpact {
                     file: "src/components/Greeting.tsx".to_string(),

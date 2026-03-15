@@ -17,8 +17,8 @@
 
 use diffviz_review::providers::mock_provider::MockDiffProvider;
 use diffviz_review::{
-    CodeImpact, Decision, DecisionLineRange, DiffQuery, GitRef,
-    ReviewDecisions, ReviewEngineBuilder,
+    CodeImpact, Decision, DecisionLineRange, DiffQuery, GitRef, ReviewDecisions,
+    ReviewEngineBuilder,
 };
 use diffviz_review_tui::test_harness::InputTestHarness;
 
@@ -44,7 +44,6 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
         number: 1,
         title: "Decision 1: Panel Test".to_string(),
         rationale: Some("First decision for testing panel management".to_string()),
-        decision_log_line: Some(1),
         code_impacts: vec![CodeImpact {
             file: "src/lib.rs".to_string(),
             line_ranges: vec![DecisionLineRange { start: 1, end: 10 }],
@@ -56,7 +55,6 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
         number: 2,
         title: "Decision 2: Panel Test".to_string(),
         rationale: Some("Second decision for testing panel management".to_string()),
-        decision_log_line: Some(2),
         code_impacts: vec![CodeImpact {
             file: "src/lib.rs".to_string(),
             line_ranges: vec![DecisionLineRange { start: 11, end: 20 }],
@@ -68,7 +66,6 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
         number: 3,
         title: "Decision 3: Panel Test".to_string(),
         rationale: Some("Third decision for testing panel management".to_string()),
-        decision_log_line: Some(3),
         code_impacts: vec![CodeImpact {
             file: "src/lib.rs".to_string(),
             line_ranges: vec![DecisionLineRange { start: 21, end: 30 }],

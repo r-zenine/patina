@@ -133,16 +133,16 @@ impl ReviewEngineBuilder {
                         )
                     })?;
 
-                    // Create review-layer ReviewableDiff
-                    // ID format includes line range to handle multiple ranges per decision per file
-                    let reviewable_id = ReviewableDiffId::new(
-                        query.clone(),
-                        format!(
-                            "{}#d{}:{}-{}",
-                            file_path, decision.number, range.start, range.end
-                        ),
-                        line_range,
-                    );
+                    // Create review-layer ReviewableDiff with the actual file path
+                    let reviewable_id =
+                        ReviewableDiffId::new(query.clone(), file_path.to_string(), line_range);
+
+                    // Populate decision_index directly — no post-hoc overlap detection needed
+                    review_decisions
+                        .decision_index
+                        .entry(reviewable_id.clone())
+                        .or_default()
+                        .push(decision.number);
 
                     let reviewable_diff =
                         ReviewableDiff::new(reviewable_id, core_diff, file_path.to_string());
@@ -152,10 +152,10 @@ impl ReviewEngineBuilder {
         }
 
         // Create engine with ReviewableDiffs
-        let mut engine = ReviewEngine::new(all_reviewable_diffs, self.author, self.diff_provider);
+        let mut engine = ReviewEngine::new(all_reviewable_diffs, self.author);
 
-        // Set decisions with index (maps ReviewableDiffIds to decision numbers)
-        engine.set_decisions_with_index(review_decisions);
+        // Set decisions directly — index was already populated during construction
+        engine.set_decisions(review_decisions);
 
         Ok(engine)
     }

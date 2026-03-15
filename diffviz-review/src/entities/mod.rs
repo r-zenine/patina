@@ -14,6 +14,7 @@ pub mod git_ref;
 pub use approval::{Approval, ReviewApprovals};
 pub use cascade_result::CascadeResult;
 pub use decision::{
-    CodeImpact, Decision, DecisionApproval, DecisionApprovals, DecisionLineRange, ReviewDecisions,
+    CodeImpact, Decision, DecisionApproval, DecisionApprovals, DecisionLineRange,
+    DecisionReviewableDiff, ReviewDecisions,
 };
 pub use instruction::{Instruction, ReviewInstructions};

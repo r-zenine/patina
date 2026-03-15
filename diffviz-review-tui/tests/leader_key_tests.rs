@@ -11,8 +11,8 @@
 
 use diffviz_review::providers::mock_provider::MockDiffProvider;
 use diffviz_review::{
-    CodeImpact, Decision, DecisionLineRange, DiffQuery, GitRef,
-    ReviewDecisions, ReviewEngineBuilder,
+    CodeImpact, Decision, DecisionLineRange, DiffQuery, GitRef, ReviewDecisions,
+    ReviewEngineBuilder,
 };
 use diffviz_review_tui::test_harness::{CombinedTestHarness, InputTestHarness};
 
@@ -33,7 +33,6 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
         number: 1,
         title: "Refactor authentication module".to_string(),
         rationale: Some("Extract authentication logic into separate module".to_string()),
-        decision_log_line: Some(15),
         code_impacts: vec![CodeImpact {
             file: "src/lib.rs".to_string(),
             line_ranges: vec![DecisionLineRange { start: 1, end: 30 }],
@@ -45,7 +44,6 @@ fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
         number: 2,
         title: "Improve error handling".to_string(),
         rationale: Some("Standardize error types".to_string()),
-        decision_log_line: Some(28),
         code_impacts: vec![CodeImpact {
             file: "src/error.rs".to_string(),
             line_ranges: vec![DecisionLineRange { start: 40, end: 60 }],

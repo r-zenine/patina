@@ -4,7 +4,7 @@
 //! and expansion state. Navigation operations work on the tree itself, avoiding
 //! synchronization issues with flat indices into dynamically rebuilt structures.
 
-use diffviz_review::{engines::ReviewEngine, ReviewableDiffId};
+use diffviz_review::{engines::ReviewEngine, entities::DecisionReviewableDiff, ReviewableDiffId};
 
 /// Navigation tree that models the decision hierarchy
 #[derive(Debug, Clone)]
@@ -32,8 +32,8 @@ pub struct DecisionNode {
 /// A chunk (ReviewableDiff) within a decision
 #[derive(Debug, Clone)]
 pub struct ChunkNode {
-    /// The ReviewableDiff identifier
-    pub chunk_id: ReviewableDiffId,
+    /// The decision-reviewable-diff pairing for this chunk
+    pub chunk: DecisionReviewableDiff,
 
     /// Display name for this chunk (e.g., "file.rs" or "file.rs#[10-20]")
     pub display_name: String,
@@ -115,28 +115,32 @@ impl DecisionNavigationTree {
 
         for decision in decisions {
             // Collect all chunks for this decision
-            let all_chunks = get_all_chunks_for_decision(review_engine, decision.number);
+            let all_chunks: Vec<DecisionReviewableDiff> = review_engine
+                .get_decision_reviewable_diffs()
+                .into_iter()
+                .filter(|dc| dc.decision_number == decision.number)
+                .collect();
 
             // Group chunks by file_path
             let mut chunks_by_file: std::collections::HashMap<String, Vec<ReviewableDiffId>> =
                 std::collections::HashMap::new();
-            for chunk_id in &all_chunks {
+            for dc in &all_chunks {
                 chunks_by_file
-                    .entry(chunk_id.file_path.clone())
+                    .entry(dc.chunk_id.file_path.clone())
                     .or_default()
-                    .push(chunk_id.clone());
+                    .push(dc.chunk_id.clone());
             }
 
             // Create chunk nodes with smart display names
             let mut chunk_nodes = Vec::new();
-            for chunk_id in all_chunks {
-                let file_path = &chunk_id.file_path;
+            for dc in all_chunks {
+                let file_path = &dc.chunk_id.file_path;
                 let file_chunk_count = chunks_by_file.get(file_path).map(|v| v.len()).unwrap_or(1);
                 let display_name =
-                    format_chunk_display_name(file_path, &chunk_id, file_chunk_count);
+                    format_chunk_display_name(file_path, &dc.chunk_id, file_chunk_count);
 
                 chunk_nodes.push(ChunkNode {
-                    chunk_id,
+                    chunk: dc,
                     display_name,
                 });
             }
@@ -175,7 +179,7 @@ impl DecisionNavigationTree {
                         path: TreePath::chunk(decision_idx, chunk_idx),
                         kind: FlattenedNodeKind::Chunk {
                             decision_num: decision_node.decision_number,
-                            chunk_id: chunk_node.chunk_id.clone(),
+                            chunk_id: chunk_node.chunk.chunk_id.clone(),
                             display_name: chunk_node.display_name.clone(),
                         },
                     });
@@ -255,7 +259,7 @@ impl DecisionNavigationTree {
         self.nodes
             .get(path.decision_index)
             .and_then(|d| path.chunk_index.and_then(|c_idx| d.chunks.get(c_idx)))
-            .map(|c| c.chunk_id.clone())
+            .map(|c| c.chunk.chunk_id.clone())
     }
 
     /// Check if a decision is expanded
@@ -279,47 +283,6 @@ impl DecisionNavigationTree {
 impl Default for DecisionNavigationTree {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// Helper to get all chunks for a decision
-fn get_all_chunks_for_decision(
-    review_engine: &ReviewEngine,
-    decision_number: u32,
-) -> Vec<ReviewableDiffId> {
-    if let Some(decision) = review_engine.get_decision(decision_number) {
-        let mut chunk_ids: Vec<ReviewableDiffId> = Vec::new();
-        let decision_marker = format!("#d{decision_number}:");
-        let all_diffs = review_engine.get_ordered_reviewable_ids();
-
-        for id_ref in &all_diffs {
-            let id = (*id_ref).clone();
-            // Filter by decision number to avoid showing chunks from other decisions
-            if !id.file_path.contains(&decision_marker) {
-                continue;
-            }
-
-            if let Some(diff) = review_engine.get_reviewable_diff(&id) {
-                // Check if diff overlaps with any code impact in this decision
-                for code_impact in &decision.code_impacts {
-                    if diff.file_path == code_impact.file {
-                        for line_range in &code_impact.line_ranges {
-                            if diff.id.line_range.end_line >= line_range.start
-                                && diff.id.line_range.start_line <= line_range.end
-                            {
-                                if !chunk_ids.contains(&id) {
-                                    chunk_ids.push(id.clone());
-                                }
-                                break;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        chunk_ids
-    } else {
-        Vec::new()
     }
 }
 

@@ -3,7 +3,7 @@
 //! This module provides centralized state management for review sessions,
 //! now organized around ReviewableDiffs as the primary unit of review.
 
-use crate::entities::reviewable_diff_id::{LineRange, ReviewableDiffId};
+use crate::entities::reviewable_diff_id::ReviewableDiffId;
 use crate::entities::{
     DecisionApprovals, Instruction, ReviewApprovals, ReviewDecisions, ReviewInstructions,
 };
@@ -26,26 +26,6 @@ pub struct SessionMetadata {
     pub author: String,
 }
 use std::collections::{BTreeMap, HashMap};
-
-/// Information about an overlap conflict between instructions
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OverlapConflict {
-    /// The ReviewableDiffId of the existing instruction that conflicts
-    pub conflicting_id: ReviewableDiffId,
-    /// Type of overlap detected
-    pub overlap_type: OverlapType,
-}
-
-/// Type of range overlap
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum OverlapType {
-    /// Ranges are exactly the same
-    Exact,
-    /// Ranges partially overlap
-    Partial,
-    /// One range is completely contained within another
-    Nested,
-}
 
 /// Centralized application state containing all business data
 /// Now organized around ReviewableDiffs rather than legacy chunks
@@ -226,8 +206,13 @@ impl ReviewState {
     }
 
     /// Add an instruction (returns new state)
-    pub fn add_instruction(&mut self, instruction: Instruction) -> &mut Self {
-        self.instructions.add_instruction(instruction);
+    pub fn add_instruction(
+        &mut self,
+        reviewable_id: ReviewableDiffId,
+        instruction: Instruction,
+    ) -> &mut Self {
+        self.instructions
+            .add_instruction(reviewable_id, instruction);
         self
     }
 
@@ -318,60 +303,6 @@ impl ReviewState {
         let mut result: Vec<String> = files.into_iter().collect();
         result.sort();
         result
-    }
-
-    /// Check if a new instruction would overlap with existing instructions
-    /// Returns Some(OverlapConflict) if overlap detected, None otherwise
-    pub fn check_instruction_overlap(
-        &self,
-        reviewable_id: &ReviewableDiffId,
-    ) -> Option<OverlapConflict> {
-        // Get all existing instructions
-        let all_instructions = self.instructions.get_all_instructions();
-
-        // Check each existing instruction for overlap
-        for existing_inst in all_instructions {
-            // Skip if same file and query
-            if existing_inst.reviewable_id.query != reviewable_id.query
-                || existing_inst.reviewable_id.file_path != reviewable_id.file_path
-            {
-                continue;
-            }
-
-            let existing_range = &existing_inst.reviewable_id.line_range;
-            let new_range = &reviewable_id.line_range;
-
-            // Check for overlap
-            if let Some(overlap_type) = Self::detect_range_overlap(existing_range, new_range) {
-                return Some(OverlapConflict {
-                    conflicting_id: existing_inst.reviewable_id.clone(),
-                    overlap_type,
-                });
-            }
-        }
-
-        None
-    }
-
-    /// Detect if two line ranges overlap and determine the type
-    fn detect_range_overlap(range1: &LineRange, range2: &LineRange) -> Option<OverlapType> {
-        // Check if ranges overlap (inclusive ranges)
-        let overlaps = range1.start_line <= range2.end_line && range2.start_line <= range1.end_line;
-
-        if !overlaps {
-            return None;
-        }
-
-        // Determine type of overlap
-        if range1.start_line == range2.start_line && range1.end_line == range2.end_line {
-            Some(OverlapType::Exact)
-        } else if (range1.start_line >= range2.start_line && range1.end_line <= range2.end_line)
-            || (range2.start_line >= range1.start_line && range2.end_line <= range1.end_line)
-        {
-            Some(OverlapType::Nested)
-        } else {
-            Some(OverlapType::Partial)
-        }
     }
 }
 
@@ -552,16 +483,13 @@ mod tests {
 
         let instruction = Instruction {
             id: "inst_1".to_string(),
-            reviewable_id: reviewable_id.clone(),
             content: "Extract this to a separate function".to_string(),
             author: "reviewer".to_string(),
             timestamp: "2024-01-10T10:00:00Z".to_string(),
             status: crate::entities::instruction::InstructionStatus::Active,
-            file_content_hash: String::new(),
-            content_snapshot: None,
         };
 
-        state.add_instruction(instruction);
+        state.add_instruction(reviewable_id.clone(), instruction);
 
         assert!(state.has_instructions(&reviewable_id));
         assert_eq!(state.get_instructions(&reviewable_id).unwrap().len(), 1);
@@ -577,284 +505,26 @@ mod tests {
 
         let instruction1 = Instruction {
             id: "inst_1".to_string(),
-            reviewable_id: reviewable_id.clone(),
             content: "First instruction".to_string(),
             author: "reviewer".to_string(),
             timestamp: "2024-01-10T10:00:00Z".to_string(),
             status: crate::entities::instruction::InstructionStatus::Active,
-            file_content_hash: String::new(),
-            content_snapshot: None,
         };
 
         let instruction2 = Instruction {
             id: "inst_2".to_string(),
-            reviewable_id: reviewable_id.clone(),
             content: "Second instruction".to_string(),
             author: "reviewer".to_string(),
             timestamp: "2024-01-10T10:01:00Z".to_string(),
             status: crate::entities::instruction::InstructionStatus::Active,
-            file_content_hash: String::new(),
-            content_snapshot: None,
         };
 
-        state.add_instruction(instruction1);
-        state.add_instruction(instruction2);
+        state.add_instruction(reviewable_id.clone(), instruction1);
+        state.add_instruction(reviewable_id.clone(), instruction2);
 
         let instructions = state.get_instructions(&reviewable_id).unwrap();
         assert_eq!(instructions.len(), 2);
         assert_eq!(instructions[0].content, "First instruction");
         assert_eq!(instructions[1].content, "Second instruction");
-    }
-
-    // Tests for overlap detection (Phase 1)
-    #[test]
-    fn test_overlap_detection_exact_same_range() {
-        let diff = create_test_reviewable_diff();
-        let mut state = ReviewState::new(vec![diff], "test_author".to_string());
-
-        let id1 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
-
-        let id2 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
-
-        // Add first instruction
-        use crate::entities::Instruction;
-        let inst1 = Instruction {
-            id: "inst_1".to_string(),
-            reviewable_id: id1.clone(),
-            content: "First instruction".to_string(),
-            author: "reviewer".to_string(),
-            timestamp: "2024-01-10T10:00:00Z".to_string(),
-            status: crate::entities::instruction::InstructionStatus::Active,
-            file_content_hash: String::new(),
-            content_snapshot: None,
-        };
-        state.add_instruction(inst1);
-
-        // Check overlap for second instruction with same range
-        let overlap = state.check_instruction_overlap(&id2);
-        assert!(overlap.is_some());
-    }
-
-    #[test]
-    fn test_overlap_detection_partial_overlap() {
-        let diff = create_test_reviewable_diff();
-        let mut state = ReviewState::new(vec![diff], "test_author".to_string());
-
-        let id1 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
-
-        let id2 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 11,
-                end_line: 13,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
-
-        // Add first instruction
-        use crate::entities::Instruction;
-        let inst1 = Instruction {
-            id: "inst_1".to_string(),
-            reviewable_id: id1.clone(),
-            content: "First instruction".to_string(),
-            author: "reviewer".to_string(),
-            timestamp: "2024-01-10T10:00:00Z".to_string(),
-            status: crate::entities::instruction::InstructionStatus::Active,
-            file_content_hash: String::new(),
-            content_snapshot: None,
-        };
-        state.add_instruction(inst1);
-
-        // Check overlap - ranges 10-12 and 11-13 share lines 11 and 12
-        let overlap = state.check_instruction_overlap(&id2);
-        assert!(overlap.is_some());
-    }
-
-    #[test]
-    fn test_overlap_detection_adjacent_ranges_no_overlap() {
-        let diff = create_test_reviewable_diff();
-        let mut state = ReviewState::new(vec![diff], "test_author".to_string());
-
-        let id1 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
-
-        let id2 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 13,
-                end_line: 15,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
-
-        // Add first instruction
-        use crate::entities::Instruction;
-        let inst1 = Instruction {
-            id: "inst_1".to_string(),
-            reviewable_id: id1.clone(),
-            content: "First instruction".to_string(),
-            author: "reviewer".to_string(),
-            timestamp: "2024-01-10T10:00:00Z".to_string(),
-            status: crate::entities::instruction::InstructionStatus::Active,
-            file_content_hash: String::new(),
-            content_snapshot: None,
-        };
-        state.add_instruction(inst1);
-
-        // Check overlap - ranges 10-12 and 13-15 are adjacent but don't overlap
-        let overlap = state.check_instruction_overlap(&id2);
-        assert!(overlap.is_none());
-    }
-
-    #[test]
-    fn test_overlap_detection_distant_ranges_no_overlap() {
-        let diff = create_test_reviewable_diff();
-        let mut state = ReviewState::new(vec![diff], "test_author".to_string());
-
-        let id1 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
-
-        let id2 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 20,
-                end_line: 22,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
-
-        // Add first instruction
-        use crate::entities::Instruction;
-        let inst1 = Instruction {
-            id: "inst_1".to_string(),
-            reviewable_id: id1.clone(),
-            content: "First instruction".to_string(),
-            author: "reviewer".to_string(),
-            timestamp: "2024-01-10T10:00:00Z".to_string(),
-            status: crate::entities::instruction::InstructionStatus::Active,
-            file_content_hash: String::new(),
-            content_snapshot: None,
-        };
-        state.add_instruction(inst1);
-
-        // Check overlap - ranges 10-12 and 20-22 are distant, no overlap
-        let overlap = state.check_instruction_overlap(&id2);
-        assert!(overlap.is_none());
-    }
-
-    #[test]
-    fn test_overlap_detection_nested_range() {
-        let diff = create_test_reviewable_diff();
-        let mut state = ReviewState::new(vec![diff], "test_author".to_string());
-
-        let id1 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 15,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
-
-        let id2 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 11,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
-
-        // Add first instruction with range 10-15
-        use crate::entities::Instruction;
-        let inst1 = Instruction {
-            id: "inst_1".to_string(),
-            reviewable_id: id1.clone(),
-            content: "First instruction".to_string(),
-            author: "reviewer".to_string(),
-            timestamp: "2024-01-10T10:00:00Z".to_string(),
-            status: crate::entities::instruction::InstructionStatus::Active,
-            file_content_hash: String::new(),
-            content_snapshot: None,
-        };
-        state.add_instruction(inst1);
-
-        // Check overlap - range 11-12 is contained within 10-15
-        let overlap = state.check_instruction_overlap(&id2);
-        assert!(overlap.is_some());
-    }
-
-    #[test]
-    fn test_overlap_detection_empty_state() {
-        let diff = create_test_reviewable_diff();
-        let state = ReviewState::new(vec![diff], "test_author".to_string());
-
-        let id = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
-
-        // No instructions added, so no overlap
-        let overlap = state.check_instruction_overlap(&id);
-        assert!(overlap.is_none());
     }
 }

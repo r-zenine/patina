@@ -34,7 +34,7 @@ pub fn parse_input_sequence(input: &str) -> Result<Vec<KeyEvent>> {
             let mut seq = String::new();
             let mut found_close = false;
 
-            while let Some(c) = chars.next() {
+            for c in chars.by_ref() {
                 if c == '>' {
                     found_close = true;
                     break;
