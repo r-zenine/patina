@@ -5,6 +5,7 @@
 
 use crate::entities::CascadeResult;
 use crate::entities::Instruction;
+use crate::entities::ReviewApprovals;
 use crate::entities::git_ref::{DiffQuery, GitRef};
 use crate::entities::instruction::InstructionStatus;
 use crate::entities::reviewable_diff_id::{LineRange, ReviewableDiffId};
@@ -462,6 +463,19 @@ impl ReviewEngine {
     /// Get the current author
     pub fn author(&self) -> &str {
         self.state.author()
+    }
+
+    /// Load persisted approvals into the engine, replacing current approval state
+    pub fn load_approvals(&mut self, approvals: ReviewApprovals) {
+        self.state.approvals = approvals;
+    }
+
+    /// Load persisted decision approvals into the engine, replacing current decision approval state
+    pub fn load_decision_approvals(
+        &mut self,
+        decision_approvals: crate::entities::DecisionApprovals,
+    ) {
+        self.state.decision_approvals = decision_approvals;
     }
 
     /// Get all unique file paths in this review
