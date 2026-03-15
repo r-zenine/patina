@@ -1,0 +1,32 @@
+base_commit: "32b4fa2b55e1c48b0225fbe8d9f2f94353cdebdf"
+
+decisions:
+  - number: 1
+    title: "review-state.json check added as item 5 inside Step 1's Process list"
+    rationale: "Step 1.5 is already taken by Pre-Work Validation. Adding it as numbered item 5 in Step 1's process keeps the flow coherent (reading context → then checking for instructions → then validating baseline) without renumbering existing steps."
+    code_impacts:
+      - file: "agent-skills/skills/dev-contribute/reference.md"
+        reasoning: "New item 5 inserted after item 4 (Review existing contributions) and before Step 1.5"
+        line_ranges:
+          - start: 46
+            end: 65
+
+  - number: 2
+    title: "Step 3.1 placed as a ### sub-section inside Step 3"
+    rationale: "It is a sub-step of folder creation (not a sibling step), so ### under ## Step 3 is the right heading level. It reads naturally: create the folder, then immediately record the base commit before any code changes."
+    code_impacts:
+      - file: "agent-skills/skills/dev-contribute/reference.md"
+        reasoning: "New ### Step 3.1 block inserted after the folder naming note and before Step 4"
+        line_ranges:
+          - start: 117
+            end: 130
+
+  - number: 3
+    title: "Step 7 placed immediately after Contribution Validation and before Common Patterns"
+    rationale: "The commit is the final action after validation passes. Placing Step 7 right after the validation checklist makes the sequence explicit: validate → then commit."
+    code_impacts:
+      - file: "agent-skills/skills/dev-contribute/reference.md"
+        reasoning: "New ## Step 7 block inserted after Knowledge Transfer bullet and before Common Patterns by Strategy"
+        line_ranges:
+          - start: 237
+            end: 252

@@ -48,6 +48,18 @@ Understand the context before contributing.
    - Read recent context-handoff.md files for current state
    - Identify the next logical contribution number
 
+5. **Check for reviewer instructions (review-state.json):**
+   After reading existing contributions, look in the most recent contribution folder for `review-state.json`.
+
+   If present:
+   1. Read `instructions.instructions[]`
+   2. Filter for entries where `status: "active"`
+   3. Each active instruction contains: `file`, `line_range`, `content`, `query`
+   4. **Active instructions MUST be addressed in this contribution**
+   5. Use the `query` field with `git show <query>:<file>` or `git diff <query> <file>` to retrieve file content at the right git ref for context
+
+   If absent or no active instructions, proceed normally.
+
 ## Step 1.5: Pre-Work Validation
 
 ### Goal
@@ -103,6 +115,18 @@ Create sequentially numbered folder for chronological ordering.
    ```
 
 For complete folder naming convention, contribution type definitions, and specialty list, see [`contribution-artifacts` skill](../contribution-artifacts/SKILL.md).
+
+### Step 3.1: Record base commit
+
+Before making any code changes, capture the current HEAD:
+```bash
+git rev-parse HEAD
+```
+Write the output as the first line in `decision-log.yaml`:
+```yaml
+base_commit: "<hash>"
+```
+This allows diffviz to show the correct diff after the contribution is committed.
 
 ## Step 4: Perform Specialized Work
 
@@ -224,6 +248,19 @@ Before finalizing your contribution:
    - Would another agent understand what was done and why?
    - Are assumptions and limitations clearly documented?
    - Is guidance provided for next contributors?
+
+## Step 7: Commit the contribution
+
+After all validation checks pass (build, lint, tests green):
+```bash
+git add <contribution-folder>/ <each modified source file by explicit path>
+git commit -m "contrib(NNN): <description matching contribution folder name>"
+```
+
+Rules:
+- Do NOT use `git add -A` or `git add .`
+- Stage the contribution folder and each changed source file explicitly
+- The commit message number (NNN) must match the contribution folder number
 
 ## Common Patterns by Strategy
 
