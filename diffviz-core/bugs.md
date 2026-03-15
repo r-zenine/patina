@@ -1,6 +1,38 @@
 # Active Bugs - diffviz-core
 
-(No active bugs tracked - see Fixed Bugs section below)
+## 🐛 Bug: Rust Parser Does Not Classify `impl` Blocks as Semantic Units
+
+**Issue**: The Rust parser flattens `impl` blocks: methods are extracted and promoted as direct
+children of the module, but the `impl_item` node itself is discarded from the SemanticTree.
+This means byte ranges that start anywhere in the `impl` header (e.g. `impl Foo {`) or in doc
+comments preceding a method do not fall inside any SemanticNode smaller than the module root.
+
+When `find_semantic_unit_at_range()` is used (decision-based diff expansion), any input range
+that covers the impl header escalates all the way to the Module node, producing catastrophic
+expansion factors (100–150×).
+
+**Repro**:
+```
+cargo run --bin diffviz -- debug-expansion <contribution-folder> <decision-number> <file>
+```
+Input range covering `impl Foo { ... }` → expands to entire file.
+
+**Root Cause**: `build_source_file_node()` in `src/parsers/rust.rs` calls `build_impl_items()`
+which extracts only `function_item` children and adds them as siblings at module level.
+The `impl_item` tree-sitter node is never wrapped in a `SemanticNode`.
+
+**Impact**:
+- Decision-based context expansion is unusable for any range touching an impl block header,
+  doc comments before a method, or any gap between methods within an impl block.
+- The expansion reports `Unit type: Module` and 100× expansion factors.
+
+**Affected Languages**: Rust only (other languages don't have impl blocks)
+
+**Test Location**: `tests/bug_rust_impl_block_not_classified.rs`
+
+**Fix Required**: Represent `impl_item` as a `SemanticNode` (likely as a `DataStructure` or
+dedicated `Module` subtype) with its methods as children, so that byte ranges inside impl
+blocks resolve to the impl node rather than the file-level module.
 
 ---
 

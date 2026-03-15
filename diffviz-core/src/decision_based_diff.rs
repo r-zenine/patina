@@ -48,6 +48,9 @@ pub enum DecisionDiffError {
 
     #[error("No semantic unit found at target range {start_line}-{end_line}")]
     NoUnitAtRange { start_line: usize, end_line: usize },
+
+    #[error("No semantic units contained within target range {start_line}-{end_line}")]
+    NoUnitsInRange { start_line: usize, end_line: usize },
 }
 
 /// Classification of what changed for a semantic unit
@@ -61,22 +64,28 @@ pub enum ChangeClassification {
     Modification,
 }
 
-/// 1.1: Find the semantic unit covering the target line range
-///
-/// Returns the smallest semantic unit that fully contains the given line range.
-/// If the range spans multiple units, returns the parent unit containing all of them.
-/// Also expands the returned range to cover complete unit boundaries.
-fn find_semantic_unit_at_range<'a>(
-    tree: &'a SemanticTree<'a>,
-    source: &str,
-    start_line: usize,
-    end_line: usize,
-) -> Option<(&'a SemanticNode<'a>, usize, usize)> {
-    let start_byte =
-        line_to_byte_offset(tree.root.tree_sitter_node, source.as_bytes(), start_line)?;
-    let end_byte = line_to_byte_offset(tree.root.tree_sitter_node, source.as_bytes(), end_line)?;
+/// Collect all non-Module semantic units whose byte range is fully contained within
+/// [start_byte, end_byte]. Stops recursing into a node once the node itself is collected
+/// (children are implicitly included in the collected unit).
+fn find_contained_units_recursive<'a>(
+    node: &'a SemanticNode<'a>,
+    start_byte: usize,
+    end_byte: usize,
+    result: &mut Vec<&'a SemanticNode<'a>>,
+) {
+    let node_range = node.tree_sitter_node.byte_range();
 
-    find_unit_recursive(&tree.root, start_byte, end_byte)
+    if !matches!(node.unit_type, SemanticUnitType::Module { .. })
+        && node_range.start >= start_byte
+        && node_range.end <= end_byte
+    {
+        result.push(node);
+        return;
+    }
+
+    for child in &node.children {
+        find_contained_units_recursive(child, start_byte, end_byte, result);
+    }
 }
 
 /// Helper: Find smallest unit containing a byte range (recursive)
@@ -450,15 +459,13 @@ fn count_essential_nodes(node: &DiffNode) -> usize {
     count
 }
 
-/// 1.5: Public API - Create ReviewableDiff from a decision's code range
+/// Public API - Create ReviewableDiff(s) from a decision's code range.
 ///
-/// Given a decision's impact (file path + line range), this function:
-/// 1. Parses both old and new file versions
-/// 2. Builds semantic trees
-/// 3. Finds the semantic unit covering the range
-/// 4. Looks up the same unit in the old file (if it exists)
-/// 5. Classifies the change
-/// 6. Creates and returns a ReviewableDiff
+/// Two strategies depending on what tree-sitter finds at the target range:
+/// - **Expand**: the range falls inside a single semantic unit → return that one unit.
+/// - **Decompose**: expansion would reach the Module root (e.g. range spans an impl
+///   header gap) → collect every non-Module unit *contained within* the range and
+///   return one ReviewableDiff per unit.
 pub fn create_reviewable_diff_from_range(
     _file_path: &str,
     start_line: usize,
@@ -467,10 +474,9 @@ pub fn create_reviewable_diff_from_range(
     new_source: &dyn FullSourceProvider,
     language: ProgrammingLanguage,
     parser: &dyn LanguageParser,
-) -> Result<ReviewableDiff, DecisionDiffError> {
+) -> Result<Vec<ReviewableDiff>, DecisionDiffError> {
     let start_time = Instant::now();
 
-    // Validate range
     if start_line == 0 || end_line == 0 || start_line > end_line {
         return Err(DecisionDiffError::InvalidRange {
             start_line,
@@ -478,13 +484,9 @@ pub fn create_reviewable_diff_from_range(
         });
     }
 
-    // Extract full source content from providers
     let new_source_str = new_source.full_source();
-
-    // Validate line range is within source bounds
     validate_line_range(new_source_str, start_line, end_line)?;
 
-    // Parse new file
     let new_ast = parser
         .try_parse(new_source_str)
         .map_err(|e| DecisionDiffError::ParseError(format!("Failed to parse new file: {e}")))?;
@@ -495,29 +497,91 @@ pub fn create_reviewable_diff_from_range(
             DecisionDiffError::SemanticError(format!("Failed to build new semantic tree: {e}"))
         })?;
 
-    // Find the semantic unit at the target range in new file
-    let (new_unit, _expanded_start, _expanded_end) =
-        find_semantic_unit_at_range(&new_tree, new_source_str, start_line, end_line).ok_or(
-            DecisionDiffError::NoUnitAtRange {
-                start_line,
-                end_line,
-            },
-        )?;
+    let start_byte =
+        line_to_byte_offset(new_tree.root.tree_sitter_node, new_source_str.as_bytes(), start_line)
+            .ok_or(DecisionDiffError::NoUnitAtRange { start_line, end_line })?;
+    let end_byte =
+        line_to_byte_offset(new_tree.root.tree_sitter_node, new_source_str.as_bytes(), end_line)
+            .ok_or(DecisionDiffError::NoUnitAtRange { start_line, end_line })?;
 
-    // Try to find the same unit in the old file and extract its node data
+    let (new_unit, _, _) = find_unit_recursive(&new_tree.root, start_byte, end_byte)
+        .ok_or(DecisionDiffError::NoUnitAtRange { start_line, end_line })?;
+
+    // Decompose path: expansion hit the Module root
+    if matches!(new_unit.unit_type, SemanticUnitType::Module { .. }) {
+        let mut contained: Vec<&SemanticNode> = Vec::new();
+        find_contained_units_recursive(&new_tree.root, start_byte, end_byte, &mut contained);
+
+        if contained.is_empty() {
+            return Err(DecisionDiffError::NoUnitsInRange { start_line, end_line });
+        }
+
+        // Look up old counterparts for all contained units in one pass while old_tree is alive
+        let old_nodes: Vec<Option<OwnedNodeData>> = if let Some(old_source_provider) = old_source {
+            let old_source_str = old_source_provider.full_source();
+            let old_ast = parser.try_parse(old_source_str).map_err(|e| {
+                DecisionDiffError::ParseError(format!("Failed to parse old file: {e}"))
+            })?;
+            let old_tree = parser.build_semantic_tree(&old_ast, old_source_str).map_err(|e| {
+                DecisionDiffError::SemanticError(format!(
+                    "Failed to build old semantic tree: {e}"
+                ))
+            })?;
+            contained
+                .iter()
+                .map(|unit| {
+                    find_semantic_unit_by_name(
+                        &old_tree,
+                        old_source_str,
+                        &get_unit_name(unit, new_source_str.as_bytes()).unwrap_or_default(),
+                        &unit.unit_type,
+                    )
+                    .map(|old_unit| OwnedNodeData::from_tree_sitter_node(&old_unit.tree_sitter_node))
+                })
+                .collect()
+        } else {
+            vec![None; contained.len()]
+        };
+
+        let diffs = contained
+            .into_iter()
+            .zip(old_nodes)
+            .map(|(unit, old_node_data)| {
+                let classification = if old_node_data.is_some() {
+                    ChangeClassification::Modification
+                } else {
+                    ChangeClassification::Addition
+                };
+                let context = DiffBuildContext {
+                    new_unit: Some(unit),
+                    old_node_data,
+                    classification,
+                    parser,
+                    start_time,
+                };
+                build_reviewable_diff_from_unit_with_data(
+                    context,
+                    language,
+                    old_source
+                        .map(|p| p.clone_box())
+                        .unwrap_or_else(|| new_source.clone_box()),
+                    new_source.clone_box(),
+                )
+            })
+            .collect();
+
+        return Ok(diffs);
+    }
+
+    // Expand path: single unit found
     let old_node_data = if let Some(old_source_provider) = old_source {
         let old_source_str = old_source_provider.full_source();
-        let old_ast = parser
-            .try_parse(old_source_str)
-            .map_err(|e| DecisionDiffError::ParseError(format!("Failed to parse old file: {e}")))?;
-
-        let old_tree = parser
-            .build_semantic_tree(&old_ast, old_source_str)
-            .map_err(|e| {
-                DecisionDiffError::SemanticError(format!("Failed to build old semantic tree: {e}"))
-            })?;
-
-        // Look up same-named unit in old tree
+        let old_ast = parser.try_parse(old_source_str).map_err(|e| {
+            DecisionDiffError::ParseError(format!("Failed to parse old file: {e}"))
+        })?;
+        let old_tree = parser.build_semantic_tree(&old_ast, old_source_str).map_err(|e| {
+            DecisionDiffError::SemanticError(format!("Failed to build old semantic tree: {e}"))
+        })?;
         find_semantic_unit_by_name(
             &old_tree,
             old_source_str,
@@ -529,14 +593,12 @@ pub fn create_reviewable_diff_from_range(
         None
     };
 
-    // Classify the change
     let classification = if old_node_data.is_some() {
         ChangeClassification::Modification
     } else {
         ChangeClassification::Addition
     };
 
-    // Build context and construct ReviewableDiff
     let context = DiffBuildContext {
         new_unit: Some(new_unit),
         old_node_data,
@@ -545,14 +607,14 @@ pub fn create_reviewable_diff_from_range(
         start_time,
     };
 
-    Ok(build_reviewable_diff_from_unit_with_data(
+    Ok(vec![build_reviewable_diff_from_unit_with_data(
         context,
         language,
         old_source
             .map(|p| p.clone_box())
             .unwrap_or_else(|| new_source.clone_box()),
         new_source.clone_box(),
-    ))
+    )])
 }
 
 #[cfg(test)]

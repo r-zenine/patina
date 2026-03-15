@@ -102,8 +102,8 @@ impl ReviewEngineBuilder {
                             as Box<dyn diffviz_core::ast_diff::FullSourceProvider>
                     });
 
-                    // Call decision-based diff creation
-                    let core_diff = create_reviewable_diff_from_range(
+                    // Call decision-based diff creation (returns one or more diffs)
+                    let core_diffs = create_reviewable_diff_from_range(
                         file_path,
                         range.start,
                         range.end,
@@ -119,34 +119,36 @@ impl ReviewEngineBuilder {
                         ))
                     })?;
 
-                    // Extract line range from the core diff
                     let new_source_provider = SourceCode::new(new_source_str);
                     let old_source_provider = old_source_str.map(SourceCode::new);
-                    let line_range = extract_line_range_from_core_diff(
-                        &core_diff,
-                        old_source_provider.as_ref().unwrap_or(&new_source_provider),
-                        &new_source_provider,
-                    )
-                    .ok_or_else(|| {
-                        crate::errors::DiffVizError::ProcessingFailed(
-                            "Failed to extract line range from diff".to_string(),
+
+                    for core_diff in core_diffs {
+                        let line_range = extract_line_range_from_core_diff(
+                            &core_diff,
+                            old_source_provider.as_ref().unwrap_or(&new_source_provider),
+                            &new_source_provider,
                         )
-                    })?;
+                        .ok_or_else(|| {
+                            crate::errors::DiffVizError::ProcessingFailed(
+                                "Failed to extract line range from diff".to_string(),
+                            )
+                        })?;
 
-                    // Create review-layer ReviewableDiff with the actual file path
-                    let reviewable_id =
-                        ReviewableDiffId::new(query.clone(), file_path.to_string(), line_range);
+                        // Create review-layer ReviewableDiff with the actual file path
+                        let reviewable_id =
+                            ReviewableDiffId::new(query.clone(), file_path.to_string(), line_range);
 
-                    // Populate decision_index directly — no post-hoc overlap detection needed
-                    review_decisions
-                        .decision_index
-                        .entry(reviewable_id.clone())
-                        .or_default()
-                        .push(decision.number);
+                        // Populate decision_index directly — no post-hoc overlap detection needed
+                        review_decisions
+                            .decision_index
+                            .entry(reviewable_id.clone())
+                            .or_default()
+                            .push(decision.number);
 
-                    let reviewable_diff =
-                        ReviewableDiff::new(reviewable_id, core_diff, file_path.to_string());
-                    all_reviewable_diffs.push(reviewable_diff);
+                        let reviewable_diff =
+                            ReviewableDiff::new(reviewable_id, core_diff, file_path.to_string());
+                        all_reviewable_diffs.push(reviewable_diff);
+                    }
                 }
             }
         }
