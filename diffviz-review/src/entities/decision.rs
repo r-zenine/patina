@@ -907,4 +907,44 @@ decisions:
         assert_eq!(approval.approval_timestamp, "2023-01-02T00:00:00Z");
         assert_eq!(approvals.total_approved(), 1); // Still only 1 approval
     }
+
+    // --- Phase 1 TDD: new DecisionLog API ---
+
+    #[test]
+    fn test_decision_log_parse_returns_struct_with_decisions() {
+        let yaml = r#"
+decisions:
+  - number: 1
+    title: "Some decision"
+    code_impacts: []
+"#;
+        let log = DecisionLog::parse(yaml).unwrap();
+        assert_eq!(log.decisions.len(), 1);
+        assert_eq!(log.decisions[0].number, 1);
+    }
+
+    #[test]
+    fn test_decision_log_parse_without_base_commit_defaults_to_none() {
+        let yaml = r#"
+decisions:
+  - number: 1
+    title: "Some decision"
+    code_impacts: []
+"#;
+        let log = DecisionLog::parse(yaml).unwrap();
+        assert_eq!(log.base_commit, None);
+    }
+
+    #[test]
+    fn test_decision_log_parse_with_base_commit() {
+        let yaml = r#"
+base_commit: "abc123def456"
+decisions:
+  - number: 1
+    title: "Some decision"
+    code_impacts: []
+"#;
+        let log = DecisionLog::parse(yaml).unwrap();
+        assert_eq!(log.base_commit, Some("abc123def456".to_string()));
+    }
 }

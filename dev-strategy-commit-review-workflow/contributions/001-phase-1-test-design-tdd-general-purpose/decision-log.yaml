@@ -1,0 +1,22 @@
+base_commit: "991590abc8e28966a56e4ad221c6136bd93397a4"
+
+decisions:
+  - number: 1
+    title: "Tests are co-located in decision.rs alongside existing tests"
+    rationale: "All existing DecisionLog tests live in decision.rs. Adding new tests there keeps the suite cohesive and avoids a separate file for 3 small unit tests."
+    code_impacts:
+      - file: "diffviz-review/src/entities/decision.rs"
+        reasoning: "Three new tests appended to the existing tests module"
+        line_ranges:
+          - start: 910
+            end: 951
+
+  - number: 2
+    title: "Tests call parse() return value as DecisionLog (not Vec<Decision>)"
+    rationale: "Calling log.decisions and log.base_commit on the parse() result is the minimal expression of the required contract change. Compile errors prove the red state without needing runtime assertions that would require additional scaffolding."
+    code_impacts:
+      - file: "diffviz-review/src/entities/decision.rs"
+        reasoning: "New tests access .decisions and .base_commit fields that don't exist yet on the current Vec<Decision> return type"
+        line_ranges:
+          - start: 910
+            end: 951
