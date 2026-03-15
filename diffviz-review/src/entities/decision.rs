@@ -40,14 +40,15 @@ pub struct Decision {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DecisionLog {
     pub decisions: Vec<Decision>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub base_commit: Option<String>,
 }
 
 impl DecisionLog {
     /// Parse decisions from YAML content. The caller is responsible for reading the source.
     /// Returns `Err` if the content cannot be deserialized.
-    pub fn parse(content: &str) -> Result<Vec<Decision>> {
-        let log: DecisionLog = serde_yaml::from_str(content)?;
-        Ok(log.decisions)
+    pub fn parse(content: &str) -> Result<DecisionLog> {
+        Ok(serde_yaml::from_str(content)?)
     }
 }
 
@@ -292,25 +293,25 @@ decisions:
     title: "DecisionLog lives in diffviz-review"
     code_impacts: []
 "#;
-        let decisions = DecisionLog::parse(yaml).unwrap();
+        let log = DecisionLog::parse(yaml).unwrap();
 
-        assert_eq!(decisions.len(), 2);
-        assert_eq!(decisions[0].number, 1);
-        assert_eq!(decisions[0].title, "Use Core-then-Integrate strategy");
+        assert_eq!(log.decisions.len(), 2);
+        assert_eq!(log.decisions[0].number, 1);
+        assert_eq!(log.decisions[0].title, "Use Core-then-Integrate strategy");
         assert_eq!(
-            decisions[0].rationale,
+            log.decisions[0].rationale,
             Some("Three independent layers with a clear dependency order.".to_string())
         );
-        assert_eq!(decisions[0].code_impacts.len(), 1);
+        assert_eq!(log.decisions[0].code_impacts.len(), 1);
         assert_eq!(
-            decisions[0].code_impacts[0].file,
+            log.decisions[0].code_impacts[0].file,
             "diffviz-review/src/entities/decision.rs"
         );
-        assert_eq!(decisions[0].code_impacts[0].line_ranges[0].start, 1);
-        assert_eq!(decisions[0].code_impacts[0].line_ranges[0].end, 36);
-        assert_eq!(decisions[1].number, 2);
-        assert_eq!(decisions[1].rationale, None);
-        assert!(decisions[1].code_impacts.is_empty());
+        assert_eq!(log.decisions[0].code_impacts[0].line_ranges[0].start, 1);
+        assert_eq!(log.decisions[0].code_impacts[0].line_ranges[0].end, 36);
+        assert_eq!(log.decisions[1].number, 2);
+        assert_eq!(log.decisions[1].rationale, None);
+        assert!(log.decisions[1].code_impacts.is_empty());
     }
 
     #[test]
