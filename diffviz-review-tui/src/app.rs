@@ -10,7 +10,7 @@ use crossterm::{
 };
 use ratatui::{backend::CrosstermBackend, Terminal};
 use std::io;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use diffviz_review::engines::ReviewEngine;
 
@@ -86,19 +86,31 @@ impl ReviewTuiApp {
         unsafe { std::ptr::read(std::ptr::addr_of!(manual.review_engine)) }
     }
 
-    /// Run the main application loop
+    /// Run the main application loop at a fixed ~60fps cadence.
+    ///
+    /// Each iteration drains all pending events within a 16ms frame window,
+    /// then renders once. This prevents a full redraw between every key-repeat
+    /// event when the user holds a navigation key.
     pub fn run(&mut self) -> Result<()> {
+        const FRAME_DURATION: Duration = Duration::from_millis(16); // ~60fps
+
+        // Start one frame in the past so the first iteration renders immediately.
+        let mut last_render = Instant::now() - FRAME_DURATION;
+
         loop {
-            // Render UI
+            // Drain all input events for this frame window
+            let frame_deadline = last_render + FRAME_DURATION;
+            self.drain_events_for_frame(frame_deadline)?;
+
+            // Leader timeout: checked once per frame (fires within 33ms of expiry)
+            if self.ui_state.leader_active && self.ui_state.is_leader_timed_out() {
+                self.ui_state.deactivate_leader();
+            }
+
+            // Single render covering all events collected this frame
             self.render()?;
+            last_render = Instant::now();
 
-            // Handle events and get command
-            let command = self.handle_events()?;
-
-            // Execute command (side effects)
-            execute_command(command)?;
-
-            // Check if should quit
             if self.ui_state.should_quit {
                 break;
             }
@@ -115,22 +127,33 @@ impl ReviewTuiApp {
         Ok(())
     }
 
-    /// Handle input events and return command to execute
-    fn handle_events(&mut self) -> Result<Command> {
-        // Check leader timeout - modeled as LeaderTimeout event
-        if self.ui_state.leader_active && self.ui_state.is_leader_timed_out() {
-            self.ui_state.deactivate_leader();
-            return Ok(Command::None);
-        }
-
-        // Poll for input events with timeout
-        if event::poll(Duration::from_millis(100))? {
-            if let Event::Key(key) = event::read()? {
-                return self.process_key_event(key);
+    /// Drain all pending key events until the frame deadline is reached.
+    ///
+    /// Processes each event and executes its command immediately so that
+    /// ordering is preserved. Returns once the deadline has passed or the
+    /// event queue is empty, whichever comes first.
+    fn drain_events_for_frame(&mut self, deadline: Instant) -> Result<()> {
+        loop {
+            if self.ui_state.should_quit {
+                break;
+            }
+            let now = Instant::now();
+            if now >= deadline {
+                break;
+            }
+            let remaining = deadline - now;
+            if event::poll(remaining)? {
+                if let Event::Key(key) = event::read()? {
+                    let command = self.process_key_event(key)?;
+                    execute_command(command)?;
+                }
+                // Non-key events (resize, mouse) are read and discarded above
+            } else {
+                // Queue empty within remaining budget
+                break;
             }
         }
-
-        Ok(Command::None)
+        Ok(())
     }
 
     /// Process a single key event and update state, returning command to execute
