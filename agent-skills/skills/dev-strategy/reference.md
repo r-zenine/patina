@@ -107,14 +107,14 @@ When research is conducted, create in `./dev-strategy-[FEATURE-NAME]/research/`:
 2. **technology-research.md** - Focused analysis of each technology researched
 3. **implementation-examples.md** - Code patterns and practical examples
 
-Use templates from [`contribution-artifacts/assets/templates/`](../contribution-artifacts/assets/templates/).
+Use templates from [`contribution-system/assets/templates/`](../contribution-system/assets/templates/).
 
 ## Step 4: Gather Constraints & Requirements
 
 ### Goal
 Collect user preferences, constraints, and requirements through targeted questioning.
 
-For interactive questioning patterns, see [`context-engineering/references/constraint-discovery.md`](../context-engineering/references/constraint-discovery.md).
+For interactive questioning patterns, see [`contribution-system/references/constraint-discovery.md`](../contribution-system/references/constraint-discovery.md).
 
 ### 4.1 Structured Questions (Based on Codebase Findings)
 
@@ -177,35 +177,35 @@ For full strategy definitions, selection criteria, execution phases, and contrib
 ### Goal
 Generate sufficient artifacts that provide everything needed for implementation.
 
-For artifact schemas and templates, see [`contribution-artifacts` skill](../contribution-artifacts/SKILL.md).
+For artifact schemas and templates, see [`contribution-system` skill](../contribution-system/SKILL.md).
 
 ### Artifact 1: Code Context (`code-context.md`)
 
-Use template: [`contribution-artifacts/assets/templates/code-context-template.md`](../contribution-artifacts/assets/templates/code-context-template.md)
+Use template: [`contribution-system/assets/templates/code-context-template.md`](../contribution-system/assets/templates/code-context-template.md)
 
 **Purpose**: Quick reference for relevant existing code — classes, functions, key files with line numbers.
 
 ### Artifact 2: Context Document (`context-document.md`)
 
-Use template: [`contribution-artifacts/assets/templates/context-document-template.md`](../contribution-artifacts/assets/templates/context-document-template.md)
+Use template: [`contribution-system/assets/templates/context-document-template.md`](../contribution-system/assets/templates/context-document-template.md)
 
 **Purpose**: Immutable reference — behavioral spec, architecture summary, constraints, research findings.
 
 ### Artifact 3: Decision Log (`decision-log.yaml`)
 
-Use template: [`contribution-artifacts/assets/templates/decision-log-template-strategy.yaml`](../contribution-artifacts/assets/templates/decision-log-template-strategy.yaml)
+Use template: [`contribution-system/assets/templates/decision-log-template-strategy.yaml`](../contribution-system/assets/templates/decision-log-template-strategy.yaml)
 
 **Purpose**: Mutable record of decisions made. Document: selected strategy + rationale, rejected alternatives, key technology/architecture choices.
 
 ### Artifact 4: Implementation Roadmap (`implementation-roadmap.md`)
 
 **Template selection:**
-- Steel Thread strategy → use [`steel-thread-roadmap-template.md`](../contribution-artifacts/assets/templates/steel-thread-roadmap-template.md)
-- Other strategies → use [`implementation-roadmap-template.md`](../contribution-artifacts/assets/templates/implementation-roadmap-template.md)
+- Steel Thread strategy → use [`steel-thread-roadmap-template.md`](../contribution-system/assets/templates/steel-thread-roadmap-template.md)
+- Other strategies → use [`implementation-roadmap-template.md`](../contribution-system/assets/templates/implementation-roadmap-template.md)
 
 **Purpose**: Phase-by-phase execution plan. Each phase includes objectives (Implementation and Design), testing criteria, dependencies, and files to modify.
 
-**Key**: Design objectives are deferred to `design-contribute` via the Two-Gate System — see [`context-engineering/references/two-gate-system.md`](../context-engineering/references/two-gate-system.md).
+**Key**: Design objectives are deferred to `design-contribute` via the Two-Gate System — see [`contribution-system/references/two-gate-system.md`](../contribution-system/references/two-gate-system.md).
 
 ### File Organization
 

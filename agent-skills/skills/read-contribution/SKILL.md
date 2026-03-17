@@ -32,7 +32,7 @@ Provides structured approaches to reading and understanding contributions made t
 
 ## Progressive Disclosure Principle
 
-For full progressive disclosure technique and role-specific reading strategies, see [`context-engineering/references/progressive-disclosure.md`](../context-engineering/references/progressive-disclosure.md).
+For full progressive disclosure technique and role-specific reading strategies, see [`contribution-system/references/progressive-disclosure.md`](../contribution-system/references/progressive-disclosure.md).
 
 **Start Here Always:** `context-handoff.md` — Contains everything most contributors need
 **Dive Deeper Only If:** You need specific technical decisions or completion details
@@ -64,7 +64,7 @@ contributions/NNN-phase-X-design-[topic]-design-contribute/
 └── context-handoff.md     ← Reading guide + problem + overview
 ```
 
-For artifact schemas and quality indicators, see [`contribution-artifacts` skill](../contribution-artifacts/SKILL.md).
+For artifact schemas and quality indicators, see [`contribution-system` skill](../contribution-system/SKILL.md).
 
 ## Detailed Instructions
 

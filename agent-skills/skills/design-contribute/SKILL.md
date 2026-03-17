@@ -38,7 +38,7 @@ Enables design at the Last Responsible Moment through human collaboration:
 
 This skill operates at **Gate 2** of the Two-Gate System Against Over-Engineering. Design was deferred during planning (Gate 1) to gather implementation constraints. Now design with those learned constraints.
 
-For the full Two-Gate System explanation, see [`context-engineering/references/two-gate-system.md`](../context-engineering/references/two-gate-system.md).
+For the full Two-Gate System explanation, see [`contribution-system/references/two-gate-system.md`](../contribution-system/references/two-gate-system.md).
 
 ## Human-in-the-Loop Design Philosophy
 
@@ -48,7 +48,7 @@ Design is inherently collaborative and iterative. Use AskUserQuestion to:
 - Get explicit user choice through dialogue, not inference
 - Iterate based on user feedback (max 2-3 rounds)
 
-For interactive techniques and AskUserQuestion patterns, see [`context-engineering/references/constraint-discovery.md`](../context-engineering/references/constraint-discovery.md).
+For interactive techniques and AskUserQuestion patterns, see [`contribution-system/references/constraint-discovery.md`](../contribution-system/references/constraint-discovery.md).
 
 ## Process Overview
 
@@ -60,7 +60,7 @@ For interactive techniques and AskUserQuestion patterns, see [`context-engineeri
 
 ## Key Outputs
 
-Every design contribution generates exactly 3 files (schemas in [`contribution-artifacts/references/design-artifacts.md`](../contribution-artifacts/references/design-artifacts.md)):
+Every design contribution generates exactly 3 files (schemas in [`contribution-system/references/design-artifacts.md`](../contribution-system/references/design-artifacts.md)):
 - **design-doc.md** - Target < 100 lines (combines design spec + implementer handoff)
 - **decision-log.md** - Design decisions with rationale
 - **context-handoff.md** - Target < 30 lines (problem solved + design overview + reading guide)

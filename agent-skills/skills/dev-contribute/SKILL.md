@@ -38,14 +38,14 @@ Enables any agent to contribute to a dev-strategy by:
 
 1. **Read existing dev-strategy plan** - Understand context, strategy, and current state
 2. **Follow strategy approach** - Execute according to strategy → see [`dev-strategies` skill](../dev-strategies/SKILL.md)
-3. **Create numbered contribution folder** - Sequential numbering for chronological order → folder naming in [`contribution-artifacts` skill](../contribution-artifacts/SKILL.md)
+3. **Create numbered contribution folder** - Sequential numbering for chronological order → folder naming in [`contribution-system` skill](../contribution-system/SKILL.md)
 4. **Perform specialized work** - Implementation, review, audit, testing, etc.
 5. **Generate mandatory documentation** - 3 required files + optional artifacts
 6. **Handle decision revisions** - When decisions need revisiting, create new revision contribution
 
 ## Key Outputs
 
-Every contribution generates 2 mandatory files (schemas in [`contribution-artifacts/references/implementation-artifacts.md`](../contribution-artifacts/references/implementation-artifacts.md)):
+Every contribution generates 2 mandatory files (schemas in [`contribution-system/references/implementation-artifacts.md`](../contribution-system/references/implementation-artifacts.md)):
 - **decision-log.yaml** - Technical decisions made during work (structured YAML format)
 - **context-handoff.md** - Reasoning, exploration, and future guidance
 
