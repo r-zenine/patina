@@ -114,7 +114,7 @@ Create sequentially numbered folder for chronological ordering.
    mkdir contributions/003-phase-2-test-design-tdd-general-purpose/
    ```
 
-For complete folder naming convention, contribution type definitions, and specialty list, see [`contribution-artifacts` skill](../contribution-artifacts/SKILL.md).
+For complete folder naming convention, contribution type definitions, and specialty list, see [`contribution-system` skill](../contribution-system/SKILL.md).
 
 ### Step 3.1: Record base commit
 
@@ -161,16 +161,16 @@ See [`design-principles` skill](../design-principles/SKILL.md) for full principl
 ### Goal
 Create three required artifacts for knowledge transfer and project continuity.
 
-For complete artifact schemas and templates, see [`contribution-artifacts/references/implementation-artifacts.md`](../contribution-artifacts/references/implementation-artifacts.md).
+For complete artifact schemas and templates, see [`contribution-system/references/implementation-artifacts.md`](../contribution-system/references/implementation-artifacts.md).
 
 ### Process
 
 **1. Create decision-log.yaml**
-- Use [decision-log-template.yaml](../contribution-artifacts/assets/templates/decision-log-template.yaml)
+- Use [decision-log-template.yaml](../contribution-system/assets/templates/decision-log-template.yaml)
 - Document only NEW decisions made during this contribution
 
 **2. Create context-handoff.md**
-- Use [context-handoff-template.md](../contribution-artifacts/assets/templates/context-handoff-template.md)
+- Use [context-handoff-template.md](../contribution-system/assets/templates/context-handoff-template.md)
 - Lead with what you built and key insights
 - Structure as: What works/What's fragile/What's missing
 - Provide specific guidance for next contributors
@@ -181,7 +181,7 @@ For complete artifact schemas and templates, see [`contribution-artifacts/refere
 - Does each file serve its distinct purpose without overlap?
 
 ### Optional Artifacts
-For specialized contributions, see [optional-artifacts-templates.md](../contribution-artifacts/assets/templates/optional-artifacts-templates.md) for additional documentation types.
+For specialized contributions, see [optional-artifacts-templates.md](../contribution-system/assets/templates/optional-artifacts-templates.md) for additional documentation types.
 
 ## Step 6: Handling Decision Revisions
 

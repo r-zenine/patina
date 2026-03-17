@@ -23,7 +23,7 @@ Creates sufficient implementation plans by:
 3. **Technical Research** - Research new/unfamiliar technologies and approaches
 4. **Gather Constraints** - Interactive requirements collection
 5. **Select Implementation Strategy** - Choose development approach → consult [`dev-strategies` skill](../dev-strategies/SKILL.md)
-6. **Create Plan** - Generate implementation artifacts → schemas in [`contribution-artifacts` skill](../contribution-artifacts/SKILL.md)
+6. **Create Plan** - Generate implementation artifacts → schemas in [`contribution-system` skill](../contribution-system/SKILL.md)
 
 ## Guiding Principles
 

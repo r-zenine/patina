@@ -17,7 +17,7 @@ This document provides strategies for efficiently reading and understanding cont
 
 ## Progressive Disclosure Strategy
 
-For the complete progressive disclosure technique, see [`context-engineering/references/progressive-disclosure.md`](../context-engineering/references/progressive-disclosure.md).
+For the complete progressive disclosure technique, see [`contribution-system/references/progressive-disclosure.md`](../contribution-system/references/progressive-disclosure.md).
 
 **The First Pass Rule**: Always start with `context-handoff.md` — it contains the essential information needed by 80% of contributors 80% of the time.
 
@@ -114,7 +114,7 @@ For the complete progressive disclosure technique, see [`context-engineering/ref
 **Core-then-Integrate Pattern Recognition:**
 - Look for `domain-logic` → `port-design` → `adapter` → `integration` sequence
 
-For strategy execution details and contribution type definitions, see [`dev-strategies` skill](../dev-strategies/SKILL.md) and [`contribution-artifacts` skill](../contribution-artifacts/SKILL.md).
+For strategy execution details and contribution type definitions, see [`dev-strategies` skill](../dev-strategies/SKILL.md) and [`contribution-system` skill](../contribution-system/SKILL.md).
 
 ## Efficient Reading Techniques
 
@@ -206,7 +206,7 @@ contributions/NNN-phase-X-design-[topic]-design-contribute/
 - **Focus is on "what to build"** not "what was built"
 - **No code is implemented** in design contributions
 
-For artifact schemas and quality indicators, see [`contribution-artifacts/references/design-artifacts.md`](../contribution-artifacts/references/design-artifacts.md).
+For artifact schemas and quality indicators, see [`contribution-system/references/design-artifacts.md`](../contribution-system/references/design-artifacts.md).
 
 ## Integration with Other Skills
 

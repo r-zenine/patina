@@ -47,7 +47,7 @@ Understand what's been built and what needs to be designed.
    - Find the specific "Design:" task in implementation-roadmap.md
    - Understand why design was deferred (what needed to be learned first)
 
-For progressive disclosure reading strategy, see [`context-engineering/references/progressive-disclosure.md`](../context-engineering/references/progressive-disclosure.md).
+For progressive disclosure reading strategy, see [`contribution-system/references/progressive-disclosure.md`](../contribution-system/references/progressive-disclosure.md).
 
 ## Step 2: Identify Constraints from Implementation (Interactive Discovery)
 
@@ -56,7 +56,7 @@ Work with the user to understand what implementation revealed and what matters m
 
 **This is the most critical step. Design collaboratively, not in isolation.**
 
-For complete AskUserQuestion patterns and interactive techniques, see [`context-engineering/references/constraint-discovery.md`](../context-engineering/references/constraint-discovery.md).
+For complete AskUserQuestion patterns and interactive techniques, see [`contribution-system/references/constraint-discovery.md`](../contribution-system/references/constraint-discovery.md).
 
 ### Process - Ask First, Then Analyze
 
@@ -161,20 +161,20 @@ Create sequentially numbered folder for this design contribution.
 3. **Folder naming convention:**
    `NNN-phase-X-design-[topic]-design-contribute`
 
-For folder naming details and topic examples, see [`contribution-artifacts` skill](../contribution-artifacts/SKILL.md).
+For folder naming details and topic examples, see [`contribution-system` skill](../contribution-system/SKILL.md).
 
 ## Step 5: Document Design Decision
 
 ### Goal
 Create lean design documentation that enables implementation.
 
-For full artifact schemas, see [`contribution-artifacts/references/design-artifacts.md`](../contribution-artifacts/references/design-artifacts.md).
-For templates, see [`contribution-artifacts/assets/templates/`](../contribution-artifacts/assets/templates/).
+For full artifact schemas, see [`contribution-system/references/design-artifacts.md`](../contribution-system/references/design-artifacts.md).
+For templates, see [`contribution-system/assets/templates/`](../contribution-system/assets/templates/).
 
 ### Files to Create
 
 **1. design-doc.md** (< 100 lines target)
-- Use [design-doc-template.md](../contribution-artifacts/assets/templates/design-doc-template.md)
+- Use [design-doc-template.md](../contribution-system/assets/templates/design-doc-template.md)
 - Document the chosen approach
 - Explain why (constraints + user priorities)
 - Describe how it works
@@ -182,7 +182,7 @@ For templates, see [`contribution-artifacts/assets/templates/`](../contribution-
 - Provide implementation guidance
 
 **2. decision-log.md**
-- Use [decision-log-design-template.md](../contribution-artifacts/assets/templates/decision-log-design-template.md)
+- Use [decision-log-design-template.md](../contribution-system/assets/templates/decision-log-design-template.md)
 - Document primary design decision with rationale
 - Include supporting decisions made during design
 - List rejected alternatives
@@ -248,7 +248,7 @@ For complete anti-patterns (over-engineering and under-engineering signals), see
 
 ## Interactive Techniques Throughout Workflow
 
-For the complete AskUserQuestion pattern reference, see [`context-engineering/references/constraint-discovery.md`](../context-engineering/references/constraint-discovery.md).
+For the complete AskUserQuestion pattern reference, see [`contribution-system/references/constraint-discovery.md`](../contribution-system/references/constraint-discovery.md).
 
 **Quick reference — when to use AskUserQuestion:**
 
