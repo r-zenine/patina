@@ -37,10 +37,10 @@ integrate with existing user profiles and respect current security requirements.
 ## Step 2: Analyze Codebase
 
 ### Goal
-Understand existing architecture, patterns, and constraints using the onboarding agent.
+Understand existing architecture, patterns, and constraints using the Explore agent.
 
 ### Process
-1. **Always use Task tool** with `subagent_type: "onboarding-agent"`
+1. **Use Explore agent** to generate/update the crate's `onboarding.md` — see [`contribution-system/references/onboarding-generation.md`](../contribution-system/references/onboarding-generation.md) for invocation details
 2. **Request specific analysis**:
    - Architecture patterns and frameworks in use
    - Key files, classes, and functions relevant to the task
@@ -79,7 +79,7 @@ Research new technologies, unfamiliar concepts, or approaches that will be neede
 The research step should ONLY be executed when ALL of these conditions are met:
 
 1. **User Explicitly Mentions New Technology** - User specifically names a framework, library, or tool
-2. **Technology is Not in Current Codebase** - Confirmed by onboarding agent
+2. **Technology is Not in Current Codebase** - Confirmed by Explore agent
 3. **Claude Lacks Implementation Knowledge** - Integration patterns with existing stack are unclear
 
 **Do NOT trigger research for:** general performance/security concerns, "best practices" without specific technology choices, architecture decisions that can be made with current knowledge, hypothetical technology evaluations.

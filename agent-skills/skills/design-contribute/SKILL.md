@@ -57,6 +57,7 @@ For interactive techniques and AskUserQuestion patterns, see [`contribution-syst
 3. **Collaborative option exploration** - Present 2-3 options, discuss trade-offs, iterate based on feedback
 4. **Create design contribution folder** - Sequential numbering for chronological order
 5. **Document design decision** - Generate lean design doc (< 100 lines) and decision log
+6. **Commit the contribution** - Stage explicitly and commit with meaningful message matching folder name
 
 ## Key Outputs
 

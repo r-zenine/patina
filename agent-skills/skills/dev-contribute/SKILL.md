@@ -66,7 +66,7 @@ For full Test Pyramid details, see [`dev-strategies/references/tdd.md`](../dev-s
 
 ## Reading Contributions
 
-To understand existing contributions, use the [read-contribution skill](../read-contribution/SKILL.md) which provides progressive disclosure strategies for different roles.
+Before making a contribution, read existing contributions using the progressive disclosure strategy in [`contribution-system/references/progressive-disclosure.md`](../contribution-system/references/progressive-disclosure.md).
 
 ## Additional Instructions
 
