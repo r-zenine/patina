@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-thiserror = "1.0"
+thiserror = { workspace = true }
 wyrand.workspace = true
 simsimd.workspace = true
 rand_core.workspace = true

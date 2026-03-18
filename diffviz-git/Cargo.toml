@@ -14,5 +14,5 @@ sha2 = { workspace = true }
 
 [dev-dependencies]
 diffviz-review = { path = "../diffviz-review", features = ["test-utils"] }
-tempfile = "3.0"
+tempfile = { workspace = true }
 assert_matches = "1.5"
