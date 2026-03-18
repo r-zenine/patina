@@ -53,6 +53,11 @@ Every contribution generates 2 mandatory files (schemas in [`contribution-system
 
 For all applicable principles (YAGNI, Sufficient Implementation, KISS, Last Responsible Moment), see [`design-principles` skill](../design-principles/SKILL.md).
 
+**Phase Scoping**
+- Each invocation must work on the **next incomplete phase** of the roadmap only
+- Do not attempt multiple phases or skip ahead in the roadmap
+- If a phase is blocked, communicate the blocker rather than proceeding anyway
+
 **Minimize Code Generation in Documentation**
 - **NEVER create code files** in contribution folders — these are for documentation only
 - In documentation artifacts, explain concepts through clear descriptions

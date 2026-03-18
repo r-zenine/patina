@@ -67,7 +67,7 @@ fn main() -> Result<()> {
 fn create_test_review_engine() -> Result<diffviz_review::engines::ReviewEngine> {
     // Use curated fixtures from diffviz-review crate
     let mock_provider = MockDiffProvider::from_review_fixtures()
-        .map_err(|e| anyhow::anyhow!("Failed to load test fixtures: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to load test fixtures: {e}"))?;
 
     // Use decision-based ReviewEngine creation
     let review_engine_builder =
@@ -80,7 +80,7 @@ fn create_test_review_engine() -> Result<diffviz_review::engines::ReviewEngine> 
     // Build ReviewEngine using the decision-based pipeline
     let review_engine = review_engine_builder
         .build_from_decisions(decisions, diff_query)
-        .map_err(|e| anyhow::anyhow!("Failed to build ReviewEngine from decisions: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to build ReviewEngine from decisions: {e}"))?;
 
     Ok(review_engine)
 }

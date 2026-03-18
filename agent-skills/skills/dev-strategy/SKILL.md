@@ -31,7 +31,7 @@ For principles applied during planning (YAGNI, Last Responsible Moment, Kent Bec
 
 ## Key Outputs
 
-The skill generates structured artifacts in `./dev-strategy-[FEATURE-NAME]/`:
+The skill generates structured artifacts in `.plans/plan-[FEATURE-NAME]/`:
 
 **Core Artifacts:**
 - **Code Context** - Relevant classes/functions with line references

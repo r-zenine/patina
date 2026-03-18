@@ -1,6 +1,6 @@
 ---
 name: design-contribute
-description: Enables structured design contributions to dev-strategy implementation plans through interactive, human-in-the-loop sessions. Use when roadmap phases have "Design" objectives, users say "design the [component]", "figure out the [approach]", "determine the [architecture]", or architectural decisions need refinement before implementation. Produces lean design docs through collaborative exploration with ruthless focus on simplicity.
+description: Enables structured design contributions to dev-strategy implementation plans (`.plans/plan-[FEATURE-NAME]/` only) through interactive, human-in-the-loop sessions. Use when roadmap phases have "Design" objectives, users say "design the [component]", "figure out the [approach]", "determine the [architecture]", or architectural decisions need refinement before implementation. Produces lean design docs through collaborative exploration with ruthless focus on simplicity.
 allowed-tools: ["Read", "Write", "Grep", "Glob", "TodoWrite", "Edit", "Bash", "AskUserQuestion"]
 ---
 
@@ -27,10 +27,12 @@ Enables design at the Last Responsible Moment through human collaboration:
 - Need to choose between multiple viable approaches interactively
 
 ❌ **Don't use when:**
+- **No dev-strategy plan exists** - This skill ONLY works with plans created by `dev-strategy` skill in `.plans/plan-[FEATURE-NAME]/`
 - Creating initial dev-strategy plans (use dev-strategy skill instead)
 - Design can be deferred further (wait for more implementation learnings)
 - Implementation approach is already clear (just use dev-contribute)
 - Designing hypothetical future features (violates YAGNI)
+- Designing items outside of an active dev-strategy roadmap
 
 **💡 Tip**: Instead of manually invoking this skill, users can use **dev-continue** skill which automatically determines if design or implementation is needed next.
 
@@ -70,8 +72,8 @@ Every design contribution generates exactly 3 files (schemas in [`contribution-s
 
 ## Directory Structure
 
-Creates: `contributions/NNN-phase-X-design-[topic]-design-contribute/`
-Example: `contributions/005-phase-3-design-session-mgmt-design-contribute/`
+Creates: `.plans/plan-[FEATURE-NAME]/contributions/NNN-phase-X-design-[topic]-design-contribute/`
+Example: `.plans/plan-myfeature/contributions/005-phase-3-design-session-mgmt-design-contribute/`
 
 ## Core Principles
 
