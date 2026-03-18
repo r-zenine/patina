@@ -261,6 +261,7 @@ Rules:
 - Do NOT use `git add -A` or `git add .`
 - Stage the contribution folder and each changed source file explicitly
 - The commit message number (NNN) must match the contribution folder number
+- The description must match the contribution folder name (e.g., `phase-2-implementation-code-general-purpose`)
 
 ## Common Patterns by Strategy
 

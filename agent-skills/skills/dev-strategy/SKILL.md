@@ -19,7 +19,7 @@ Creates sufficient implementation plans by:
 ## 6-Step Process
 
 1. **Generate Behavioral Spec** - Plain description of what to build
-2. **Analyze Codebase** - Use onboarding agent for context
+2. **Analyze Codebase** - Use Explore agent with onboarding prompt
 3. **Technical Research** - Research new/unfamiliar technologies and approaches
 4. **Gather Constraints** - Interactive requirements collection
 5. **Select Implementation Strategy** - Choose development approach → consult [`dev-strategies` skill](../dev-strategies/SKILL.md)

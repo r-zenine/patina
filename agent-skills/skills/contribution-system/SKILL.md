@@ -132,6 +132,17 @@ All templates are in [assets/templates/](assets/templates/):
 
 ## Workflow Patterns
 
+### Onboarding Guide Generation
+
+How to generate and update `onboarding.md` orientation guides using the Explore agent.
+
+See [onboarding-generation.md](references/onboarding-generation.md) for:
+- When to invoke (new crate, git diffs, major changes)
+- Generate vs update detection
+- Explore agent invocation template
+- Expected output structure
+- What to include and exclude
+
 ### Progressive Disclosure
 
 How to read contribution artifacts efficiently — start with minimum context, dive deeper only when needed.

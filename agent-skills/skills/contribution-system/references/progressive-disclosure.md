@@ -107,3 +107,56 @@ contributions/NNN-phase-X-design-[topic]-design-contribute/
 1. Latest contribution first — most current state and context
 2. Work backwards only if you need historical context
 3. Skip intermediate contributions unless directly relevant
+
+**Strategy pattern recognition from folder names:**
+- `design-[topic]-design-contribute` → design contributions precede implementation; read `design-doc.md` before implementing
+- `test-design` → `test-validation` → `implementation` = TDD pattern
+- `pathfinder` → `foundation` → `expansion` = Steel Thread pattern
+- `domain-logic` → `port-design` → `adapter` → `integration` = Core-then-Integrate pattern
+
+## Efficient Reading Techniques
+
+### The 5-Minute Scan
+
+**For context-handoff.md:**
+1. **Read "Built:" line** (30 seconds) — understand the main deliverable
+2. **Scan "What works/fragile/missing"** (2 minutes) — understand current state
+3. **Read your role's guidance** (1 minute) — get specific direction
+4. **Note "Expects/Deferred"** (1 minute) — understand constraints
+5. **Check related docs links** (30 seconds) — decide if you need more
+
+### The Deep Dive
+
+**When 5-minute scan isn't enough:**
+1. Full `context-handoff.md` read
+2. Targeted `decision-log.yaml` scan — focus on decisions relevant to your work
+3. Selective optional artifacts — only what you specifically need
+
+## Common Reading Scenarios
+
+**Starting a new phase implementation:**
+1. Read previous phase's latest `context-handoff.md` (current state)
+2. Scan previous phase's `decision-log.yaml` (established patterns)
+3. Check dev-strategy plan (verify objectives)
+
+**Implementing after a design contribution:**
+1. Read `design-doc.md` in full (what to build)
+2. Read `decision-log.md` (why this approach)
+3. Read previous implementation `context-handoff.md` (current state)
+
+**Debugging an issue:**
+1. Start with most recent `context-handoff.md`
+2. Look for relevant "What's fragile" entries
+3. Check `decision-log.yaml` for related technical choices
+4. Work backwards through contributions until you find relevant context
+
+**Reviewing security across all contributions:**
+1. Read all `context-handoff.md` files for security-related "What's fragile"
+2. Read all `decision-log.yaml` files for security-related choices
+3. Read any `security-*.md` optional artifacts
+
+**Onboarding to a project:**
+1. Read dev-strategy plan (overall approach)
+2. Read Phase 1's final `context-handoff.md` (foundation)
+3. Read latest contribution's `context-handoff.md` (current state)
+4. Scan `decision-log.yaml` files for architectural patterns

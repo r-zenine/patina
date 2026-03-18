@@ -10,6 +10,7 @@ This document provides the complete workflow for making design contributions to 
 - [Step 3: Interactive Option Exploration (Human-in-the-Loop)](#step-3-interactive-option-exploration-human-in-the-loop)
 - [Step 4: Create Design Contribution Folder](#step-4-create-design-contribution-folder)
 - [Step 5: Document Design Decision](#step-5-document-design-decision)
+- [Step 6: Commit the Design Contribution](#step-6-commit-the-design-contribution)
 - [Validation Strategy](#validation-strategy)
 - [Interactive Techniques Throughout Workflow](#interactive-techniques-throughout-workflow)
 - [Integration with Other Skills](#integration-with-other-skills)
@@ -224,13 +225,19 @@ For templates, see [`contribution-system/assets/templates/`](../contribution-sys
 - ❌ No design for future phases
 - ❌ No "nice to have" features
 
-### Commit the design artifacts
+## Step 6: Commit the Design Contribution
 
-After the design document is created and all quality checks pass:
+After all quality checks pass and files are created:
 ```bash
 git add <contribution-folder>/
-git commit -m "design(NNN): <description>"
+git commit -m "design(NNN): <description matching contribution folder name>"
 ```
+
+Rules:
+- Do NOT use `git add -A` or `git add .`
+- Stage the contribution folder explicitly
+- The commit message number (NNN) must match the contribution folder number
+- The description must match the contribution folder name (e.g., `phase-3-design-session-mgmt-design-contribute`)
 
 ## Validation Strategy
 
