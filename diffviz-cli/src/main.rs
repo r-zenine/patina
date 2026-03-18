@@ -132,14 +132,14 @@ fn load_review_state(folder: &Path, engine: &mut diffviz_review::ReviewEngine) -
     let instructions_str = serde_json::to_string(&state_file.instructions)?;
     engine
         .import_instructions_json(&instructions_str)
-        .map_err(|e| anyhow::anyhow!("Failed to import instructions: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to import instructions: {e}"))?;
     Ok(())
 }
 
 fn save_review_state(folder: &Path, engine: &diffviz_review::ReviewEngine) -> Result<()> {
     let instructions_str = engine
         .export_instructions_json(ExportScope::All)
-        .map_err(|e| anyhow::anyhow!("Failed to export instructions: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to export instructions: {e}"))?;
     let instructions: serde_json::Value = serde_json::from_str(&instructions_str)?;
     let approvals_vec: Vec<Approval> = engine
         .state()
@@ -169,7 +169,7 @@ fn run_contribution_review(folder: &str, repo_path: &str, author: &str) -> Resul
     let folder_path = Path::new(folder);
     let content = std::fs::read_to_string(folder_path.join("decision-log.yaml"))?;
     let log = DecisionLog::parse(&content)
-        .map_err(|e| anyhow::anyhow!("Failed to parse decision-log.yaml: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to parse decision-log.yaml: {e}"))?;
     let query = log
         .base_commit
         .clone()
@@ -177,17 +177,17 @@ fn run_contribution_review(folder: &str, repo_path: &str, author: &str) -> Resul
         .unwrap_or_else(DiffQuery::head_to_unstaged);
 
     let git_repo = GitRepository::open(repo_path)
-        .map_err(|e| anyhow::anyhow!("Failed to open repository: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to open repository: {e}"))?;
 
     let mut engine = ReviewEngineBuilder::new(Box::new(git_repo), author.to_string())
         .build_from_decisions(log.decisions, query)
-        .map_err(|e| anyhow::anyhow!("Failed to build review engine: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to build review engine: {e}"))?;
 
     load_review_state(folder_path, &mut engine)?;
 
     let mut app =
-        ReviewTuiApp::new(engine).map_err(|e| anyhow::anyhow!("Failed to launch TUI: {}", e))?;
-    app.run().map_err(|e| anyhow::anyhow!("TUI error: {}", e))?;
+        ReviewTuiApp::new(engine).map_err(|e| anyhow::anyhow!("Failed to launch TUI: {e}"))?;
+    app.run().map_err(|e| anyhow::anyhow!("TUI error: {e}"))?;
     let engine = app.into_review_engine();
 
     save_review_state(folder_path, &engine)?;
@@ -231,7 +231,7 @@ fn run_debug_expansion(
     let folder_path = Path::new(folder);
     let content = std::fs::read_to_string(folder_path.join("decision-log.yaml"))?;
     let log = DecisionLog::parse(&content)
-        .map_err(|e| anyhow::anyhow!("Failed to parse decision-log.yaml: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to parse decision-log.yaml: {e}"))?;
     let query = log
         .base_commit
         .clone()
@@ -250,13 +250,12 @@ fn run_debug_expansion(
         .find(|c| c.file == file_path)
         .ok_or_else(|| {
             anyhow::anyhow!(
-                "File '{file_path}' not found in decision #{}",
-                decision_number
+                "File '{file_path}' not found in decision #{decision_number}"
             )
         })?;
 
     let git_repo = GitRepository::open(repo_path)
-        .map_err(|e| anyhow::anyhow!("Failed to open repository: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Failed to open repository: {e}"))?;
 
     let new_source = git_repo
         .get_source_code(file_path, &query.to)
@@ -382,7 +381,7 @@ fn main() -> Result<()> {
 
             let environment = env_builder
                 .build()
-                .map_err(|e| anyhow::anyhow!("Failed to create environment: {}", e))?;
+                .map_err(|e| anyhow::anyhow!("Failed to create environment: {e}"))?;
 
             match command {
                 Commands::Show {

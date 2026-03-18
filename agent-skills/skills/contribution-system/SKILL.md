@@ -10,7 +10,33 @@ Canonical reference for artifact schemas, templates, folder naming conventions, 
 
 ## Artifact System Overview
 
-Every contribution creates files in a numbered folder under `contributions/`. The folder name encodes the phase, type, specialty, and agent — enabling any agent to understand contribution history by reading folder names alone.
+Every contribution creates files in a numbered folder under `.plans/plan-[FEATURE-NAME]/contributions/`. The folder name encodes the phase, type, specialty, and agent — enabling any agent to understand contribution history by reading folder names alone.
+
+### Full Directory Structure
+
+```
+.plans/
+└── plan-[FEATURE-NAME]/          ← Created by dev-strategy skill
+    ├── code-context.md
+    ├── context-document.md
+    ├── decision-log.yaml
+    ├── implementation-roadmap.md
+    ├── research/                  ← Optional, created by dev-strategy if research step executed
+    │   ├── research-summary.md
+    │   ├── technology-research.md
+    │   └── implementation-examples.md
+    └── contributions/             ← Contains all design and implementation contributions
+        ├── 001-phase-1-implementation-code-general-purpose/
+        ├── 002-phase-1-review-security-code-simplifier/
+        ├── 003-phase-2-design-error-handling-design-contribute/
+        └── 004-phase-2-implementation-code-general-purpose/
+```
+
+**Key Points:**
+- Initial plan artifacts are created **at the plan root** by dev-strategy
+- All contributions (design and implementation) go **in the contributions/ subfolder**
+- Contributions are numbered sequentially regardless of type or phase
+- The plan folder `.plans/plan-[FEATURE-NAME]/` must exist before contributions can be created
 
 ## Folder Naming Convention
 
@@ -49,11 +75,11 @@ NNN-phase-X-[type]-[specialty]-[agent]
 
 **Examples:**
 ```
-001-phase-1-implementation-code-general-purpose/
-002-phase-1-review-security-code-simplifier/
-003-phase-2-test-design-tdd-general-purpose/
-004-phase-2-expansion-capability-general-purpose/
-005-phase-3-adapter-database-general-purpose/
+.plans/plan-myfeature/contributions/001-phase-1-implementation-code-general-purpose/
+.plans/plan-myfeature/contributions/002-phase-1-review-security-code-simplifier/
+.plans/plan-myfeature/contributions/003-phase-2-test-design-tdd-general-purpose/
+.plans/plan-myfeature/contributions/004-phase-2-expansion-capability-general-purpose/
+.plans/plan-myfeature/contributions/005-phase-3-adapter-database-general-purpose/
 ```
 
 ### Design Contributions
@@ -66,7 +92,7 @@ NNN-phase-X-design-[topic]-design-contribute
 
 **Example:**
 ```
-005-phase-3-design-session-mgmt-design-contribute/
+.plans/plan-myfeature/contributions/005-phase-3-design-session-mgmt-design-contribute/
 ```
 
 ### Revision Contributions
@@ -77,7 +103,7 @@ NNN-phase-X-revision-[original-specialty]-[agent]
 
 **Example:** Revising a decision from contribution 002:
 ```
-004-phase-1-revision-code-general-purpose/
+.plans/plan-myfeature/contributions/004-phase-1-revision-code-general-purpose/
 ```
 
 ## Artifact Schemas by Contribution Type

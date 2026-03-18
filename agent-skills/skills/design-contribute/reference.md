@@ -30,21 +30,32 @@ For principles applied here (YAGNI, LRM, Sufficient Design), see [`design-princi
 ### Goal
 Understand what's been built and what needs to be designed.
 
+### REQUIREMENT: Verify Dev-Strategy Plan Exists
+
+**STOP if any of these are true:**
+- No `.plans/plan-[FEATURE-NAME]/` folder exists
+- The plan was not created by the `dev-strategy` skill
+- No `implementation-roadmap.md` exists in the plan folder
+
+This skill ONLY works with plans created by `dev-strategy`. If the plan doesn't exist, tell the user to run the dev-strategy skill first.
+
 ### Process
 
-1. **Read all dev-strategy artifacts:**
+1. **Locate the dev-strategy plan** in `.plans/plan-[FEATURE-NAME]/`
+
+2. **Read all dev-strategy artifacts** (located in `.plans/plan-[FEATURE-NAME]/`):
    - `context-document.md` - Behavioral spec and architecture
    - `decision-log.yaml` - Previous decisions made
    - `implementation-roadmap.md` - Planned phases and strategy
    - Look for the specific "Design: Determine [X]" objective
 
-2. **Review existing contributions:**
-   - Check `contributions/` directory for implementation work
+3. **Review existing contributions:**
+   - Check `.plans/plan-[FEATURE-NAME]/contributions/` directory for implementation work
    - Read recent context-handoff.md files to understand current state
    - Focus on what implementation revealed about constraints
    - Identify the next logical contribution number
 
-3. **Locate the design objective:**
+4. **Locate the design objective:**
    - Find the specific "Design:" task in implementation-roadmap.md
    - Understand why design was deferred (what needed to be learned first)
 
@@ -145,18 +156,23 @@ Collaboratively explore design options with the user, presenting simplest first.
 ## Step 4: Create Design Contribution Folder
 
 ### Goal
-Create sequentially numbered folder for this design contribution.
+Create sequentially numbered folder for this design contribution under the plan's contributions directory.
+
+### IMPORTANT: Contributions are ALWAYS saved in `.plans/plan-[FEATURE-NAME]/contributions/`
+
+All contributions for a dev-strategy plan are stored together in the plan's dedicated contributions directory. This ensures contributions remain organized and linked to their parent plan.
 
 ### Process
 
-1. **Check existing contributions:**
+1. **Navigate to the plan's contributions directory:**
    ```bash
-   ls contributions/
+   cd .plans/plan-[FEATURE-NAME]/contributions/
+   ls
    ```
 
 2. **Pick next number and create folder:**
    ```bash
-   mkdir contributions/005-phase-3-design-session-mgmt-design-contribute/
+   mkdir 005-phase-3-design-session-mgmt-design-contribute/
    ```
 
 3. **Folder naming convention:**
@@ -229,13 +245,13 @@ For templates, see [`contribution-system/assets/templates/`](../contribution-sys
 
 After all quality checks pass and files are created:
 ```bash
-git add <contribution-folder>/
+git add .plans/plan-[FEATURE-NAME]/contributions/<contribution-folder>/
 git commit -m "design(NNN): <description matching contribution folder name>"
 ```
 
 Rules:
 - Do NOT use `git add -A` or `git add .`
-- Stage the contribution folder explicitly
+- Use the full path `.plans/plan-[FEATURE-NAME]/contributions/<contribution-folder>/` when staging
 - The commit message number (NNN) must match the contribution folder number
 - The description must match the contribution folder name (e.g., `phase-3-design-session-mgmt-design-contribute`)
 

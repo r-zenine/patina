@@ -102,7 +102,7 @@ Research should answer "How do I implement this?" not "What's the best approach?
 
 ### Research Artifacts Generated
 
-When research is conducted, create in `./dev-strategy-[FEATURE-NAME]/research/`:
+When research is conducted, create in `.plans/plan-[FEATURE-NAME]/research/`:
 1. **research-summary.md** - High-level findings and recommendations
 2. **technology-research.md** - Focused analysis of each technology researched
 3. **implementation-examples.md** - Code patterns and practical examples
@@ -210,7 +210,7 @@ Use template: [`contribution-system/assets/templates/decision-log-template-strat
 ### File Organization
 
 ```
-./dev-strategy-[FEATURE-NAME]/
+.plans/plan-[FEATURE-NAME]/
 ├── code-context.md
 ├── context-document.md
 ├── decision-log.yaml
@@ -221,18 +221,18 @@ Use template: [`contribution-system/assets/templates/decision-log-template-strat
     └── implementation-examples.md
 ```
 
-Use clear, descriptive feature names:
-- ✅ `dev-strategy-user-authentication/`
-- ✅ `dev-strategy-real-time-notifications/`
-- ❌ `dev-strategy-2024-01-15/`
-- ❌ `dev-strategy-feature1/`
+Use clear, descriptive feature names with `plan-` prefix:
+- ✅ `.plans/plan-user-authentication/`
+- ✅ `.plans/plan-real-time-notifications/`
+- ❌ `.plans/plan-2024-01-15/`
+- ❌ `.plans/plan-feature1/`
 
 ### Commit the strategy artifacts
 
-After all artifacts are created in `dev-strategy-<feature-name>/`:
+After all artifacts are created in `.plans/plan-<feature-name>/`:
 ```bash
-git add dev-strategy-<feature-name>/
-git commit -m "dev-strategy: <feature name>"
+git add .plans/plan-<feature-name>/
+git commit -m "plan: <feature name>"
 ```
 
 ## Implementation Tips

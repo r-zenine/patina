@@ -6,7 +6,8 @@ This document provides instructions for contributing to dev-strategy implementat
 
 - [Overview](#overview)
 - [Step 1: Read and Understand Dev-Strategy Plan](#step-1-read-and-understand-dev-strategy-plan)
-- [Step 1.5: Pre-Work Validation](#step-15-pre-work-validation)
+- [Step 1.5: Phase Scoping](#step-15-phase-scoping)
+- [Step 1.6: Pre-Work Validation](#step-16-pre-work-validation)
 - [Step 2: Follow Strategy Approach](#step-2-follow-strategy-approach)
 - [Step 3: Create Numbered Contribution Folder](#step-3-create-numbered-contribution-folder)
 - [Step 4: Perform Specialized Work](#step-4-perform-specialized-work)
@@ -26,29 +27,31 @@ The dev-contribute skill enables structured contributions to existing dev-strate
 Understand the context before contributing.
 
 ### Process
-1. **Read all dev-strategy artifacts:**
+1. **Locate the dev-strategy plan** in `.plans/plan-[FEATURE-NAME]/`
+
+2. **Read all dev-strategy artifacts** (located in `.plans/plan-[FEATURE-NAME]/`):
    - `code-context.md` - Relevant code references
    - `context-document.md` - Behavioral spec and architecture (includes research findings if available)
    - `decision-log.yaml` - Previous decisions made
    - `implementation-roadmap.md` - Planned phases and strategy
    - `research/` directory (if present) - Technical research findings and recommendations
 
-2. **Identify the implementation strategy:**
+3. **Identify the implementation strategy:**
    - Look for strategy choice in decision-log.yaml
    - Understand the planned approach (TDD, Steel Thread, Core-then-Integrate)
    - For strategy details → see [`dev-strategies` skill](../dev-strategies/SKILL.md)
 
-3. **Review research findings (when relevant):**
+4. **Review research findings (when relevant):**
    - If implementing new technologies or unfamiliar patterns, check for `research/` directory
    - For early-phase work, review research artifacts for implementation guidance
    - For later-phase work, research may be less relevant - use judgment
 
-4. **Review existing contributions:**
-   - Check `contributions/` directory for previous work
+5. **Review existing contributions:**
+   - Check `.plans/plan-[FEATURE-NAME]/contributions/` directory for previous work
    - Read recent context-handoff.md files for current state
    - Identify the next logical contribution number
 
-5. **Check for reviewer instructions (review-state.json):**
+6. **Check for reviewer instructions (review-state.json):**
    After reading existing contributions, look in the most recent contribution folder for `review-state.json`.
 
    If present:
@@ -60,7 +63,26 @@ Understand the context before contributing.
 
    If absent or no active instructions, proceed normally.
 
-## Step 1.5: Pre-Work Validation
+## Step 1.5: Phase Scoping
+
+### Goal
+Ensure each contribution focuses on exactly one phase of the roadmap.
+
+### Mandatory Requirement
+**Each invocation of dev-contribute must work on the NEXT INCOMPLETE PHASE ONLY.** Do not attempt multiple phases or skip ahead.
+
+### Process
+1. **Identify the next incomplete phase** in implementation-roadmap.md
+2. **Confirm no previous contributions exist** for later phases
+3. **Limit all work to this single phase** - do not proceed into subsequent phases
+4. **If the phase is blocked**, communicate the blocker rather than skipping to the next phase
+
+### Rationale
+- Sequential workflow ensures predictable progress through the roadmap
+- Single-phase contributions prevent scope creep
+- Clear phase boundaries make progress visible and auditable
+
+## Step 1.6: Pre-Work Validation
 
 ### Goal
 Ensure a clean baseline before starting contribution work.
@@ -99,24 +121,31 @@ For complete strategy execution details, contribution sequences, and contributio
 ## Step 3: Create Numbered Contribution Folder
 
 ### Goal
-Create sequentially numbered folder for chronological ordering.
+Create sequentially numbered folder for chronological ordering under the plan's contributions directory.
+
+### IMPORTANT: Contributions are ALWAYS saved in `.plans/plan-[FEATURE-NAME]/contributions/`
+
+All contributions for a dev-strategy plan are stored together in the plan's dedicated contributions directory. This ensures contributions remain organized and linked to their parent plan.
 
 ### Process
-1. **Check existing contributions:**
+1. **Navigate to the plan's contributions directory:**
    ```bash
-   ls contributions/
+   cd .plans/plan-[FEATURE-NAME]/contributions/
+   ls
    # 001-phase-1-implementation-code-general-purpose/
    # 002-phase-1-review-security-code-simplifier/
    ```
 
-2. **Pick next number:**
+2. **Pick next number and create folder:**
    ```bash
-   mkdir contributions/003-phase-2-test-design-tdd-general-purpose/
+   mkdir 003-phase-2-test-design-tdd-general-purpose/
    ```
 
 For complete folder naming convention, contribution type definitions, and specialty list, see [`contribution-system` skill](../contribution-system/SKILL.md).
 
 ### Step 3.1: Record base commit
+
+Before making any code changes, capture the current HEAD:
 
 Before making any code changes, capture the current HEAD:
 ```bash
@@ -253,13 +282,14 @@ Before finalizing your contribution:
 
 After all validation checks pass (build, lint, tests green):
 ```bash
-git add <contribution-folder>/ <each modified source file by explicit path>
+git add .plans/plan-[FEATURE-NAME]/contributions/<contribution-folder>/ <each modified source file by explicit path>
 git commit -m "contrib(NNN): <description matching contribution folder name>"
 ```
 
 Rules:
 - Do NOT use `git add -A` or `git add .`
-- Stage the contribution folder and each changed source file explicitly
+- Use the full path `.plans/plan-[FEATURE-NAME]/contributions/<contribution-folder>/` when staging
+- Stage each changed source file explicitly by its full path
 - The commit message number (NNN) must match the contribution folder number
 - The description must match the contribution folder name (e.g., `phase-2-implementation-code-general-purpose`)
 
