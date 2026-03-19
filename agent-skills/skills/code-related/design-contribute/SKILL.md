@@ -1,6 +1,6 @@
 ---
 name: design-contribute
-description: Enables structured design contributions to dev-strategy implementation plans (`.plans/plan-[FEATURE-NAME]/` only) through interactive, human-in-the-loop sessions. Use when roadmap phases have "Design" objectives, users say "design the [component]", "figure out the [approach]", "determine the [architecture]", or architectural decisions need refinement before implementation. Produces lean design docs through collaborative exploration with ruthless focus on simplicity.
+description: Enables collaborative design contributions to dev-strategy implementation plans through human-in-the-loop sessions. Use when roadmap phases have "Design" objectives, you need to "design the [component]", "figure out the [approach]", "determine the [architecture]", or refinement before implementation. Works with `.plans/plan-[FEATURE-NAME]/` directories only. Produces lean design docs (< 100 lines) through interactive exploration with ruthless focus on simplicity.
 ---
 
 # Design Contribute Skill
@@ -29,9 +29,9 @@ Enables design at the Last Responsible Moment through human collaboration:
 - Documenting design decisions for implementers
 - Maintaining project continuity between design and implementation
 
-## ⚠️ Prerequisite: Understand contribution-system
+## Prerequisites
 
-**MANDATORY**: Before using this skill, read [`contribution-system` skill](../contribution-system/SKILL.md) to understand:
+Before using this skill, read [`contribution-system` skill](../contribution-system/SKILL.md) to understand:
 - Design contribution folder naming (NNN-phase-X-design-[topic]-design-contribute)
 - Design artifact schemas (design-doc.md, decision-log.yaml, context-handoff.md)
 - Unified decision-log YAML schema (with empty code_impacts for design)
@@ -39,26 +39,9 @@ Enables design at the Last Responsible Moment through human collaboration:
 - Why design decisions don't have code_impacts (code comes in implementation phase)
 - Progressive disclosure strategy for reading design contributions
 
-All design contributions created by this skill must conform to contribution-system conventions. This is not optional.
+All design contributions created by this skill must conform to contribution-system conventions.
 
-## When to Use This Skill
-
-✅ **Use when:**
-- Roadmap phases have "Design: Determine [X]" objectives
-- Users say "design the [component]", "figure out the [approach]", "determine the [architecture]"
-- Implementation has revealed constraints that inform design choices
-- Architectural decisions need refinement before implementation
-- Need to choose between multiple viable approaches interactively
-
-❌ **Don't use when:**
-- **No dev-strategy plan exists** - This skill ONLY works with plans created by `dev-strategy` skill in `.plans/plan-[FEATURE-NAME]/`
-- Creating initial dev-strategy plans (use dev-strategy skill instead)
-- Design can be deferred further (wait for more implementation learnings)
-- Implementation approach is already clear (just use dev-contribute)
-- Designing hypothetical future features (violates YAGNI)
-- Designing items outside of an active dev-strategy roadmap
-
-**💡 Tip**: Instead of manually invoking this skill, users can use **dev-continue** skill which automatically determines if design or implementation is needed next.
+**Note**: This skill works only with plans created by `dev-strategy` skill in `.plans/plan-[FEATURE-NAME]/`.
 
 ## Two-Gate Context
 
