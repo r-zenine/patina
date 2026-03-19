@@ -5,59 +5,34 @@
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
+use std::fs;
 use std::path::Path;
 use std::time::Instant;
 
 use super::CommandExecutor;
 use crate::environment::Environment;
-use diffviz_review::entities::decision::{Decision, CodeImpact, DecisionLineRange};
+use diffviz_review::entities::decision::{CodeImpact, Decision, DecisionLineRange};
 use diffviz_review::entities::git_ref::{DiffQuery, GitRef};
 use diffviz_review::review_engine_builder::ReviewEngineBuilder;
 
 /// Debug subcommand for exposing pipeline phases
-#[allow(dead_code)]
 pub struct DebugCommand {
     /// Path to the file to analyze
-    file_path: String,
+    pub file_path: String,
     /// Starting Git ref (defaults to HEAD)
-    from: Option<String>,
+    pub from: Option<String>,
     /// Ending Git ref (defaults to working tree)
-    to: Option<String>,
+    pub to: Option<String>,
     /// Optional: filter to specific phase number
-    phase: Option<u8>,
+    pub phase: Option<u8>,
     /// Optional: include explanations for folding decisions
-    explain_folding: bool,
+    pub explain_folding: bool,
     /// Optional: export fixture to file path
-    export_fixture: Option<String>,
+    pub export_fixture: Option<String>,
     /// Optional: output human-readable text instead of JSON
-    human: bool,
+    pub human: bool,
     /// Optional: filter results to line range (start-end)
-    line_range: Option<String>,
-}
-
-impl DebugCommand {
-    /// Create a new Debug command with the specified parameters
-    pub fn new(
-        file_path: String,
-        from: Option<String>,
-        to: Option<String>,
-        phase: Option<u8>,
-        explain_folding: bool,
-        export_fixture: Option<String>,
-        human: bool,
-        line_range: Option<String>,
-    ) -> Self {
-        Self {
-            file_path,
-            from,
-            to,
-            phase,
-            explain_folding,
-            export_fixture,
-            human,
-            line_range,
-        }
-    }
+    pub line_range: Option<String>,
 }
 
 /// Root JSON structure for debug output
@@ -99,6 +74,19 @@ struct LineRangeFilter {
     end: usize,
     filtered_diff_count: usize,
     total_diff_count: usize,
+}
+
+/// Minimal fixture for test data creation
+#[derive(Serialize, Deserialize, Debug)]
+struct ReviewFixture {
+    /// Original code before the change
+    old_code: String,
+    /// Modified code after the change
+    new_code: String,
+    /// File path being analyzed
+    file_path: String,
+    /// Detected programming language
+    language: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -147,7 +135,7 @@ impl CommandExecutor for DebugCommand {
         };
 
         // Get file size
-        let file_size_bytes = std::fs::metadata(&self.file_path)?.len() as usize;
+        let file_size_bytes = fs::metadata(&self.file_path)?.len() as usize;
 
         // Create minimal Decision to seed ReviewEngineBuilder
         let decision = Decision {
@@ -176,8 +164,10 @@ impl CommandExecutor for DebugCommand {
         let reviewable_diffs_map = &review_state.reviewable_diffs;
 
         // Collect all diffs as references
-        let all_diffs: Vec<(&diffviz_review::entities::reviewable_diff_id::ReviewableDiffId, &diffviz_review::state::ReviewableDiff)> =
-            reviewable_diffs_map.iter().collect();
+        let all_diffs: Vec<(
+            &diffviz_review::entities::reviewable_diff_id::ReviewableDiffId,
+            &diffviz_review::state::ReviewableDiff,
+        )> = reviewable_diffs_map.iter().collect();
 
         let total_diff_count = all_diffs.len();
 
@@ -194,7 +184,7 @@ impl CommandExecutor for DebugCommand {
                 .copied()
                 .collect::<Vec<_>>()
         } else {
-            all_diffs.iter().copied().collect()
+            all_diffs.to_vec()
         };
 
         let filtered_diff_count = filtered_diffs.len();
@@ -224,10 +214,10 @@ impl CommandExecutor for DebugCommand {
 
         let output = DebugOutput {
             file_path: self.file_path.clone(),
-            language,
+            language: language.clone(),
             query: DiffQueryOutput {
-                from: format!("{:?}", from_ref),
-                to: format!("{:?}", to_ref),
+                from: format!("{from_ref:?}"),
+                to: format!("{to_ref:?}"),
             },
             metadata: Metadata {
                 analysis_duration_ms,
@@ -237,6 +227,18 @@ impl CommandExecutor for DebugCommand {
             },
             phases,
         };
+
+        // Export fixture if requested
+        if let Some(ref fixture_path) = self.export_fixture {
+            let fixture_diff_provider = environment.diff_provider()?;
+            self.export_fixture_json(
+                fixture_path,
+                fixture_diff_provider,
+                &from_ref,
+                &to_ref,
+                &language,
+            )?;
+        }
 
         // Output result
         if self.human {
@@ -255,10 +257,7 @@ impl DebugCommand {
     fn validate_inputs(&self) -> Result<()> {
         // Check if file exists
         if !Path::new(&self.file_path).exists() {
-            return Err(anyhow::anyhow!(
-                "File not found: {}",
-                self.file_path
-            ));
+            return Err(anyhow::anyhow!("File not found: {}", self.file_path));
         }
 
         // Check if language is supported
@@ -266,8 +265,10 @@ impl DebugCommand {
 
         // Validate phase number if provided
         if let Some(phase) = self.phase {
-            if phase < 1 || phase > 7 {
-                return Err(anyhow::anyhow!("Phase must be between 1 and 7, got {}", phase));
+            if !(1..=7).contains(&phase) {
+                return Err(anyhow::anyhow!(
+                    "Phase must be between 1 and 7, got {phase}"
+                ));
             }
         }
 
@@ -290,7 +291,7 @@ impl DebugCommand {
             "cxx" | "cpp" | "hpp" | "hxx" => Ok("C++".to_string()),
             "ts" | "tsx" => Ok("TypeScript".to_string()),
             "js" | "jsx" => Ok("JavaScript".to_string()),
-            ext => Err(anyhow::anyhow!("Unsupported file extension: {}", ext)),
+            ext => Err(anyhow::anyhow!("Unsupported file extension: {ext}")),
         }
     }
 
@@ -309,50 +310,86 @@ impl DebugCommand {
         let parts: Vec<&str> = range.split('-').collect();
         if parts.len() != 2 {
             return Err(anyhow::anyhow!(
-                "Line range must be in 'start-end' format, got: {}",
-                range
+                "Line range must be in 'start-end' format, got: {range}"
             ));
         }
 
-        let start = parts[0]
+        let start_str = parts[0];
+        let start = start_str
             .parse::<usize>()
-            .map_err(|_| anyhow::anyhow!("Invalid start line: {}", parts[0]))?;
-        let end = parts[1]
+            .map_err(|_| anyhow::anyhow!("Invalid start line: {start_str}"))?;
+        let end_str = parts[1];
+        let end = end_str
             .parse::<usize>()
-            .map_err(|_| anyhow::anyhow!("Invalid end line: {}", parts[1]))?;
+            .map_err(|_| anyhow::anyhow!("Invalid end line: {end_str}"))?;
 
         if start > end {
             return Err(anyhow::anyhow!(
-                "Start line must be <= end line, got {}-{}",
-                start,
-                end
+                "Start line must be <= end line, got {start}-{end}"
             ));
         }
 
         Ok((start, end))
     }
 
-    /// Output in human-readable format
+    /// Output in human-readable format with ANSI colors and metadata
     fn output_human(&self, output: &DebugOutput) -> Result<()> {
-        println!("DiffViz Debug Analysis");
-        println!("=====================");
+        // ANSI color codes for readability
+        const BOLD_CYAN: &str = "\x1b[1;36m";
+        const YELLOW: &str = "\x1b[33m";
+        const RESET: &str = "\x1b[0m";
+
+        // Header section
+        println!("{BOLD_CYAN}DiffViz Debug Analysis{RESET}");
+        println!("{BOLD_CYAN}═════════════════════════════════════{RESET}");
         println!();
-        println!("File:     {}", output.file_path);
-        println!("Language: {}", output.language);
-        println!("Query:    {} -> {}", output.query.from, output.query.to);
+        println!("File:              {}", output.file_path);
+        println!("Language:          {}", output.language);
+        println!(
+            "Query:             {YELLOW}{}{RESET}  →  {}",
+            output.query.from, output.query.to
+        );
         println!();
-        println!("Analysis Duration: {}ms", output.metadata.analysis_duration_ms);
-        println!("File Size:         {} bytes", output.metadata.file_size_bytes);
+        println!(
+            "Analysis Duration: {}ms",
+            output.metadata.analysis_duration_ms
+        );
+        println!(
+            "File Size:         {} bytes",
+            output.metadata.file_size_bytes
+        );
         println!("Diffs Found:       {}", output.metadata.diff_count);
+        if let Some(range_filter) = &output.metadata.line_range_filter {
+            println!(
+                "Line Range Filter: {}-{} ({} of {} diffs)",
+                range_filter.start,
+                range_filter.end,
+                range_filter.filtered_diff_count,
+                range_filter.total_diff_count
+            );
+        }
         println!();
-        println!("Phases: All 7 phases computed (JSON output for details)");
+
+        // Phase summaries
+        println!("{BOLD_CYAN}Phases:{RESET}");
+        println!();
+        println!("  Phase 1: Semantic Tree - AST outline structure");
+        println!("  Phase 2: Semantic Pairs - matched/added/deleted pairs");
+        println!("  Phase 3: Reviewable Diffs - diff regions identified");
+        println!("  Phase 4: Diff Node Hierarchy - semantic change tree");
+        println!("  Phase 5: Renderable Diffs - line-by-line Myers diff");
+        println!("  Phase 6: Code Impact - impact analysis and relevance");
+        println!("  Phase 7: Final Output - complete analysis results");
+        println!();
+        println!("Use 'diffviz debug --help' for full output, or add --phase N to filter.");
+        println!("Use --json or remove --human for structured JSON output.");
 
         Ok(())
     }
 
     /// Generate human-readable explanation for a DiffNode's relevance
     fn generate_node_explanation(&self, node: &diffviz_core::reviewable_diff::DiffNode) -> String {
-        use diffviz_core::ast_diff::{ESSENTIAL, IMPORTANT, BACKGROUND, NOISE};
+        use diffviz_core::ast_diff::{BACKGROUND, ESSENTIAL, IMPORTANT, NOISE};
         use diffviz_core::common::SemanticNodeKind;
 
         let relevance_level = match node.relevance {
@@ -408,7 +445,10 @@ impl DebugCommand {
     }
 
     /// Serialize Phase 2: Semantic Pairs
-    fn serialize_phase_2(&self, _review_state: &diffviz_review::state::ReviewState) -> Option<serde_json::Value> {
+    fn serialize_phase_2(
+        &self,
+        _review_state: &diffviz_review::state::ReviewState,
+    ) -> Option<serde_json::Value> {
         // Phase 2: Semantic pairing results (matched/added/deleted pairs)
         Some(serde_json::json!({
             "type": "semantic_pairs",
@@ -421,7 +461,10 @@ impl DebugCommand {
     /// Serialize Phase 3: Reviewable Diffs
     fn serialize_phase_3(
         &self,
-        filtered_diffs: &[(&diffviz_review::entities::reviewable_diff_id::ReviewableDiffId, &diffviz_review::state::ReviewableDiff)],
+        filtered_diffs: &[(
+            &diffviz_review::entities::reviewable_diff_id::ReviewableDiffId,
+            &diffviz_review::state::ReviewableDiff,
+        )],
     ) -> Option<serde_json::Value> {
         let diffs = filtered_diffs
             .iter()
@@ -446,7 +489,10 @@ impl DebugCommand {
     /// Serialize Phase 4: Diff Node Hierarchy
     fn serialize_phase_4(
         &self,
-        filtered_diffs: &[(&diffviz_review::entities::reviewable_diff_id::ReviewableDiffId, &diffviz_review::state::ReviewableDiff)],
+        filtered_diffs: &[(
+            &diffviz_review::entities::reviewable_diff_id::ReviewableDiffId,
+            &diffviz_review::state::ReviewableDiff,
+        )],
     ) -> Option<serde_json::Value> {
         let nodes = filtered_diffs
             .iter()
@@ -458,7 +504,7 @@ impl DebugCommand {
                         "end": id.line_range.end_line,
                     },
                     "relevance_score": diff.core_diff.boundary.relevance,
-                    "semantic_kind": format!("{:?}", diff.core_diff.boundary.semantic_kind),
+                    "semantic_kind": format!("{diff_kind:?}", diff_kind = &diff.core_diff.boundary.semantic_kind),
                 });
 
                 // Add explanation if --explain-folding flag is set
@@ -483,23 +529,24 @@ impl DebugCommand {
     fn serialize_phase_5(
         &self,
         engine: &mut diffviz_review::engines::ReviewEngine,
-        filtered_diffs: &[(&diffviz_review::entities::reviewable_diff_id::ReviewableDiffId, &diffviz_review::state::ReviewableDiff)],
+        filtered_diffs: &[(
+            &diffviz_review::entities::reviewable_diff_id::ReviewableDiffId,
+            &diffviz_review::state::ReviewableDiff,
+        )],
     ) -> Option<serde_json::Value> {
         let diffs = filtered_diffs
             .iter()
             .filter_map(|(id, _diff)| {
-                engine
-                    .get_renderable_diff(id)
-                    .map(|rendered| {
-                        serde_json::json!({
-                            "file": id.file_path,
-                            "line_range": {
-                                "start": id.line_range.start_line,
-                                "end": id.line_range.end_line,
-                            },
-                            "diff_preview": rendered
-                        })
+                engine.get_renderable_diff(id).map(|rendered| {
+                    serde_json::json!({
+                        "file": id.file_path,
+                        "line_range": {
+                            "start": id.line_range.start_line,
+                            "end": id.line_range.end_line,
+                        },
+                        "diff_preview": rendered
                     })
+                })
             })
             .collect::<Vec<_>>();
 
@@ -513,7 +560,10 @@ impl DebugCommand {
     /// Serialize Phase 6: Code Impact Analysis
     fn serialize_phase_6(
         &self,
-        filtered_diffs: &[(&diffviz_review::entities::reviewable_diff_id::ReviewableDiffId, &diffviz_review::state::ReviewableDiff)],
+        filtered_diffs: &[(
+            &diffviz_review::entities::reviewable_diff_id::ReviewableDiffId,
+            &diffviz_review::state::ReviewableDiff,
+        )],
     ) -> Option<serde_json::Value> {
         let impacts = filtered_diffs
             .iter()
@@ -531,7 +581,10 @@ impl DebugCommand {
                 if self.explain_folding {
                     if let Some(obj) = impact_obj.as_object_mut() {
                         let explanation = self.generate_node_explanation(&diff.core_diff.boundary);
-                        obj.insert("explanation".to_string(), serde_json::Value::String(explanation));
+                        obj.insert(
+                            "explanation".to_string(),
+                            serde_json::Value::String(explanation),
+                        );
                     }
                 }
 
@@ -548,7 +601,10 @@ impl DebugCommand {
     /// Serialize Phase 7: Final Output (same as Phase 6 for now)
     fn serialize_phase_7(
         &self,
-        filtered_diffs: &[(&diffviz_review::entities::reviewable_diff_id::ReviewableDiffId, &diffviz_review::state::ReviewableDiff)],
+        filtered_diffs: &[(
+            &diffviz_review::entities::reviewable_diff_id::ReviewableDiffId,
+            &diffviz_review::state::ReviewableDiff,
+        )],
     ) -> Option<serde_json::Value> {
         let impacts = filtered_diffs
             .iter()
@@ -566,7 +622,10 @@ impl DebugCommand {
                 if self.explain_folding {
                     if let Some(obj) = impact_obj.as_object_mut() {
                         let explanation = self.generate_node_explanation(&diff.core_diff.boundary);
-                        obj.insert("explanation".to_string(), serde_json::Value::String(explanation));
+                        obj.insert(
+                            "explanation".to_string(),
+                            serde_json::Value::String(explanation),
+                        );
                     }
                 }
 
@@ -578,5 +637,37 @@ impl DebugCommand {
             "type": "final_output",
             "summary": impacts
         }))
+    }
+
+    /// Export minimal ReviewFixture JSON for test data creation
+    fn export_fixture_json(
+        &self,
+        fixture_path: &str,
+        diff_provider: Box<dyn diffviz_review::providers::DiffProvider>,
+        from_ref: &diffviz_review::entities::git_ref::GitRef,
+        to_ref: &diffviz_review::entities::git_ref::GitRef,
+        language: &str,
+    ) -> Result<()> {
+        // Extract source code from both refs
+        let old_code = diff_provider
+            .get_source_code(&self.file_path, from_ref)
+            .map_err(|e| anyhow::anyhow!("Failed to get old code: {e}"))?;
+        let new_code = diff_provider
+            .get_source_code(&self.file_path, to_ref)
+            .map_err(|e| anyhow::anyhow!("Failed to get new code: {e}"))?;
+
+        // Create fixture
+        let fixture = ReviewFixture {
+            old_code,
+            new_code,
+            file_path: self.file_path.clone(),
+            language: language.to_string(),
+        };
+
+        // Serialize to JSON and write to file
+        let json = serde_json::to_string_pretty(&fixture)?;
+        fs::write(fixture_path, json)?;
+
+        Ok(())
     }
 }

@@ -1,11 +1,11 @@
 //! Input modal component for comments, instructions, and edits
 
 use ratatui::{
+    Frame,
     layout::Rect,
     style::Style,
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
-    Frame,
 };
 
 use crate::{

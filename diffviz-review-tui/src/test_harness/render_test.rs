@@ -2,9 +2,9 @@
 //!
 //! Render UiState using ratatui's TestBackend and capture visual output as text.
 
-use ratatui::{backend::TestBackend, buffer::Buffer, Terminal};
+use ratatui::{Terminal, backend::TestBackend, buffer::Buffer};
 
-use crate::{state::UiState, ui, Result};
+use crate::{Result, state::UiState, ui};
 use diffviz_review::engines::ReviewEngine;
 
 /// Test harness for validating UI rendering

@@ -1,11 +1,11 @@
 //! Decision detail panel component - shows decision context inline in diff view
 
 use ratatui::{
+    Frame,
     layout::Rect,
     style::Modifier,
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
-    Frame,
 };
 
 use crate::state::UiState;

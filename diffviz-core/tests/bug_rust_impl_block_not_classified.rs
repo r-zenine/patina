@@ -1,8 +1,8 @@
 #[cfg(test)]
 mod rust_impl_block_not_classified {
     use diffviz_core::decision_based_diff::create_reviewable_diff_from_range;
-    use diffviz_core::{ast_diff::SourceCode, common::ProgrammingLanguage};
     use diffviz_core::parsers::rust::RustParser;
+    use diffviz_core::{ast_diff::SourceCode, common::ProgrammingLanguage};
 
     const SOURCE: &str = r#"use std::collections::HashMap;
 
@@ -103,7 +103,8 @@ pub struct OtherStruct {
         let diff = diffs.remove(0);
 
         // The boundary unit type should be Callable (the parse method), not Module
-        let is_callable = diff.boundary.node_type.contains("Callable") || diff.boundary.node_type.contains("parse");
+        let is_callable = diff.boundary.node_type.contains("Callable")
+            || diff.boundary.node_type.contains("parse");
         assert!(
             is_callable,
             "Expected boundary unit to be the `parse` method (Callable), got: {}",

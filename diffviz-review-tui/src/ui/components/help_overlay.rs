@@ -3,11 +3,11 @@
 //! Displays a comprehensive reference of all available keybindings when '?' is pressed.
 
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
-    Frame,
 };
 
 use crate::{state::UiState, theme::Colors};

@@ -4,7 +4,7 @@
 //! and expansion state. Navigation operations work on the tree itself, avoiding
 //! synchronization issues with flat indices into dynamically rebuilt structures.
 
-use diffviz_review::{engines::ReviewEngine, entities::DecisionReviewableDiff, ReviewableDiffId};
+use diffviz_review::{ReviewableDiffId, engines::ReviewEngine, entities::DecisionReviewableDiff};
 
 /// Navigation tree that models the decision hierarchy
 #[derive(Debug, Clone)]
@@ -68,11 +68,7 @@ impl TreePath {
 
     /// Get the depth of this path (0=decision, 1=chunk)
     pub fn depth(&self) -> usize {
-        if self.chunk_index.is_some() {
-            1
-        } else {
-            0
-        }
+        if self.chunk_index.is_some() { 1 } else { 0 }
     }
 }
 

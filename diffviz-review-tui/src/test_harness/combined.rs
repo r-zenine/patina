@@ -5,7 +5,7 @@
 
 use diffviz_review::engines::ReviewEngine;
 
-use crate::{app::HeadlessApp, Result};
+use crate::{Result, app::HeadlessApp};
 
 use super::input_parser::parse_input_sequence;
 use super::render_test::RenderTestHarness;

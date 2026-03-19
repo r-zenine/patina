@@ -5,8 +5,8 @@
 
 use crate::events::UiEvent;
 use crate::state::{InputMode, UiState};
-use diffviz_review::engines::review_engine::ExportScope;
 use diffviz_review::ReviewableDiffId;
+use diffviz_review::engines::review_engine::ExportScope;
 
 /// Business events that require ReviewEngine operations
 #[derive(Debug, Clone)]

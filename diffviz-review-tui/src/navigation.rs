@@ -1,6 +1,6 @@
 //! Navigation logic for collapsible file list
 
-use diffviz_review::{engines::ReviewEngine, ReviewableDiffId};
+use diffviz_review::{ReviewableDiffId, engines::ReviewEngine};
 use std::collections::BTreeMap;
 
 use crate::state::UiState;

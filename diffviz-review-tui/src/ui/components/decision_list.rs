@@ -1,11 +1,11 @@
 //! Decision list component - primary navigation view for decision-based review
 
 use ratatui::{
+    Frame,
     layout::Rect,
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem},
-    Frame,
 };
 
 use crate::state::UiState;
