@@ -16,14 +16,34 @@ Creates sufficient implementation plans by:
 - Proposing execution strategies
 - Generating 4 structured artifacts for execution
 
-## 6-Step Process
+## Execution Requirements
 
-1. **Generate Behavioral Spec** - Plain description of what to build
-2. **Analyze Codebase** - Use Explore agent with onboarding prompt
-3. **Technical Research** - Research new/unfamiliar technologies and approaches
-4. **Gather Constraints** - Interactive requirements collection
-5. **Select Implementation Strategy** - Choose development approach → consult [`dev-strategies` skill](../dev-strategies/SKILL.md)
-6. **Create Plan** - Generate implementation artifacts → schemas in [`contribution-system` skill](../contribution-system/SKILL.md)
+To produce a sufficient implementation plan, ensure these outcomes are achieved:
+
+**UNDERSTANDING PHASE** (outcome: context is clear)
+- Behavioral spec is clear (user confirms what to build)
+- Codebase architecture is understood (relevant classes/functions identified)
+- Technology knowledge is sufficient (research done only if unfamiliar tech is involved)
+- Constraints are discovered (user confirms project boundaries, dependencies, deadlines)
+
+**STRATEGY PHASE** (outcome: approach is selected)
+- Best strategy is chosen based on project characteristics (consult [`dev-strategies` skill](../dev-strategies/SKILL.md))
+- Strategy aligns with constraints and requirements
+- Trade-offs between strategies are understood
+
+**PLANNING PHASE** (outcome: execution is clear)
+- All 4 core artifacts exist (code-context.md, context-document.md, decision-log.yaml, implementation-roadmap.md)
+- Roadmap is phased appropriately (each phase is a complete deliverable)
+- First phase has sufficient detail to begin work
+- Future phases are deferred appropriately per Last Responsible Moment principle
+
+**How to achieve these outcomes:**
+1. Generate Behavioral Spec through user discussion or codebase analysis
+2. Analyze Codebase using Explore agent with onboarding prompt
+3. Conduct Technical Research only if new/unfamiliar technologies are involved
+4. Gather Constraints through interactive discovery (see [`constraint-discovery.md`](../contribution-system/references/constraint-discovery.md))
+5. Select Implementation Strategy based on findings → refer to [`dev-strategies` skill](../dev-strategies/SKILL.md)
+6. Create Plan artifacts following schemas in [`contribution-system` skill](../contribution-system/SKILL.md)
 
 ## Guiding Principles
 

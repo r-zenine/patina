@@ -64,14 +64,36 @@ Design is inherently collaborative and iterative. Use AskUserQuestion to:
 
 For interactive techniques and AskUserQuestion patterns, see [`contribution-system/references/constraint-discovery.md`](../contribution-system/references/constraint-discovery.md).
 
-## Process Overview
+## Execution Requirements
 
-1. **Read and understand context** - Review dev-strategy plan and implementation learnings
-2. **Interactive constraint discovery** - Ask user about learnings, priorities, and concerns
-3. **Collaborative option exploration** - Present 2-3 options, discuss trade-offs, iterate based on feedback
-4. **Create design contribution folder** - Sequential numbering for chronological order
-5. **Document design decision** - Generate lean design doc (< 100 lines) and decision log
-6. **Commit the contribution** - Stage explicitly and commit with meaningful message matching folder name
+To create a robust design contribution, ensure these outcomes are achieved:
+
+**UNDERSTANDING PHASE** (outcome: context is clear)
+- Current plan state is understood (roadmap, prior decisions, constraints visible)
+- Implementation learnings are captured (what did prior phases reveal?)
+- Design objective is clear and scoped (what specifically needs designing?)
+- Assumptions about design are validated (don't assume, ask)
+
+**EXPLORATION PHASE** (outcome: design is validated with user)
+- Options are presented (2-3 approaches, simplest first)
+- Trade-offs are explicit (why each option exists, what you give up)
+- User validates choice explicitly (confirmation of preference, not inference)
+- Design decision is sufficiently detailed for implementation handoff
+- Design follows simplicity principles (YAGNI, Sufficient Design, KISS)
+
+**DOCUMENTATION PHASE** (outcome: design is durable and transferable)
+- Design doc exists (< 100 lines target, clear enough for implementers)
+- Decisions are recorded (decision-log.yaml populated with reasoning)
+- Context is handed off (context-handoff.md < 30 lines, tells next phase what was solved)
+- Contribution folder exists with sequential numbering (NNN-phase-X-design-[topic]-design-contribute)
+
+**How to achieve these outcomes:**
+1. Read and understand context (review dev-strategy plan and prior implementation learnings)
+2. Conduct interactive constraint discovery (ask user about learnings, priorities, and concerns)
+3. Explore design options collaboratively (present options, discuss trade-offs, iterate based on feedback)
+4. Create design contribution folder (use sequential numbering for chronological order)
+5. Document design decision (generate lean design doc and decision log)
+6. Commit the contribution (stage explicitly and commit with message matching folder name)
 
 ## Key Outputs
 
