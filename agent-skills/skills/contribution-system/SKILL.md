@@ -182,21 +182,19 @@ All templates are in [assets/templates/](assets/templates/):
 - [changelog-template.md](assets/templates/changelog-template.md)
 - [context-handoff-template.md](assets/templates/context-handoff-template.md)
 - [decision-log-template.yaml](assets/templates/decision-log-template.yaml)
-- [optional-artifacts-templates.md](assets/templates/optional-artifacts-templates.md)
 
 **Design templates:**
 - [design-doc-template.md](assets/templates/design-doc-template.md)
-- [decision-log-template-strategy.yaml](assets/templates/decision-log-template-strategy.yaml) — Uses unified schema (code_impacts: [])
+- [decision-log-template.yaml](assets/templates/decision-log-template.yaml)
 
 **Strategy (planning) templates:**
 - [code-context-template.md](assets/templates/code-context-template.md)
 - [context-document-template.md](assets/templates/context-document-template.md)
 - [implementation-roadmap-template.md](assets/templates/implementation-roadmap-template.md)
 - [steel-thread-roadmap-template.md](assets/templates/steel-thread-roadmap-template.md)
-- [decision-log-template-strategy.yaml](assets/templates/decision-log-template-strategy.yaml) — Uses unified schema
+- [decision-log-template.yaml](assets/templates/decision-log-template.yaml)
 - [research-summary-template.md](assets/templates/research-summary-template.md)
 - [technology-research-template.md](assets/templates/technology-research-template.md)
-- [implementation-examples-template.md](assets/templates/implementation-examples-template.md)
 
 ---
 

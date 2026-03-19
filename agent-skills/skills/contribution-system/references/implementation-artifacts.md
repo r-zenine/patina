@@ -110,4 +110,3 @@ For specialized contributions, additional files may be created:
 - `user-guide.md` — Getting started, common tasks, troubleshooting
 - `developer-guide.md` — Setup, extension points, testing
 
-See the [optional-artifacts-templates.md](../assets/templates/optional-artifacts-templates.md) for full schemas.

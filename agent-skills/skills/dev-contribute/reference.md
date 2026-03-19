@@ -209,8 +209,6 @@ For complete artifact schemas and templates, see [`contribution-system/reference
 - Are assumptions and blockers clearly documented?
 - Does each file serve its distinct purpose without overlap?
 
-### Optional Artifacts
-For specialized contributions, see [optional-artifacts-templates.md](../contribution-system/assets/templates/optional-artifacts-templates.md) for additional documentation types.
 
 ## Step 6: Handling Decision Revisions
 
