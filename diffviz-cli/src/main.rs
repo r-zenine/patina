@@ -6,7 +6,7 @@ use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-use commands::{CommandExecutor, debug::DebugCommand, review::ReviewCommand, show::ShowCommand};
+use commands::{CommandExecutor, debug::DebugCommand, review::ReviewCommand};
 use diffviz_git::GitRepository;
 use diffviz_review::{
     Approval, DecisionApproval, DecisionApprovals, DecisionLog, DiffQuery, ReviewApprovals,
@@ -47,21 +47,6 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Display diff for a specific file with semantic analysis
-    Show {
-        /// File path to show diff for
-        file_path: String,
-        /// From commit hash (optional - defaults to HEAD for working directory comparison)
-        from_commit: Option<String>,
-        /// To commit hash (optional - defaults to working directory)
-        to_commit: Option<String>,
-        /// Show staged changes (HEAD to staged)
-        #[arg(long, conflicts_with = "unstaged")]
-        staged: bool,
-        /// Show unstaged changes only (staged to unstaged)
-        #[arg(long, conflicts_with = "staged")]
-        unstaged: bool,
-    },
     /// Launch interactive TUI for reviewing code diffs
     Review {
         /// Optional filter to review specific files only
@@ -247,17 +232,6 @@ fn main() -> Result<()> {
                 .map_err(|e| anyhow::anyhow!("Failed to create environment: {e}"))?;
 
             match command {
-                Commands::Show {
-                    file_path,
-                    from_commit,
-                    to_commit,
-                    staged,
-                    unstaged,
-                } => {
-                    let show_command =
-                        ShowCommand::new(file_path, from_commit, to_commit, staged, unstaged);
-                    show_command.execute(environment)
-                }
                 Commands::Review {
                     file_filter,
                     from_commit,
