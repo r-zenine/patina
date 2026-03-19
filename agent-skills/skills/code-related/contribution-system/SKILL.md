@@ -7,6 +7,21 @@ description: Canonical reference for all contribution artifact schemas, template
 
 Standardized conventions for contribution artifacts, folder naming, directory structure, and workflow patterns used across all dev-strategy workflow skills.
 
+## What This Skill Provides
+
+This skill is the canonical reference for:
+- **Artifact schemas** — Exact structure of decision-log.yaml, context-handoff.md, design-doc.md
+- **Folder naming conventions** — Sequential numbering (NNN-phase-X-[type]-[specialty]-[agent])
+- **Directory structure** — Where artifacts live and how they relate
+- **Templates** — Ready-to-use starting points for all artifact types
+- **Lookup table** — Find the right artifact for any question
+
+Load this skill when:
+- Creating or contributing to a dev-strategy plan
+- Unsure where to find specific information about a feature
+- Starting a new contribution and need folder naming rules
+- Writing decision logs, context handoffs, or design docs
+
 ## Core References
 
 **Structure & Naming:**
@@ -57,53 +72,13 @@ When you need information about a feature, use this table to find the right arti
 
 ---
 
-## Workflow Patterns
+## Workflow Patterns Reference
 
-### Onboarding Guide Generation
+This skill also defines workflow patterns used across all dev-strategy skills. Load these references as needed:
 
-How to generate and update `onboarding.md` orientation guides using the Explore agent.
-
-See [onboarding-generation.md](references/onboarding-generation.md) for:
-- When to invoke (new crate, git diffs, major changes)
-- Generate vs update detection
-- Explore agent invocation template
-- Expected output structure
-- What to include and exclude
-
-### Progressive Disclosure
-
-How to read contribution artifacts efficiently — start with minimum context, dive deeper only when needed.
-
-See [progressive-disclosure.md](references/progressive-disclosure.md) for:
-- First Pass Rule (always start with `context-handoff.md`)
-- Role-specific reading strategies (Implementation, Review, Audit agents)
-- Reading design contributions (different structure)
-- Understanding contribution sequences
-
-### Two-Gate System Against Over-Engineering
-
-Two checkpoints ensure design happens at the right time — not too early, not too late.
-
-See [two-gate-system.md](references/two-gate-system.md) for:
-- Gate 1 (dev-strategy): when to defer a design decision
-- Gate 2 (design-contribute): design at the Last Responsible Moment
-- How the two gates work together
-
-### Constraint Discovery
-
-Interactive techniques for gathering real constraints before designing or planning.
-
-See [constraint-discovery.md](references/constraint-discovery.md) for:
-- AskUserQuestion patterns for design-contribute (Steps 2 and 3)
-- AskUserQuestion patterns for dev-strategy (Step 4)
-- Iteration guidelines and what NOT to do
-
-### Routing Patterns (dev-continue)
-
-How to determine the correct next skill by reading roadmap state and contribution history.
-
-See [routing-patterns.md](references/routing-patterns.md) for:
-- Decision tree for design vs implementation routing
-- Routing confidence levels (high/medium/low)
-- Edge case handling
-- Completion map output format
+- **[Execution Requirements Template](references/execution-template.md)** — Standard outcome-based structure for all skills (UNDERSTANDING → EXECUTION → TRANSFER)
+- **[Progressive Disclosure](references/progressive-disclosure.md)** — How to read contributions efficiently (start with context-handoff.md)
+- **[Onboarding Guide Generation](references/onboarding-generation.md)** — Generating codebase orientation guides with Explore agent
+- **[Two-Gate System](references/two-gate-system.md)** — Design gates in planning and implementation (Last Responsible Moment)
+- **[Constraint Discovery](references/constraint-discovery.md)** — AskUserQuestion patterns for gathering real constraints
+- **[Routing Patterns](references/routing-patterns.md)** — Determining next skill by reading roadmap state
