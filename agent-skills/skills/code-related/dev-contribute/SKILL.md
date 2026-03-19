@@ -65,18 +65,19 @@ To make a robust contribution to a dev-strategy plan, ensure these outcomes are 
 - If prior decisions need revisiting, a revision contribution is created with reasoning
 
 **KNOWLEDGE TRANSFER** (outcome: next phase is unblocked)
-- Decisions are recorded (decision-log.yaml populated with code_impacts showing what changed)
+- Code is committed (all code changes committed before documentation is written — decision-log.yaml references commit hash)
+- Decisions are recorded (decision-log.yaml populated with code_impacts showing what changed, commit field populated with git hash)
 - Context is handed off (context-handoff.md tells next phase what to focus on and why)
-- Contribution folder exists with sequential numbering (NNN-phase-X-[type]-[specialty]-[agent])
-- Contribution is committed (staged and committed with message matching folder name)
+- Contribution folder is committed (contribution folder with decision-log.yaml and context-handoff.md staged and committed)
 
 **How to achieve these outcomes:**
 1. Read existing dev-strategy plan (understand context, strategy, and current state)
 2. Follow strategy approach (execute according to strategy → see [`dev-strategies` skill](../dev-strategies/SKILL.md))
 3. Create numbered contribution folder (use sequential numbering → refer to [`contribution-system` skill](../contribution-system/SKILL.md) for naming)
 4. Perform specialized work (implementation, review, audit, testing, or other contribution type)
-5. Generate mandatory documentation (decision-log.yaml and context-handoff.md + optional artifacts)
-6. Handle decision revisions (if prior decisions need revisiting, create revision contribution with reasoning)
+5. **Commit code changes** (git commit with meaningful message — decision-log.yaml needs commit hash for code_impacts)
+6. Generate mandatory documentation (decision-log.yaml and context-handoff.md + optional artifacts — populate commit field with git hash from step 5)
+7. Handle decision revisions (if prior decisions need revisiting, create revision contribution with reasoning)
 
 ## Key Outputs
 
