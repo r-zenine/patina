@@ -1,0 +1,77 @@
+commit: null  # Strategy phase - no code changes yet
+
+decisions:
+  - number: 1
+    title: "Use derive macro to auto-generate decision-log templates from struct definitions"
+    rationale: "Eliminates schema divergence by making template derived from code. Change struct → template changes automatically. Single source of truth (Rust struct) = no manual sync burden."
+    code_impacts: []
+
+  - number: 2
+    title: "Implement Steel Thread strategy: Foundation (Phase 1) → Expansion (Phase 2) → Enhancement (Phase 3)"
+    rationale: "Delivers working solution in Phase 1, automates in Phase 2, extends in Phase 3. Each phase provides value independently. Reduces risk by testing Phase 1 before macro complexity."
+    code_impacts: []
+
+  - number: 3
+    title: "Phase 1: Implement CLI subcommands (diffviz templates, diffviz validate) without macro"
+    rationale: "Creates working foundation using manual template generation. Allows validation/testing of command structure before derive macro implementation. Phase 2 replaces manual code with macro."
+    code_impacts: []
+
+  - number: 4
+    title: "Decision-log artifact only (MVP) - exclude context-handoff, design-doc, code-context for now"
+    rationale: "Highest ROI - solves core ownership problem. Can extend to other artifacts in Phase 3 once pattern proven. Keeps Phase 1 scope manageable."
+    code_impacts: []
+
+  - number: 5
+    title: "YAML template output format only (MVP) - exclude markdown reference, JSON Schema export"
+    rationale: "Solves primary pain point (agents need usable template). Markdown/JSON formats add value but not critical for ownership fix. Can add in Phase 2/3."
+    code_impacts: []
+
+  - number: 6
+    title: "Skills integrate via direct command invocation: 'diffviz templates decision-log > file.yaml'"
+    rationale: "Simplest integration model. Skills document the command; users explicitly call it. No hidden invocation or caching complexity. Transparent to end users."
+    code_impacts: []
+
+  - number: 7
+    title: "Breaking schema changes: fail fast with clear error message"
+    rationale: "Clean separation of concerns. Parser detects incompatibility immediately. Error message guides user on what changed and how to fix. No silent data corruption or implicit migrations."
+    code_impacts: []
+
+  - number: 8
+    title: "Include validation command in Phase 1: 'diffviz validate decision-log file.yaml'"
+    rationale: "Early error detection before running diffviz TUI. Reuses existing DecisionLog::parse() logic. Helps users catch mistakes in YAML structure before reviewing."
+    code_impacts: []
+
+  - number: 9
+    title: "Phase 1 templates: manual generation with rustdoc comments in structs"
+    rationale: "Avoids proc-macro implementation cost in Phase 1. Tests command/validation infrastructure with working solution. Phase 2 replaces manual code with #[derive(SchemaTemplate)]."
+    code_impacts: []
+
+  - number: 10
+    title: "Backward compatibility: keep serde alias (base_commit → commit) for existing YAML files"
+    rationale: "Old YAML using base_commit continues to work during transition. Allows gradual migration of templates. Eventually deprecate in major version when all users updated."
+    code_impacts: []
+
+  - number: 11
+    title: "Phase 2 derive macro: inspect struct fields, doc comments, serde attributes to generate YAML"
+    rationale: "Proc-macro pattern proven by serde, schemars. Can detect optionality (Option<T>), read rustdoc (become schema descriptions), inspect serde attrs (defaults, aliases). Macro reuses Phase 1 YAML generation logic."
+    code_impacts: []
+
+  - number: 12
+    title: "Phase 3 enhancement: add #[schema_template(...)] attributes for custom examples and descriptions"
+    rationale: "Macro generates basic structure; attributes allow customization. Two-tier system: macro handles common case (99%), attributes for specialized needs (1%). Balances automation with flexibility."
+    code_impacts: []
+
+  - number: 13
+    title: "Create diffviz-schema-macro as separate proc-macro crate"
+    rationale: "Separates concerns: diffviz-review handles business logic, diffviz-schema-macro handles schema derivation. Independent versioning. Clean dependency boundaries. Standard Rust pattern."
+    code_impacts: []
+
+  - number: 14
+    title: "Phase 1 validation: reuse DecisionLog::parse() for 'diffviz validate' command"
+    rationale: "No duplicate validation logic. Same code path as CLI parsing. DRY principle. If parse succeeds, YAML is valid. Error messages already in place."
+    code_impacts: []
+
+  - number: 15
+    title: "Document schema version in generated template output (Phase 2+)"
+    rationale: "Enables tools/skills to detect schema version compatibility. Useful for migration/evolution tracking. Can be added in Phase 2 when macro is in place."
+    code_impacts: []

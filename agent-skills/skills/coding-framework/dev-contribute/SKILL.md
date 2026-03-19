@@ -1,7 +1,6 @@
 ---
 name: dev-contribute
 description: Enables structured contributions to dev-strategy implementation plans. Use when users say "contribute to dev-strategy", "implement this phase", "review the code", "audit the implementation", "add to the dev plan", or need to make any contribution to an existing dev-strategy with proper documentation and knowledge transfer.
-allowed-tools: ["Read", "Write", "Grep", "Glob", "TodoWrite", "Edit", "MultiEdit", "Bash"]
 ---
 
 # Dev Contribute Skill
@@ -111,4 +110,4 @@ Before making a contribution, read existing contributions using the progressive 
 
 ## Additional Instructions
 
-For essential instructions, strategy execution guidance, and templates, see [reference.md](reference.md).
+For essential instructions, strategy execution guidance, and templates, see [references/guide.md](references/guide.md).

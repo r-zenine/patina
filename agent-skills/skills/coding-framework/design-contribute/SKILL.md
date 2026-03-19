@@ -1,12 +1,24 @@
 ---
 name: design-contribute
 description: Enables structured design contributions to dev-strategy implementation plans (`.plans/plan-[FEATURE-NAME]/` only) through interactive, human-in-the-loop sessions. Use when roadmap phases have "Design" objectives, users say "design the [component]", "figure out the [approach]", "determine the [architecture]", or architectural decisions need refinement before implementation. Produces lean design docs through collaborative exploration with ruthless focus on simplicity.
-allowed-tools: ["Read", "Write", "Grep", "Glob", "TodoWrite", "Edit", "Bash", "AskUserQuestion"]
 ---
 
 # Design Contribute Skill
 
 Make structured design contributions to dev-strategy implementation plans through interactive, collaborative design sessions with ruthless focus on simplicity.
+
+## Table of Contents
+
+- [What This Skill Does](#what-this-skill-does)
+- [Prerequisite: Understand contribution-system](#-prerequisite-understand-contribution-system)
+- [When to Use This Skill](#when-to-use-this-skill)
+- [Two-Gate Context](#two-gate-context)
+- [Human-in-the-Loop Design Philosophy](#human-in-the-loop-design-philosophy)
+- [Execution Requirements](#execution-requirements)
+- [Key Outputs](#key-outputs)
+- [Directory Structure](#directory-structure)
+- [Core Principles](#core-principles)
+- [Additional Instructions](#additional-instructions)
 
 ## What This Skill Does
 
@@ -115,4 +127,4 @@ For all core principles (YAGNI, Last Responsible Moment, KISS, Sufficient Design
 
 ## Additional Instructions
 
-For the complete 5-step workflow, interactive techniques, validation strategy, and templates, see [reference.md](reference.md).
+For the complete 5-step workflow, interactive techniques, validation strategy, and templates, see [references/guide.md](references/guide.md).

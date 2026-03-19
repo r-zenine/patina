@@ -1,7 +1,6 @@
 ---
 name: design-principles
 description: Canonical reference for the design philosophy used across all dev-strategy workflow skills. Contains YAGNI, Last Responsible Moment, Kent Beck's 4 Simple Design Rules, Sufficient Design, and Just-In-Time Architecture principles.
-allowed-tools: ["Read"]
 ---
 
 # Design Principles
