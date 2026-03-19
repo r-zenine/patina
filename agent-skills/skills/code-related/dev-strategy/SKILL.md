@@ -1,6 +1,10 @@
 ---
 name: dev-strategy
 description: Creates sufficient implementation plans for complex coding projects by analyzing your codebase, gathering constraints, and proposing execution strategies. Use when you need to "plan how to build", "create implementation roadmap", "break down this feature", "how should I approach building", or structure multi-phase development, refactoring, or architectural changes. Produces code context, behavioral specs, decision logs, and implementation roadmaps.
+skills-depend-on:
+  - contribution-system
+  - design-principles
+  - execution-strategies
 ---
 
 # Dev Strategy Skill
@@ -99,12 +103,4 @@ For step-by-step execution instructions, see [references/guide.md](references/gu
 - **[design-principles](../design-principles/SKILL.md)** — To understand YAGNI, Last Responsible Moment, and other principles applied during planning
 - **[contribution-system](../contribution-system/SKILL.md)** — For artifact schemas and folder naming conventions
 
-## Prerequisites
 
-Before using this skill, understand the contribution-system by reading [`contribution-system` skill](../contribution-system/SKILL.md) to learn:
-- Artifact schemas (code-context.md, context-document.md, decision-log.yaml, implementation-roadmap.md)
-- How decisions are documented (unified YAML schema)
-- How contributions are structured (contributions/ folder, NNN-phase-X naming)
-- Where artifacts are created (plan root vs contribution folders)
-
-All artifacts created by this skill must conform to contribution-system conventions.

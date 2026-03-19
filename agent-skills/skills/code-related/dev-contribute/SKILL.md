@@ -1,11 +1,27 @@
 ---
 name: dev-contribute
 description: Enables structured contributions to dev-strategy implementation plans with proper documentation and knowledge transfer. Use when you need to "contribute to dev-strategy", "implement this phase", "review the code", "audit the implementation", "add to the dev plan", or make specialized contributions (testing, auditing, documenting) to existing dev-strategy roadmaps. Generates decision logs and context handoffs with mandatory documentation.
+skills-depend-on:
+  - contribution-system
+  - design-principles
+  - execution-strategies
 ---
 
 # Dev Contribute Skill
 
 Make structured contributions to dev-strategy implementation plans with proper documentation and knowledge transfer.
+
+## Prerequisites
+
+Before using this skill, load [`contribution-system` skill](../contribution-system/SKILL.md) to understand:
+- Folder naming convention (NNN-phase-X-[type]-[specialty]-[agent])
+- Artifact schemas (decision-log.yaml, context-handoff.md)
+- Directory structure (contributions/ folder is required)
+- Unified decision-log YAML schema
+- What commit means and when to populate it (git hash of the commit containing code changes)
+- Progressive disclosure strategy for reading contributions (see [`contribution-system/references/progressive-disclosure.md`](../contribution-system/references/progressive-disclosure.md))
+
+All contributions created by this skill must conform to contribution-system conventions.
 
 ## What This Skill Does
 
@@ -73,23 +89,3 @@ Follow Test Pyramid principles: many unit tests, some integration tests, few end
 
 For full Test Pyramid details, see [`execution-strategies/references/tdd.md`](../execution-strategies/references/tdd.md).
 
-## See Also
-
-**Related Skills:**
-- **[dev-strategy](../dev-strategy/SKILL.md)** — To understand the plan and roadmap this contribution works on
-- **[design-contribute](../design-contribute/SKILL.md)** — When a phase requires design work before implementation
-- **[execution-strategies](../execution-strategies/SKILL.md)** — For strategy-specific implementation guidance (TDD, Steel Thread, Core-then-Integrate)
-- **[design-principles](../design-principles/SKILL.md)** — To understand YAGNI, Sufficient Implementation, and other principles applied during work
-- **[contribution-system](../contribution-system/SKILL.md)** — For artifact schemas, folder naming, and progressive disclosure patterns
-
-## Prerequisites
-
-Before using this skill, load [`contribution-system` skill](../contribution-system/SKILL.md) to understand:
-- Folder naming convention (NNN-phase-X-[type]-[specialty]-[agent])
-- Artifact schemas (decision-log.yaml, context-handoff.md)
-- Directory structure (contributions/ folder is required)
-- Unified decision-log YAML schema
-- What commit means and when to populate it (git hash of the commit containing code changes)
-- Progressive disclosure strategy for reading contributions (see [`contribution-system/references/progressive-disclosure.md`](../contribution-system/references/progressive-disclosure.md))
-
-All contributions created by this skill must conform to contribution-system conventions.

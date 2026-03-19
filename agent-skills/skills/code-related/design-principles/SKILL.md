@@ -1,6 +1,7 @@
 ---
 name: design-principles
 description: Reference guide for design philosophy applied across all dev-strategy workflow skills. Use when you need to understand YAGNI, Last Responsible Moment, Kent Beck's 4 Simple Design Rules, Sufficient Design, and Just-In-Time Architecture principles. Provides context for planning, design, and implementation decisions.
+skills-depend-on: []
 ---
 
 # Design Principles
@@ -95,10 +96,4 @@ For the complete list with detailed examples and research anti-patterns, see [an
 | Strategy selection | LRM: don't choose complex strategy without evidence |
 | Between-phase refactoring | JIT Architecture: only refactor what next phase requires |
 
-## See Also
 
-**Related Skills:**
-- **[dev-strategy](../dev-strategy/SKILL.md)** — Applies YAGNI, LRM, and Sufficient Planning during planning
-- **[design-contribute](../design-contribute/SKILL.md)** — Applies Sufficient Design and YAGNI during collaborative design
-- **[dev-contribute](../dev-contribute/SKILL.md)** — Applies YAGNI and Kent Beck's rules during implementation
-- **[execution-strategies](../execution-strategies/SKILL.md)** — Applies LRM when selecting strategies

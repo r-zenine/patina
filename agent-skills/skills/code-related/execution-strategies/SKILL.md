@@ -1,6 +1,8 @@
 ---
 name: execution-strategies
 description: Reference guide for three development execution strategies: TDD, Steel Thread, and Core-then-Integrate. Load this when you need strategy definitions, selection criteria, execution phases, test pyramid guidance, contribution folder naming patterns, or help choosing a strategy. Referenced during dev-strategy planning and dev-contribute execution.
+skills-depend-on:
+  - design-principles
 ---
 
 # Execution Strategies
@@ -100,10 +102,4 @@ Build pure business logic first, then add external integrations layer by layer.
 - [Steel Thread](references/steel-thread.md) — Loop structure, JIT refactor guidelines
 - [Core-then-Integrate](references/core-then-integrate.md) — Domain → Port → Adapter → Integration phases
 
-## See Also
 
-**Related Skills:**
-- **[dev-strategy](../dev-strategy/SKILL.md)** — Uses this skill during strategy selection (Outcome 2)
-- **[dev-contribute](../dev-contribute/SKILL.md)** — References this skill when executing phases according to chosen strategy
-- **[design-principles](../design-principles/SKILL.md)** — Applies Last Responsible Moment principle when selecting strategies
-- **[contribution-system](../contribution-system/SKILL.md)** — For folder naming patterns specific to each strategy

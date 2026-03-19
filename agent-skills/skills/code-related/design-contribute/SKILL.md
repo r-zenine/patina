@@ -1,6 +1,9 @@
 ---
 name: design-contribute
 description: Enables collaborative design contributions to dev-strategy implementation plans through human-in-the-loop sessions. Use when roadmap phases have "Design" objectives, you need to "design the [component]", "figure out the [approach]", "determine the [architecture]", or refinement before implementation. Works with `.plans/plan-[FEATURE-NAME]/` directories only. Produces lean design docs (< 100 lines) through interactive exploration with ruthless focus on simplicity.
+skills-depend-on:
+  - contribution-system
+  - design-principles
 ---
 
 # Design Contribute Skill
@@ -74,15 +77,6 @@ For artifact schemas, see [`contribution-system/references/design-artifacts.md`]
 ## How to Use This Skill
 
 For the complete 5-step workflow, interactive techniques, validation strategy, and templates, see [references/guide.md](references/guide.md).
-
-## See Also
-
-**Related Skills:**
-- **[dev-strategy](../dev-strategy/SKILL.md)** — To create the implementation plan that triggered this design phase
-- **[dev-contribute](../dev-contribute/SKILL.md)** — To implement the design once it's complete
-- **[design-principles](../design-principles/SKILL.md)** — To understand YAGNI, Sufficient Design, and other principles applied during design
-- **[contribution-system](../contribution-system/SKILL.md)** — For design artifact schemas and folder naming conventions
-- **[execution-strategies](../execution-strategies/SKILL.md)** — To understand the strategy context when design affects implementation approach
 
 ## Core Principles
 
