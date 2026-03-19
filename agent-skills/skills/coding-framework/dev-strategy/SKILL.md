@@ -13,9 +13,32 @@ Creates sufficient implementation plans by:
 - Analyzing your codebase architecture and patterns
 - Gathering constraints and requirements
 - Proposing execution strategies
-- Generating 4 structured artifacts for execution
+- Generating structured artifacts for implementation teams
 
-## Execution Requirements
+## Execution Overview
+
+To produce a sufficient implementation plan, this skill progresses through three outcomes:
+
+**Outcome 1 (UNDERSTANDING)**: Context is clear
+- Behavioral spec is clear (user confirms what to build)
+- Codebase architecture is understood
+- Technology knowledge is sufficient
+- Constraints are discovered
+
+**Outcome 2 (STRATEGY)**: Approach is selected
+- Best strategy is chosen based on project characteristics
+- Strategy aligns with constraints and requirements
+- Trade-offs between strategies are understood
+
+**Outcome 3 (PLANNING)**: Execution is clear
+- All 4 core artifacts exist and are ready
+- Roadmap is phased appropriately (each phase is a complete deliverable)
+- First phase has sufficient detail to begin work
+- Future phases are deferred appropriately per Last Responsible Moment principle
+
+For the canonical execution requirements template with skill-specific variations, see [`contribution-system/references/execution-template.md`](../contribution-system/references/execution-template.md).
+
+## Detailed Execution Requirements
 
 To produce a sufficient implementation plan, ensure these outcomes are achieved:
 
@@ -26,7 +49,7 @@ To produce a sufficient implementation plan, ensure these outcomes are achieved:
 - Constraints are discovered (user confirms project boundaries, dependencies, deadlines)
 
 **STRATEGY PHASE** (outcome: approach is selected)
-- Best strategy is chosen based on project characteristics (consult [`dev-strategies` skill](../dev-strategies/SKILL.md))
+- Best strategy is chosen based on project characteristics (consult [`execution-strategies` skill](../execution-strategies/SKILL.md))
 - Strategy aligns with constraints and requirements
 - Trade-offs between strategies are understood
 
@@ -41,12 +64,8 @@ To produce a sufficient implementation plan, ensure these outcomes are achieved:
 2. Analyze Codebase using Explore agent with onboarding prompt
 3. Conduct Technical Research only if new/unfamiliar technologies are involved
 4. Gather Constraints through interactive discovery (see [`constraint-discovery.md`](../contribution-system/references/constraint-discovery.md))
-5. Select Implementation Strategy based on findings → refer to [`dev-strategies` skill](../dev-strategies/SKILL.md)
+5. Select Implementation Strategy based on findings → refer to [`execution-strategies` skill](../execution-strategies/SKILL.md)
 6. Create Plan artifacts following schemas in [`contribution-system` skill](../contribution-system/SKILL.md)
-
-## Guiding Principles
-
-For principles applied during planning (YAGNI, Last Responsible Moment, Kent Beck's 4 Rules, Sufficient Planning), see [`design-principles` skill](../design-principles/SKILL.md).
 
 ## Key Outputs
 
@@ -63,6 +82,14 @@ The skill generates structured artifacts in `.plans/plan-[FEATURE-NAME]/`:
 - **Technology Research** - Deep-dive analysis of new technologies
 - **Implementation Examples** - Code patterns and usage examples
 
+## Guiding Principles
+
+For principles applied during planning (YAGNI, Last Responsible Moment, Kent Beck's 4 Rules, Sufficient Planning), see [`design-principles` skill](../design-principles/SKILL.md).
+
+## How to Use This Skill
+
+For step-by-step execution instructions, see [references/guide.md](references/guide.md).
+
 ## Prerequisites
 
 Before using this skill, understand the contribution-system by reading [`contribution-system` skill](../contribution-system/SKILL.md) to learn:
@@ -72,7 +99,3 @@ Before using this skill, understand the contribution-system by reading [`contrib
 - Where artifacts are created (plan root vs contribution folders)
 
 All artifacts created by this skill must conform to contribution-system conventions.
-
-## Additional Instructions
-
-For step-by-step execution instructions, see [references/guide.md](references/guide.md).

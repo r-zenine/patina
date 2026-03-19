@@ -45,7 +45,7 @@ Before proceeding to execution work, confirm all of these:
 3. **Identify the implementation strategy:**
    - Look for strategy choice in `decision-log.yaml`
    - Understand the planned approach (TDD, Steel Thread, Core-then-Integrate)
-   - For strategy details → see [`dev-strategies` skill](../dev-strategies/SKILL.md)
+   - For strategy details → see [`execution-strategies` skill](../execution-strategies/SKILL.md)
 
 4. **Review research findings (when relevant):**
    - If implementing new technologies mentioned in research/, review those artifacts
@@ -137,12 +137,12 @@ Before proceeding to documentation, confirm all of these:
 
 **Goal:** Execute according to the selected implementation strategy.
 
-For complete strategy execution details, contribution sequences, and contribution type definitions, see the [`dev-strategies` skill](../dev-strategies/SKILL.md):
+For complete strategy execution details, contribution sequences, and contribution type definitions, see the [`execution-strategies` skill](../execution-strategies/SKILL.md):
 
 **Quick reference:**
-- **TDD**: Test Design → Test Validation → Implementation (see [`dev-strategies/references/tdd.md`](../dev-strategies/references/tdd.md))
-- **Steel Thread**: Pathfinder → Foundation Builder → Capability Expander (see [`dev-strategies/references/steel-thread.md`](../dev-strategies/references/steel-thread.md))
-- **Core-then-Integrate**: Domain Modeler → Port Designer → Adapter Builder → Integration Orchestrator (see [`dev-strategies/references/core-then-integrate.md`](../dev-strategies/references/core-then-integrate.md))
+- **TDD**: Test Design → Test Validation → Implementation (see [`execution-strategies/references/tdd.md`](../execution-strategies/references/tdd.md))
+- **Steel Thread**: Pathfinder → Foundation Builder → Capability Expander (see [`execution-strategies/references/steel-thread.md`](../execution-strategies/references/steel-thread.md))
+- **Core-then-Integrate**: Domain Modeler → Port Designer → Adapter Builder → Integration Orchestrator (see [`execution-strategies/references/core-then-integrate.md`](../execution-strategies/references/core-then-integrate.md))
 
 #### Create Numbered Contribution Folder
 
@@ -174,9 +174,9 @@ For complete folder naming convention, contribution type definitions, and specia
 **Goal:** Execute the phase according to the selected strategy.
 
 **Implementation Guidelines by Strategy:**
-- **TDD** → [`dev-strategies/references/tdd.md`](../dev-strategies/references/tdd.md)
-- **Steel Thread** → [`dev-strategies/references/steel-thread.md`](../dev-strategies/references/steel-thread.md)
-- **Core-then-Integrate** → [`dev-strategies/references/core-then-integrate.md`](../dev-strategies/references/core-then-integrate.md)
+- **TDD** → [`execution-strategies/references/tdd.md`](../execution-strategies/references/tdd.md)
+- **Steel Thread** → [`execution-strategies/references/steel-thread.md`](../execution-strategies/references/steel-thread.md)
+- **Core-then-Integrate** → [`execution-strategies/references/core-then-integrate.md`](../execution-strategies/references/core-then-integrate.md)
 
 **Quality Standards — All Contributions Must:**
 - Follow existing code patterns from `context-document.md`

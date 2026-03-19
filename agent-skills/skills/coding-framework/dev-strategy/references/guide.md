@@ -154,7 +154,7 @@ Ask only when directly relevant to the feature:
 ### Goal
 Analyze feature characteristics and recommend the most appropriate development strategy.
 
-For full strategy definitions, selection criteria, execution phases, and contribution folder naming patterns, see the [`dev-strategies` skill](../dev-strategies/SKILL.md).
+For full strategy definitions, selection criteria, execution phases, and contribution folder naming patterns, see the [`execution-strategies` skill](../execution-strategies/SKILL.md).
 
 **Quick selection guide:**
 

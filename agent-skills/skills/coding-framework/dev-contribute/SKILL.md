@@ -16,56 +16,42 @@ Enables any agent to contribute to a dev-strategy by:
 - Maintaining project continuity and knowledge transfer
 - Handling decision revisions when previous choices need revisiting
 
-## Prerequisites
+## Execution Overview
 
-Before using this skill, load [`contribution-system` skill](../contribution-system/SKILL.md) to understand:
-- Folder naming convention (NNN-phase-X-[type]-[specialty]-[agent])
-- Artifact schemas (decision-log.yaml, context-handoff.md)
-- Directory structure (contributions/ folder is required)
-- Unified decision-log YAML schema
-- What commit means and when to populate it (git hash of the commit containing code changes)
-- Progressive disclosure strategy for reading contributions
+To make a robust contribution to a dev-strategy plan, three outcomes must be achieved:
 
-All contributions created by this skill must conform to contribution-system conventions.
-
-## Execution Requirements
-
-To make a robust contribution to a dev-strategy plan, ensure these outcomes are achieved:
-
-**FOUNDATION** (outcome: context is clear and phase is ready)
+**Outcome 1 (FOUNDATION)**: Context is clear and phase is ready
 - Roadmap is understood (current phase objectives, what comes next)
 - Prior decisions are known (what was decided in earlier phases, constraints they impose)
 - Strategy is clear (TDD/Steel-Thread/Core-then-Integrate approach for this phase)
 - Success criteria are identified (what deliverables complete this phase?)
 - Phase is not blocked by prior decisions
 
-**EXECUTION** (outcome: work is complete and quality bar is met)
+**Outcome 2 (EXECUTION)**: Work is complete and quality bar is met
 - Phase deliverables are complete (all objectives for this phase achieved)
 - Quality bar is met (code passes tests, reviews pass, security/performance requirements met)
 - Decisions are captured (what trade-offs were made, why this approach was chosen?)
-- Prior decisions still hold (no contradictions discovered with earlier choices)
-- If prior decisions need revisiting, a revision contribution is created with reasoning
+- Prior decisions still hold (or a revision contribution is created with reasoning)
 
-**KNOWLEDGE TRANSFER** (outcome: next phase is unblocked)
-- Code is committed (all code changes committed before documentation is written — decision-log.yaml references commit hash)
-- Decisions are recorded (decision-log.yaml populated with code_impacts showing what changed, commit field populated with git hash)
-- Context is handed off (context-handoff.md tells next phase what to focus on and why)
-- Contribution folder is committed (contribution folder with decision-log.yaml and context-handoff.md staged and committed)
+**Outcome 3 (KNOWLEDGE TRANSFER)**: Next phase is unblocked
+- Code is committed (all code changes committed before documentation is written)
+- Decisions are recorded (decision-log.yaml populated with code_impacts and commit hash)
+- Context is handed off (context-handoff.md tells next phase what to focus on)
+- Contribution folder is committed (staged and committed to git)
 
-**How to achieve these outcomes:**
-1. Read existing dev-strategy plan (understand context, strategy, and current state)
-2. Follow strategy approach (execute according to strategy → see [`dev-strategies` skill](../dev-strategies/SKILL.md))
-3. Create numbered contribution folder (use sequential numbering → refer to [`contribution-system` skill](../contribution-system/SKILL.md) for naming)
-4. Perform specialized work (implementation, review, audit, testing, or other contribution type)
-5. **Commit code changes** (git commit with meaningful message — decision-log.yaml needs commit hash for code_impacts)
-6. Generate mandatory documentation (decision-log.yaml and context-handoff.md + optional artifacts — populate commit field with git hash from step 5)
-7. Handle decision revisions (if prior decisions need revisiting, create revision contribution with reasoning)
+For the canonical execution requirements template with dev-contribute specifics, see [`contribution-system/references/execution-template.md`](../contribution-system/references/execution-template.md).
 
 ## Key Outputs
 
-Every contribution generates 2 mandatory files (schemas in [`contribution-system/references/implementation-artifacts.md`](../contribution-system/references/implementation-artifacts.md)):
+Every contribution generates 2 mandatory files:
 - **decision-log.yaml** - Technical decisions made during work (structured YAML format)
 - **context-handoff.md** - Reasoning, exploration, and future guidance
+
+For artifact schemas, see [`contribution-system/references/implementation-artifacts.md`](../contribution-system/references/implementation-artifacts.md).
+
+## How to Use This Skill
+
+For essential instructions, strategy execution guidance, and templates, see [references/guide.md](references/guide.md).
 
 ## Core Principles
 
@@ -85,12 +71,16 @@ For all applicable principles (YAGNI, Sufficient Implementation, KISS, Last Resp
 
 Follow Test Pyramid principles: many unit tests, some integration tests, few end-to-end tests.
 
-For full Test Pyramid details, see [`dev-strategies/references/tdd.md`](../dev-strategies/references/tdd.md).
+For full Test Pyramid details, see [`execution-strategies/references/tdd.md`](../execution-strategies/references/tdd.md).
 
-## Reading Contributions
+## Prerequisites
 
-Before making a contribution, read existing contributions using the progressive disclosure strategy in [`contribution-system/references/progressive-disclosure.md`](../contribution-system/references/progressive-disclosure.md).
+Before using this skill, load [`contribution-system` skill](../contribution-system/SKILL.md) to understand:
+- Folder naming convention (NNN-phase-X-[type]-[specialty]-[agent])
+- Artifact schemas (decision-log.yaml, context-handoff.md)
+- Directory structure (contributions/ folder is required)
+- Unified decision-log YAML schema
+- What commit means and when to populate it (git hash of the commit containing code changes)
+- Progressive disclosure strategy for reading contributions (see [`contribution-system/references/progressive-disclosure.md`](../contribution-system/references/progressive-disclosure.md))
 
-## Additional Instructions
-
-For essential instructions, strategy execution guidance, and templates, see [references/guide.md](references/guide.md).
+All contributions created by this skill must conform to contribution-system conventions.

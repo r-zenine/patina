@@ -1,9 +1,9 @@
 ---
-name: dev-strategies
+name: execution-strategies
 description: Reference guide for three development execution strategies: TDD, Steel Thread, and Core-then-Integrate. Load this when you need strategy definitions, selection criteria, execution phases, test pyramid guidance, contribution folder naming patterns, or help choosing a strategy. Referenced during dev-strategy planning and dev-contribute execution.
 ---
 
-# Dev Strategies
+# Execution Strategies
 
 Canonical reference for the three development execution strategies used across the dev-strategy workflow skills.
 
