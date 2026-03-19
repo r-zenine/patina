@@ -75,6 +75,15 @@ For artifact schemas, see [`contribution-system/references/design-artifacts.md`]
 
 For the complete 5-step workflow, interactive techniques, validation strategy, and templates, see [references/guide.md](references/guide.md).
 
+## See Also
+
+**Related Skills:**
+- **[dev-strategy](../dev-strategy/SKILL.md)** — To create the implementation plan that triggered this design phase
+- **[dev-contribute](../dev-contribute/SKILL.md)** — To implement the design once it's complete
+- **[design-principles](../design-principles/SKILL.md)** — To understand YAGNI, Sufficient Design, and other principles applied during design
+- **[contribution-system](../contribution-system/SKILL.md)** — For design artifact schemas and folder naming conventions
+- **[execution-strategies](../execution-strategies/SKILL.md)** — To understand the strategy context when design affects implementation approach
+
 ## Core Principles
 
 For all core principles (YAGNI, Last Responsible Moment, KISS, Sufficient Design), see [`design-principles` skill](../design-principles/SKILL.md).
