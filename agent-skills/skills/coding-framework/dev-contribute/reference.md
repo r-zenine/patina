@@ -1,54 +1,60 @@
 # Dev Contribute Skill - Reference Guide
 
-This document provides instructions for contributing to dev-strategy implementation plans.
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Step 1: Read and Understand Dev-Strategy Plan](#step-1-read-and-understand-dev-strategy-plan)
-- [Step 1.5: Phase Scoping](#step-15-phase-scoping)
-- [Step 1.6: Pre-Work Validation](#step-16-pre-work-validation)
-- [Step 2: Follow Strategy Approach](#step-2-follow-strategy-approach)
-- [Step 3: Create Numbered Contribution Folder](#step-3-create-numbered-contribution-folder)
-- [Step 4: Perform Specialized Work](#step-4-perform-specialized-work)
-- [Step 5: Generate Mandatory Documentation](#step-5-generate-mandatory-documentation)
-- [Step 6: Handling Decision Revisions](#step-6-handling-decision-revisions)
-- [Contribution Validation](#contribution-validation)
-- [Common Patterns by Strategy](#common-patterns-by-strategy)
-- [Research Integration Examples](#research-integration-examples)
+This document provides instructions for contributing to dev-strategy implementation plans, organized by the outcome phases that define success.
 
 ## Overview
 
 The dev-contribute skill enables structured contributions to existing dev-strategy plans. Each contribution follows the selected implementation strategy and creates proper documentation for knowledge transfer.
 
-## Step 1: Read and Understand Dev-Strategy Plan
+The process is organized into **three outcome phases**. Each phase has specific success criteria that must be verified before proceeding to the next phase.
 
-### Goal
-Understand the context before contributing.
+---
 
-### Process
+## OUTCOME 1: Context is Clear and Phase is Ready
+
+**What this outcome means:**
+You understand the current roadmap state, the constraints from previous decisions, the execution strategy, and what success looks like for this phase. The phase is not blocked by prior work.
+
+### What You Must Verify
+
+Before proceeding to execution work, confirm all of these:
+
+- [ ] Can you articulate the current phase objective without looking at the roadmap?
+- [ ] Can you explain how this phase depends on previous decisions?
+- [ ] Can you identify what success looks like for this phase?
+- [ ] Can you confirm this phase is not blocked by prior work?
+- [ ] Does the codebase baseline have zero build errors, zero linter warnings, zero test failures?
+
+### How to Achieve This Outcome
+
+#### Read and Understand Dev-Strategy Plan
+
+**Goal:** Understand the context and strategic direction before contributing.
+
+**Process:**
+
 1. **Locate the dev-strategy plan** in `.plans/plan-[FEATURE-NAME]/`
 
 2. **Read all dev-strategy artifacts** (located in `.plans/plan-[FEATURE-NAME]/`):
-   - `code-context.md` - Relevant code references
+   - `code-context.md` - Relevant code references with line numbers
    - `context-document.md` - Behavioral spec and architecture (includes research findings if available)
-   - `decision-log.yaml` - Previous decisions made
-   - `implementation-roadmap.md` - Planned phases and strategy
+   - `decision-log.yaml` - Previous decisions made during strategy
+   - `implementation-roadmap.md` - Planned phases and strategy selection
    - `research/` directory (if present) - Technical research findings and recommendations
 
 3. **Identify the implementation strategy:**
-   - Look for strategy choice in decision-log.yaml
+   - Look for strategy choice in `decision-log.yaml`
    - Understand the planned approach (TDD, Steel Thread, Core-then-Integrate)
    - For strategy details → see [`dev-strategies` skill](../dev-strategies/SKILL.md)
 
 4. **Review research findings (when relevant):**
-   - If implementing new technologies or unfamiliar patterns, check for `research/` directory
-   - For early-phase work, review research artifacts for implementation guidance
-   - For later-phase work, research may be less relevant - use judgment
+   - If implementing new technologies mentioned in research/, review those artifacts
+   - For early-phase work, research artifacts are often valuable for implementation guidance
+   - For later-phase work, research may be less relevant — use judgment
 
 5. **Review existing contributions:**
    - Check `.plans/plan-[FEATURE-NAME]/contributions/` directory for previous work
-   - Read recent context-handoff.md files for current state
+   - Read recent `context-handoff.md` files to understand current state
    - Identify the next logical contribution number
 
 6. **Check for reviewer instructions (review-state.json):**
@@ -63,71 +69,91 @@ Understand the context before contributing.
 
    If absent or no active instructions, proceed normally.
 
-## Step 1.5: Phase Scoping
+#### Identify Your Phase (Phase Scoping)
 
-### Goal
-Ensure each contribution focuses on exactly one phase of the roadmap.
+**Goal:** Ensure each contribution focuses on exactly one phase of the roadmap.
 
-### Mandatory Requirement
+**Mandatory Requirement:**
 **Each invocation of dev-contribute must work on the NEXT INCOMPLETE PHASE ONLY.** Do not attempt multiple phases or skip ahead.
 
-### Process
-1. **Identify the next incomplete phase** in implementation-roadmap.md
+**Process:**
+
+1. **Identify the next incomplete phase** in `implementation-roadmap.md`
 2. **Confirm no previous contributions exist** for later phases
-3. **Limit all work to this single phase** - do not proceed into subsequent phases
+3. **Limit all work to this single phase** — do not proceed into subsequent phases
 4. **If the phase is blocked**, communicate the blocker rather than skipping to the next phase
 
-### Rationale
+**Rationale:**
 - Sequential workflow ensures predictable progress through the roadmap
 - Single-phase contributions prevent scope creep
 - Clear phase boundaries make progress visible and auditable
 
-## Step 1.6: Pre-Work Validation
+#### Validate Clean Baseline (Pre-Work Validation)
 
-### Goal
-Ensure a clean baseline before starting contribution work.
+**Goal:** Ensure a clean, working baseline before starting contribution work.
 
-### Process
-**MANDATORY: The contribution CANNOT proceed if any of these checks fail.**
+**Mandatory Requirement:**
+**The contribution CANNOT proceed if any of these checks fail.**
+
+**Process:**
 
 1. **Run compilation/build:** All compilation must succeed with zero errors
 2. **Run linter:** All linting must pass with zero warnings
 3. **Run test suite:** All tests must pass with zero failures
 
-### If Validation Fails
+**If Validation Fails:**
 - STOP immediately
 - Document the failures found
 - Inform the user that the codebase baseline is not clean
 - Do NOT proceed with contribution until baseline is clean
 
-### Rationale
+**Rationale:**
 Contributions must start from a clean, working baseline to ensure:
 - New issues can be clearly attributed to the contribution
 - Quality degradation is prevented
 - Technical debt is not accumulated
 
-## Step 2: Follow Strategy Approach
+---
+
+## OUTCOME 2: Work is Complete and Quality Bar is Met
+
+**What this outcome means:**
+All phase deliverables are complete, code passes tests and linting, security/performance requirements are met, and decisions made during work are documented. Prior decisions still hold (or a revision contribution was created with reasoning).
+
+### What You Must Verify
+
+Before proceeding to documentation, confirm all of these:
+
+- [ ] All phase deliverables from the roadmap are complete?
+- [ ] Do all tests pass with zero failures?
+- [ ] Does linting pass with zero warnings?
+- [ ] Do code changes follow existing patterns from the codebase?
+- [ ] Are prior decisions still valid, or have you identified ones needing revision?
+- [ ] Is the implementation "sufficient" (works correctly, not over-polished)?
+
+### How to Achieve This Outcome
+
+#### Follow Strategy Approach
+
+**Goal:** Execute according to the selected implementation strategy.
 
 For complete strategy execution details, contribution sequences, and contribution type definitions, see the [`dev-strategies` skill](../dev-strategies/SKILL.md):
-- TDD → [`dev-strategies/references/tdd.md`](../dev-strategies/references/tdd.md)
-- Steel Thread → [`dev-strategies/references/steel-thread.md`](../dev-strategies/references/steel-thread.md)
-- Core-then-Integrate → [`dev-strategies/references/core-then-integrate.md`](../dev-strategies/references/core-then-integrate.md)
 
 **Quick reference:**
-- **TDD**: Test Design → Test Validation → Implementation
-- **Steel Thread**: Pathfinder → Foundation Builder → Capability Expander
-- **Core-then-Integrate**: Domain Modeler → Port Designer → Adapter Builder → Integration Orchestrator
+- **TDD**: Test Design → Test Validation → Implementation (see [`dev-strategies/references/tdd.md`](../dev-strategies/references/tdd.md))
+- **Steel Thread**: Pathfinder → Foundation Builder → Capability Expander (see [`dev-strategies/references/steel-thread.md`](../dev-strategies/references/steel-thread.md))
+- **Core-then-Integrate**: Domain Modeler → Port Designer → Adapter Builder → Integration Orchestrator (see [`dev-strategies/references/core-then-integrate.md`](../dev-strategies/references/core-then-integrate.md))
 
-## Step 3: Create Numbered Contribution Folder
+#### Create Numbered Contribution Folder
 
-### Goal
-Create sequentially numbered folder for chronological ordering under the plan's contributions directory.
+**Goal:** Create sequentially numbered folder for chronological ordering under the plan's contributions directory.
 
-### IMPORTANT: Contributions are ALWAYS saved in `.plans/plan-[FEATURE-NAME]/contributions/`
+**IMPORTANT: Contributions are ALWAYS saved in `.plans/plan-[FEATURE-NAME]/contributions/`**
 
 All contributions for a dev-strategy plan are stored together in the plan's dedicated contributions directory. This ensures contributions remain organized and linked to their parent plan.
 
-### Process
+**Process:**
+
 1. **Navigate to the plan's contributions directory:**
    ```bash
    cd .plans/plan-[FEATURE-NAME]/contributions/
@@ -143,31 +169,24 @@ All contributions for a dev-strategy plan are stored together in the plan's dedi
 
 For complete folder naming convention, contribution type definitions, and specialty list, see [`contribution-system` skill](../contribution-system/SKILL.md).
 
-### Step 3.1: Prepare for code changes
+#### Perform Specialized Work
 
-No action needed before making code changes. The commit hash will be recorded after implementation.
+**Goal:** Execute the phase according to the selected strategy.
 
-## Step 4: Perform Specialized Work
-
-### Implementation Guidelines by Strategy
-
-Follow the execution guidance for your strategy:
+**Implementation Guidelines by Strategy:**
 - **TDD** → [`dev-strategies/references/tdd.md`](../dev-strategies/references/tdd.md)
 - **Steel Thread** → [`dev-strategies/references/steel-thread.md`](../dev-strategies/references/steel-thread.md)
 - **Core-then-Integrate** → [`dev-strategies/references/core-then-integrate.md`](../dev-strategies/references/core-then-integrate.md)
 
-### Quality Standards
-
-**All Contributions Must:**
-- Follow existing code patterns from context-document.md
-- Respect constraints from decision-log.yaml
+**Quality Standards — All Contributions Must:**
+- Follow existing code patterns from `context-document.md`
+- Respect constraints from `decision-log.yaml`
 - Maintain or improve test coverage
 - Handle expected errors for the current scope
 - Follow basic security practices from existing code
 
-**Sufficient Implementation Principle**: Focus on making it work correctly, not perfectly. Avoid over-polishing, excessive error handling for edge cases that won't occur, or adding features not required for the current phase.
-
-See [`design-principles` skill](../design-principles/SKILL.md) for full principles.
+**Sufficient Implementation Principle:**
+Focus on making it work correctly, not perfectly. Avoid over-polishing, excessive error handling for edge cases that won't occur, or adding features not required for the current phase. See [`design-principles` skill](../design-principles/SKILL.md) for full principles.
 
 **When Research Artifacts Are Most Valuable:**
 - First implementation of new technologies mentioned in research/
@@ -175,101 +194,145 @@ See [`design-principles` skill](../design-principles/SKILL.md) for full principl
 - When encountering integration challenges covered in research findings
 - Skip research review for routine work on well-established patterns
 
-## Step 4.5: Commit Code and Record Commit Hash
+#### Commit Code and Record Commit Hash
 
-After implementing changes and passing validation:
+**Goal:** Persist code changes with a commit hash for decision documentation.
+
+After implementing changes and passing all quality checks:
+
 ```bash
 git add .
 git commit -m "Implementation of phase..."
 ```
 
-After committing, get the commit hash and write it to `decision-log.yaml`:
+After committing, get the commit hash and record it for the next step:
+
 ```bash
 git rev-parse HEAD
 ```
 
-Write the output as the commit field in `decision-log.yaml`:
-```yaml
-commit: "<hash>"
-```
+**Important:** You will write this commit hash to `decision-log.yaml` in the next outcome phase. The commit hash references the exact commit containing your code changes, so diffviz can analyze the permanent diff correctly.
 
-**Commit all code changes before creating decision-log.yaml.** The commit hash references the exact commit containing your code changes, so diffviz can analyze the permanent diff (commit^..commit) correctly.
+**Mandatory Requirement:** Commit all code changes before creating `decision-log.yaml`. Do not document decisions until code is committed.
 
-## Step 5: Generate Mandatory Documentation
+---
 
-### Goal
-Create three required artifacts for knowledge transfer and project continuity.
+## OUTCOME 3: Next Phase is Unblocked
+
+**What this outcome means:**
+Code is committed, all decisions (including those that need revision) are documented with reasoning and code impacts, and context is handed off clearly to enable the next phase to begin immediately.
+
+### What You Must Verify
+
+Before finalizing contribution, confirm all of these:
+
+- [ ] Can another agent understand what was done and why?
+- [ ] Are assumptions and blockers clearly documented?
+- [ ] Does decision-log.yaml reference the commit hash with all code_impacts populated?
+- [ ] Does context-handoff.md explain what works, what's fragile, and what's next?
+- [ ] If a prior decision needed revision, is there a revision contribution with clear reasoning?
+
+### How to Achieve This Outcome
+
+#### Generate Mandatory Documentation
+
+**Goal:** Create documentation for knowledge transfer and project continuity.
 
 For complete artifact schemas and templates, see [`contribution-system/references/implementation-artifacts.md`](../contribution-system/references/implementation-artifacts.md).
 
-### Process
+**Create two required files:**
 
 **1. Create decision-log.yaml**
-- Use [decision-log-template.yaml](../contribution-system/assets/templates/decision-log-template.yaml)
-- Document only NEW decisions made during this contribution
+
+Use [decision-log-template.yaml](../contribution-system/assets/templates/decision-log-template.yaml)
+
+Document only NEW decisions made during this contribution:
+- What trade-offs were made?
+- Why was this approach chosen over alternatives?
+- What code impacts resulted from this decision?
+
+**Schema:**
+```yaml
+commit: "<git-hash>"  # Git hash from Step 4.5
+
+decisions:
+  - number: 1
+    title: "[One sentence summary]"
+    rationale: "[Why...]"
+    code_impacts:
+      - file: "path/to/file.rs"
+        reasoning: "[Why affected]"
+        line_ranges:
+          - start: 10
+            end: 50
+```
 
 **2. Create context-handoff.md**
-- Use [context-handoff-template.md](../contribution-system/assets/templates/context-handoff-template.md)
-- Lead with what you built and key insights
-- Structure as: What works/What's fragile/What's missing
-- Provide specific guidance for next contributors
 
-### Quality Check
+Use [context-handoff-template.md](../contribution-system/assets/templates/context-handoff-template.md)
+
+Lead with what you built and key insights. Structure as:
+- **What works:** What was successfully completed
+- **What's fragile:** What areas need care in next phase
+- **What's missing:** What's intentionally deferred
+- **Guidance for next:** Specific direction for next contributors
+
+**Quality Checks:**
+
 - Can next contributor understand what was done and why?
 - Are assumptions and blockers clearly documented?
 - Does each file serve its distinct purpose without overlap?
 
+#### Handle Decision Revisions (if needed)
 
-## Step 6: Handling Decision Revisions
+**Goal:** Provide clear workflow when you disagree with logged decisions from previous contributions.
 
-### Goal
-Provide clear workflow when users disagree with logged decisions from previous contributions.
+**When to Use This:**
+After reviewing a previous contribution's `decision-log.yaml`, if you discover a decision that needs revisiting.
 
-### When to Use This
-After reviewing a contribution's decision-log.yaml, if the user disagrees with a decision and wants to revisit it.
+**Process:**
 
-### Process
+1. **Create new revision contribution folder:**
+   - Format: `NNN-phase-X-revision-[original-specialty]-[agent]`
+   - Example: If revising contribution `002-phase-1-implementation-code-general-purpose/`, create `004-phase-1-revision-code-general-purpose/`
+   - Use next sequential number, maintain phase and specialty context
 
-**1. Create new revision contribution folder:**
-- Format: `NNN-phase-X-revision-[original-specialty]-[agent]`
-- Example: If revising contribution `002-phase-1-implementation-code-general-purpose/`, create `004-phase-1-revision-code-general-purpose/`
-- Use next sequential number, maintain phase and specialty context
+2. **Update code to match revised decision:**
+   - Make all necessary code changes to implement the new decision
+   - Ensure changes are complete and align with the revised approach
+   - Follow same quality standards as original contribution
 
-**2. Update code to match revised decision:**
-- Make all necessary code changes to implement the new decision
-- Ensure changes are complete and align with the revised approach
-- Follow same quality standards as original contribution
+3. **Document in new contribution's decision-log.yaml:**
+   - Reference original contribution number
+   - Explain what decision is being revised and why
 
-**3. Document in new contribution's decision-log.yaml:**
-- Reference original contribution number
-- Explain what decision is being revised and why
+4. **Generate all mandatory documentation:**
+   - **decision-log.yaml**: New decision with revision context and reference to original
+   - **context-handoff.md**: Explain impact of revision on existing work and future contributions
 
-**4. Generate all mandatory documentation:**
-- **decision-log.yaml**: New decision with revision context and reference to original
-- **context-handoff.md**: Explain impact of revision on existing work and future contributions
+5. **Run final validation checks:**
+   - Same mandatory quality gates as any contribution
+   - Ensure build, lint, and tests all pass
 
-**5. Run validation checks:**
-- Same mandatory quality gates as any contribution
-- Ensure build, lint, and tests all pass
+**Key Principles:**
+- **Always create new folder** — Don't edit previous contribution folders
+- **Always update code** — Code changes are part of the revision contribution
+- **Clear audit trail** — Decision evolution is visible through contribution history
+- **Sequential numbering** — Revisions follow chronological order like any contribution
 
-### Key Principles
-- **Always create new folder** - Don't edit previous contribution folders
-- **Always update code** - Code changes are part of the revision contribution
-- **Clear audit trail** - Decision evolution is visible through contribution history
-- **Sequential numbering** - Revisions follow chronological order like any contribution
+#### Final Quality Gate (Mandatory)
 
-## Contribution Validation
+**Goal:** Ensure all work meets quality standards before completion.
 
-Before finalizing your contribution:
+**MANDATORY: The contribution CANNOT be completed if any of these checks fail.**
 
-0. **Final Quality Gate (MANDATORY):**
-   **The contribution CANNOT be completed if any of these checks fail.**
+1. **Run compilation/build:** All compilation must succeed with zero errors
+2. **Run linter:** All linting must pass with zero warnings
+3. **Run test suite:** All tests must pass with zero failures
 
-   - **Run compilation/build:** All compilation must succeed with zero errors
-   - **Run linter:** All linting must pass with zero warnings
-   - **Run test suite:** All tests must pass with zero failures
+If any check fails: fix all issues before completing the contribution.
 
-   If any check fails: fix all issues before completing the contribution.
+**Additional Validation:**
 
 1. **Strategy Compliance Check:**
    - Does this follow the chosen strategy approach?
@@ -286,22 +349,27 @@ Before finalizing your contribution:
    - Are assumptions and limitations clearly documented?
    - Is guidance provided for next contributors?
 
-## Step 7: Commit the contribution
+#### Commit the Contribution
+
+**Goal:** Persist all contribution artifacts to git with clear commit message.
 
 After all validation checks pass (build, lint, tests green):
+
 ```bash
 git add .plans/plan-[FEATURE-NAME]/contributions/<contribution-folder>/ <each modified source file by explicit path>
 git commit -m "contrib(NNN): <description matching contribution folder name>"
 ```
 
-Rules:
+**Rules:**
 - Do NOT use `git add -A` or `git add .`
 - Use the full path `.plans/plan-[FEATURE-NAME]/contributions/<contribution-folder>/` when staging
 - Stage each changed source file explicitly by its full path
 - The commit message number (NNN) must match the contribution folder number
 - The description must match the contribution folder name (e.g., `phase-2-implementation-code-general-purpose`)
 
-## Common Patterns by Strategy
+---
+
+## Reference: Common Patterns by Strategy
 
 ### TDD Pattern
 ```
@@ -336,7 +404,7 @@ Rules:
 005-phase-Y-test-validation-tdd-[agent]
 ```
 
-## Research Integration Examples
+## Reference: Research Integration Examples
 
 **Early Phase (Research Relevant):**
 - Contribution 001 implementing GraphQL for first time → Review research/technology-research.md
