@@ -5,7 +5,6 @@
 
 pub mod debug;
 pub mod review;
-pub mod show;
 
 use crate::environment::Environment;
 use anyhow::Result;
