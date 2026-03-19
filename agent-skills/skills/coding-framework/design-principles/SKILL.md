@@ -67,9 +67,23 @@ Build what you need now. Refactor when complexity actually emerges.
 - "What if" scenarios
 - Abstractions without 2–3 concrete use cases
 
-## Anti-Patterns Reference
+## Anti-Patterns Quick Reference
 
-See [anti-patterns.md](references/anti-patterns.md) for a list of over-engineering and under-engineering signals with examples.
+### Critical Over-Engineering Red Flags
+
+**In Planning**: Hypothetical phases, choosing complex strategies without evidence, over-specifying details
+
+**In Design**: Design docs > 100 lines, designing for future constraints, designing for flexibility "just in case"
+
+**In Implementation**: Creating interfaces/abstractions before 2-3 use cases, adding error handling for impossible scenarios, configuration systems before variations exist
+
+### Critical Under-Engineering Red Flags
+
+**In Design**: No integration points, no success criteria, missing discovered constraints
+
+**In Implementation**: No tests for required behavior, skipping pre-work validation (build/lint/tests), vague decision rationale
+
+For the complete list with detailed examples and research anti-patterns, see [anti-patterns.md](references/anti-patterns.md).
 
 ## How These Principles Apply
 
@@ -80,3 +94,11 @@ See [anti-patterns.md](references/anti-patterns.md) for a list of over-engineeri
 | dev-contribute implementation | YAGNI + Kent Beck: implement minimum to pass tests |
 | Strategy selection | LRM: don't choose complex strategy without evidence |
 | Between-phase refactoring | JIT Architecture: only refactor what next phase requires |
+
+## See Also
+
+**Related Skills:**
+- **[dev-strategy](../dev-strategy/SKILL.md)** — Applies YAGNI, LRM, and Sufficient Planning during planning
+- **[design-contribute](../design-contribute/SKILL.md)** — Applies Sufficient Design and YAGNI during collaborative design
+- **[dev-contribute](../dev-contribute/SKILL.md)** — Applies YAGNI and Kent Beck's rules during implementation
+- **[execution-strategies](../execution-strategies/SKILL.md)** — Applies LRM when selecting strategies

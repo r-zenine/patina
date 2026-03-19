@@ -90,6 +90,15 @@ For principles applied during planning (YAGNI, Last Responsible Moment, Kent Bec
 
 For step-by-step execution instructions, see [references/guide.md](references/guide.md).
 
+## See Also
+
+**Related Skills:**
+- **[execution-strategies](../execution-strategies/SKILL.md)** — To compare TDD, Steel Thread, and Core-then-Integrate approaches during strategy selection
+- **[dev-contribute](../dev-contribute/SKILL.md)** — To implement the planned phases once dev-strategy is complete
+- **[design-contribute](../design-contribute/SKILL.md)** — When a planned phase has design objectives that need collaborative refinement
+- **[design-principles](../design-principles/SKILL.md)** — To understand YAGNI, Last Responsible Moment, and other principles applied during planning
+- **[contribution-system](../contribution-system/SKILL.md)** — For artifact schemas and folder naming conventions
+
 ## Prerequisites
 
 Before using this skill, understand the contribution-system by reading [`contribution-system` skill](../contribution-system/SKILL.md) to learn:
