@@ -13,7 +13,7 @@ expansion factors (100–150×).
 
 **Repro**:
 ```
-cargo run --bin diffviz -- debug-expansion <contribution-folder> <decision-number> <file>
+cargo run --bin diffviz -- debug --file <file> --from <commit> --line-range <start-end>
 ```
 Input range covering `impl Foo { ... }` → expands to entire file.
 
