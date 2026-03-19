@@ -55,8 +55,8 @@ create_symlink() {
 
 # Install skills
 if [[ -d "$REPO_DIR/skills" ]]; then
-    for skill_dir in "$REPO_DIR"/skills/*/; do
-        if [[ -d "$skill_dir" ]]; then
+    for skill_dir in "$REPO_DIR"/skills/*/*/; do
+        if [[ -d "$skill_dir" && -f "$skill_dir/SKILL.md" ]]; then
             skill_name=$(basename "$skill_dir")
             echo -e "${GREEN}Installing skill: $skill_name${NC}"
             create_symlink "$skill_dir" "$CLAUDE_DIR/skills/$skill_name" "$skill_name skill"
