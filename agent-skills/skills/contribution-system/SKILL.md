@@ -16,27 +16,44 @@ Every contribution creates files in a numbered folder under `.plans/plan-[FEATUR
 
 ```
 .plans/
-└── plan-[FEATURE-NAME]/          ← Created by dev-strategy skill
+└── plan-[FEATURE-NAME]/                          ← Created by dev-strategy skill
     ├── code-context.md
     ├── context-document.md
     ├── decision-log.yaml
     ├── implementation-roadmap.md
-    ├── research/                  ← Optional, created by dev-strategy if research step executed
+    ├── research/                                 ← Optional, research artifacts
     │   ├── research-summary.md
     │   ├── technology-research.md
     │   └── implementation-examples.md
-    └── contributions/             ← Contains all design and implementation contributions
+    │
+    └── contributions/                            ← ⚠️ REQUIRED: All work goes here
         ├── 001-phase-1-implementation-code-general-purpose/
+        │   ├── decision-log.yaml
+        │   ├── context-handoff.md
+        │   └── [optional artifacts]
+        │
         ├── 002-phase-1-review-security-code-simplifier/
+        │   ├── decision-log.yaml
+        │   ├── context-handoff.md
+        │   └── [optional artifacts]
+        │
         ├── 003-phase-2-design-error-handling-design-contribute/
+        │   ├── design-doc.md
+        │   ├── decision-log.yaml
+        │   └── context-handoff.md
+        │
         └── 004-phase-2-implementation-code-general-purpose/
+            ├── decision-log.yaml
+            ├── context-handoff.md
+            └── [optional artifacts]
 ```
 
-**Key Points:**
-- Initial plan artifacts are created **at the plan root** by dev-strategy
-- All contributions (design and implementation) go **in the contributions/ subfolder**
-- Contributions are numbered sequentially regardless of type or phase
-- The plan folder `.plans/plan-[FEATURE-NAME]/` must exist before contributions can be created
+**Critical Points:**
+- ⚠️ **`contributions/` folder is REQUIRED** — all design and implementation work goes inside it
+- Initial plan artifacts (`code-context.md`, `decision-log.yaml`, etc.) are **at plan root** only (created by dev-strategy)
+- Contributions are numbered sequentially (`001`, `002`, `003`...) regardless of type or phase
+- **All contributions MUST use full naming convention**: `NNN-phase-X-[type]-[specialty]-[agent]`
+- The plan folder must exist before contributions can be created
 
 ## Folder Naming Convention
 
@@ -106,13 +123,38 @@ NNN-phase-X-revision-[original-specialty]-[agent]
 .plans/plan-myfeature/contributions/004-phase-1-revision-code-general-purpose/
 ```
 
+## Unified Decision Schema
+
+All `decision-log.yaml` files (strategy, implementation, design) use the **same schema**, matching the `diffviz-review::Decision` struct:
+
+```yaml
+base_commit: null  # Strategy: null. Implementation: git hash before changes.
+
+decisions:
+  - number: 1                          # Decision identifier (u32)
+    title: "[One sentence summary]"    # What was decided (required)
+    rationale: "[Why...]"              # Why this choice (optional)
+    code_impacts: []                   # Code changes (empty for planning, populated for implementation)
+      # - file: "path/to/file.rs"
+      # - reasoning: "[Why affected]"
+      # - line_ranges:
+      #     - start: 10
+      #       end: 50
+```
+
+**Key insight**: The distinction between strategy and implementation is the `code_impacts`:
+- **Strategy-level** (`dev-strategy` output): `code_impacts: []` — empty, decisions made before coding
+- **Implementation-level** (contributions): `code_impacts: [...]` — populated, decisions + actual code changes
+- **Design-level** (design contributions): See [design-artifacts.md](references/design-artifacts.md) for design-specific variant
+
+---
+
 ## Artifact Schemas by Contribution Type
 
 ### Implementation / Review Contributions
 
 See [implementation-artifacts.md](references/implementation-artifacts.md) for:
-- `changelog.md` schema
-- `decision-log.yaml` schema
+- `decision-log.yaml` schema (unified)
 - `context-handoff.md` schema
 - Optional artifact schemas
 
@@ -120,7 +162,7 @@ See [implementation-artifacts.md](references/implementation-artifacts.md) for:
 
 See [design-artifacts.md](references/design-artifacts.md) for:
 - `design-doc.md` schema (< 100 lines target)
-- `decision-log.md` schema (design variant)
+- `decision-log.yaml` schema (unified, code_impacts empty)
 - `context-handoff.md` schema (< 30 lines target)
 
 ### Strategy Contributions (dev-strategy output)
@@ -128,7 +170,7 @@ See [design-artifacts.md](references/design-artifacts.md) for:
 See [strategy-artifacts.md](references/strategy-artifacts.md) for:
 - `code-context.md` schema
 - `context-document.md` schema
-- `decision-log.yaml` schema (planning variant)
+- `decision-log.yaml` schema (unified, code_impacts empty)
 - `implementation-roadmap.md` schema
 - Research artifacts schemas
 
@@ -144,17 +186,66 @@ All templates are in [assets/templates/](assets/templates/):
 
 **Design templates:**
 - [design-doc-template.md](assets/templates/design-doc-template.md)
-- [decision-log-design-template.md](assets/templates/decision-log-design-template.md)
+- [decision-log-template-strategy.yaml](assets/templates/decision-log-template-strategy.yaml) — Uses unified schema (code_impacts: [])
 
 **Strategy (planning) templates:**
 - [code-context-template.md](assets/templates/code-context-template.md)
 - [context-document-template.md](assets/templates/context-document-template.md)
 - [implementation-roadmap-template.md](assets/templates/implementation-roadmap-template.md)
 - [steel-thread-roadmap-template.md](assets/templates/steel-thread-roadmap-template.md)
-- [decision-log-template-strategy.yaml](assets/templates/decision-log-template-strategy.yaml)
+- [decision-log-template-strategy.yaml](assets/templates/decision-log-template-strategy.yaml) — Uses unified schema
 - [research-summary-template.md](assets/templates/research-summary-template.md)
 - [technology-research-template.md](assets/templates/technology-research-template.md)
 - [implementation-examples-template.md](assets/templates/implementation-examples-template.md)
+
+---
+
+## Why a Unified Decision Schema?
+
+The `decision-log.yaml` schema is unified across strategy, implementation, and review contributions because it directly matches the `diffviz-review::Decision` struct in the codebase:
+
+```rust
+pub struct Decision {
+    pub number: u32,
+    pub title: String,
+    pub rationale: Option<String>,
+    pub code_impacts: Vec<CodeImpact>,
+}
+```
+
+**Benefits:**
+1. **Direct deserialization** — YAML parses straight to Rust struct, no translation
+2. **Same structure everywhere** — reduces cognitive load; one schema to learn
+3. **Progressive population** — strategy decisions start with `code_impacts: []`, implementation fills them in
+4. **Testability** — the struct defines the contract; tests verify it works
+5. **Traceability** — decisions flow from planning → implementation without reformatting
+
+**Distinction is semantic, not structural:**
+- **Strategy decisions** (from `dev-strategy`): `code_impacts: []` — decisions made before coding
+- **Design decisions** (from `design-contribute`): `code_impacts: []` — design specs with no code yet
+- **Implementation decisions** (from `dev-contribute`): `code_impacts: [...]` — decisions + actual code changes
+- Same YAML, same struct, different content determined by phase
+
+## Finding the Right Artifact
+
+When you need information about a feature, use this table to find the right artifact:
+
+| Question | Answer From | Location |
+|----------|------------|----------|
+| **"What am I building?"** | `context-document.md` | Plan root |
+| **"What's the overall execution strategy?"** | `implementation-roadmap.md` | Plan root |
+| **"What functions/classes are relevant?"** | `code-context.md` | Plan root |
+| **"Why was this architecture chosen?"** | `decision-log.yaml` | Plan root |
+| **"What changed in this contribution?"** | `decision-log.yaml` | `contributions/NNN-.../` |
+| **"Which files were affected by decision #3?"** | `decision-log.yaml` → `code_impacts` | `contributions/NNN-.../` |
+| **"What should the next phase focus on?"** | `context-handoff.md` | `contributions/NNN-.../` |
+| **"What's the design for error handling?"** | `design-doc.md` | `contributions/NNN-design-.../` |
+| **"What design constraints exist?"** | `decision-log.yaml` (design variant) | `contributions/NNN-design-.../` |
+| **"How do I get oriented quickly?"** | `context-handoff.md` | `contributions/NNN-.../` |
+
+**Progressive Disclosure Rule**: Always start with context-handoff.md in a contribution, then dive into decision-log.yaml for details.
+
+---
 
 ## Workflow Patterns
 

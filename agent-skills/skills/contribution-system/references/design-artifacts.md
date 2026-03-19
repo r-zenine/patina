@@ -4,6 +4,11 @@ Schemas for the 3 files in every design contribution (created by the design-cont
 
 **Design contributions create exactly 3 files. No code, no prototypes, no comprehensive specs.**
 
+**Files:**
+1. `design-doc.md` — Design specification (< 100 lines)
+2. `decision-log.yaml` — Design decisions in unified YAML schema
+3. `context-handoff.md` — Orientation for next contributors (< 30 lines)
+
 ---
 
 ## 1. `design-doc.md`
@@ -73,26 +78,34 @@ Schemas for the 3 files in every design contribution (created by the design-cont
 
 ---
 
-## 2. `decision-log.md` (design variant)
+## 2. `decision-log.yaml` (design variant)
 
-**Purpose**: Record the design choice for implementers to understand context and constraints.
+**Purpose**: Record design decisions made during this contribution, using the unified Decision schema.
 
-**Schema:**
-```markdown
-# Design Decisions - Phase X Design
+**Schema**: Same unified schema as strategy and implementation, matching `diffviz-review::Decision` struct.
 
-## Primary Design Decision
+```yaml
+base_commit: null  # Design decisions typically have no code_impacts (code comes in implementation phase)
 
-**[Design Topic]**: [Chosen approach in one sentence]
-**Why**: [Constraints and user priorities that led here]
-**Rejected**: [Alternatives considered and why not chosen]
-**Impact**: [Effect on implementation — what this enables/constrains]
+decisions:
+  - number: 1
+    title: "[Design decision in one sentence]"
+    rationale: "[Why this design — constraints and user priorities that led here]"
+    code_impacts: []  # Empty: design phase doesn't produce code, only spec
 
-## Supporting Decisions
-
-**[Choice 1]**: [Decision made] → **Impact**: [Effect on implementation]
-**[Choice 2]**: [Decision made] → **Impact**: [Effect on implementation]
+  - number: 2
+    title: "[Supporting design decision]"
+    rationale: "[Why this choice was made]"
+    code_impacts: []
 ```
+
+**Key Points:**
+- Use the same YAML schema as strategy and implementation decisions
+- `number`: Sequential decision ID (1, 2, 3...)
+- `title`: Design choice in one sentence
+- `rationale`: Must explain constraints and user priorities discovered during design session
+- `code_impacts`: Empty array (design phase doesn't produce code)
+- This allows design decisions to flow seamlessly into implementation, where `code_impacts` will be populated
 
 ---
 

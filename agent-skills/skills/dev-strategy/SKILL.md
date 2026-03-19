@@ -44,6 +44,16 @@ The skill generates structured artifacts in `.plans/plan-[FEATURE-NAME]/`:
 - **Technology Research** - Deep-dive analysis of new technologies
 - **Implementation Examples** - Code patterns and usage examples
 
+## ⚠️ Prerequisite: Understand contribution-system
+
+**MANDATORY**: Before using this skill, read [`contribution-system` skill](../contribution-system/SKILL.md) to understand:
+- Artifact schemas (code-context.md, context-document.md, decision-log.yaml, implementation-roadmap.md)
+- How decisions are documented (unified YAML schema)
+- How contributions are structured (contributions/ folder, NNN-phase-X naming)
+- Where artifacts are created (plan root vs contribution folders)
+
+All artifacts created by this skill must conform to contribution-system conventions.
+
 ## When to Use This Skill
 
 ✅ **Use for:**

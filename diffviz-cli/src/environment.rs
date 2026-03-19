@@ -65,6 +65,23 @@ impl Environment {
         };
         Self::new(config)
     }
+
+    /// Get repository path
+    #[allow(dead_code)]
+    pub fn repo_path(&self) -> &str {
+        &self.config.repo_path
+    }
+
+    /// Get author name
+    pub fn author(&self) -> &str {
+        &self.config.author
+    }
+
+    /// Create a DiffProvider for git operations
+    pub fn diff_provider(&self) -> CoreResult<Box<dyn diffviz_review::providers::DiffProvider>> {
+        let repo = GitRepository::open(&self.config.repo_path)?;
+        Ok(Box::new(repo))
+    }
 }
 
 /// Builder for creating environments with different configurations

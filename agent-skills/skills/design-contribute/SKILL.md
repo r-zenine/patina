@@ -17,6 +17,18 @@ Enables design at the Last Responsible Moment through human collaboration:
 - Documenting design decisions for implementers
 - Maintaining project continuity between design and implementation
 
+## ⚠️ Prerequisite: Understand contribution-system
+
+**MANDATORY**: Before using this skill, read [`contribution-system` skill](../contribution-system/SKILL.md) to understand:
+- Design contribution folder naming (NNN-phase-X-design-[topic]-design-contribute)
+- Design artifact schemas (design-doc.md, decision-log.yaml, context-handoff.md)
+- Unified decision-log YAML schema (with empty code_impacts for design)
+- Directory structure (contributions/ folder is required)
+- Why design decisions don't have code_impacts (code comes in implementation phase)
+- Progressive disclosure strategy for reading design contributions
+
+All design contributions created by this skill must conform to contribution-system conventions. This is not optional.
+
 ## When to Use This Skill
 
 ✅ **Use when:**
@@ -65,7 +77,7 @@ For interactive techniques and AskUserQuestion patterns, see [`contribution-syst
 
 Every design contribution generates exactly 3 files (schemas in [`contribution-system/references/design-artifacts.md`](../contribution-system/references/design-artifacts.md)):
 - **design-doc.md** - Target < 100 lines (combines design spec + implementer handoff)
-- **decision-log.md** - Design decisions with rationale
+- **decision-log.yaml** - Design decisions in unified YAML schema (matching `diffviz-review::Decision` struct)
 - **context-handoff.md** - Target < 30 lines (problem solved + design overview + reading guide)
 
 **That's it. Just 3 files. No code, no prototypes, no comprehensive specs.**

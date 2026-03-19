@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 use commands::{
-    CommandExecutor, diagnose::DiagnoseCommand, review::ReviewCommand, show::ShowCommand,
+    CommandExecutor, debug::DebugCommand, diagnose::DiagnoseCommand, review::ReviewCommand,
+    show::ShowCommand,
 };
 use diffviz_core::{
     ast_diff::SourceCode,
@@ -96,6 +97,33 @@ enum Commands {
         decision_number: u32,
         /// File path to inspect (as listed in the code impact)
         file_path: String,
+    },
+    /// Debug the pipeline stages for a given file
+    Debug {
+        /// Path to the file to analyze
+        #[arg(long, value_name = "FILE")]
+        file: String,
+        /// Starting Git ref (defaults to HEAD)
+        #[arg(long, value_name = "REF")]
+        from: Option<String>,
+        /// Ending Git ref (defaults to working tree)
+        #[arg(long, value_name = "REF")]
+        to: Option<String>,
+        /// Filter output to specific phase (1-7)
+        #[arg(long, value_name = "NUM")]
+        phase: Option<u8>,
+        /// Include explanations for folding decisions
+        #[arg(long)]
+        explain_folding: bool,
+        /// Export fixture to file path
+        #[arg(long, value_name = "FILE")]
+        export_fixture: Option<String>,
+        /// Output human-readable text instead of JSON
+        #[arg(long)]
+        human: bool,
+        /// Filter results to line range (format: start-end)
+        #[arg(long, value_name = "RANGE")]
+        line_range: Option<String>,
     },
 }
 
@@ -412,6 +440,28 @@ fn main() -> Result<()> {
                     decision_number,
                     file_path,
                 } => run_debug_expansion(&folder, decision_number, &file_path, &cli.repo_path),
+                Commands::Debug {
+                    file,
+                    from,
+                    to,
+                    phase,
+                    explain_folding,
+                    export_fixture,
+                    human,
+                    line_range,
+                } => {
+                    let debug_command = DebugCommand::new(
+                        file,
+                        from,
+                        to,
+                        phase,
+                        explain_folding,
+                        export_fixture,
+                        human,
+                        line_range,
+                    );
+                    debug_command.execute(environment)
+                }
             }
         }
 

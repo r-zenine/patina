@@ -77,22 +77,33 @@ All artifacts are created in `./dev-strategy-[FEATURE-NAME]/`.
 
 ## 3. `decision-log.yaml` (strategy/planning variant)
 
-**Purpose**: Mutable record of decisions made during planning. Can be extended during execution.
+**Purpose**: Record planning-level decisions made during strategy development. Can be extended during execution.
 
-**Schema:**
+**Schema**: Unified schema matching `diffviz-review::Decision` struct.
+
 ```yaml
+base_commit: null  # Strategy decisions: null (no code yet)
+
 decisions:
-  - id: "001"
-    type: planning  # design | planning | architecture
-    decision: "[Decision made]"
-    rationale: "[Why this choice was made]"
-    alternatives_rejected:
-      - alternative: "[Option not chosen]"
-        reason: "[Why rejected]"
-    impact: "[Effect on implementation]"
+  - number: 1
+    title: "[Decision made in one sentence]"
+    rationale: "[Why this choice was made]"  # optional
+    code_impacts: []  # Empty for strategy (decisions made before coding)
+
+  - number: 2
+    title: "[Next decision]"
+    rationale: "[Rationale]"
+    code_impacts: []
 ```
 
-**Note**: This is the planning decision log. Contribution decision logs use a separate YAML file per contribution folder.
+**Key Points:**
+- Use `number` (u32) for decision ID, not `id`
+- Use `title` (not `decision`) to match the struct
+- `code_impacts` is always present (use empty array `[]` for planning decisions)
+- `rationale` is optional
+- This is the **same schema** used in contribution decision-logs; see [implementation-artifacts.md](implementation-artifacts.md)
+
+**Note**: Planning decisions may be extended during implementation phases. Implementation contributors will add code_impacts to decisions made here, or create new decisions for implementation-specific choices.
 
 ---
 

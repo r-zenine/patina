@@ -1,0 +1,68 @@
+decisions:
+  - number: 1
+    title: "DebugCommand skeleton with argument parsing and basic output"
+    rationale: "Phase 1 foundation: registers command in CLI, validates inputs, outputs placeholder JSON structure with all phase fields defined but empty. Enables Phase 2 to populate phases without changing command structure."
+    code_impacts:
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "New file containing DebugCommand struct, input validation, JSON serialization wrapper types, and CommandExecutor implementation"
+        line_ranges:
+          - start: 1
+            end: 350
+      - file: "diffviz-cli/src/commands/mod.rs"
+        reasoning: "Added public module export for debug command"
+        line_ranges:
+          - start: 6
+            end: 6
+      - file: "diffviz-cli/src/main.rs"
+        reasoning: "Registered Debug variant in Commands enum with all 8 CLI flags, added import for DebugCommand, added match handler to execute command"
+        line_ranges:
+          - start: 9
+            end: 11
+          - start: 91
+            end: 121
+          - start: 425
+            end: 445
+
+  - number: 2
+    title: "Input validation: file exists, language supported, phase 1-7, line-range format"
+    rationale: "Fail-fast approach per CLAUDE.md. Validate all inputs upfront before any expensive operations. Provides clear error messages for common issues."
+    code_impacts:
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "validate_inputs() method implements all four validation checks; detect_language() supports 8 languages; parse_line_range() validates format"
+        line_ranges:
+          - start: 135
+            end: 170
+          - start: 178
+            end: 196
+          - start: 198
+            end: 220
+
+  - number: 3
+    title: "Wrapper structs for JSON output (DebugOutput, Metadata, Phases, DiffQueryOutput)"
+    rationale: "Structured JSON serialization without modifying domain types. All fields already defined for future phases. Keeps domain crates clean."
+    code_impacts:
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "Defined 5 serde-serializable wrapper structs: DebugOutput (root), DiffQueryOutput (git refs), Metadata (stats), LineRangeFilter (optional), Phases (all 7 phases as Option<serde_json::Value>)"
+        line_ranges:
+          - start: 55
+            end: 130
+
+  - number: 4
+    title: "Human output format deferred to Phase 6, skeleton created"
+    rationale: "Phase 1 only needs basic human output (file header, phase summary). Phase 6 will enhance with full tree visualization and phase details."
+    code_impacts:
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "output_human() method outputs minimal summary with file path, language, git query, and analysis metadata"
+        line_ranges:
+          - start: 226
+            end: 241
+
+  - number: 5
+    title: "#[allow(dead_code)] for Phase 2+ fields (explain_folding, export_fixture)"
+    rationale: "Fields used in later phases but not yet referenced in Phase 1. Avoids dead_code warnings while keeping all CLI args together in single struct."
+    code_impacts:
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "Applied #[allow(dead_code)] to DebugCommand struct to suppress warnings for fields used in later phases"
+        line_ranges:
+          - start: 14
+            end: 14

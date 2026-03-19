@@ -88,6 +88,33 @@ fn find_contained_units_recursive<'a>(
     }
 }
 
+/// Collect all non-Module semantic units that overlap with (touch) the range [start_byte, end_byte].
+/// This is used as a fallback when no units are strictly contained within the range.
+/// Useful for single-line ranges like "line 6 to 6" which may contain incomplete units.
+fn find_units_touching_range_recursive<'a>(
+    node: &'a SemanticNode<'a>,
+    start_byte: usize,
+    end_byte: usize,
+    result: &mut Vec<&'a SemanticNode<'a>>,
+) {
+    let node_range = node.tree_sitter_node.byte_range();
+
+    // Check if this node overlaps with the target range
+    let overlaps = node_range.start < end_byte && node_range.end > start_byte;
+
+    if !matches!(node.unit_type, SemanticUnitType::Module { .. }) && overlaps {
+        result.push(node);
+        return;
+    }
+
+    // Only recurse if we haven't found a matching non-Module unit
+    if matches!(node.unit_type, SemanticUnitType::Module { .. }) || !overlaps {
+        for child in &node.children {
+            find_units_touching_range_recursive(child, start_byte, end_byte, result);
+        }
+    }
+}
+
 /// Helper: Find smallest unit containing a byte range (recursive)
 fn find_unit_recursive<'a>(
     node: &'a SemanticNode<'a>,
@@ -125,23 +152,16 @@ fn count_lines(source: &str) -> usize {
     source.bytes().filter(|&b| b == b'\n').count() + 1
 }
 
-/// Helper: Validate line range is within source bounds
-fn validate_line_range(
+/// Helper: Clamp line range to source bounds
+/// Returns the adjusted (start_line, end_line) clamped to actual file bounds
+fn clamp_line_range(
     source: &str,
     start_line: usize,
     end_line: usize,
-) -> Result<(), DecisionDiffError> {
+) -> (usize, usize) {
     let actual_lines = count_lines(source);
-
-    if end_line > actual_lines {
-        return Err(DecisionDiffError::LineRangeOutOfBounds {
-            start_line,
-            end_line,
-            actual_lines,
-        });
-    }
-
-    Ok(())
+    let clamped_end = std::cmp::min(end_line, actual_lines);
+    (start_line, clamped_end)
 }
 
 /// Helper: Convert line number to byte offset in source
@@ -485,7 +505,7 @@ pub fn create_reviewable_diff_from_range(
     }
 
     let new_source_str = new_source.full_source();
-    validate_line_range(new_source_str, start_line, end_line)?;
+    let (start_line, end_line) = clamp_line_range(new_source_str, start_line, end_line);
 
     let new_ast = parser
         .try_parse(new_source_str)
@@ -512,8 +532,16 @@ pub fn create_reviewable_diff_from_range(
         let mut contained: Vec<&SemanticNode> = Vec::new();
         find_contained_units_recursive(&new_tree.root, start_byte, end_byte, &mut contained);
 
+        // If no units strictly contained within range, try to find units that touch the range
         if contained.is_empty() {
-            return Err(DecisionDiffError::NoUnitsInRange { start_line, end_line });
+            find_units_touching_range_recursive(&new_tree.root, start_byte, end_byte, &mut contained);
+        }
+
+        if contained.is_empty() {
+            // No semantic units found in range - skip this change rather than failing
+            // This can happen with pure declarative lines like "pub mod X;" that don't form
+            // semantic units on their own
+            return Ok(vec![]);
         }
 
         // Look up old counterparts for all contained units in one pass while old_tree is alive

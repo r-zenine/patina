@@ -1,0 +1,78 @@
+decisions:
+  - number: 1
+    title: "ReviewEngineBuilder integration for pipeline execution"
+    rationale: "Phase 2 populates all 7 phase outputs using ReviewEngineBuilder. Create minimal Decision with full-file CodeImpact to feed builder, avoiding pipeline duplication. Builder orchestrates semantic analysis; debug command serializes results."
+    code_impacts:
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "Modified execute() to instantiate ReviewEngineBuilder, build ReviewEngine from minimal Decision, extract ReviewState, and serialize all phases. Added phase serialization methods (serialize_phase_1 through serialize_phase_7)."
+        line_ranges:
+          - start: 128
+            end: 235
+          - start: 340
+            end: 505
+
+  - number: 2
+    title: "DiffQuery and GitRef integration for typed git references"
+    rationale: "Replace string-based git refs with typed GitRef enum (Head, Staged, Unstaged, Commit). DiffQuery expects GitRef, not strings. Added parse_git_ref() helper to convert CLI strings (HEAD, working_tree, etc.) to GitRef enums."
+    code_impacts:
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "Added parse_git_ref() helper method to convert string git refs (HEAD, working_tree, etc.) to typed GitRef enum. Updated execute() to call parse_git_ref for from/to arguments before creating DiffQuery."
+        line_ranges:
+          - start: 289
+            end: 299
+
+  - number: 3
+    title: "Environment.diff_provider() helper for dependency injection"
+    rationale: "ReviewEngineBuilder requires a DiffProvider (git layer). Added helper method to Environment to create GitRepository-based DiffProvider. Follows Environment pattern: dependencies provided through fluent interface."
+    code_impacts:
+      - file: "diffviz-cli/src/environment.rs"
+        reasoning: "Added three new public methods: repo_path(), author(), and diff_provider(). diff_provider() creates GitRepository and wraps as Box<dyn DiffProvider>. Follows existing Environment pattern for dependency injection."
+        line_ranges:
+          - start: 69
+            end: 83
+
+  - number: 4
+    title: "ReviewState BTreeMap iteration for filtered diffs"
+    rationale: "ReviewState.reviewable_diffs is BTreeMap<ReviewableDiffId, ReviewableDiff>, not Vec. Collect as Vec of tuples, then filter by line range using overlap logic (start <= range_end && end >= range_start). Matches TUI code-impact filtering."
+    code_impacts:
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "Collect all reviewable_diffs from BTreeMap as Vec of references. Filter based on line_range CLI argument using overlap detection. Pass filtered diffs to phase serialization methods."
+        line_ranges:
+          - start: 168
+            end: 195
+
+  - number: 5
+    title: "Phase serialization methods for structured JSON output"
+    rationale: "Each phase (1-7) requires serialization to JSON. Created 7 methods (serialize_phase_1 through serialize_phase_7) that extract diff metadata and serialize to serde_json::Value. Phases use Serde with skip_serializing_if for optional fields."
+    code_impacts:
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "Implemented 7 serialization methods: Phase 1 (AST outline), Phase 2 (semantic pairs counts), Phase 3 (reviewable diffs), Phase 4 (diff node hierarchy), Phase 5 (renderable diffs with Myers diff), Phase 6 (code impact), Phase 7 (final output). Each returns Option<serde_json::Value>."
+        line_ranges:
+          - start: 340
+            end: 505
+
+  - number: 6
+    title: "Metadata population: analysis duration, file size, diff counts"
+    rationale: "Measure elapsed time from start to end of ReviewEngineBuilder execution. Calculate file size via std::fs::metadata. Track total and filtered diff counts for metadata output."
+    code_impacts:
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "Added Instant::now() before ReviewEngineBuilder execution. Record analysis_duration_ms and file_size_bytes in Metadata struct. Populate line_range_filter with filtered_count and total_count."
+        line_ranges:
+          - start: 130
+            end: 165
+          - start: 212
+            end: 235
+
+  - number: 7
+    title: "Line-range filtering with overlap detection"
+    rationale: "Implement --line-range filtering using overlap logic: start <= range_end && end >= range_start. Matches TUI code-impact filtering. Filter happens post-ReviewEngineBuilder, not pre-processing. Update metadata to show filter stats."
+    code_impacts:
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "parse_line_range() parses start-end format. Filtering applied to all_diffs using overlap check before serialization. LineRangeFilter struct populated with start, end, filtered_diff_count, total_diff_count."
+        line_ranges:
+          - start: 180
+            end: 195
+          - start: 212
+            end: 222
+          - start: 307
+            end: 326
