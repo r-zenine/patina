@@ -6,24 +6,11 @@ use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-use commands::{
-    CommandExecutor, debug::DebugCommand, diagnose::DiagnoseCommand, review::ReviewCommand,
-    show::ShowCommand,
-};
-use diffviz_core::{
-    ast_diff::SourceCode,
-    common::{LanguageParser, ProgrammingLanguage},
-    decision_based_diff::create_reviewable_diff_from_range,
-    parsers::{
-        CParser, CppParser, GoParser, JavaParser, JavaScriptParser, PythonParser, RustParser,
-        TypeScriptParser,
-    },
-    reviewable_diff::NodeChangeStatus,
-};
+use commands::{CommandExecutor, debug::DebugCommand, review::ReviewCommand, show::ShowCommand};
 use diffviz_git::GitRepository;
 use diffviz_review::{
     Approval, DecisionApproval, DecisionApprovals, DecisionLog, DiffQuery, ReviewApprovals,
-    ReviewEngineBuilder, engines::review_engine::ExportScope, providers::DiffProvider,
+    ReviewEngineBuilder, engines::review_engine::ExportScope,
 };
 use diffviz_review_tui::ReviewTuiApp;
 use environment::{EnvironmentBuilder, TerminalBackend};
@@ -83,20 +70,6 @@ enum Commands {
         from_commit: Option<String>,
         /// To commit hash (optional - defaults to working directory)
         to_commit: Option<String>,
-    },
-    /// Run diagnostic modes for debugging the data pipeline
-    Diagnose {
-        /// Generate comprehensive debug context for a specific file
-        file_path: Option<String>,
-    },
-    /// Debug how a decision's line range expands to a semantic boundary
-    DebugExpansion {
-        /// Folder containing decision-log.yaml
-        folder: String,
-        /// Decision number to inspect
-        decision_number: u32,
-        /// File path to inspect (as listed in the code impact)
-        file_path: String,
     },
     /// Debug the pipeline stages for a given file
     Debug {
@@ -234,156 +207,6 @@ fn run_contribution_review(folder: &str, repo_path: &str, author: &str) -> Resul
     Ok(())
 }
 
-fn byte_to_line(source: &str, byte_offset: usize) -> usize {
-    source[..byte_offset.min(source.len())]
-        .bytes()
-        .filter(|&b| b == b'\n')
-        .count()
-        + 1
-}
-
-fn parser_for_file(file_path: &str) -> Result<(Box<dyn LanguageParser>, ProgrammingLanguage)> {
-    match file_path.split('.').next_back().unwrap_or("") {
-        "rs" => Ok((Box::new(RustParser::new()), ProgrammingLanguage::Rust)),
-        "py" => Ok((Box::new(PythonParser::new()), ProgrammingLanguage::Python)),
-        "go" => Ok((Box::new(GoParser::new()), ProgrammingLanguage::Go)),
-        "java" => Ok((Box::new(JavaParser::new()), ProgrammingLanguage::Java)),
-        "c" | "h" => Ok((Box::new(CParser::new()), ProgrammingLanguage::C)),
-        "cxx" | "cpp" | "hpp" | "hxx" => Ok((Box::new(CppParser::new()), ProgrammingLanguage::Cpp)),
-        "ts" | "tsx" => Ok((
-            Box::new(TypeScriptParser::new()),
-            ProgrammingLanguage::TypeScript,
-        )),
-        "js" | "jsx" => Ok((
-            Box::new(JavaScriptParser::new()),
-            ProgrammingLanguage::JavaScript,
-        )),
-        ext => Err(anyhow::anyhow!("Unsupported file extension: {ext}")),
-    }
-}
-
-fn run_debug_expansion(
-    folder: &str,
-    decision_number: u32,
-    file_path: &str,
-    repo_path: &str,
-) -> Result<()> {
-    let folder_path = Path::new(folder);
-    let content = std::fs::read_to_string(folder_path.join("decision-log.yaml"))?;
-    let log = DecisionLog::parse(&content)
-        .map_err(|e| anyhow::anyhow!("Failed to parse decision-log.yaml: {e}"))?;
-
-    let git_repo = GitRepository::open(repo_path)
-        .map_err(|e| anyhow::anyhow!("Failed to open repository: {e}"))?;
-
-    let query = log
-        .commit
-        .clone()
-        .map(|hash| resolve_commit_diff(&git_repo, hash))
-        .transpose()?
-        .unwrap_or_else(DiffQuery::head_to_unstaged);
-
-    let decision = log
-        .decisions
-        .iter()
-        .find(|d| d.number == decision_number)
-        .ok_or_else(|| anyhow::anyhow!("Decision #{decision_number} not found"))?;
-
-    let code_impact = decision
-        .code_impacts
-        .iter()
-        .find(|c| c.file == file_path)
-        .ok_or_else(|| {
-            anyhow::anyhow!("File '{file_path}' not found in decision #{decision_number}")
-        })?;
-
-    let new_source = git_repo
-        .get_source_code(file_path, &query.to)
-        .map_err(|e| anyhow::anyhow!("Failed to get new source for {file_path}: {e}"))?;
-    let old_source = git_repo.get_source_code(file_path, &query.from).ok();
-
-    let (parser, language) = parser_for_file(file_path)?;
-
-    println!("Decision #{}: \"{}\"", decision.number, decision.title);
-    println!("File: {file_path}");
-
-    for range in &code_impact.line_ranges {
-        println!();
-        println!("  Input range : lines {}-{}", range.start, range.end);
-
-        let new_provider = Box::new(SourceCode::new(new_source.clone()))
-            as Box<dyn diffviz_core::ast_diff::FullSourceProvider>;
-        let old_provider = old_source.as_ref().map(|src| {
-            Box::new(SourceCode::new(src.clone()))
-                as Box<dyn diffviz_core::ast_diff::FullSourceProvider>
-        });
-
-        match create_reviewable_diff_from_range(
-            file_path,
-            range.start,
-            range.end,
-            old_provider.as_deref(),
-            new_provider.as_ref(),
-            language,
-            parser.as_ref(),
-        ) {
-            Ok(diffs) => {
-                let mode = if diffs.len() == 1 {
-                    "Expand"
-                } else {
-                    "Decompose"
-                };
-                println!("  Mode        : {mode} ({} unit(s))", diffs.len());
-                for (i, diff) in diffs.iter().enumerate() {
-                    let (start_byte, end_byte) = match &diff.boundary.change_status {
-                        NodeChangeStatus::Unchanged { node } => (node.start_byte, node.end_byte),
-                        NodeChangeStatus::Added { node } => (node.start_byte, node.end_byte),
-                        NodeChangeStatus::Deleted { node } => (node.start_byte, node.end_byte),
-                        NodeChangeStatus::Modified { new_node, .. } => {
-                            (new_node.start_byte, new_node.end_byte)
-                        }
-                        NodeChangeStatus::Moved { new_node, .. } => {
-                            (new_node.start_byte, new_node.end_byte)
-                        }
-                        NodeChangeStatus::Reordered { new_node, .. } => {
-                            (new_node.start_byte, new_node.end_byte)
-                        }
-                    };
-                    let expanded_start = byte_to_line(&new_source, start_byte);
-                    let expanded_end = byte_to_line(&new_source, end_byte);
-                    let status_name = match &diff.boundary.change_status {
-                        NodeChangeStatus::Unchanged { .. } => "Unchanged",
-                        NodeChangeStatus::Added { .. } => "Added",
-                        NodeChangeStatus::Deleted { .. } => "Deleted",
-                        NodeChangeStatus::Modified { .. } => "Modified",
-                        NodeChangeStatus::Moved { .. } => "Moved",
-                        NodeChangeStatus::Reordered { .. } => "Reordered",
-                    };
-                    let prefix = if diffs.len() > 1 {
-                        format!("  [{}/{}]", i + 1, diffs.len())
-                    } else {
-                        "  ".to_string()
-                    };
-                    println!("{prefix} Unit type   : {}", diff.boundary.node_type);
-                    println!("{prefix} Status      : {status_name}");
-                    println!(
-                        "{prefix} Expanded to : lines {expanded_start}-{expanded_end}  ({} lines)",
-                        expanded_end - expanded_start + 1
-                    );
-                    let expansion_factor = (expanded_end - expanded_start + 1) as f64
-                        / (range.end - range.start + 1) as f64;
-                    println!("{prefix} Expansion   : {expansion_factor:.1}x");
-                }
-            }
-            Err(e) => {
-                println!("  ERROR: {e}");
-            }
-        }
-    }
-
-    Ok(())
-}
-
 fn main() -> Result<()> {
     // Initialize logging
     use log::LevelFilter;
@@ -443,15 +266,6 @@ fn main() -> Result<()> {
                     let review_command = ReviewCommand::new(file_filter, from_commit, to_commit);
                     review_command.execute(environment)
                 }
-                Commands::Diagnose { file_path } => {
-                    let diagnose_command = DiagnoseCommand::new(file_path);
-                    diagnose_command.execute(environment)
-                }
-                Commands::DebugExpansion {
-                    folder,
-                    decision_number,
-                    file_path,
-                } => run_debug_expansion(&folder, decision_number, &file_path, &cli.repo_path),
                 Commands::Debug {
                     file,
                     from,
