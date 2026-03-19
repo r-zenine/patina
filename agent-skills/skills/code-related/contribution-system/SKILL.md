@@ -1,12 +1,22 @@
 ---
 name: contribution-system
 description: Canonical reference for all contribution artifact schemas, templates, folder naming conventions, file format rules, and workflow patterns (progressive disclosure, two-gate system, constraint discovery, routing) used across dev-strategy workflow skills.
-allowed-tools: ["Read"]
 ---
 
 # Contribution System
 
 Canonical reference for artifact schemas, templates, folder naming conventions, file format rules, and workflow patterns used across all dev-strategy workflow contributions.
+
+## Table of Contents
+
+- [Artifact System Overview](#artifact-system-overview)
+- [Folder Naming Convention](#folder-naming-convention)
+- [Unified Decision Schema](#unified-decision-schema)
+- [Artifact Schemas by Contribution Type](#artifact-schemas-by-contribution-type)
+- [Templates](#templates)
+- [Why a Unified Decision Schema?](#why-a-unified-decision-schema)
+- [Finding the Right Artifact](#finding-the-right-artifact)
+- [Workflow Patterns](#workflow-patterns)
 
 ## Artifact System Overview
 

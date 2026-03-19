@@ -1,7 +1,6 @@
 ---
 name: dev-strategy
 description: Creates sufficient implementation plans for complex coding projects. Use when users say "plan how to build", "create implementation roadmap", "break down this feature", "how should I approach building", or need structured development strategies for multi-phase projects, refactoring, or architectural changes.
-allowed-tools: ["Task", "Read", "Write", "Grep", "Glob", "TodoWrite"]
 ---
 
 # Dev Strategy Skill
@@ -90,4 +89,4 @@ All artifacts created by this skill must conform to contribution-system conventi
 
 ## Additional Instructions
 
-For step-by-step execution instructions, see [reference.md](reference.md).
+For step-by-step execution instructions, see [references/guide.md](references/guide.md).
