@@ -1,6 +1,6 @@
 ---
 name: dev-strategy
-description: Creates sufficient implementation plans for complex coding projects. Use when users say "plan how to build", "create implementation roadmap", "break down this feature", "how should I approach building", or need structured development strategies for multi-phase projects, refactoring, or architectural changes.
+description: Creates sufficient implementation plans for complex coding projects by analyzing your codebase, gathering constraints, and proposing execution strategies. Use when you need to "plan how to build", "create implementation roadmap", "break down this feature", "how should I approach building", or structure multi-phase development, refactoring, or architectural changes. Produces code context, behavioral specs, decision logs, and implementation roadmaps.
 ---
 
 # Dev Strategy Skill
@@ -63,29 +63,15 @@ The skill generates structured artifacts in `.plans/plan-[FEATURE-NAME]/`:
 - **Technology Research** - Deep-dive analysis of new technologies
 - **Implementation Examples** - Code patterns and usage examples
 
-## ⚠️ Prerequisite: Understand contribution-system
+## Prerequisites
 
-**MANDATORY**: Before using this skill, read [`contribution-system` skill](../contribution-system/SKILL.md) to understand:
+Before using this skill, understand the contribution-system by reading [`contribution-system` skill](../contribution-system/SKILL.md) to learn:
 - Artifact schemas (code-context.md, context-document.md, decision-log.yaml, implementation-roadmap.md)
 - How decisions are documented (unified YAML schema)
 - How contributions are structured (contributions/ folder, NNN-phase-X naming)
 - Where artifacts are created (plan root vs contribution folders)
 
 All artifacts created by this skill must conform to contribution-system conventions.
-
-## When to Use This Skill
-
-✅ **Use for:**
-- Complex features requiring multiple phases
-- Architectural changes or refactoring
-- Breaking down large development tasks
-- Understanding implementation trade-offs
-- Projects needing structured planning
-
-❌ **Don't use for:**
-- Simple, single-step tasks
-- Pure research or documentation questions
-- Quick bug fixes or minor changes
 
 ## Additional Instructions
 

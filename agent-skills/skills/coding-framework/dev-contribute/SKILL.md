@@ -1,6 +1,6 @@
 ---
 name: dev-contribute
-description: Enables structured contributions to dev-strategy implementation plans. Use when users say "contribute to dev-strategy", "implement this phase", "review the code", "audit the implementation", "add to the dev plan", or need to make any contribution to an existing dev-strategy with proper documentation and knowledge transfer.
+description: Enables structured contributions to dev-strategy implementation plans with proper documentation and knowledge transfer. Use when you need to "contribute to dev-strategy", "implement this phase", "review the code", "audit the implementation", "add to the dev plan", or make specialized contributions (testing, auditing, documenting) to existing dev-strategy roadmaps. Generates decision logs and context handoffs with mandatory documentation.
 ---
 
 # Dev Contribute Skill
@@ -16,9 +16,9 @@ Enables any agent to contribute to a dev-strategy by:
 - Maintaining project continuity and knowledge transfer
 - Handling decision revisions when previous choices need revisiting
 
-## ⚠️ MANDATORY Prerequisite: Understand contribution-system
+## Prerequisites
 
-**MANDATORY**: Before using this skill, load `contribution-system` skill to understand:
+Before using this skill, load [`contribution-system` skill](../contribution-system/SKILL.md) to understand:
 - Folder naming convention (NNN-phase-X-[type]-[specialty]-[agent])
 - Artifact schemas (decision-log.yaml, context-handoff.md)
 - Directory structure (contributions/ folder is required)
@@ -26,24 +26,7 @@ Enables any agent to contribute to a dev-strategy by:
 - What commit means and when to populate it (git hash of the commit containing code changes)
 - Progressive disclosure strategy for reading contributions
 
-All contributions created by this skill must conform to contribution-system conventions. This is not optional.
-
-## When to Use This Skill
-
-✅ **Use when:**
-- Implementing code for a dev-strategy phase
-- Reviewing existing implementations
-- Auditing security, performance, or quality
-- Testing implementations
-- Documenting or analyzing dev-strategy work
-- Any specialized contribution to an active dev-strategy
-
-❌ **Don't use when:**
-- Creating initial dev-strategy plans (use dev-strategy skill instead)
-- Working on projects without dev-strategy plans
-- Making quick fixes unrelated to strategic development
-
-**💡 Tip**: Instead of manually invoking this skill, users can use **dev-continue** skill which automatically determines if design or implementation is needed next.
+All contributions created by this skill must conform to contribution-system conventions.
 
 ## Execution Requirements
 

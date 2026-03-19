@@ -1,6 +1,6 @@
 ---
 name: dev-strategies
-description: Canonical reference (not a primary skill) for the three development execution strategies: TDD, Steel Thread, and Core-then-Integrate. Load this when you need strategy definitions, selection criteria, execution phases, test pyramid guidance, or contribution folder naming patterns. Referenced by dev-strategy skill during planning.
+description: Reference guide for three development execution strategies: TDD, Steel Thread, and Core-then-Integrate. Load this when you need strategy definitions, selection criteria, execution phases, test pyramid guidance, contribution folder naming patterns, or help choosing a strategy. Referenced during dev-strategy planning and dev-contribute execution.
 ---
 
 # Dev Strategies
