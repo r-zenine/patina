@@ -46,14 +46,37 @@ All contributions created by this skill must conform to contribution-system conv
 
 **💡 Tip**: Instead of manually invoking this skill, users can use **dev-continue** skill which automatically determines if design or implementation is needed next.
 
-## Process Overview
+## Execution Requirements
 
-1. **Read existing dev-strategy plan** - Understand context, strategy, and current state
-2. **Follow strategy approach** - Execute according to strategy → see [`dev-strategies` skill](../dev-strategies/SKILL.md)
-3. **Create numbered contribution folder** - Sequential numbering for chronological order → folder naming in [`contribution-system` skill](../contribution-system/SKILL.md)
-4. **Perform specialized work** - Implementation, review, audit, testing, etc.
-5. **Generate mandatory documentation** - 3 required files + optional artifacts
-6. **Handle decision revisions** - When decisions need revisiting, create new revision contribution
+To make a robust contribution to a dev-strategy plan, ensure these outcomes are achieved:
+
+**FOUNDATION** (outcome: context is clear and phase is ready)
+- Roadmap is understood (current phase objectives, what comes next)
+- Prior decisions are known (what was decided in earlier phases, constraints they impose)
+- Strategy is clear (TDD/Steel-Thread/Core-then-Integrate approach for this phase)
+- Success criteria are identified (what deliverables complete this phase?)
+- Phase is not blocked by prior decisions
+
+**EXECUTION** (outcome: work is complete and quality bar is met)
+- Phase deliverables are complete (all objectives for this phase achieved)
+- Quality bar is met (code passes tests, reviews pass, security/performance requirements met)
+- Decisions are captured (what trade-offs were made, why this approach was chosen?)
+- Prior decisions still hold (no contradictions discovered with earlier choices)
+- If prior decisions need revisiting, a revision contribution is created with reasoning
+
+**KNOWLEDGE TRANSFER** (outcome: next phase is unblocked)
+- Decisions are recorded (decision-log.yaml populated with code_impacts showing what changed)
+- Context is handed off (context-handoff.md tells next phase what to focus on and why)
+- Contribution folder exists with sequential numbering (NNN-phase-X-[type]-[specialty]-[agent])
+- Contribution is committed (staged and committed with message matching folder name)
+
+**How to achieve these outcomes:**
+1. Read existing dev-strategy plan (understand context, strategy, and current state)
+2. Follow strategy approach (execute according to strategy → see [`dev-strategies` skill](../dev-strategies/SKILL.md))
+3. Create numbered contribution folder (use sequential numbering → refer to [`contribution-system` skill](../contribution-system/SKILL.md) for naming)
+4. Perform specialized work (implementation, review, audit, testing, or other contribution type)
+5. Generate mandatory documentation (decision-log.yaml and context-handoff.md + optional artifacts)
+6. Handle decision revisions (if prior decisions need revisiting, create revision contribution with reasoning)
 
 ## Key Outputs
 
