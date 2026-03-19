@@ -11,7 +11,7 @@ Schemas for the 2 mandatory files in every implementation, review, audit, or rev
 **Schema**: Unified schema matching `diffviz-review::Decision` struct.
 
 ```yaml
-base_commit: "abc123def456"  # Required: git hash before any changes (git rev-parse HEAD)
+commit: "abc123def456"  # Required: git hash of the commit containing these code changes
 
 decisions:
   - number: 1
@@ -38,7 +38,7 @@ decisions:
 - Use `number` (u32) for decision ID, matching the struct
 - Use `title` (not `decision`) — this is the struct field name
 - `code_impacts` must reference actual code changes in this contribution
-- `base_commit` must be populated with git hash before changes (dev-contribute Step 3.1)
+- `commit` must be populated with git hash of the commit containing code changes (dev-contribute Step 4.5)
 - `rationale` is optional
 - This is the **same schema** used in strategy decision-logs; see [strategy-artifacts.md](strategy-artifacts.md)
 

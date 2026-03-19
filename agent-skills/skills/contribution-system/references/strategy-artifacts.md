@@ -82,7 +82,7 @@ All artifacts are created in `./dev-strategy-[FEATURE-NAME]/`.
 **Schema**: Unified schema matching `diffviz-review::Decision` struct.
 
 ```yaml
-base_commit: null  # Strategy decisions: null (no code yet)
+commit: null  # Strategy decisions: null (no code yet)
 
 decisions:
   - number: 1

@@ -897,6 +897,36 @@ impl GitRepository {
         }
     }
     */
+
+    /// Resolve a commit hash to its parent commit hash
+    /// Used for building diff queries that show the exact commit's changes (commit^..commit)
+    pub fn resolve_parent_commit(&self, commit_hash: &str) -> Result<String> {
+        let commit_obj =
+            self.repo
+                .revparse_single(commit_hash)
+                .map_err(|source| GitError::InvalidCommit {
+                    hash: commit_hash.to_string(),
+                    source,
+                })?;
+
+        let commit = commit_obj
+            .as_commit()
+            .ok_or_else(|| GitError::InvalidCommit {
+                hash: commit_hash.to_string(),
+                source: git2::Error::new(
+                    git2::ErrorCode::InvalidSpec,
+                    git2::ErrorClass::Reference,
+                    "Not a commit object",
+                ),
+            })?;
+
+        let parent = commit.parent(0).map_err(|source| GitError::InvalidCommit {
+            hash: commit_hash.to_string(),
+            source,
+        })?;
+
+        Ok(parent.id().to_string())
+    }
 }
 
 /// Minimal working implementation of DiffProvider for GitRepository

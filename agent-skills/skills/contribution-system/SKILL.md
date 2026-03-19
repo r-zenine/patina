@@ -128,7 +128,7 @@ NNN-phase-X-revision-[original-specialty]-[agent]
 All `decision-log.yaml` files (strategy, implementation, design) use the **same schema**, matching the `diffviz-review::Decision` struct:
 
 ```yaml
-base_commit: null  # Strategy: null. Implementation: git hash before changes.
+commit: null  # Strategy: null. Implementation: git hash of commit containing code changes.
 
 decisions:
   - number: 1                          # Decision identifier (u32)
