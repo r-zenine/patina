@@ -6,21 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 DiffViz is an LLM-powered code review guide tool that transforms overwhelming code diffs into manageable, step-by-step review experiences. The project uses a clean architecture inspired by the Sam project, with a modular Rust workspace structure.
 
-## Knowledge acquisition Guidelines.
-When you need to deep dive into a crate to understand a behaviour, you must read `onboarding.md` first
-When the file does not exists ask the onboarding agent to build it for you.
-If there are git diffs in the crate, ask the onboarding agent to update the `onboarding.md` document first.
-
-## MANDATORY: Always read onboarding.md before code analysis
-Before analyzing any crate's code or proposing changes, or working on fixing a test, or generating any code to a crate:
-1. ALWAYS read the crate's `onboarding.md` file first
-2. If onboarding.md doesn't exist, use the onboarding agent to create it
-3. Only after understanding the architecture from onboarding.md should you read source files
-4. If you start code analysis without reading onboarding.md, STOP and read it first
-5. Unless specifically asked by me, it is strictly forbiden to introduce fallbacks, or to consider backward compatibility
-
-This prevents surface-level analysis that misses critical architectural constraints and design principles.
-
 ## Development Commands
 
 ### Workspace Operations

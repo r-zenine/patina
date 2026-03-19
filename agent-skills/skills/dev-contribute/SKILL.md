@@ -17,6 +17,18 @@ Enables any agent to contribute to a dev-strategy by:
 - Maintaining project continuity and knowledge transfer
 - Handling decision revisions when previous choices need revisiting
 
+## ⚠️ Prerequisite: Understand contribution-system
+
+**MANDATORY**: Before using this skill, read [`contribution-system` skill](../contribution-system/SKILL.md) to understand:
+- Folder naming convention (NNN-phase-X-[type]-[specialty]-[agent])
+- Artifact schemas (decision-log.yaml, context-handoff.md)
+- Directory structure (contributions/ folder is required)
+- Unified decision-log YAML schema
+- What base_commit means and when to populate it
+- Progressive disclosure strategy for reading contributions
+
+All contributions created by this skill must conform to contribution-system conventions. This is not optional.
+
 ## When to Use This Skill
 
 ✅ **Use when:**

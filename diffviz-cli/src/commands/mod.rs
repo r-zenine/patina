@@ -3,6 +3,7 @@
 //! This module contains the implementation for each diffviz CLI subcommand,
 //! following clean separation of concerns and the Environment pattern.
 
+pub mod debug;
 pub mod diagnose;
 pub mod review;
 pub mod show;

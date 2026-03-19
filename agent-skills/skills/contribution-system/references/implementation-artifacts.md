@@ -6,24 +6,47 @@ Schemas for the 2 mandatory files in every implementation, review, audit, or rev
 
 ## 1. `decision-log.yaml`
 
-**Purpose**: Structured record of technical decisions made during this contribution (YAML format).
+**Purpose**: Structured record of technical decisions made during this contribution, mapped to actual code changes.
 
-**Schema:**
+**Schema**: Unified schema matching `diffviz-review::Decision` struct.
+
 ```yaml
+base_commit: "abc123def456"  # Required: git hash before any changes (git rev-parse HEAD)
+
 decisions:
-  - id: "001"
-    type: implementation  # implementation | contribution
-    decision: "[Decision made in one sentence]"
-    rationale: "[Why this choice was made]"
-    alternatives_rejected:
-      - alternative: "[Option not chosen]"
-        reason: "[Why rejected]"
-    impact: "[Effect on future work]"
+  - number: 1
+    title: "[Decision made in one sentence]"
+    rationale: "[Why this choice was made — constraints, priorities, trade-offs]"  # optional
+    code_impacts:
+      - file: "[path/to/file.rs]"
+        reasoning: "[Why this file is affected by this decision]"
+        line_ranges:
+          - start: 10
+            end: 50
+
+  - number: 2
+    title: "[Next decision]"
+    code_impacts:
+      - file: "[path/to/another/file.rs]"
+        reasoning: "[Why affected]"
+        line_ranges:
+          - start: 100
+            end: 150
 ```
+
+**Key Points:**
+- Use `number` (u32) for decision ID, matching the struct
+- Use `title` (not `decision`) — this is the struct field name
+- `code_impacts` must reference actual code changes in this contribution
+- `base_commit` must be populated with git hash before changes (dev-contribute Step 3.1)
+- `rationale` is optional
+- This is the **same schema** used in strategy decision-logs; see [strategy-artifacts.md](strategy-artifacts.md)
 
 **Rules:**
 - Document only NEW decisions made during this contribution
 - Do not re-document decisions already in the dev-strategy decision log
+- Every code_impact must have at least one line_range pointing to actual changes
+- If a decision has no code impacts yet, use empty array: `code_impacts: []`
 - Use YAML format (not markdown)
 
 ---
