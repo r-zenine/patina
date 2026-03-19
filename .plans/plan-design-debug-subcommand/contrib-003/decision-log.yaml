@@ -1,64 +1,74 @@
 decisions:
   - number: 1
-    id: "D11"
-    type: implementation
-    decision: "Explanation generation uses semantic_kind, change_status, and relevance_score from DiffNode"
-    rationale: "These three attributes are sufficient to generate informative explanations. semantic_kind tells us what language construct changed (function, struct, etc.), change_status tells us what happened (added, deleted, modified, etc.), and relevance_score indicates importance level (ESSENTIAL through NOISE). Together they provide agents with the reasoning behind folding decisions."
-    alternatives_rejected:
-      - alternative: "Use LLM to generate explanations"
-        reason: "Would require API calls, add latency, and be expensive. Deterministic mapping is faster and always consistent."
-      - alternative: "Extract and show AST metadata"
-        reason: "Too technical and verbose for agents. Human-readable summaries are more actionable."
-    impact: "Agents can now understand why certain diff nodes have high or low relevance scores without additional LLM analysis. Explanations are generated on-demand only when --explain-folding is passed."
+    title: "Explanation generation using semantic_kind, change_status, and relevance_score"
+    rationale: "These three DiffNode attributes are sufficient to generate informative explanations. semantic_kind tells us what language construct changed (function, struct, etc.), change_status tells us what happened (added, deleted, modified, etc.), and relevance_score indicates importance level (ESSENTIAL through NOISE). Together they provide agents with the reasoning behind folding decisions without requiring LLM analysis."
+    code_impacts:
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "Added generate_node_explanation() helper function that maps semantic_kind, change_status, and relevance_score to human-readable text"
+        line_ranges:
+          - start: 353
+            end: 398
 
   - number: 2
-    id: "D12"
-    type: implementation
-    decision: "Relevance score mapping: ESSENTIAL=0, IMPORTANT=1, BACKGROUND=2, NOISE=3"
-    rationale: "These constants are defined in diffviz-core and already used throughout the codebase. They represent a consistent hierarchy: ESSENTIAL contains or is the actual change, IMPORTANT is a direct container, BACKGROUND is sibling context, NOISE is unrelated context."
-    alternatives_rejected:
-      - alternative: "Normalize scores to 0-1 float range"
-        reason: "Would require conversion logic and lose the meaningful categorization that uint constants provide."
-    impact: "Explanations reference standard relevance levels that agents and UI components already understand. No new concepts introduced."
+    title: "Relevance score constants mapping to readable levels"
+    rationale: "The ESSENTIAL=0, IMPORTANT=1, BACKGROUND=2, NOISE=3 constants are already defined in diffviz-core and used throughout. They represent a consistent hierarchy. Mapping them directly to readable labels ('Essential', 'Important', 'Background', 'Noise') ensures consistency with existing relevance scoring throughout the system."
+    code_impacts:
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "Used diffviz_core::ast_diff constants (ESSENTIAL, IMPORTANT, BACKGROUND, NOISE) to map numeric scores to readable labels in explanation generation"
+        line_ranges:
+          - start: 356
+            end: 365
 
   - number: 3
-    id: "D13"
-    type: implementation
-    decision: "Explanation format: '{relevance_level} relevance: {change} {kind} {node_type}'"
-    rationale: "This order (most important info first: relevance level) provides agents with the key decision reason upfront. Examples: 'Essential relevance: modified function Function', 'Noise relevance: unchanged statement Expression'. Consistent format across all nodes."
-    alternatives_rejected:
-      - alternative: "Longer explanatory text"
-        reason: "Would bloat JSON output. Short format is sufficient for agents."
-      - alternative: "Structured explanation object"
-        reason: "Added complexity without additional value. String format is simpler to parse and consume."
-    impact: "Explanations are concise, scannable, and consistent. Easy for agents to parse programmatically if needed."
+    title: "Explanation format: '{level} relevance: {change} {kind} {node_type}'"
+    rationale: "This format puts the most important information first (relevance level), followed by what changed, what kind of construct it is, and the technical node type. Format is consistent across all nodes and languages. Examples: 'Essential relevance: modified function Function', 'Important relevance: added struct MyStruct'. Simple string format is easier to parse and consume than structured objects."
+    code_impacts:
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "Generate format string combining relevance_level, change_desc, semantic_desc, and node_type in human-readable order"
+        line_ranges:
+          - start: 394
+            end: 398
 
   - number: 4
-    id: "D14"
-    type: implementation
-    decision: "Explanations added to phases 4, 6, and 7 (all phases showing diff nodes/impacts)"
-    rationale: "Phase 4 shows diff node hierarchy, Phase 6 shows code impact analysis, Phase 7 shows final output. All three display node-level information where explanations are relevant. Phases 1-3 and 5 don't need explanations (1=AST outline, 2=pair counts, 3=reviewable diffs list, 5=renderable line diffs)."
-    alternatives_rejected:
-      - alternative: "Add explanations to all 7 phases"
-        reason: "Not all phases show individual node metadata. Phases 1, 2, 3, 5 don't have the semantic_kind and change_status information."
-    impact: "Consistent explanation availability across all phases that display node-level folding information. Phases 1-3 and 5 remain focused on their specific data representations."
+    title: "Explanations added to phases 4, 6, and 7 only"
+    rationale: "Phases 4 (Diff Node Hierarchy), 6 (Code Impact), and 7 (Final Output) all display node-level information where explanations are directly relevant. Phase 1 shows AST outline, Phase 2 shows pair counts, Phase 3 shows reviewable diffs list, Phase 5 shows renderable lines - none have individual semantic metadata to explain. Scoping to three phases keeps implementation focused."
+    code_impacts:
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "Modified serialize_phase_4() to include explanations conditionally"
+        line_ranges:
+          - start: 407
+            end: 438
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "Modified serialize_phase_6() to include explanations conditionally"
+        line_ranges:
+          - start: 513
+            end: 546
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "Modified serialize_phase_7() to include explanations conditionally"
+        line_ranges:
+          - start: 548
+            end: 581
 
   - number: 5
-    id: "D15"
-    type: architecture
-    decision: "Explanations only generated when --explain-folding flag is passed (optional, not always computed)"
-    rationale: "Follows design principle: don't compute what's not requested. Most agents likely won't need detailed folding explanations. Flag is opt-in, keeping baseline output lean and fast."
-    alternatives_rejected:
-      - alternative: "Always include explanations"
-        reason: "Would bloat every phase 4/6/7 output and add computation for agents that don't need it."
-    impact: "Baseline debug output is smaller and faster. Agents that want explanations pass --explain-folding. No performance regression for existing usage."
+    title: "Explanations only generated when --explain-folding flag is passed"
+    rationale: "Most agents won't need detailed folding explanations. Making it opt-in via --explain-folding flag keeps baseline output lean and fast. Explanations are only computed on-demand when explicitly requested. No performance regression for existing usage."
+    code_impacts:
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "Each phase serialization method checks self.explain_folding before generating explanation text"
+        line_ranges:
+          - start: 419
+            end: 427
+          - start: 527
+            end: 535
+          - start: 562
+            end: 570
 
   - number: 6
-    id: "D16"
-    type: implementation
-    decision: "Import and use diffviz_core constants and types directly in explanation generation"
-    rationale: "ESSENTIAL, IMPORTANT, BACKGROUND, NOISE are already defined in diffviz_core::ast_diff. SemanticNodeKind and NodeChangeStatus are core domain types. No need to duplicate or redefine; use the same sources of truth."
-    alternatives_rejected:
-      - alternative: "Create local constants"
-        reason: "Would duplicate definitions and risk divergence."
-    impact: "Explanation logic is tightly coupled to core domain definitions, ensuring consistency and making updates automatic if core types change."
+    title: "Direct use of diffviz_core types and constants for source of truth"
+    rationale: "SemanticNodeKind enum, NodeChangeStatus variants, and RelevanceScore constants are already defined in diffviz_core. Using them directly in explanation generation ensures consistency and makes updates automatic if core types change. No duplication of definitions."
+    code_impacts:
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "Import and match on diffviz_core::ast_diff constants and diffviz_core::common::SemanticNodeKind in generate_node_explanation()"
+        line_ranges:
+          - start: 354
+            end: 398
