@@ -1,6 +1,8 @@
 ---
 name: contribution-system
 description: Canonical reference for all contribution artifact schemas, templates, folder naming conventions, file format rules, and workflow patterns (progressive disclosure, two-gate system, constraint discovery, routing) used across dev-strategy workflow skills.
+skills-depend-on:
+  - design-principles
 ---
 
 # Contribution System
@@ -83,11 +85,4 @@ This skill also defines workflow patterns used across all dev-strategy skills. L
 - **[Constraint Discovery](references/constraint-discovery.md)** — AskUserQuestion patterns for gathering real constraints
 - **[Routing Patterns](references/routing-patterns.md)** — Determining next skill by reading roadmap state
 
-## See Also
 
-**Related Skills:**
-- **[dev-strategy](../dev-strategy/SKILL.md)** — Creates artifacts that conform to contribution-system schemas
-- **[design-contribute](../design-contribute/SKILL.md)** — Creates design contributions following contribution-system conventions
-- **[dev-contribute](../dev-contribute/SKILL.md)** — Creates implementation contributions following contribution-system conventions
-- **[design-principles](../design-principles/SKILL.md)** — Explains the philosophy behind artifact design and folder naming
-- **[execution-strategies](../execution-strategies/SKILL.md)** — Defines folder naming patterns for each strategy

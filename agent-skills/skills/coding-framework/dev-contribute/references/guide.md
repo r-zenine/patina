@@ -2,6 +2,21 @@
 
 This document provides instructions for contributing to dev-strategy implementation plans, organized by the outcome phases that define success.
 
+## Table of Contents
+
+- [Overview](#overview)
+- [OUTCOME 1: Context is Clear and Phase is Ready](#outcome-1-context-is-clear-and-phase-is-ready)
+  - [What You Must Verify](#what-you-must-verify)
+  - [How to Achieve This Outcome](#how-to-achieve-this-outcome)
+- [OUTCOME 2: Work is Complete and Quality Bar is Met](#outcome-2-work-is-complete-and-quality-bar-is-met)
+  - [What You Must Verify (Outcome 2)](#what-you-must-verify-1)
+  - [How to Achieve This Outcome (Outcome 2)](#how-to-achieve-this-outcome-1)
+- [OUTCOME 3: Next Phase is Unblocked](#outcome-3-next-phase-is-unblocked)
+  - [What You Must Verify (Outcome 3)](#what-you-must-verify-2)
+  - [How to Achieve This Outcome (Outcome 3)](#how-to-achieve-this-outcome-2)
+- [Reference: Common Patterns by Strategy](#reference-common-patterns-by-strategy)
+- [Reference: Research Integration Examples](#reference-research-integration-examples)
+
 ## Overview
 
 The dev-contribute skill enables structured contributions to existing dev-strategy plans. Each contribution follows the selected implementation strategy and creates proper documentation for knowledge transfer.
