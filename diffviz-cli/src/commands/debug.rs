@@ -350,6 +350,53 @@ impl DebugCommand {
         Ok(())
     }
 
+    /// Generate human-readable explanation for a DiffNode's relevance
+    fn generate_node_explanation(&self, node: &diffviz_core::reviewable_diff::DiffNode) -> String {
+        use diffviz_core::ast_diff::{ESSENTIAL, IMPORTANT, BACKGROUND, NOISE};
+        use diffviz_core::common::SemanticNodeKind;
+
+        let relevance_level = match node.relevance {
+            ESSENTIAL => "Essential",
+            IMPORTANT => "Important",
+            BACKGROUND => "Background",
+            NOISE => "Noise",
+            _ => "Unknown",
+        };
+
+        let semantic_desc = match &node.semantic_kind {
+            SemanticNodeKind::Function => "function",
+            SemanticNodeKind::Class => "class",
+            SemanticNodeKind::Struct => "struct",
+            SemanticNodeKind::Enum => "enum",
+            SemanticNodeKind::Interface => "interface/trait",
+            SemanticNodeKind::ImplBlock => "impl block",
+            SemanticNodeKind::Module => "module",
+            SemanticNodeKind::Import => "import/use statement",
+            SemanticNodeKind::Variable => "variable",
+            SemanticNodeKind::SignatureComponent => "signature component",
+            SemanticNodeKind::Statement => "statement",
+            SemanticNodeKind::Expression => "expression",
+            SemanticNodeKind::TypeDefinition => "type definition",
+            SemanticNodeKind::Comment => "comment",
+            SemanticNodeKind::SourceFile => "source file",
+            SemanticNodeKind::Other(kind) => kind.as_str(),
+        };
+
+        let change_desc = match &node.change_status {
+            diffviz_core::reviewable_diff::NodeChangeStatus::Added { .. } => "added",
+            diffviz_core::reviewable_diff::NodeChangeStatus::Deleted { .. } => "deleted",
+            diffviz_core::reviewable_diff::NodeChangeStatus::Modified { .. } => "modified",
+            diffviz_core::reviewable_diff::NodeChangeStatus::Moved { .. } => "moved",
+            diffviz_core::reviewable_diff::NodeChangeStatus::Reordered { .. } => "reordered",
+            diffviz_core::reviewable_diff::NodeChangeStatus::Unchanged { .. } => "unchanged",
+        };
+
+        format!(
+            "{} relevance: {} {} {}",
+            relevance_level, change_desc, semantic_desc, node.node_type
+        )
+    }
+
     /// Serialize Phase 1: Semantic Tree (AST outline)
     fn serialize_phase_1(&self) -> Option<serde_json::Value> {
         // Phase 1: AST outline — tree-sitter semantic tree structure
@@ -403,15 +450,26 @@ impl DebugCommand {
     ) -> Option<serde_json::Value> {
         let nodes = filtered_diffs
             .iter()
-            .map(|(id, _diff)| {
-                serde_json::json!({
+            .map(|(id, diff)| {
+                let mut node_obj = serde_json::json!({
                     "file": id.file_path,
                     "line_range": {
                         "start": id.line_range.start_line,
                         "end": id.line_range.end_line,
                     },
-                    "change_type": "modified"
-                })
+                    "relevance_score": diff.core_diff.boundary.relevance,
+                    "semantic_kind": format!("{:?}", diff.core_diff.boundary.semantic_kind),
+                });
+
+                // Add explanation if --explain-folding flag is set
+                if self.explain_folding {
+                    if let Some(obj) = node_obj.as_object_mut() {
+                        let explanation = self.generate_node_explanation(&diff.core_diff.boundary);
+                        obj.insert("explanation".to_string(), serde_json::Value::String(explanation));
+                    }
+                }
+
+                node_obj
             })
             .collect::<Vec<_>>();
 
@@ -459,15 +517,25 @@ impl DebugCommand {
     ) -> Option<serde_json::Value> {
         let impacts = filtered_diffs
             .iter()
-            .map(|(id, _diff)| {
-                serde_json::json!({
+            .map(|(id, diff)| {
+                let mut impact_obj = serde_json::json!({
                     "file": id.file_path,
                     "line_range": {
                         "start": id.line_range.start_line,
                         "end": id.line_range.end_line,
                     },
-                    "relevance_score": 0.5
-                })
+                    "relevance_score": diff.core_diff.boundary.relevance,
+                });
+
+                // Add explanation if --explain-folding flag is set
+                if self.explain_folding {
+                    if let Some(obj) = impact_obj.as_object_mut() {
+                        let explanation = self.generate_node_explanation(&diff.core_diff.boundary);
+                        obj.insert("explanation".to_string(), serde_json::Value::String(explanation));
+                    }
+                }
+
+                impact_obj
             })
             .collect::<Vec<_>>();
 
@@ -484,15 +552,25 @@ impl DebugCommand {
     ) -> Option<serde_json::Value> {
         let impacts = filtered_diffs
             .iter()
-            .map(|(id, _diff)| {
-                serde_json::json!({
+            .map(|(id, diff)| {
+                let mut impact_obj = serde_json::json!({
                     "file": id.file_path,
                     "line_range": {
                         "start": id.line_range.start_line,
                         "end": id.line_range.end_line,
                     },
-                    "relevance_score": 0.5
-                })
+                    "relevance_score": diff.core_diff.boundary.relevance,
+                });
+
+                // Add explanation if --explain-folding flag is set
+                if self.explain_folding {
+                    if let Some(obj) = impact_obj.as_object_mut() {
+                        let explanation = self.generate_node_explanation(&diff.core_diff.boundary);
+                        obj.insert("explanation".to_string(), serde_json::Value::String(explanation));
+                    }
+                }
+
+                impact_obj
             })
             .collect::<Vec<_>>();
 
