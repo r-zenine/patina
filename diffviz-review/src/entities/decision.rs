@@ -10,6 +10,10 @@ use crate::state::ReviewState;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+// Import the derive macro (must be at module level for #[derive(...)] to work)
+extern crate diffviz_schema_macro;
+use diffviz_schema_macro::SchemaTemplate;
+
 /// An inclusive range of line numbers affected by a code impact
 ///
 /// Represents a contiguous block of lines within a file that are affected by a decision.
@@ -66,7 +70,7 @@ pub struct Decision {
 /// The log can be used in two phases:
 /// - **Strategy phase**: Decisions planned but not yet implemented (commit is optional)
 /// - **Implementation phase**: Decisions realized in code (commit is required for tracking)
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, SchemaTemplate)]
 pub struct DecisionLog {
     /// The ordered list of architectural decisions made in this contribution
     pub decisions: Vec<Decision>,
