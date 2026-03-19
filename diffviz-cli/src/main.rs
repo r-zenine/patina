@@ -6,7 +6,10 @@ use clap::{Parser, Subcommand};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-use commands::{CommandExecutor, debug::DebugCommand, review::ReviewCommand};
+use commands::{
+    CommandExecutor, debug::DebugCommand, review::ReviewCommand, templates::TemplatesCommand,
+    validate::ValidateCommand,
+};
 use diffviz_git::GitRepository;
 use diffviz_review::{
     Approval, DecisionApproval, DecisionApprovals, DecisionLog, DiffQuery, ReviewApprovals,
@@ -82,6 +85,18 @@ enum Commands {
         /// Filter results to line range (format: start-end)
         #[arg(long, value_name = "RANGE")]
         line_range: Option<String>,
+    },
+    /// Generate schema templates for artifacts
+    Templates {
+        /// Type of artifact (e.g., decision-log)
+        artifact: String,
+    },
+    /// Validate an artifact file against its schema
+    Validate {
+        /// Type of artifact (e.g., decision-log)
+        artifact: String,
+        /// Path to the file to validate
+        file: String,
     },
 }
 
@@ -261,6 +276,14 @@ fn main() -> Result<()> {
                         line_range,
                     };
                     debug_command.execute(environment)
+                }
+                Commands::Templates { artifact } => {
+                    let templates_command = TemplatesCommand::new(artifact);
+                    templates_command.execute(environment)
+                }
+                Commands::Validate { artifact, file } => {
+                    let validate_command = ValidateCommand::new(artifact, file);
+                    validate_command.execute(environment)
                 }
             }
         }

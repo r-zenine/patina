@@ -5,6 +5,8 @@
 
 pub mod debug;
 pub mod review;
+pub mod templates;
+pub mod validate;
 
 use crate::environment::Environment;
 use anyhow::Result;
