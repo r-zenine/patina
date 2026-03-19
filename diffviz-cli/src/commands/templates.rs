@@ -23,8 +23,7 @@ impl CommandExecutor for TemplatesCommand {
     fn execute(&self, _env: Environment) -> Result<()> {
         match self.artifact.as_str() {
             "decision-log" => {
-                let template = diffviz_review::DecisionLog::yaml_template();
-                println!("{}", template);
+                println!("{}", diffviz_review::DecisionLog::yaml_template());
                 Ok(())
             }
             _ => Err(anyhow::anyhow!(

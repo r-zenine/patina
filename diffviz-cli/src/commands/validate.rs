@@ -42,7 +42,7 @@ impl CommandExecutor for ValidateCommand {
                     }
                     Err(e) => {
                         eprintln!("✗ {} is invalid", self.file);
-                        eprintln!("\nValidation error: {}", e);
+                        eprintln!("\nValidation error: {e}");
                         eprintln!("\nExpected schema:");
                         eprintln!("  Run: diffviz templates decision-log");
                         eprintln!("  to see the current schema.\n");
