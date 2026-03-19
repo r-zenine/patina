@@ -40,8 +40,12 @@ pub struct Decision {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DecisionLog {
     pub decisions: Vec<Decision>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub base_commit: Option<String>,
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        alias = "base_commit"
+    )]
+    pub commit: Option<String>,
 }
 
 impl DecisionLog {
@@ -925,7 +929,7 @@ decisions:
     }
 
     #[test]
-    fn test_decision_log_parse_without_base_commit_defaults_to_none() {
+    fn test_decision_log_parse_without_commit_defaults_to_none() {
         let yaml = r#"
 decisions:
   - number: 1
@@ -933,11 +937,24 @@ decisions:
     code_impacts: []
 "#;
         let log = DecisionLog::parse(yaml).unwrap();
-        assert_eq!(log.base_commit, None);
+        assert_eq!(log.commit, None);
     }
 
     #[test]
-    fn test_decision_log_parse_with_base_commit() {
+    fn test_decision_log_parse_with_commit() {
+        let yaml = r#"
+commit: "abc123def456"
+decisions:
+  - number: 1
+    title: "Some decision"
+    code_impacts: []
+"#;
+        let log = DecisionLog::parse(yaml).unwrap();
+        assert_eq!(log.commit, Some("abc123def456".to_string()));
+    }
+
+    #[test]
+    fn test_decision_log_parse_with_base_commit_alias_backward_compat() {
         let yaml = r#"
 base_commit: "abc123def456"
 decisions:
@@ -946,6 +963,6 @@ decisions:
     code_impacts: []
 "#;
         let log = DecisionLog::parse(yaml).unwrap();
-        assert_eq!(log.base_commit, Some("abc123def456".to_string()));
+        assert_eq!(log.commit, Some("abc123def456".to_string()));
     }
 }

@@ -85,7 +85,7 @@ Schemas for the 3 files in every design contribution (created by the design-cont
 **Schema**: Same unified schema as strategy and implementation, matching `diffviz-review::Decision` struct.
 
 ```yaml
-base_commit: null  # Design decisions typically have no code_impacts (code comes in implementation phase)
+commit: null  # Design decisions typically have no code_impacts (code comes in implementation phase)
 
 decisions:
   - number: 1

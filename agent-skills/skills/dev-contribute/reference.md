@@ -143,19 +143,9 @@ All contributions for a dev-strategy plan are stored together in the plan's dedi
 
 For complete folder naming convention, contribution type definitions, and specialty list, see [`contribution-system` skill](../contribution-system/SKILL.md).
 
-### Step 3.1: Record base commit
+### Step 3.1: Prepare for code changes
 
-Before making any code changes, capture the current HEAD:
-
-Before making any code changes, capture the current HEAD:
-```bash
-git rev-parse HEAD
-```
-Write the output as the first line in `decision-log.yaml`:
-```yaml
-base_commit: "<hash>"
-```
-This allows diffviz to show the correct diff after the contribution is committed.
+No action needed before making code changes. The commit hash will be recorded after implementation.
 
 ## Step 4: Perform Specialized Work
 
@@ -184,6 +174,26 @@ See [`design-principles` skill](../design-principles/SKILL.md) for full principl
 - Early phases where research decisions need implementation
 - When encountering integration challenges covered in research findings
 - Skip research review for routine work on well-established patterns
+
+## Step 4.5: Commit Code and Record Commit Hash
+
+After implementing changes and passing validation:
+```bash
+git add .
+git commit -m "Implementation of phase..."
+```
+
+After committing, get the commit hash and write it to `decision-log.yaml`:
+```bash
+git rev-parse HEAD
+```
+
+Write the output as the commit field in `decision-log.yaml`:
+```yaml
+commit: "<hash>"
+```
+
+**Commit all code changes before creating decision-log.yaml.** The commit hash references the exact commit containing your code changes, so diffviz can analyze the permanent diff (commit^..commit) correctly.
 
 ## Step 5: Generate Mandatory Documentation
 

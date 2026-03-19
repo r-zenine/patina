@@ -5,7 +5,7 @@
 # For implementation-level decisions: code_impacts MUST be populated with actual code changes.
 # For code review/audit: code_impacts maps to existing code being reviewed.
 
-base_commit: "git-hash-here"  # Populated by dev-contribute Step 3.1: git rev-parse HEAD (before any changes)
+commit: "git-hash-here"  # Populated by dev-contribute Step 4.5: git hash of the commit containing these code changes
 
 decisions:
   - number: 1

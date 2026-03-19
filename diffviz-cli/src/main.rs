@@ -193,19 +193,31 @@ fn save_review_state(folder: &Path, engine: &diffviz_review::ReviewEngine) -> Re
     Ok(())
 }
 
+fn resolve_commit_diff(git_repo: &GitRepository, commit_hash: String) -> Result<DiffQuery> {
+    let parent_hash = git_repo
+        .resolve_parent_commit(&commit_hash)
+        .map_err(|e| anyhow::anyhow!("Failed to resolve parent of commit {commit_hash}: {e}"))?;
+    Ok(DiffQuery::new(
+        diffviz_review::GitRef::Commit(parent_hash),
+        diffviz_review::GitRef::Commit(commit_hash),
+    ))
+}
+
 fn run_contribution_review(folder: &str, repo_path: &str, author: &str) -> Result<()> {
     let folder_path = Path::new(folder);
     let content = std::fs::read_to_string(folder_path.join("decision-log.yaml"))?;
     let log = DecisionLog::parse(&content)
         .map_err(|e| anyhow::anyhow!("Failed to parse decision-log.yaml: {e}"))?;
-    let query = log
-        .base_commit
-        .clone()
-        .map(DiffQuery::commit_to_head)
-        .unwrap_or_else(DiffQuery::head_to_unstaged);
 
     let git_repo = GitRepository::open(repo_path)
         .map_err(|e| anyhow::anyhow!("Failed to open repository: {e}"))?;
+
+    let query = log
+        .commit
+        .clone()
+        .map(|hash| resolve_commit_diff(&git_repo, hash))
+        .transpose()?
+        .unwrap_or_else(DiffQuery::head_to_unstaged);
 
     let mut engine = ReviewEngineBuilder::new(Box::new(git_repo), author.to_string())
         .build_from_decisions(log.decisions, query)
@@ -260,10 +272,15 @@ fn run_debug_expansion(
     let content = std::fs::read_to_string(folder_path.join("decision-log.yaml"))?;
     let log = DecisionLog::parse(&content)
         .map_err(|e| anyhow::anyhow!("Failed to parse decision-log.yaml: {e}"))?;
+
+    let git_repo = GitRepository::open(repo_path)
+        .map_err(|e| anyhow::anyhow!("Failed to open repository: {e}"))?;
+
     let query = log
-        .base_commit
+        .commit
         .clone()
-        .map(DiffQuery::commit_to_head)
+        .map(|hash| resolve_commit_diff(&git_repo, hash))
+        .transpose()?
         .unwrap_or_else(DiffQuery::head_to_unstaged);
 
     let decision = log
@@ -277,13 +294,8 @@ fn run_debug_expansion(
         .iter()
         .find(|c| c.file == file_path)
         .ok_or_else(|| {
-            anyhow::anyhow!(
-                "File '{file_path}' not found in decision #{decision_number}"
-            )
+            anyhow::anyhow!("File '{file_path}' not found in decision #{decision_number}")
         })?;
-
-    let git_repo = GitRepository::open(repo_path)
-        .map_err(|e| anyhow::anyhow!("Failed to open repository: {e}"))?;
 
     let new_source = git_repo
         .get_source_code(file_path, &query.to)
@@ -450,8 +462,8 @@ fn main() -> Result<()> {
                     human,
                     line_range,
                 } => {
-                    let debug_command = DebugCommand::new(
-                        file,
+                    let debug_command = DebugCommand {
+                        file_path: file,
                         from,
                         to,
                         phase,
@@ -459,7 +471,7 @@ fn main() -> Result<()> {
                         export_fixture,
                         human,
                         line_range,
-                    );
+                    };
                     debug_command.execute(environment)
                 }
             }

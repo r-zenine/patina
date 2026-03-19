@@ -24,7 +24,7 @@ Enables any agent to contribute to a dev-strategy by:
 - Artifact schemas (decision-log.yaml, context-handoff.md)
 - Directory structure (contributions/ folder is required)
 - Unified decision-log YAML schema
-- What base_commit means and when to populate it
+- What commit means and when to populate it (git hash of the commit containing code changes)
 - Progressive disclosure strategy for reading contributions
 
 All contributions created by this skill must conform to contribution-system conventions. This is not optional.
