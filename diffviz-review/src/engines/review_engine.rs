@@ -3,12 +3,12 @@
 //! This module provides the core business logic for managing reviews
 //! using the new ReviewableDiff system with RenderableDiff caching.
 
-use crate::entities::CascadeResult;
-use crate::entities::Instruction;
-use crate::entities::ReviewApprovals;
 use crate::entities::git_ref::{DiffQuery, GitRef};
 use crate::entities::instruction::InstructionStatus;
 use crate::entities::reviewable_diff_id::{LineRange, ReviewableDiffId};
+use crate::entities::CascadeResult;
+use crate::entities::Instruction;
+use crate::entities::ReviewApprovals;
 use crate::errors::Result;
 use crate::state::{ReviewState, ReviewableDiff};
 use diffviz_core::renderable_diff::RenderableDiff;
@@ -1204,20 +1204,16 @@ mod tests {
         assert!(result.is_ok());
 
         // Both instructions should exist separately
-        assert!(
-            engine
-                .state()
-                .instructions
-                .get_instructions_for_reviewable(&id1)
-                .is_some()
-        );
-        assert!(
-            engine
-                .state()
-                .instructions
-                .get_instructions_for_reviewable(&id2)
-                .is_some()
-        );
+        assert!(engine
+            .state()
+            .instructions
+            .get_instructions_for_reviewable(&id1)
+            .is_some());
+        assert!(engine
+            .state()
+            .instructions
+            .get_instructions_for_reviewable(&id2)
+            .is_some());
     }
 
     // Tests for JSON export functionality (Phase 4)
@@ -1483,8 +1479,8 @@ mod tests {
 
     #[test]
     fn test_calculate_file_hash_known_content() {
-        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
+        use crate::providers::DiffProvider;
         use sha2::{Digest, Sha256};
 
         let mut mock_provider = MockDiffProvider::new();
@@ -1504,8 +1500,8 @@ mod tests {
 
     #[test]
     fn test_calculate_file_hash_identical_content_identical_hash() {
-        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
+        use crate::providers::DiffProvider;
 
         let mut mock_provider = MockDiffProvider::new();
         mock_provider.add_file_content("file1.rs", &GitRef::head(), "same content\n");
@@ -1523,8 +1519,8 @@ mod tests {
 
     #[test]
     fn test_calculate_file_hash_different_content_different_hash() {
-        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
+        use crate::providers::DiffProvider;
 
         let mut mock_provider = MockDiffProvider::new();
         mock_provider.add_file_content("file1.rs", &GitRef::head(), "content A\n");
@@ -1542,8 +1538,8 @@ mod tests {
 
     #[test]
     fn test_calculate_file_hash_crlf_normalization() {
-        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
+        use crate::providers::DiffProvider;
 
         let mut mock_provider = MockDiffProvider::new();
         mock_provider.add_file_content("crlf.rs", &GitRef::head(), "line1\r\nline2\r\n");
@@ -1562,8 +1558,8 @@ mod tests {
 
     #[test]
     fn test_calculate_file_hash_lf_unchanged() {
-        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
+        use crate::providers::DiffProvider;
         use sha2::{Digest, Sha256};
 
         let mut mock_provider = MockDiffProvider::new();
@@ -1586,8 +1582,8 @@ mod tests {
 
     #[test]
     fn test_extract_content_snapshot_middle_lines() {
-        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
+        use crate::providers::DiffProvider;
 
         let mut mock_provider = MockDiffProvider::new();
         let content = "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10\n";
@@ -1609,8 +1605,8 @@ mod tests {
 
     #[test]
     fn test_extract_content_snapshot_start_of_file() {
-        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
+        use crate::providers::DiffProvider;
 
         let mut mock_provider = MockDiffProvider::new();
         let content = "line1\nline2\nline3\n";
@@ -1632,8 +1628,8 @@ mod tests {
 
     #[test]
     fn test_extract_content_snapshot_end_of_file() {
-        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
+        use crate::providers::DiffProvider;
 
         let mut mock_provider = MockDiffProvider::new();
         let content = "line1\nline2\nline3\n";
@@ -1655,8 +1651,8 @@ mod tests {
 
     #[test]
     fn test_extract_content_snapshot_beyond_file_bounds() {
-        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
+        use crate::providers::DiffProvider;
 
         let mut mock_provider = MockDiffProvider::new();
         let content = "line1\nline2\nline3\n";
@@ -1678,8 +1674,8 @@ mod tests {
 
     #[test]
     fn test_extract_content_snapshot_empty_range() {
-        use crate::providers::DiffProvider;
         use crate::providers::mock_provider::MockDiffProvider;
+        use crate::providers::DiffProvider;
 
         let mut mock_provider = MockDiffProvider::new();
         let content = "line1\nline2\nline3\n";
