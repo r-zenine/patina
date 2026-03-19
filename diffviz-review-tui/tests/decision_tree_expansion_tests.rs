@@ -211,11 +211,7 @@ fn test_expansion_tab_and_enter_have_same_effect() {
 
 /// Calculate depth from tuple path (0=decision, 1=chunk)
 fn calculate_depth(path: &(usize, Option<usize>)) -> usize {
-    if path.1.is_some() {
-        1
-    } else {
-        0
-    }
+    if path.1.is_some() { 1 } else { 0 }
 }
 
 #[test]

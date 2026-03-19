@@ -17,11 +17,7 @@ use diffviz_review_tui::test_harness::{CombinedTestHarness, InputTestHarness, Re
 /// Depth 0: decision_index only (chunk_index is None)
 /// Depth 1: both decision_index and chunk_index are set
 fn calculate_depth(path: &(usize, Option<usize>)) -> usize {
-    if path.1.is_some() {
-        1
-    } else {
-        0
-    }
+    if path.1.is_some() { 1 } else { 0 }
 }
 
 /// Create a test ReviewEngine with realistic decisions and file structure

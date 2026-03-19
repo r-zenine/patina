@@ -1,11 +1,11 @@
 //! Status bar component showing keybindings and current state
 
 use ratatui::{
+    Frame,
     layout::{Constraint, Direction, Layout, Rect},
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::Paragraph,
-    Frame,
 };
 
 use crate::{

@@ -226,7 +226,7 @@ fn test_multiple_focus_switches_with_navigation() {
     // Track the sequence
     assert_eq!(snapshots[1].decision_tree_path.0, 1); // After j in FileList
     assert_eq!(snapshots[2].focused_panel, "DiffView"); // After right
-                                                        // After j in DiffView, tree position stays same (j affects cursor in DiffView)
+    // After j in DiffView, tree position stays same (j affects cursor in DiffView)
     assert_eq!(snapshots[3].decision_tree_path.0, 1);
     assert_eq!(snapshots[4].focused_panel, "FileList"); // After left
     assert_eq!(snapshots[5].decision_tree_path.0, 0); // After k in FileList (back to 0)

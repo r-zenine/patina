@@ -1,11 +1,11 @@
 //! Diff view component showing formatted ReviewableDiff content
 
 use ratatui::{
+    Frame,
     layout::Rect,
     style::Style,
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
-    Frame,
 };
 
 use crate::{

@@ -1,11 +1,11 @@
 //! File list component with collapsible file groups
 
 use ratatui::{
+    Frame,
     layout::Rect,
     style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem, ListState},
-    Frame,
 };
 use std::collections::BTreeMap;
 
@@ -13,8 +13,8 @@ use crate::{
     state::{FocusPanel, UiState},
     theme::{Colors, Icons, Styles},
 };
-use diffviz_review::engines::ReviewEngine;
 use diffviz_review::ReviewableDiffId;
+use diffviz_review::engines::ReviewEngine;
 
 /// Render the file list with collapsible groups
 pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &ReviewEngine) {

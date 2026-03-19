@@ -154,11 +154,7 @@ fn count_lines(source: &str) -> usize {
 
 /// Helper: Clamp line range to source bounds
 /// Returns the adjusted (start_line, end_line) clamped to actual file bounds
-fn clamp_line_range(
-    source: &str,
-    start_line: usize,
-    end_line: usize,
-) -> (usize, usize) {
+fn clamp_line_range(source: &str, start_line: usize, end_line: usize) -> (usize, usize) {
     let actual_lines = count_lines(source);
     let clamped_end = std::cmp::min(end_line, actual_lines);
     (start_line, clamped_end)
@@ -517,15 +513,31 @@ pub fn create_reviewable_diff_from_range(
             DecisionDiffError::SemanticError(format!("Failed to build new semantic tree: {e}"))
         })?;
 
-    let start_byte =
-        line_to_byte_offset(new_tree.root.tree_sitter_node, new_source_str.as_bytes(), start_line)
-            .ok_or(DecisionDiffError::NoUnitAtRange { start_line, end_line })?;
-    let end_byte =
-        line_to_byte_offset(new_tree.root.tree_sitter_node, new_source_str.as_bytes(), end_line)
-            .ok_or(DecisionDiffError::NoUnitAtRange { start_line, end_line })?;
+    let start_byte = line_to_byte_offset(
+        new_tree.root.tree_sitter_node,
+        new_source_str.as_bytes(),
+        start_line,
+    )
+    .ok_or(DecisionDiffError::NoUnitAtRange {
+        start_line,
+        end_line,
+    })?;
+    let end_byte = line_to_byte_offset(
+        new_tree.root.tree_sitter_node,
+        new_source_str.as_bytes(),
+        end_line,
+    )
+    .ok_or(DecisionDiffError::NoUnitAtRange {
+        start_line,
+        end_line,
+    })?;
 
-    let (new_unit, _, _) = find_unit_recursive(&new_tree.root, start_byte, end_byte)
-        .ok_or(DecisionDiffError::NoUnitAtRange { start_line, end_line })?;
+    let (new_unit, _, _) = find_unit_recursive(&new_tree.root, start_byte, end_byte).ok_or(
+        DecisionDiffError::NoUnitAtRange {
+            start_line,
+            end_line,
+        },
+    )?;
 
     // Decompose path: expansion hit the Module root
     if matches!(new_unit.unit_type, SemanticUnitType::Module { .. }) {
@@ -534,7 +546,12 @@ pub fn create_reviewable_diff_from_range(
 
         // If no units strictly contained within range, try to find units that touch the range
         if contained.is_empty() {
-            find_units_touching_range_recursive(&new_tree.root, start_byte, end_byte, &mut contained);
+            find_units_touching_range_recursive(
+                &new_tree.root,
+                start_byte,
+                end_byte,
+                &mut contained,
+            );
         }
 
         if contained.is_empty() {
@@ -550,11 +567,13 @@ pub fn create_reviewable_diff_from_range(
             let old_ast = parser.try_parse(old_source_str).map_err(|e| {
                 DecisionDiffError::ParseError(format!("Failed to parse old file: {e}"))
             })?;
-            let old_tree = parser.build_semantic_tree(&old_ast, old_source_str).map_err(|e| {
-                DecisionDiffError::SemanticError(format!(
-                    "Failed to build old semantic tree: {e}"
-                ))
-            })?;
+            let old_tree = parser
+                .build_semantic_tree(&old_ast, old_source_str)
+                .map_err(|e| {
+                    DecisionDiffError::SemanticError(format!(
+                        "Failed to build old semantic tree: {e}"
+                    ))
+                })?;
             contained
                 .iter()
                 .map(|unit| {
@@ -564,7 +583,9 @@ pub fn create_reviewable_diff_from_range(
                         &get_unit_name(unit, new_source_str.as_bytes()).unwrap_or_default(),
                         &unit.unit_type,
                     )
-                    .map(|old_unit| OwnedNodeData::from_tree_sitter_node(&old_unit.tree_sitter_node))
+                    .map(|old_unit| {
+                        OwnedNodeData::from_tree_sitter_node(&old_unit.tree_sitter_node)
+                    })
                 })
                 .collect()
         } else {
@@ -604,12 +625,14 @@ pub fn create_reviewable_diff_from_range(
     // Expand path: single unit found
     let old_node_data = if let Some(old_source_provider) = old_source {
         let old_source_str = old_source_provider.full_source();
-        let old_ast = parser.try_parse(old_source_str).map_err(|e| {
-            DecisionDiffError::ParseError(format!("Failed to parse old file: {e}"))
-        })?;
-        let old_tree = parser.build_semantic_tree(&old_ast, old_source_str).map_err(|e| {
-            DecisionDiffError::SemanticError(format!("Failed to build old semantic tree: {e}"))
-        })?;
+        let old_ast = parser
+            .try_parse(old_source_str)
+            .map_err(|e| DecisionDiffError::ParseError(format!("Failed to parse old file: {e}")))?;
+        let old_tree = parser
+            .build_semantic_tree(&old_ast, old_source_str)
+            .map_err(|e| {
+                DecisionDiffError::SemanticError(format!("Failed to build old semantic tree: {e}"))
+            })?;
         find_semantic_unit_by_name(
             &old_tree,
             old_source_str,

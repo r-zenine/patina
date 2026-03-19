@@ -2,8 +2,8 @@
 //!
 //! Run input sequences through HeadlessApp and capture resulting state.
 
-use crate::app::HeadlessApp;
 use crate::Result;
+use crate::app::HeadlessApp;
 use diffviz_review::engines::ReviewEngine;
 
 use super::input_parser::parse_input_sequence;

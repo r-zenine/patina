@@ -6,19 +6,20 @@
 use crossterm::{
     event::{self, Event, KeyEvent},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use ratatui::{backend::CrosstermBackend, Terminal};
+use ratatui::{Terminal, backend::CrosstermBackend};
 use std::io;
 use std::time::{Duration, Instant};
 
 use diffviz_review::engines::ReviewEngine;
 
 use crate::{
-    command::{execute_command, Command},
-    events::{handle_key_event, ui_event_to_business_event, BusinessEvent, UiEvent},
+    Result,
+    command::{Command, execute_command},
+    events::{BusinessEvent, UiEvent, handle_key_event, ui_event_to_business_event},
     state::UiState,
-    ui, Result,
+    ui,
 };
 
 /// Main TUI application that coordinates ReviewEngine and UI
