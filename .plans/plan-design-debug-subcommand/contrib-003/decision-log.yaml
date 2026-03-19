@@ -1,0 +1,58 @@
+decisions:
+  - id: "D11"
+    type: implementation
+    decision: "Explanation generation uses semantic_kind, change_status, and relevance_score from DiffNode"
+    rationale: "These three attributes are sufficient to generate informative explanations. semantic_kind tells us what language construct changed (function, struct, etc.), change_status tells us what happened (added, deleted, modified, etc.), and relevance_score indicates importance level (ESSENTIAL through NOISE). Together they provide agents with the reasoning behind folding decisions."
+    alternatives_rejected:
+      - alternative: "Use LLM to generate explanations"
+        reason: "Would require API calls, add latency, and be expensive. Deterministic mapping is faster and always consistent."
+      - alternative: "Extract and show AST metadata"
+        reason: "Too technical and verbose for agents. Human-readable summaries are more actionable."
+    impact: "Agents can now understand why certain diff nodes have high or low relevance scores without additional LLM analysis. Explanations are generated on-demand only when --explain-folding is passed."
+
+  - id: "D12"
+    type: implementation
+    decision: "Relevance score mapping: ESSENTIAL=0, IMPORTANT=1, BACKGROUND=2, NOISE=3"
+    rationale: "These constants are defined in diffviz-core and already used throughout the codebase. They represent a consistent hierarchy: ESSENTIAL contains or is the actual change, IMPORTANT is a direct container, BACKGROUND is sibling context, NOISE is unrelated context."
+    alternatives_rejected:
+      - alternative: "Normalize scores to 0-1 float range"
+        reason: "Would require conversion logic and lose the meaningful categorization that uint constants provide."
+    impact: "Explanations reference standard relevance levels that agents and UI components already understand. No new concepts introduced."
+
+  - id: "D13"
+    type: implementation
+    decision: "Explanation format: '{relevance_level} relevance: {change} {kind} {node_type}'"
+    rationale: "This order (most important info first: relevance level) provides agents with the key decision reason upfront. Examples: 'Essential relevance: modified function Function', 'Noise relevance: unchanged statement Expression'. Consistent format across all nodes."
+    alternatives_rejected:
+      - alternative: "Longer explanatory text"
+        reason: "Would bloat JSON output. Short format is sufficient for agents."
+      - alternative: "Structured explanation object"
+        reason: "Added complexity without additional value. String format is simpler to parse and consume."
+    impact: "Explanations are concise, scannable, and consistent. Easy for agents to parse programmatically if needed."
+
+  - id: "D14"
+    type: implementation
+    decision: "Explanations added to phases 4, 6, and 7 (all phases showing diff nodes/impacts)"
+    rationale: "Phase 4 shows diff node hierarchy, Phase 6 shows code impact analysis, Phase 7 shows final output. All three display node-level information where explanations are relevant. Phases 1-3 and 5 don't need explanations (1=AST outline, 2=pair counts, 3=reviewable diffs list, 5=renderable line diffs)."
+    alternatives_rejected:
+      - alternative: "Add explanations to all 7 phases"
+        reason: "Not all phases show individual node metadata. Phases 1, 2, 3, 5 don't have the semantic_kind and change_status information."
+    impact: "Consistent explanation availability across all phases that display node-level folding information. Phases 1-3 and 5 remain focused on their specific data representations."
+
+  - id: "D15"
+    type: architecture
+    decision: "Explanations only generated when --explain-folding flag is passed (optional, not always computed)"
+    rationale: "Follows design principle: don't compute what's not requested. Most agents likely won't need detailed folding explanations. Flag is opt-in, keeping baseline output lean and fast."
+    alternatives_rejected:
+      - alternative: "Always include explanations"
+        reason: "Would bloat every phase 4/6/7 output and add computation for agents that don't need it."
+    impact: "Baseline debug output is smaller and faster. Agents that want explanations pass --explain-folding. No performance regression for existing usage."
+
+  - id: "D16"
+    type: implementation
+    decision: "Import and use diffviz_core constants and types directly in explanation generation"
+    rationale: "ESSENTIAL, IMPORTANT, BACKGROUND, NOISE are already defined in diffviz_core::ast_diff. SemanticNodeKind and NodeChangeStatus are core domain types. No need to duplicate or redefine; use the same sources of truth."
+    alternatives_rejected:
+      - alternative: "Create local constants"
+        reason: "Would duplicate definitions and risk divergence."
+    impact: "Explanation logic is tightly coupled to core domain definitions, ensuring consistency and making updates automatic if core types change."
