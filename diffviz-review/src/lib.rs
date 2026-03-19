@@ -8,6 +8,7 @@ pub mod review_engine_builder;
 // Temporarily disabled: session needs refactoring
 // pub mod session;
 pub mod state;
+pub mod templates;
 
 // Re-export key types for external use
 pub use engines::{CacheStats, ReviewEngine, ReviewProgress, ReviewSummary};
@@ -21,3 +22,4 @@ pub use entities::{
 pub use providers::{DiffProvider, FileStats, FileStatus};
 pub use review_engine_builder::ReviewEngineBuilder;
 pub use state::{ReviewState, ReviewableDiff};
+pub use templates::SchemaTemplate;

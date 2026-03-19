@@ -10,36 +10,73 @@ use crate::state::ReviewState;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// A range of lines in source code
+/// An inclusive range of line numbers affected by a code impact
+///
+/// Represents a contiguous block of lines within a file that are affected by a decision.
+/// Both start and end are inclusive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DecisionLineRange {
+    /// First line in the affected range (inclusive)
     pub start: usize,
+    /// Last line in the affected range (inclusive)
     pub end: usize,
 }
 
-/// Code impact of a single decision on a file
-/// Maps a decision to specific function-level code ranges
+/// How a single decision affects a specific file
+///
+/// Describes which lines in a file are affected by a decision and explains the connection.
+/// The line_ranges specify the exact code affected, while reasoning explains why this
+/// decision impacts these particular lines.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CodeImpact {
+    /// Path to the source file relative to repository root
     pub file: String,
+    /// Line ranges within this file affected by the decision
     pub line_ranges: Vec<DecisionLineRange>,
+    /// Explanation of why this decision impacts these specific lines
     pub reasoning: String,
 }
 
-/// An architectural decision and its code impacts
+/// An architectural decision and its effects on the codebase
+///
+/// A decision captures a specific architectural or design choice made during development
+/// and maps that choice to the exact locations in code where it was implemented.
+/// Decisions provide semantic context for code review by organizing changes around the
+/// decisions that drove them.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Decision {
+    /// Sequential identifier for this decision (starting from 1)
     pub number: u32,
+    /// One-sentence summary of the decision
     pub title: String,
+    /// Optional explanation of why this decision was chosen, including constraints or trade-offs considered
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rationale: Option<String>,
+    /// All files and line ranges affected by this decision
     pub code_impacts: Vec<CodeImpact>,
 }
 
-/// Container for deserializing a decision-log.yaml file
+/// A collection of architectural decisions made during development
+///
+/// A decision log documents the set of architectural decisions that produced a set of code changes.
+/// Each decision in the log maps to specific lines of code that were affected by that decision.
+/// The decision log serves as a semantic index for code review, enabling reviewers to understand
+/// *why* code was changed, not just *what* changed.
+///
+/// The log can be used in two phases:
+/// - **Strategy phase**: Decisions planned but not yet implemented (commit is optional)
+/// - **Implementation phase**: Decisions realized in code (commit is required for tracking)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DecisionLog {
+    /// The ordered list of architectural decisions made in this contribution
     pub decisions: Vec<Decision>,
+    /// Git hash of the commit containing the code changes described by these decisions
+    ///
+    /// Optional during strategy phase (when decisions are planned but not yet implemented).
+    /// Required during implementation phase to enable tools to analyze the exact diff.
+    ///
+    /// Note: The `base_commit` field name is supported as an alias for backward compatibility
+    /// with earlier YAML files.
     #[serde(
         default,
         skip_serializing_if = "Option::is_none",
