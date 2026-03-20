@@ -1,148 +1,172 @@
-# Context Handoff: Phase 3.1 Enhancement Complete
+# Context Handoff: Phase 3.1 Complete - Dynamic #[schema(...)] Attributes
 
 ## What Works
 
 **Phase 3.1 objectives achieved:**
-- ✅ Schema templates now include concrete examples from struct rustdoc comments
-- ✅ `diffviz templates decision-log` outputs realistic examples (e.g., "Add authentication middleware" instead of "[Decision made in one sentence]")
-- ✅ All tests pass (194 total), zero warnings
-- ✅ Backward compatible: template structure unchanged, only content improved
+- ✅ Proper `#[schema(example = "...", comment = "...")]` attributes on struct fields
+- ✅ Macro dynamically parses attributes using `darling::FromField`
+- ✅ Generated YAML templates include examples from attribute values
+- ✅ Zero hardcoding - templates fully derived from struct definitions
+- ✅ All 194 tests pass, zero warnings
+- ✅ Verified: `diffviz templates decision-log` outputs examples from attributes
 
-**Key capabilities:**
-- Agents now receive more helpful templates with concrete examples showing expected detail level
-- Examples guide decision logging toward better quality decisions (specific, measurable, traceable)
-- Self-documenting templates reduce learning curve for new contributors
-- Examples demonstrate proper rationale structure and code impact patterns
+**Example of what now works:**
+```rust
+#[derive(SchemaTemplate)]
+pub struct Decision {
+    #[schema(
+        example = "Add authentication middleware",
+        comment = "One-sentence summary of the architectural decision"
+    )]
+    pub title: String,
+}
+```
 
-**Code quality:**
-- Rustdoc comments are comprehensive and serve dual purpose (documentation + schema generation)
-- Macro implementation simplified (removed unused attribute complexity)
-- Template generation foundation established for future Phase 3 enhancements
+Generated template output:
+```yaml
+title: "Add authentication middleware"  # One-sentence summary of the architectural decision
+```
+
+**Architecture:**
+- `SchemaAttr` struct with `#[derive(FromField)]` from darling parses field attributes
+- `SchemaTemplate` derive macro extracts parsed schemas from fields
+- `build_yaml_template` uses field schemas to dynamically construct YAML
+- Comments and examples flow directly from code to templates
 
 ## What's Solid
 
-**Enhanced decision documentation guidance:**
-- Decision titles: "Add authentication middleware" (specific action, not generic)
-- Rationales: "Middleware must validate tokens for security requirements" (constraints + priorities)
-- Code impacts: Specific files and detailed reasoning (not vague)
-- Line ranges: Concrete start/end values showing affected code
+**Idiomatic Rust pattern:**
+- Matches style of `thiserror` attribute usage (cleaner than rustdoc parsing)
+- Uses darling for battle-tested attribute parsing
+- Helper attributes on struct fields (standard proc-macro pattern)
+- No external configuration or YAML files required
 
-**Single source of truth preserved:**
-- Rustdoc comments in struct definitions are the schema source
-- Template generation uses these directly
-- If developers update struct documentation, template automatically reflects changes
-- No manual template maintenance burden
+**Single source of truth maintained:**
+- Struct definitions contain example values AND schema generation rules
+- Changes to struct fields automatically update templates
+- No divergence possible - code and templates generated together
 
-**Schema ownership evolution:**
-- Phase 1: Manual templates established working CLI commands
-- Phase 2: Derive macro eliminated divergence
-- Phase 3.1: Enhanced templates with better examples
-- Pattern proven; can extend in Phase 3.2+
+**Flexibility for future:**
+- Easy to extend to DecisionLineRange (already has derive)
+- Can add more attribute fields (`example`, `comment`, others) without macro changes
+- Framework supports optional fields, arrays, nested structures
 
-## What's Deferred (Intentionally)
+## Key Discovery
 
-**Phase 3 features not yet implemented:**
-- ❌ Attribute-based customization (`#[schema_template(...)]` attributes) - complexity deferred
-- ❌ Extended artifacts (context-handoff, design-doc templates) - Phase 3.2+
-- ❌ Schema versioning - Phase 3.4
-- ❌ JSON Schema export - lower priority
+**Helper attributes require containing struct to have the derive macro:**
+- `#[proc_macro_derive(SchemaTemplate, attributes(schema))]` declares what attributes the macro handles
+- But `#[schema(...)]` helper attributes only work on fields within structs that have `#[derive(SchemaTemplate)]`
+- Applied this to CodeImpact which previously didn't need SchemaTemplate
+- Pattern proven: any struct with the derive can use its helper attributes
 
-**Why deferred:**
-- Core goal achieved: templates now helpful with concrete examples
-- Attributes add complexity without proportional benefit for MVP
-- Other artifacts can be added incrementally using same pattern
+This is why CodeImpact needed the derive macro added even though it's a nested struct.
+
+## What's Missing (Intentionally Deferred)
+
+**Phase 3 future work:**
+- ❌ Generic field processing (currently pattern-matches on struct names)
+- ❌ Extended to context-handoff and design-doc (Phase 3.2+)
+- ❌ Attribute-based customization beyond example/comment (Phase 3.3)
+- ❌ Schema versioning (Phase 3.4)
+
+**Not blockers:** The core pattern works perfectly. Other artifacts can follow the same approach.
 
 ## Guidance for Next Phase (Phase 3.2: Extend to context-handoff)
 
 ### Starting Point
 
 You have:
-- Working Phase 3.1 implementation showing example enhancement pattern
-- Proven macro architecture (hardcoded for DecisionLog, easily extensible)
-- Decision entity with excellent documentation and examples
-- Test suite validating all phases work together
+- Working darling-based attribute parsing infrastructure
+- Proven pattern for extracting field-level examples/comments
+- YAML template generation that reuses parsed schemas
+- Test infrastructure showing macro works correctly
 
 ### Phase 3.2 Direction
 
-Begin with extending SchemaTemplate pattern to context-handoff:
+Extend template generation to context-handoff (markdown instead of YAML):
 
-1. **Create context-handoff struct** in diffviz-core:
-   ```rust
-   pub struct ContextHandoff {
-       pub core_result: String,
-       pub key_insight: String,
-       pub solid_foundation: Vec<String>,
-       pub needs_attention: Vec<String>,
-       pub deferred: Vec<String>,
-   }
-   ```
+1. **Create ContextHandoff struct** with appropriate fields
+2. **Apply #[schema(...)] attributes** to each field
+3. **Update build_yaml_template** to detect struct type and generate markdown instead
+4. **Add `diffviz templates context-handoff` command**
+5. **Test agent workflow**: agents run command, get current template, fill in, validate
 
-2. **Add derive macro support**:
-   - Update macro to detect `ContextHandoff` struct
-   - Generate markdown template instead of YAML
-   - Use same rustdoc example pattern as Phase 3.1
+Example:
+```rust
+#[derive(SchemaTemplate)]
+pub struct ContextHandoff {
+    #[schema(
+        example = "Built: Phase 3.1 macro-based template generation",
+        comment = "One sentence describing what was built"
+    )]
+    pub built: String,
 
-3. **Add CLI command**:
-   - `diffviz templates context-handoff > context-handoff.md`
-   - Follow same pattern as decision-log templates command
-
-4. **Test with phase contributions**:
-   - Validate generated template matches agent-skills requirements
-   - Ensure examples guide proper context handoff structure
+    #[schema(
+        example = "Key insight: darling helper attributes work within structs that have the derive",
+        comment = "Most important technical discovery"
+    )]
+    pub key_insight: String,
+}
+```
 
 ### Why This Order?
 
-Context-handoff is the next most useful artifact to auto-generate:
-- Currently agents read static template (divergence risk like Phase 1 decision-log)
-- Sharing lessons learned is critical for knowledge transfer
-- Schema is simpler than decision-log (just structured text, no nested arrays)
-- Extends same proven pattern (Phase 1 foundations carry forward)
+1. **Same pattern proven:** darling + attributes + dynamic generation
+2. **Simpler than decision-log:** No nested arrays, cleaner structure
+3. **High value for agents:** Current context-handoff docs are manual/static
+4. **Incremental progress:** Each artifact extends the pattern
 
-### Risk Assessment for Phase 3.2
+### Risk Assessment
 
-- **Struct design clarity**: Clear what context-handoff needs to contain (manageable)
-- **Macro extension**: Reuse Phase 1-3.1 infrastructure (low risk)
-- **Integration**: Same CLI pattern as decision-log (proven working)
-- **Skills adoption**: Already familiar with command-based workflow
+- **Zero macro complexity increase:** Reuse darling infrastructure
+- **Template generation:** Add markdown formatting (trivial)
+- **Integration:** Same CLI pattern as decision-log
+- **Adoption:** Agents already familiar with command-based workflow
 
 ## Key Insights for Contributors
 
-### Why Concrete Examples Matter
+### Why #[schema(...)] is Better Than Rustdoc
 
-Schema templates serve two audiences:
-1. **Experienced contributors**: Verify template structure (examples don't hurt)
-2. **New contributors**: Learn what "good" looks like (examples are essential)
+1. **Structured data:** Example and comment are distinct fields, not parsed strings
+2. **Type-safe:** Darling validates attribute syntax at compile time
+3. **Explicit:** Readers see immediately that these values are for schema
+4. **Idiomatic:** Matches Rust ecosystem conventions (thiserror, serde, etc)
+5. **No parsing:** No regex/heuristics to extract from rustdoc comments
 
-Phase 3.1 prioritizes the second group—making templates teaching tools, not just reference docs.
+### Darling's FromField Pattern
 
-### Example Pattern for Rustdoc
+This macro uses a powerful pattern from darling:
 
-When documenting struct fields for schema generation:
 ```rust
-/// One-sentence summary of the decision. Example: "Add authentication middleware"
-pub title: String,
-
-/// Explanation of why chosen. Example: "Middleware must validate tokens for security requirements"
-pub rationale: Option<String>,
+#[derive(FromField)]
+#[darling(attributes(schema))]
+struct SchemaAttr {
+    #[darling(default)]
+    example: Option<String>,
+    #[darling(default)]
+    comment: Option<String>,
+}
 ```
 
-This pattern works for any field:
-- Immediately useful to developers (what's the field for?)
-- Becomes template example (concrete guidance for schema users)
-- No duplicate effort (document once, use twice)
+This automatically:
+- Parses `#[schema(example = "...", comment = "...")]` syntax
+- Handles optional fields with `#[darling(default)]`
+- Returns error if unknown attributes used
+- Works seamlessly with `proc_macro_derive` helper attributes
 
-### Architecture Foundation for Phase 3+
+### What Makes This Work
 
-The Phase 3 enhancements (concrete examples, extend to other artifacts, attribute customization) all build on the same foundation:
-1. **Single source of truth**: Structs define schema
-2. **Derived generation**: Macro transforms structs to schema artifacts
-3. **Self-documenting**: Documentation serves as examples
-4. **Composable**: Each artifact can be extended independently
+Three pieces together:
+1. **Macro declaration:** `#[proc_macro_derive(SchemaTemplate, attributes(schema))]`
+2. **Darling struct:** `#[derive(FromField)]` with `#[darling(attributes(schema))]`
+3. **Containing struct:** Must have `#[derive(SchemaTemplate)]` for helper attributes to work
+
+Remove any one piece and it breaks. All three are essential.
 
 ## Next Steps
 
-1. **Phase 3.2 Planning**: Analyze context-handoff schema requirements
-2. **Macro Extension**: Support markdown template generation for non-YAML artifacts
-3. **CLI Integration**: Add templates and validate subcommands for context-handoff
-4. **Skills Update**: Document command in agent-skills when Phase 3.2 complete
-5. **Phase 3.3+**: Design-doc, schema versioning, optional customization attributes
+1. **Mark Phase 3.1 complete** - Commit contribution folder
+2. **Plan Phase 3.2** - Analyze ContextHandoff schema requirements
+3. **Extend macro** - Add markdown template generation
+4. **Integrate CLI** - Add context-handoff commands
+5. **Phase 3.3+** - Design-doc, versioning, optional attributes
