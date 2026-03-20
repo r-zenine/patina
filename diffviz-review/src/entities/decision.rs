@@ -18,7 +18,7 @@ use diffviz_schema_macro::SchemaTemplate;
 ///
 /// Represents a contiguous block of lines within a file that are affected by a decision.
 /// Both start and end are inclusive.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, SchemaTemplate)]
 pub struct DecisionLineRange {
     /// First line in the affected range (inclusive)
     pub start: usize,
@@ -54,6 +54,7 @@ pub struct CodeImpact {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, SchemaTemplate)]
 pub struct Decision {
     /// Sequential identifier for this decision (starting from 1)
+    #[schema(comment = "Sequential identifier for this decision (starting from 1)")]
     pub number: u32,
 
     /// One-sentence summary of the decision
