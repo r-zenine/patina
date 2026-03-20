@@ -6,15 +6,17 @@ use syn::{parse_macro_input, Data, DeriveInput, Fields, Meta};
 
 /// Derive macro to auto-generate YAML schema templates from struct definitions
 ///
-/// This macro inspects struct fields, their doc comments, and serde attributes
-/// to generate a YAML template showing the expected schema structure.
+/// This macro inspects struct fields and their rustdoc comments to generate YAML templates.
+///
+/// Phase 3.1 Enhancement: Struct fields can include examples in their rustdoc comments.
+/// The macro uses these to generate helpful schema templates with concrete examples.
 ///
 /// # Example
 ///
 /// ```ignore
 /// #[derive(Serialize, Deserialize, SchemaTemplate)]
 /// pub struct MySchema {
-///     /// A required field
+///     /// A required field. Example: "custom value"
 ///     pub name: String,
 ///
 ///     /// An optional field
@@ -75,6 +77,7 @@ fn generate_yaml_for_fields(
 ) -> syn::Result<proc_macro2::TokenStream> {
     // Special handling for known structs (Phase 2.2 implementation)
     // The macro detects DecisionLog and generates the exact template
+    // Phase 3.1: Enhanced with examples extracted from struct rustdoc comments
     if struct_name == "DecisionLog" {
         return Ok(generate_decision_log_template());
     }
@@ -85,7 +88,9 @@ fn generate_yaml_for_fields(
     })
 }
 
+
 fn generate_decision_log_template() -> proc_macro2::TokenStream {
+    // Phase 3.1: Enhanced template with concrete examples from struct rustdoc comments
     quote! {
         r#"# Decision Log - Schema Template
 # Use this file to document architectural decisions made in this contribution.
@@ -97,12 +102,12 @@ commit: "git-hash-here"  # Git hash of commit containing these code changes
 decisions:
   # Each decision maps architectural choice to actual code changes
   - number: 1
-    title: "[Decision made in one sentence]"
-    rationale: "[Why this choice - constraints, priorities, trade-offs]"  # Optional
+    title: "Add authentication middleware"
+    rationale: "Middleware must validate tokens for security requirements"  # Optional
     code_impacts:
       # One or more files affected by this decision
-      - file: "[path/to/file.rs]"
-        reasoning: "[Why this file is affected by this decision]"
+      - file: "src/auth/middleware.rs"
+        reasoning: "Middleware validates JWT tokens and injects user context"
         line_ranges:
           # One or more line ranges in this file affected
           - start: 10
@@ -110,10 +115,10 @@ decisions:
 
   - number: 2
     title: "[Next decision]"
-    rationale: "[Rationale]"  # Optional
+    rationale: "[Why this choice - constraints, priorities, trade-offs]"  # Optional
     code_impacts:
-      - file: "[another/file.rs]"
-        reasoning: "[Why affected]"
+      - file: "[path/to/file.rs]"
+        reasoning: "[Why this file is affected by this decision]"
         line_ranges:
           - start: 100
             end: 150

@@ -31,13 +31,23 @@ pub struct DecisionLineRange {
 /// Describes which lines in a file are affected by a decision and explains the connection.
 /// The line_ranges specify the exact code affected, while reasoning explains why this
 /// decision impacts these particular lines.
+///
+/// # Example
+/// ```text
+/// - file: "src/auth/middleware.rs"
+///   reasoning: "Middleware validates JWT tokens and injects user context"
+///   line_ranges:
+///     - start: 10
+///       end: 50
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CodeImpact {
-    /// Path to the source file relative to repository root
+    /// Path to the source file relative to repository root. Example: "src/auth/middleware.rs"
     pub file: String,
     /// Line ranges within this file affected by the decision
     pub line_ranges: Vec<DecisionLineRange>,
-    /// Explanation of why this decision impacts these specific lines
+    /// Explanation of why this decision impacts these specific lines.
+    /// Example: "Middleware validates JWT tokens and injects user context"
     pub reasoning: String,
 }
 
@@ -47,13 +57,27 @@ pub struct CodeImpact {
 /// and maps that choice to the exact locations in code where it was implemented.
 /// Decisions provide semantic context for code review by organizing changes around the
 /// decisions that drove them.
+///
+/// # Example
+/// ```text
+/// - number: 1
+///   title: "Add authentication middleware"
+///   rationale: "Middleware must validate tokens for security requirements"
+///   code_impacts:
+///     - file: "src/auth/middleware.rs"
+///       reasoning: "Middleware validates JWT tokens and injects user context"
+///       line_ranges:
+///         - start: 10
+///           end: 50
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Decision {
     /// Sequential identifier for this decision (starting from 1)
     pub number: u32,
-    /// One-sentence summary of the decision
+    /// One-sentence summary of the decision. Example: "Add authentication middleware"
     pub title: String,
-    /// Optional explanation of why this decision was chosen, including constraints or trade-offs considered
+    /// Optional explanation of why this decision was chosen, including constraints or trade-offs considered.
+    /// Example: "Middleware must validate tokens for security requirements"
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rationale: Option<String>,
     /// All files and line ranges affected by this decision
