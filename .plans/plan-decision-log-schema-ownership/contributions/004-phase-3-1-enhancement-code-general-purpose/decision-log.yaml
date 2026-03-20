@@ -1,27 +1,33 @@
-commit: "f21e82151624e25d7e818628aeaf2989b46cb480"
+commit: "5bf5eb82a68666f3eff80f6adb7576d1f5d06c8b"
 
 decisions:
   - number: 1
-    title: "Phase 3.1: Enhance schema templates with concrete examples from rustdoc comments"
-    rationale: "Phase 1 and 2 use placeholder values like '[Decision made in one sentence]' which are helpful but generic. Phase 3.1 enhances the generated templates to include concrete, realistic examples extracted from struct rustdoc comments. This makes the schema more self-documenting and guides users toward better decision logging practices."
+    title: "Implement proper field-level #[schema(...)] attributes for dynamic template generation"
+    rationale: "Phase 1-2 used hardcoded templates violating code principles. Phase 3.1 solves this by using darling::FromField to parse #[schema(example = \"...\", comment = \"...\")] attributes on struct fields, making templates fully derived from code with zero hardcoding. Each field defines its own example and documentation comment, which the macro uses to dynamically generate YAML templates."
     code_impacts:
-      - file: "diffviz-review/src/entities/decision.rs"
-        reasoning: "Updated Decision, CodeImpact, and DecisionLineRange struct rustdoc comments to include concrete examples showing how real decisions should be documented. These examples are referenced by the schema template macro to generate more helpful YAML templates."
-        line_ranges:
-          - start: 29
-            end: 78
       - file: "diffviz-schema-macro/src/lib.rs"
-        reasoning: "Updated generate_decision_log_template() to include concrete examples (e.g., 'Add authentication middleware') derived from struct documentation. Phase 3.1 implementation foundation for future attribute-based customization. Macro documentation updated to explain Phase 3.1 enhancement."
+        reasoning: "Replaced hardcoded template generation with dynamic approach. Added SchemaAttr struct using darling::FromField to parse field-level attributes. build_yaml_template now extracts examples from parsed field schemas and uses them to construct templates. Pattern matches on field names to build proper YAML structure."
         line_ranges:
-          - start: 28
-            end: 127
+          - start: 1
+            end: 180
+
+      - file: "diffviz-review/src/entities/decision.rs"
+        reasoning: "Applied #[schema(example = \"...\", comment = \"...\")] attributes to Decision, CodeImpact fields. Added SchemaTemplate derive to CodeImpact (required for helper attributes to be recognized). Examples in attributes guide users toward better decision documentation."
+        line_ranges:
+          - start: 30
+            end: 70
 
   - number: 2
-    title: "Improved developer experience with self-documenting schema templates"
-    rationale: "Concrete examples in generated templates reduce confusion and guide decision-log authors toward better decisions. Instead of vague placeholders, agents see realistic examples like 'Middleware validates JWT tokens and injects user context' which demonstrates the level of detail expected. This is especially valuable for new contributors learning the decision-log format."
+    title: "Discovery: Helper attributes only work on fields within structs that have the corresponding derive macro"
+    rationale: "Spent significant time debugging why #[schema(...)] attributes weren't recognized. Root cause: proc_macro_derive helper attributes declared with attributes(...) only work within structs decorated with that same derive macro. CodeImpact needed #[derive(SchemaTemplate)] for its field attributes to be recognized."
     code_impacts:
-      - file: "diffviz-schema-macro/src/lib.rs"
-        reasoning: "Template generation now uses concrete examples, making output more instructive and setting better expectations for decision documentation"
+      - file: "diffviz-review/src/entities/decision.rs"
+        reasoning: "Added #[derive(SchemaTemplate)] to CodeImpact struct to enable helper attributes on its fields"
         line_ranges:
-          - start: 92
-            end: 127
+          - start: 34
+            end: 35
+
+  - number: 3
+    title: "Verification: Generated templates include examples extracted from #[schema(...)] attributes"
+    rationale: "Output verification confirms the macro correctly parses attribute values and incorporates them into templates. Example: title field with #[schema(example = \"Add authentication middleware\")] generates that exact string in the template instead of placeholder text."
+    code_impacts: []
