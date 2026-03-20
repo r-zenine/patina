@@ -1,0 +1,27 @@
+commit: null  # Documentation-only changes; no code changes to main diffviz repo
+
+decisions:
+  - number: 1
+    title: "Update agent-skills documentation to reference 'diffviz templates decision-log' command instead of static template"
+    rationale: "Phase 2 implemented the derive macro, making templates auto-generated and always up-to-date. Documentation must now guide agents to use the command rather than a potentially stale static file."
+    code_impacts: []
+
+  - number: 2
+    title: "Remove deprecated decision-log-template.yaml static template file"
+    rationale: "Dynamic generation via 'diffviz templates decision-log' replaces the need for a static template. Removing it prevents confusion and ensures users always get the current schema."
+    code_impacts: []
+
+  - number: 3
+    title: "Update contribution-system SKILL.md to guide agents to use command-based workflow"
+    rationale: "Templates section now directs users to run 'diffviz templates decision-log' and validate with 'diffviz validate decision-log' for consistent, automated schema delivery."
+    code_impacts: []
+
+  - number: 4
+    title: "Update implementation-artifacts.md to explain command-based schema generation"
+    rationale: "Documentation now shows agents how to generate current schema via command, replacing the hardcoded example. Includes validation step for early error detection."
+    code_impacts: []
+
+  - number: 5
+    title: "Update dev-contribute guide to integrate template command into workflow"
+    rationale: "OUTCOME 3 instructions now teach agents to run 'diffviz templates decision-log > decision-log.yaml' and validate with 'diffviz validate decision-log file.yaml' as part of standard process."
+    code_impacts: []
