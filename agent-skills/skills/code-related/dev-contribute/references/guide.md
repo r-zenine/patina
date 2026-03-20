@@ -259,14 +259,17 @@ For complete artifact schemas and templates, see [`contribution-system/reference
 
 **1. Create decision-log.yaml**
 
-Use [decision-log-template.yaml](../contribution-system/assets/templates/decision-log-template.yaml)
+First, generate the template by running:
+```bash
+diffviz templates decision-log > decision-log.yaml
+```
 
-Document only NEW decisions made during this contribution:
+Then fill in the decisions you made during this contribution:
 - What trade-offs were made?
 - Why was this approach chosen over alternatives?
 - What code impacts resulted from this decision?
 
-**Schema:**
+The template will look like this:
 ```yaml
 commit: "<git-hash>"  # Git hash from Step 4.5
 
@@ -280,6 +283,11 @@ decisions:
         line_ranges:
           - start: 10
             end: 50
+```
+
+After filling in your decisions, validate with:
+```bash
+diffviz validate decision-log decision-log.yaml
 ```
 
 **2. Create context-handoff.md**

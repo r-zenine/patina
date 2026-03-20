@@ -10,6 +10,24 @@ Schemas for the 2 mandatory files in every implementation, review, audit, or rev
 
 **Schema**: Unified schema matching `diffviz-review::Decision` struct.
 
+### Generating Your Template
+
+To get the current, authoritative schema:
+
+```bash
+diffviz templates decision-log > decision-log.yaml
+```
+
+Then fill in the decisions. After completing your work, validate with:
+
+```bash
+diffviz validate decision-log decision-log.yaml
+```
+
+### Schema Overview
+
+The template has this structure:
+
 ```yaml
 commit: "abc123def456"  # Required: git hash of the commit containing these code changes
 

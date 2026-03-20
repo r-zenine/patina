@@ -38,11 +38,14 @@ Load this skill when:
 
 ## Templates
 
-All templates are in [assets/templates/](assets/templates/):
+**For decision-log.yaml** (implementation contributions):
+- Generate using: `diffviz templates decision-log > decision-log.yaml`
+- This ensures your template always matches the current schema
+- Validate with: `diffviz validate decision-log decision-log.yaml`
 
-**Implementation templates:**
+**Reference templates** (design, strategy, other artifacts):
 - [context-handoff-template.md](assets/templates/context-handoff-template.md)
-- [decision-log-template.yaml](assets/templates/decision-log-template.yaml)
+- [design-doc-template.md](assets/templates/design-doc-template.md)
 
 **Design templates:**
 - [design-doc-template.md](assets/templates/design-doc-template.md)
