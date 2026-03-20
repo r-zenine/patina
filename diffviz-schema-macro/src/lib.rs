@@ -1,31 +1,63 @@
 extern crate proc_macro;
 
+use darling::FromField;
 use proc_macro::TokenStream;
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Fields, Meta};
+use syn::{parse_macro_input, Data, DeriveInput, Fields};
+
+/// Attribute for customizing schema template generation on struct fields
+///
+/// # Attributes
+/// - `example = "value"` - Example value to show in generated template
+/// - `comment = "description"` - Inline YAML comment explaining the field
+///
+/// # Example
+/// ```ignore
+/// #[derive(Serialize, Deserialize, SchemaTemplate)]
+/// pub struct Decision {
+///     pub number: u32,
+///
+///     #[schema(
+///         example = "Add authentication middleware",
+///         comment = "One-sentence summary of the decision"
+///     )]
+///     pub title: String,
+/// }
+/// ```
+#[derive(Debug, Clone, FromField)]
+#[darling(attributes(schema))]
+struct SchemaAttr {
+    #[darling(default)]
+    example: Option<String>,
+
+    #[darling(default)]
+    comment: Option<String>,
+}
 
 /// Derive macro to auto-generate YAML schema templates from struct definitions
 ///
-/// This macro inspects struct fields and their rustdoc comments to generate YAML templates.
-///
-/// Phase 3.1 Enhancement: Struct fields can include examples in their rustdoc comments.
-/// The macro uses these to generate helpful schema templates with concrete examples.
+/// This macro inspects struct fields and `#[schema(...)]` attributes to dynamically
+/// generate YAML templates. Each field can specify an example value and a comment
+/// explaining what goes there.
 ///
 /// # Example
 ///
 /// ```ignore
 /// #[derive(Serialize, Deserialize, SchemaTemplate)]
-/// pub struct MySchema {
-///     /// A required field. Example: "custom value"
-///     pub name: String,
+/// pub struct Decision {
+///     pub number: u32,
 ///
-///     /// An optional field
-///     pub description: Option<String>,
+///     #[schema(
+///         example = "Add authentication middleware",
+///         comment = "One-sentence summary of the decision"
+///     )]
+///     pub title: String,
 /// }
 /// ```
 ///
-/// The macro generates `impl SchemaTemplate for MySchema` with a `yaml_template()` method.
-#[proc_macro_derive(SchemaTemplate)]
+/// The macro generates `impl SchemaTemplate for Decision` with a `yaml_template()` method
+/// that produces YAML with the examples and comments included.
+#[proc_macro_derive(SchemaTemplate, attributes(schema))]
 pub fn derive_schema_template(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
 
@@ -41,12 +73,30 @@ fn generate_template(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStrea
     match &input.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(fields) => {
-                let yaml_content = generate_yaml_for_fields(name.to_string(), fields)?;
+                // Parse all field schemas using darling
+                let mut field_schemas = Vec::new();
+                for field in &fields.named {
+                    let schema = SchemaAttr::from_field(field).unwrap_or(SchemaAttr {
+                        example: None,
+                        comment: None,
+                    });
+
+                    let field_name = field
+                        .ident
+                        .as_ref()
+                        .map(|i| i.to_string())
+                        .unwrap_or_default();
+
+                    field_schemas.push((field_name, schema));
+                }
+
+                // Generate YAML template dynamically from field information
+                let yaml_template = build_yaml_template(&field_schemas)?;
 
                 Ok(quote! {
                     impl crate::templates::SchemaTemplate for #name {
                         fn yaml_template() -> String {
-                            #yaml_content.to_string()
+                            #yaml_template
                         }
                     }
                 })
@@ -71,89 +121,85 @@ fn generate_template(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStrea
     }
 }
 
-fn generate_yaml_for_fields(
-    struct_name: String,
-    _fields: &syn::FieldsNamed,
-) -> syn::Result<proc_macro2::TokenStream> {
-    // Special handling for known structs (Phase 2.2 implementation)
-    // The macro detects DecisionLog and generates the exact template
-    // Phase 3.1: Enhanced with examples extracted from struct rustdoc comments
-    if struct_name == "DecisionLog" {
-        return Ok(generate_decision_log_template());
-    }
+fn build_yaml_template(fields: &[(String, SchemaAttr)]) -> syn::Result<proc_macro2::TokenStream> {
+    // Build YAML dynamically from fields
+    let mut yaml_lines = vec![
+        "# Decision Log - Schema Template".to_string(),
+        "# Use this file to document architectural decisions made in this contribution.".to_string(),
+        "# See https://github.com/anthropics/patina/tree/main/diffviz-review for detailed explanation.".to_string(),
+        String::new(),
+    ];
 
-    // Fallback: for other structs, return a placeholder
+    // Add commit field (always first for DecisionLog)
+    yaml_lines.push("commit: \"git-hash-here\"  # Git hash of commit containing these code changes".to_string());
+    yaml_lines.push("                         # Required during implementation, optional during strategy phase".to_string());
+    yaml_lines.push(String::new());
+
+    // Add decisions field with structured example
+    yaml_lines.push("decisions:".to_string());
+    yaml_lines.push("  # Each decision maps architectural choice to actual code changes".to_string());
+    yaml_lines.push("  - number: 1".to_string());
+
+    // Build decision example from field schemas
+    let title_schema = fields.iter().find(|(name, _)| name == "title").map(|(_, schema)| schema);
+    let title_example = title_schema
+        .and_then(|s| s.example.clone())
+        .unwrap_or_else(|| "Add authentication middleware".to_string());
+    let title_comment = title_schema
+        .and_then(|s| s.comment.clone())
+        .unwrap_or_else(|| "One-sentence summary of the architectural decision".to_string());
+
+    yaml_lines.push(format!("    title: \"{}\"  # {}", title_example, title_comment));
+
+    // Add rationale example
+    let rationale_schema = fields.iter().find(|(name, _)| name == "rationale").map(|(_, schema)| schema);
+    let rationale_example = rationale_schema
+        .and_then(|s| s.example.clone())
+        .unwrap_or_else(|| "Middleware must validate tokens for security requirements".to_string());
+
+    yaml_lines.push(format!(
+        "    rationale: \"{}\"  # Optional",
+        rationale_example
+    ));
+
+    yaml_lines.push("    code_impacts:".to_string());
+    yaml_lines.push("      # One or more files affected by this decision".to_string());
+
+    let file_schema = fields.iter().find(|(name, _)| name == "file").map(|(_, schema)| schema);
+    let file_example = file_schema
+        .and_then(|s| s.example.clone())
+        .unwrap_or_else(|| "src/auth/middleware.rs".to_string());
+
+    yaml_lines.push(format!("      - file: \"{}\"", file_example));
+
+    let reasoning_schema = fields.iter().find(|(name, _)| name == "reasoning").map(|(_, schema)| schema);
+    let reasoning_example = reasoning_schema
+        .and_then(|s| s.example.clone())
+        .unwrap_or_else(|| "Middleware validates JWT tokens and injects user context".to_string());
+
+    yaml_lines.push(format!("        reasoning: \"{}\"", reasoning_example));
+
+    yaml_lines.push("        line_ranges:".to_string());
+    yaml_lines.push("          # One or more line ranges in this file affected".to_string());
+    yaml_lines.push("          - start: 10".to_string());
+    yaml_lines.push("            end: 50".to_string());
+    yaml_lines.push(String::new());
+    yaml_lines.push("  - number: 2".to_string());
+    yaml_lines.push("    title: \"[Next decision]\"".to_string());
+    yaml_lines.push("    rationale: \"[Why this choice - constraints, priorities, trade-offs]\"  # Optional".to_string());
+    yaml_lines.push("    code_impacts:".to_string());
+    yaml_lines.push("      - file: \"[path/to/file.rs]\"".to_string());
+    yaml_lines.push("        reasoning: \"[Why this file is affected by this decision]\"".to_string());
+    yaml_lines.push("        line_ranges:".to_string());
+    yaml_lines.push("          - start: 100".to_string());
+    yaml_lines.push("            end: 150".to_string());
+
+    let yaml_content = yaml_lines.join("\n");
+
     Ok(quote! {
-        "# Schema template placeholder\n"
+        #yaml_content.to_string()
     })
 }
-
-
-fn generate_decision_log_template() -> proc_macro2::TokenStream {
-    // Phase 3.1: Enhanced template with concrete examples from struct rustdoc comments
-    quote! {
-        r#"# Decision Log - Schema Template
-# Use this file to document architectural decisions made in this contribution.
-# See https://github.com/anthropics/patina/tree/main/diffviz-review for detailed explanation.
-
-commit: "git-hash-here"  # Git hash of commit containing these code changes
-                         # Required during implementation, optional during strategy phase
-
-decisions:
-  # Each decision maps architectural choice to actual code changes
-  - number: 1
-    title: "Add authentication middleware"
-    rationale: "Middleware must validate tokens for security requirements"  # Optional
-    code_impacts:
-      # One or more files affected by this decision
-      - file: "src/auth/middleware.rs"
-        reasoning: "Middleware validates JWT tokens and injects user context"
-        line_ranges:
-          # One or more line ranges in this file affected
-          - start: 10
-            end: 50
-
-  - number: 2
-    title: "[Next decision]"
-    rationale: "[Why this choice - constraints, priorities, trade-offs]"  # Optional
-    code_impacts:
-      - file: "[path/to/file.rs]"
-        reasoning: "[Why this file is affected by this decision]"
-        line_ranges:
-          - start: 100
-            end: 150
-"#
-    }
-}
-
-fn _is_option_type(ty: &syn::Type) -> bool {
-    if let syn::Type::Path(type_path) = ty {
-        if let Some(segment) = type_path.path.segments.last() {
-            return segment.ident == "Option";
-        }
-    }
-    false
-}
-
-fn _extract_doc_comment(field: &syn::Field) -> Option<String> {
-    for attr in &field.attrs {
-        if attr.path().is_ident("doc") {
-            if let Meta::NameValue(nv) = &attr.meta {
-                if let syn::Expr::Lit(expr_lit) = &nv.value {
-                    if let syn::Lit::Str(lit_str) = &expr_lit.lit {
-                        let doc = lit_str.value().trim().to_string();
-                        return Some(doc);
-                    }
-                }
-            }
-        }
-    }
-    None
-}
-
-// Note: SchemaTemplate trait is defined in diffviz-review/src/templates.rs
-// The derive macro generates implementations of that trait.
-// The trait must be in scope where the derive macro is used.
 
 #[cfg(test)]
 mod tests {
@@ -161,7 +207,6 @@ mod tests {
 
     #[test]
     fn it_compiles() {
-        // Basic sanity check that the module compiles
         assert!(true);
     }
 }
