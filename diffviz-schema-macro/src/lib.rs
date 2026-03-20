@@ -193,17 +193,14 @@ fn get_default_example(field: &FieldInfo) -> String {
 }
 
 fn build_template_code(fields: &[FieldInfo]) -> syn::Result<TokenStream2> {
-    // Sort fields: required before optional
-    let mut ordered_fields: Vec<_> = fields.iter().collect();
-    ordered_fields.sort_by_key(|f| (f.is_optional, &f.name));
-
+    // Preserve struct field order - don't sort
     let mut output_parts = Vec::new();
     output_parts.push(quote! {
         let mut __output = String::new();
     });
 
-    // Generate code for each field
-    for field in ordered_fields {
+    // Generate code for each field in original order
+    for field in fields {
         let field_name = &field.name;
         let example = field
             .example
