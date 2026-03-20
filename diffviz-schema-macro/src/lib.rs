@@ -2,8 +2,9 @@ extern crate proc_macro;
 
 use darling::FromField;
 use proc_macro::TokenStream;
+use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Fields};
+use syn::{parse_macro_input, Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, TypePath};
 
 /// Attribute for customizing schema template generation on struct fields
 ///
@@ -15,8 +16,6 @@ use syn::{parse_macro_input, Data, DeriveInput, Fields};
 /// ```ignore
 /// #[derive(Serialize, Deserialize, SchemaTemplate)]
 /// pub struct Decision {
-///     pub number: u32,
-///
 ///     #[schema(
 ///         example = "Add authentication middleware",
 ///         comment = "One-sentence summary of the decision"
@@ -36,27 +35,10 @@ struct SchemaAttr {
 
 /// Derive macro to auto-generate YAML schema templates from struct definitions
 ///
-/// This macro inspects struct fields and `#[schema(...)]` attributes to dynamically
-/// generate YAML templates. Each field can specify an example value and a comment
-/// explaining what goes there.
-///
-/// # Example
-///
-/// ```ignore
-/// #[derive(Serialize, Deserialize, SchemaTemplate)]
-/// pub struct Decision {
-///     pub number: u32,
-///
-///     #[schema(
-///         example = "Add authentication middleware",
-///         comment = "One-sentence summary of the decision"
-///     )]
-///     pub title: String,
-/// }
-/// ```
-///
-/// The macro generates `impl SchemaTemplate for Decision` with a `yaml_template()` method
-/// that produces YAML with the examples and comments included.
+/// Generates templates by introspecting the struct definition and:
+/// - Using field examples/comments from #[schema(...)] attributes
+/// - Calling nested SchemaTemplate impls for Vec<T> fields
+/// - No hardcoding - templates fully derived from data structure
 #[proc_macro_derive(SchemaTemplate, attributes(schema))]
 pub fn derive_schema_template(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
@@ -67,36 +49,37 @@ pub fn derive_schema_template(input: TokenStream) -> TokenStream {
     }
 }
 
+#[derive(Debug, Clone)]
+struct FieldInfo {
+    name: String,
+    type_name: String,
+    is_optional: bool,
+    is_vec: bool,
+    vec_inner_type: Option<TokenStream2>,
+    example: Option<String>,
+    comment: Option<String>,
+}
+
 fn generate_template(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     let name = &input.ident;
 
     match &input.data {
         Data::Struct(data) => match &data.fields {
             Fields::Named(fields) => {
-                // Parse all field schemas using darling
-                let mut field_schemas = Vec::new();
+                // Parse all field information
+                let mut field_infos = Vec::new();
                 for field in &fields.named {
-                    let schema = SchemaAttr::from_field(field).unwrap_or(SchemaAttr {
-                        example: None,
-                        comment: None,
-                    });
-
-                    let field_name = field
-                        .ident
-                        .as_ref()
-                        .map(|i| i.to_string())
-                        .unwrap_or_default();
-
-                    field_schemas.push((field_name, schema));
+                    let info = extract_field_info(field)?;
+                    field_infos.push(info);
                 }
 
-                // Generate YAML template dynamically from field information
-                let yaml_template = build_yaml_template(&field_schemas)?;
+                // Generate template code that builds YAML at runtime
+                let template_code = build_template_code(&field_infos)?;
 
                 Ok(quote! {
                     impl crate::templates::SchemaTemplate for #name {
                         fn yaml_template() -> String {
-                            #yaml_template
+                            #template_code
                         }
                     }
                 })
@@ -121,83 +104,197 @@ fn generate_template(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStrea
     }
 }
 
-fn build_yaml_template(fields: &[(String, SchemaAttr)]) -> syn::Result<proc_macro2::TokenStream> {
-    // Build YAML dynamically from fields
-    let mut yaml_lines = vec![
-        "# Decision Log - Schema Template".to_string(),
-        "# Use this file to document architectural decisions made in this contribution.".to_string(),
-        "# See https://github.com/anthropics/patina/tree/main/diffviz-review for detailed explanation.".to_string(),
-        String::new(),
-    ];
+fn extract_field_info(field: &syn::Field) -> syn::Result<FieldInfo> {
+    let name = field
+        .ident
+        .as_ref()
+        .ok_or_else(|| syn::Error::new_spanned(field, "Field must have a name"))?
+        .to_string();
 
-    // Add commit field (always first for DecisionLog)
-    yaml_lines.push("commit: \"git-hash-here\"  # Git hash of commit containing these code changes".to_string());
-    yaml_lines.push("                         # Required during implementation, optional during strategy phase".to_string());
-    yaml_lines.push(String::new());
+    // Parse #[schema(...)] attribute
+    let mut schema_attr = None;
+    for attr in &field.attrs {
+        if attr.path().is_ident("schema") {
+            let parsed: SchemaAttr = darling::FromField::from_field(field)
+                .ok()
+                .unwrap_or(SchemaAttr {
+                    example: None,
+                    comment: None,
+                });
+            schema_attr = Some(parsed);
+            break;
+        }
+    }
 
-    // Add decisions field with structured example
-    yaml_lines.push("decisions:".to_string());
-    yaml_lines.push("  # Each decision maps architectural choice to actual code changes".to_string());
-    yaml_lines.push("  - number: 1".to_string());
+    // Extract example and comment
+    let example = schema_attr.as_ref().and_then(|s| s.example.clone());
+    let comment = schema_attr.as_ref().and_then(|s| s.comment.clone());
 
-    // Build decision example from field schemas
-    let title_schema = fields.iter().find(|(name, _)| name == "title").map(|(_, schema)| schema);
-    let title_example = title_schema
-        .and_then(|s| s.example.clone())
-        .unwrap_or_else(|| "Add authentication middleware".to_string());
-    let title_comment = title_schema
-        .and_then(|s| s.comment.clone())
-        .unwrap_or_else(|| "One-sentence summary of the architectural decision".to_string());
+    // Analyze type
+    let is_optional = is_option_type(&field.ty);
+    let is_vec = is_vec_type(&field.ty);
+    let vec_inner_type = if is_vec {
+        extract_vec_inner_type(&field.ty)
+    } else {
+        None
+    };
+    let type_name = quote!(#field.ty).to_string();
 
-    yaml_lines.push(format!("    title: \"{}\"  # {}", title_example, title_comment));
+    Ok(FieldInfo {
+        name,
+        type_name,
+        is_optional,
+        is_vec,
+        vec_inner_type,
+        example,
+        comment,
+    })
+}
 
-    // Add rationale example
-    let rationale_schema = fields.iter().find(|(name, _)| name == "rationale").map(|(_, schema)| schema);
-    let rationale_example = rationale_schema
-        .and_then(|s| s.example.clone())
-        .unwrap_or_else(|| "Middleware must validate tokens for security requirements".to_string());
+fn is_option_type(ty: &Type) -> bool {
+    if let Type::Path(TypePath { path, .. }) = ty {
+        if let Some(segment) = path.segments.last() {
+            return segment.ident == "Option";
+        }
+    }
+    false
+}
 
-    yaml_lines.push(format!(
-        "    rationale: \"{}\"  # Optional",
-        rationale_example
-    ));
+fn is_vec_type(ty: &Type) -> bool {
+    if let Type::Path(TypePath { path, .. }) = ty {
+        if let Some(segment) = path.segments.last() {
+            return segment.ident == "Vec";
+        }
+    }
+    false
+}
 
-    yaml_lines.push("    code_impacts:".to_string());
-    yaml_lines.push("      # One or more files affected by this decision".to_string());
+fn extract_vec_inner_type(ty: &Type) -> Option<TokenStream2> {
+    if let Type::Path(TypePath { path, .. }) = ty {
+        if let Some(segment) = path.segments.last() {
+            if let PathArguments::AngleBracketed(args) = &segment.arguments {
+                if let Some(GenericArgument::Type(inner)) = args.args.first() {
+                    let tokens = quote!(#inner);
+                    return Some(tokens);
+                }
+            }
+        }
+    }
+    None
+}
 
-    let file_schema = fields.iter().find(|(name, _)| name == "file").map(|(_, schema)| schema);
-    let file_example = file_schema
-        .and_then(|s| s.example.clone())
-        .unwrap_or_else(|| "src/auth/middleware.rs".to_string());
+fn get_default_example(field: &FieldInfo) -> String {
+    match field.type_name.as_str() {
+        t if t.contains("u32") || t.contains("usize") => "1".to_string(),
+        t if t.contains("String") => "[placeholder]".to_string(),
+        t if t.contains("Vec") => "[]".to_string(),
+        _ => "[value]".to_string(),
+    }
+}
 
-    yaml_lines.push(format!("      - file: \"{}\"", file_example));
+fn build_template_code(fields: &[FieldInfo]) -> syn::Result<TokenStream2> {
+    // Sort fields: required before optional
+    let mut ordered_fields: Vec<_> = fields.iter().collect();
+    ordered_fields.sort_by_key(|f| (f.is_optional, &f.name));
 
-    let reasoning_schema = fields.iter().find(|(name, _)| name == "reasoning").map(|(_, schema)| schema);
-    let reasoning_example = reasoning_schema
-        .and_then(|s| s.example.clone())
-        .unwrap_or_else(|| "Middleware validates JWT tokens and injects user context".to_string());
+    let mut output_parts = Vec::new();
+    output_parts.push(quote! {
+        let mut __output = String::new();
+    });
 
-    yaml_lines.push(format!("        reasoning: \"{}\"", reasoning_example));
+    // Generate code for each field
+    for field in ordered_fields {
+        let field_name = &field.name;
+        let example = field
+            .example
+            .clone()
+            .unwrap_or_else(|| get_default_example(field));
 
-    yaml_lines.push("        line_ranges:".to_string());
-    yaml_lines.push("          # One or more line ranges in this file affected".to_string());
-    yaml_lines.push("          - start: 10".to_string());
-    yaml_lines.push("            end: 50".to_string());
-    yaml_lines.push(String::new());
-    yaml_lines.push("  - number: 2".to_string());
-    yaml_lines.push("    title: \"[Next decision]\"".to_string());
-    yaml_lines.push("    rationale: \"[Why this choice - constraints, priorities, trade-offs]\"  # Optional".to_string());
-    yaml_lines.push("    code_impacts:".to_string());
-    yaml_lines.push("      - file: \"[path/to/file.rs]\"".to_string());
-    yaml_lines.push("        reasoning: \"[Why this file is affected by this decision]\"".to_string());
-    yaml_lines.push("        line_ranges:".to_string());
-    yaml_lines.push("          - start: 100".to_string());
-    yaml_lines.push("            end: 150".to_string());
+        if field.is_vec {
+            // For Vec fields, call the inner type's yaml_template() if available
+            if let Some(inner_type) = &field.vec_inner_type {
+                // Generate code that calls the inner type's template
+                output_parts.push(quote! {
+                    __output.push_str(#field_name);
+                    __output.push_str(":\n");
 
-    let yaml_content = yaml_lines.join("\n");
+                    // Call the inner type's SchemaTemplate if it implements it
+                    let inner_template = <#inner_type as crate::templates::SchemaTemplate>::yaml_template();
+                    let mut is_first = true;
+                    for line in inner_template.lines() {
+                        if is_first {
+                            // First line gets the array indicator "- "
+                            __output.push_str("  - ");
+                            __output.push_str(line);
+                            is_first = false;
+                        } else {
+                            // Subsequent lines get indented normally
+                            __output.push_str("    ");
+                            __output.push_str(line);
+                        }
+                        __output.push('\n');
+                    }
+                });
+            } else {
+                // Fallback: use the example provided
+                output_parts.push(quote! {
+                    __output.push_str(#field_name);
+                    __output.push_str(": ");
+                    __output.push_str(#example);
+                    __output.push('\n');
+                });
+            }
+        } else if field.is_optional {
+            // Optional field
+            let comment_str = field.comment.as_deref().unwrap_or("");
+            if comment_str.is_empty() {
+                output_parts.push(quote! {
+                    __output.push_str(#field_name);
+                    __output.push_str(": ");
+                    __output.push_str(#example);
+                    __output.push_str("  # Optional\n");
+                });
+            } else {
+                output_parts.push(quote! {
+                    __output.push_str(#field_name);
+                    __output.push_str(": ");
+                    __output.push_str(#example);
+                    __output.push_str("  # Optional - ");
+                    __output.push_str(#comment_str);
+                    __output.push('\n');
+                });
+            }
+        } else {
+            // Required field
+            let comment_str = field.comment.as_deref().unwrap_or("");
+            if comment_str.is_empty() {
+                output_parts.push(quote! {
+                    __output.push_str(#field_name);
+                    __output.push_str(": ");
+                    __output.push_str(#example);
+                    __output.push('\n');
+                });
+            } else {
+                output_parts.push(quote! {
+                    __output.push_str(#field_name);
+                    __output.push_str(": ");
+                    __output.push_str(#example);
+                    __output.push_str("  # ");
+                    __output.push_str(#comment_str);
+                    __output.push('\n');
+                });
+            }
+        }
+    }
+
+    output_parts.push(quote! {
+        __output
+    });
 
     Ok(quote! {
-        #yaml_content.to_string()
+        {
+            #(#output_parts)*
+        }
     })
 }
 
