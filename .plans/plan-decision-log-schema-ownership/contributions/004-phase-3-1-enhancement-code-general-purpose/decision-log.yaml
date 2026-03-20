@@ -1,0 +1,27 @@
+commit: "f21e82151624e25d7e818628aeaf2989b46cb480"
+
+decisions:
+  - number: 1
+    title: "Phase 3.1: Enhance schema templates with concrete examples from rustdoc comments"
+    rationale: "Phase 1 and 2 use placeholder values like '[Decision made in one sentence]' which are helpful but generic. Phase 3.1 enhances the generated templates to include concrete, realistic examples extracted from struct rustdoc comments. This makes the schema more self-documenting and guides users toward better decision logging practices."
+    code_impacts:
+      - file: "diffviz-review/src/entities/decision.rs"
+        reasoning: "Updated Decision, CodeImpact, and DecisionLineRange struct rustdoc comments to include concrete examples showing how real decisions should be documented. These examples are referenced by the schema template macro to generate more helpful YAML templates."
+        line_ranges:
+          - start: 29
+            end: 78
+      - file: "diffviz-schema-macro/src/lib.rs"
+        reasoning: "Updated generate_decision_log_template() to include concrete examples (e.g., 'Add authentication middleware') derived from struct documentation. Phase 3.1 implementation foundation for future attribute-based customization. Macro documentation updated to explain Phase 3.1 enhancement."
+        line_ranges:
+          - start: 28
+            end: 127
+
+  - number: 2
+    title: "Improved developer experience with self-documenting schema templates"
+    rationale: "Concrete examples in generated templates reduce confusion and guide decision-log authors toward better decisions. Instead of vague placeholders, agents see realistic examples like 'Middleware validates JWT tokens and injects user context' which demonstrates the level of detail expected. This is especially valuable for new contributors learning the decision-log format."
+    code_impacts:
+      - file: "diffviz-schema-macro/src/lib.rs"
+        reasoning: "Template generation now uses concrete examples, making output more instructive and setting better expectations for decision documentation"
+        line_ranges:
+          - start: 92
+            end: 127
