@@ -4,7 +4,9 @@ use darling::FromField;
 use proc_macro::TokenStream;
 use proc_macro2::{Span, TokenStream as TokenStream2};
 use quote::quote;
-use syn::{parse_macro_input, Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, TypePath};
+use syn::{
+    Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, TypePath, parse_macro_input,
+};
 
 /// Attribute for customizing schema template generation on struct fields
 ///
@@ -115,12 +117,13 @@ fn extract_field_info(field: &syn::Field) -> syn::Result<FieldInfo> {
     let mut schema_attr = None;
     for attr in &field.attrs {
         if attr.path().is_ident("schema") {
-            let parsed: SchemaAttr = darling::FromField::from_field(field)
-                .ok()
-                .unwrap_or(SchemaAttr {
-                    example: None,
-                    comment: None,
-                });
+            let parsed: SchemaAttr =
+                darling::FromField::from_field(field)
+                    .ok()
+                    .unwrap_or(SchemaAttr {
+                        example: None,
+                        comment: None,
+                    });
             schema_attr = Some(parsed);
             break;
         }

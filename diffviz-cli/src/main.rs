@@ -185,12 +185,7 @@ fn run_contribution_review(folder: &str, repo_path: &str, author: &str) -> Resul
     let git_repo = GitRepository::open(repo_path)
         .map_err(|e| anyhow::anyhow!("Failed to open repository: {e}"))?;
 
-    let query = log
-        .commit
-        .clone()
-        .map(|hash| resolve_commit_diff(&git_repo, hash))
-        .transpose()?
-        .unwrap_or_else(DiffQuery::head_to_unstaged);
+    let query = resolve_commit_diff(&git_repo, log.commit)?;
 
     let mut engine = ReviewEngineBuilder::new(Box::new(git_repo), author.to_string())
         .build_from_decisions(log.decisions, query)

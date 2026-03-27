@@ -33,16 +33,22 @@ pub struct DecisionLineRange {
 /// decision impacts these particular lines.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, SchemaTemplate)]
 pub struct CodeImpact {
+    ////// Explanation of why this decision impacts these specific lines
+    #[schema(
+        example = "Middleware validates JWT tokens and injects user context",
+        comment = "Why this file is affected by this decision"
+    )]
+    pub reasoning: String,
+
     /// Path to the source file relative to repository root
-    #[schema(example = "src/auth/middleware.rs", comment = "Path to the source file relative to repository root")]
+    #[schema(
+        example = "src/auth/middleware.rs",
+        comment = "Path to the source file relative to repository root"
+    )]
     pub file: String,
 
     /// Line ranges within this file affected by the decision
     pub line_ranges: Vec<DecisionLineRange>,
-
-    /// Explanation of why this decision impacts these specific lines
-    #[schema(example = "Middleware validates JWT tokens and injects user context", comment = "Why this file is affected by this decision")]
-    pub reasoning: String,
 }
 
 /// An architectural decision and its effects on the codebase
@@ -58,11 +64,17 @@ pub struct Decision {
     pub number: u32,
 
     /// One-sentence summary of the decision
-    #[schema(example = "Add authentication middleware", comment = "One-sentence summary of the architectural decision")]
+    #[schema(
+        example = "Add authentication middleware",
+        comment = "One-sentence summary of the architectural decision"
+    )]
     pub title: String,
 
     /// Optional explanation of why this decision was chosen, including constraints or trade-offs considered
-    #[schema(example = "Middleware must validate tokens for security requirements", comment = "Why this choice was made — constraints, priorities, trade-offs")]
+    #[schema(
+        example = "Middleware must validate tokens for security requirements",
+        comment = "Why this choice was made — constraints, priorities, trade-offs"
+    )]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rationale: Option<String>,
 
@@ -82,21 +94,13 @@ pub struct Decision {
 /// - **Implementation phase**: Decisions realized in code (commit is required for tracking)
 #[derive(Debug, Clone, Serialize, Deserialize, SchemaTemplate)]
 pub struct DecisionLog {
+    #[schema(
+        comment = "Git hash of the commit containing the code changes described by these decisions"
+    )]
+    pub commit: String,
+
     /// The ordered list of architectural decisions made in this contribution
     pub decisions: Vec<Decision>,
-    /// Git hash of the commit containing the code changes described by these decisions
-    ///
-    /// Optional during strategy phase (when decisions are planned but not yet implemented).
-    /// Required during implementation phase to enable tools to analyze the exact diff.
-    ///
-    /// Note: The `base_commit` field name is supported as an alias for backward compatibility
-    /// with earlier YAML files.
-    #[serde(
-        default,
-        skip_serializing_if = "Option::is_none",
-        alias = "base_commit"
-    )]
-    pub commit: Option<String>,
 }
 
 impl DecisionLog {
@@ -334,6 +338,7 @@ mod tests {
     #[test]
     fn test_decision_log_parse_deserializes_correctly() {
         let yaml = r#"
+commit: "abc123"
 decisions:
   - number: 1
     title: "Use Core-then-Integrate strategy"
@@ -350,6 +355,7 @@ decisions:
 "#;
         let log = DecisionLog::parse(yaml).unwrap();
 
+        assert_eq!(log.commit, "abc123");
         assert_eq!(log.decisions.len(), 2);
         assert_eq!(log.decisions[0].number, 1);
         assert_eq!(log.decisions[0].title, "Use Core-then-Integrate strategy");
@@ -969,26 +975,28 @@ decisions:
     #[test]
     fn test_decision_log_parse_returns_struct_with_decisions() {
         let yaml = r#"
+commit: "abc123"
 decisions:
   - number: 1
     title: "Some decision"
     code_impacts: []
 "#;
         let log = DecisionLog::parse(yaml).unwrap();
+        assert_eq!(log.commit, "abc123");
         assert_eq!(log.decisions.len(), 1);
         assert_eq!(log.decisions[0].number, 1);
     }
 
     #[test]
-    fn test_decision_log_parse_without_commit_defaults_to_none() {
+    fn test_decision_log_parse_without_commit_returns_error() {
         let yaml = r#"
 decisions:
   - number: 1
     title: "Some decision"
     code_impacts: []
 "#;
-        let log = DecisionLog::parse(yaml).unwrap();
-        assert_eq!(log.commit, None);
+        let result = DecisionLog::parse(yaml);
+        assert!(result.is_err());
     }
 
     #[test]
@@ -1001,19 +1009,6 @@ decisions:
     code_impacts: []
 "#;
         let log = DecisionLog::parse(yaml).unwrap();
-        assert_eq!(log.commit, Some("abc123def456".to_string()));
-    }
-
-    #[test]
-    fn test_decision_log_parse_with_base_commit_alias_backward_compat() {
-        let yaml = r#"
-base_commit: "abc123def456"
-decisions:
-  - number: 1
-    title: "Some decision"
-    code_impacts: []
-"#;
-        let log = DecisionLog::parse(yaml).unwrap();
-        assert_eq!(log.commit, Some("abc123def456".to_string()));
+        assert_eq!(log.commit, "abc123def456");
     }
 }

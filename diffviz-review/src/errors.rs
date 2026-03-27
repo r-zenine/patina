@@ -195,9 +195,11 @@ mod tests {
             reason: "User cancelled".to_string(),
             source: None,
         };
-        assert!(review_error
-            .to_string()
-            .contains("ReviewableDiff review failed"));
+        assert!(
+            review_error
+                .to_string()
+                .contains("ReviewableDiff review failed")
+        );
         assert!(review_error.to_string().contains("working:main.rs:L1-10"));
         assert!(review_error.to_string().contains("User cancelled"));
     }
@@ -232,9 +234,11 @@ mod tests {
             approved_reviewable_diffs: 2,
             total_reviewable_diffs: 5,
         };
-        assert!(review_error
-            .to_string()
-            .contains("Review completion failed"));
+        assert!(
+            review_error
+                .to_string()
+                .contains("Review completion failed")
+        );
         assert!(review_error.to_string().contains("Incomplete review"));
     }
 
@@ -255,9 +259,11 @@ mod tests {
             reviewable_id: "working:test.rs:L10-20".to_string(),
             file_path: "test.rs".to_string(),
         };
-        assert!(review_error
-            .to_string()
-            .contains("ReviewableDiff not found"));
+        assert!(
+            review_error
+                .to_string()
+                .contains("ReviewableDiff not found")
+        );
         assert!(review_error.to_string().contains("working:test.rs:L10-20"));
     }
 
