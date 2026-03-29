@@ -1,0 +1,31 @@
+commit: 0816a21  # Git hash of the commit containing the code changes described by these decisions
+decisions:
+  - number: 1
+    title: Mirror ReviewInstructions API exactly using HashMap<u32, Vec<Instruction>>
+    rationale: Using the same method signatures as ReviewInstructions minimises cognitive load and reuses a proven pattern. u32 keys match Decision.number directly with no wrapper type needed.
+    code_impacts:
+      - reasoning: New entity module containing DecisionInstructions struct with all CRUD methods
+        file: diffviz-review/src/entities/decision_instructions.rs
+        line_ranges:
+          - start: 1
+            end: 80
+
+  - number: 2
+    title: Return Option<> for all lookups — no custom error types at entity layer
+    rationale: Missing data is not an error condition. Error context belongs in the engine layer (Phase 3), keeping the entity a plain data structure.
+    code_impacts:
+      - reasoning: All get/remove methods return Option<> for missing decisions/instructions
+        file: diffviz-review/src/entities/decision_instructions.rs
+        line_ranges:
+          - start: 34
+            end: 75
+
+  - number: 3
+    title: Export DecisionInstructions from entities mod.rs alongside existing entities
+    rationale: Consistent with how ReviewInstructions, ReviewApprovals, and other entities are exported from the entities module.
+    code_impacts:
+      - reasoning: Module declaration and pub re-export added
+        file: diffviz-review/src/entities/mod.rs
+        line_ranges:
+          - start: 1
+            end: 30
