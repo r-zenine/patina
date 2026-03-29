@@ -1,0 +1,181 @@
+decisions:
+  - number: 1
+    title: "DecisionInstructions should mirror ReviewInstructions structure"
+    context: |
+      The system already has a well-tested, working ReviewInstructions pattern that
+      uses HashMap<ReviewableDiffId, Vec<Instruction>>. To add decision-level instructions,
+      we could either duplicate this pattern or create a specialized variant.
+    decision: |
+      DecisionInstructions will use HashMap<u32, Vec<Instruction>> to mirror the
+      ReviewInstructions structure, but with u32 (decision number) as the key instead of
+      ReviewableDiffId. This ensures consistency with existing patterns.
+    rationale: |
+      - Reduces cognitive load: reviewers see same instruction type at two scopes
+      - Easier to maintain: same CRUD operations pattern, same test structure
+      - Type safety: u32 is simpler than ReviewableDiffId but still strongly typed
+      - Future-proof: if decision identification changes, only the key type needs updating
+      - Consistency: follows established ReviewInstructions precedent in codebase
+    consequences: |
+      - DecisionInstructions becomes a straightforward port of ReviewInstructions logic
+      - Entity is simple and testable (no complex lookup logic needed)
+      - Methods like get_instructions(), has_instructions(), remove_by_id() are identical in pattern
+    alternatives_considered:
+      - Custom variant type keyed by DecisionId: more complex, adds abstraction without benefit
+      - Inline instructions in Decision struct: loses ability to modify after creation, harder to extend
+      - Single unified instruction type: would require tagged union, complicates both systems
+
+  - number: 2
+    title: "Instructions keyed by decision number u32, not DecisionId"
+    context: |
+      Decisions are identified by a sequential number field (Decision.number: u32).
+      We could use a DecisionId wrapper type (like ReviewableDiffId) or use u32 directly.
+    decision: |
+      Use u32 directly as the key in HashMap<u32, Vec<Instruction>>.
+      Instructions are looked up by the numeric decision number, not a wrapper type.
+    rationale: |
+      - Simplicity: decision numbers are already u32, no indirection needed
+      - Efficiency: HashMap lookup is direct integer operation
+      - Matches ReviewDecisions pattern: decisions map is HashMap<u32, Decision>
+      - No namespace confusion: u32 is unambiguous in context (decision number vs line number)
+      - Error messages clear: "Instruction for decision #5" is clearer than "DecisionId(5)"
+    consequences: |
+      - Calls look like: add_decision_instruction(5, content, author)
+      - Validation must check if decision number exists in ReviewDecisions
+      - Export format includes "decision_number": 5 field
+    alternatives_considered:
+      - DecisionId wrapper: adds type safety but minimal value here
+      - String keys ("decision_5"): loses type safety, harder to validate
+      - Keep decisions in separate structure: duplicates state, harder to sync
+
+  - number: 3
+    title: "Serialization approach: inline in ReviewState"
+    context: |
+      DecisionInstructions needs to be persisted and restored. Options:
+      1. Inline field in ReviewState struct
+      2. Separate serialization file
+      3. Lazy-load from external store
+    decision: |
+      Inline as a field in ReviewState: `pub decision_instructions: DecisionInstructions`.
+      Serialization uses serde #[derive(Serialize, Deserialize)] on ReviewState.
+    rationale: |
+      - Matches existing pattern: ReviewApprovals, ReviewInstructions are inline fields
+      - Atomic serialization: ReviewState serializes as one unit, no partial state risk
+      - No additional file I/O: one ReviewState serialization handles everything
+      - Round-trip tests simple: serialize -> deserialize -> compare state
+      - UI/engine compatibility: engine can access state.decision_instructions directly
+    consequences: |
+      - ReviewState struct grows by one field
+      - Test fixtures must include decision_instructions
+      - Serialized JSON includes "decision_instructions" object
+      - ReviewState constructors must initialize decision_instructions (defaults to DecisionInstructions::new())
+    alternatives_considered:
+      - Separate file: adds I/O complexity, risk of partial state
+      - Lazy-load: adds indirection, harder to reason about consistency
+      - Serialize to git commits: architectural mismatch, commits are immutable
+
+  - number: 4
+    title: "Add DecisionInstructions to ReviewState fields"
+    context: |
+      ReviewState needs a field to hold decision instructions. Should it be optional,
+      required, or defaulted?
+    decision: |
+      Add as required field: `pub decision_instructions: DecisionInstructions`.
+      Always present in ReviewState, defaults to DecisionInstructions::new() (empty HashMap).
+    rationale: |
+      - Consistency: approvals, instructions, decisions are all required fields
+      - Easier to use: no Option<> wrapping, just access state.decision_instructions
+      - Predictable: always initialized, never None or uninitialized
+      - UI simplicity: can display decision_instructions.get(decision_num) without checks
+      - Default behavior: new ReviewState with no decisions has no decision instructions (correct)
+    consequences: |
+      - ReviewState::new() must initialize: decision_instructions: DecisionInstructions::new()
+      - ReviewState::with_review_data() must accept decision_instructions parameter
+      - Serialization always includes empty object if no instructions present
+      - Tests must be updated to include decision_instructions in all ReviewState fixtures
+    alternatives_considered:
+      - Optional field: adds None checks everywhere, complicates API
+      - Lazy initialization: unpredictable state, harder to test
+      - Separate HashMap field in ReviewEngine: duplicates state, harder to persist
+
+  - number: 5
+    title: "Export format for Decision instructions"
+    context: |
+      Decision instructions need to be exported to JSON (like ReviewInstructions export).
+      Questions: Same format as ReviewInstructions? Different structure? Separate endpoint?
+    decision: |
+      Create ExportedDecisionInstruction (JSON format) parallel to ExportedInstruction.
+      Add export method: export_decision_instructions_json(scope: DecisionExportScope).
+      Use separate scope enum or extend existing ExportScope enum.
+    rationale: |
+      - Parallel structure: mirrors ReviewInstructions export, easier to understand
+      - Clear separation: decision instructions export is distinct from code instructions
+      - Flexibility: can evolve decision export separately if needed
+      - Agent understanding: agents see clear decision_number field vs ReviewableDiffId
+      - Future-proof: might want different metadata for decisions vs code ranges
+    consequences: |
+      - New ExportedDecisionInstruction struct with fields: decision_number, instructions[], metadata
+      - May extend ExportScope enum or create DecisionExportScope
+      - export_decision_instructions_json() method on ReviewEngine
+      - CLI might need --export-decisions flag or similar
+      - Test: export -> import round-trip verifies JSON format
+    alternatives_considered:
+      - Same format as ReviewInstructions: would require shoehorning decision_number into line_range
+      - Combined export: mixed code/decision instructions, harder to separate concerns
+      - No export: loses ability to share decision reviews across sessions
+
+  - number: 6
+    title: "Execution strategy: Steel Thread with incremental phases"
+    context: |
+      How to deliver this feature? Options: big-bang implementation, TDD, Steel Thread, Core-then-Integrate.
+    decision: |
+      Use Steel Thread execution: four phases, each delivering end-to-end working functionality.
+      Phase 1: Entity with tests
+      Phase 2: State serialization
+      Phase 3: Engine operations
+      Phase 4: Export/import
+    rationale: |
+      - Risk mitigation: discover integration issues early in each phase
+      - Testability: each phase has clear "done" criteria with passing tests
+      - Incremental feedback: can see working feature after Phase 2
+      - Code review: each phase is reasonable PR size, not monolithic change
+      - Documentation: each phase clarifies what the next phase will integrate with
+    consequences: |
+      - Implementation takes 4 separate PRs minimum
+      - Each phase must be backwards compatible (or clearly marked as breaking)
+      - Tests in each phase can be incremental (Phase 2 tests import data created in Phase 1)
+      - Cannot skip phases (Phase 3 depends on Phase 2, etc.)
+    alternatives_considered:
+      - TDD (tests first): works well for unit logic, less clear for integration
+      - Big-bang: single PR with entire feature, risky and hard to review
+      - Core-then-Integrate: would delay all operations until entity done
+
+  - number: 7
+    title: "No LLM consumption or advanced features in Steel Thread"
+    context: |
+      Could Decision instructions enable LLM agents to understand and propose edits
+      to decision rationale? Could they trigger automatic decision validation?
+    decision: |
+      Steel Thread phases 1-4 implement only basic CRUD, serialization, export.
+      No LLM consumption. No validation logic. No constraint checking.
+      Advanced features deferred to future phases (LLM-v2, validation-v1, etc.).
+    rationale: |
+      - Scope control: keeps each phase focused and reviewable
+      - YAGNI: LLM integration is speculation until reviewers ask for it
+      - Testing simpler: CRUD and serialization are pure data manipulation
+      - Incremental value: users can annotate decisions without LLM support
+      - Future-proof: separate phases can add LLM later without breaking these
+    consequences: |
+      - Decision instructions are static text (like review instructions)
+      - Export doesn't call any LLM APIs
+      - No auto-completion or AI suggestions for decision instructions
+      - Future phases will layer on top without modifying this core
+    alternatives_considered:
+      - Include LLM support: scope explosion, TBD on LLM integration approach
+      - Include validation: would need constraint language, out of scope
+      - Include UI: TUI responsibility, not this feature
+
+decisions_metadata:
+  phase: "Planning"
+  created_date: "2026-03-28"
+  feature: "Decision Instructions Support"
+  status: "Design phase complete, ready for implementation"

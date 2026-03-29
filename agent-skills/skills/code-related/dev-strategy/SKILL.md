@@ -73,7 +73,7 @@ To produce a sufficient implementation plan, ensure these outcomes are achieved:
 
 ## Key Outputs
 
-The skill generates structured artifacts in `.plans/plan-[FEATURE-NAME]/`:
+The skill generates only the following structured artifacts in `.plans/plan-[FEATURE-NAME]/`:
 
 **Core Artifacts:**
 - **Code Context** - Relevant classes/functions with line references
