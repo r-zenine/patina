@@ -2,6 +2,7 @@
 pub mod approval;
 pub mod cascade_result;
 pub mod decision;
+pub mod decision_instructions;
 pub mod instruction;
 
 // Core identifier module
@@ -17,4 +18,5 @@ pub use decision::{
     CodeImpact, Decision, DecisionApproval, DecisionApprovals, DecisionLineRange, DecisionLog,
     DecisionReviewableDiff, ReviewDecisions,
 };
+pub use decision_instructions::DecisionInstructions;
 pub use instruction::{Instruction, ReviewInstructions};
