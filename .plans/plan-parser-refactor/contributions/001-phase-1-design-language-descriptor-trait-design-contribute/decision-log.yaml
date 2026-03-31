@@ -1,0 +1,28 @@
+commit: null
+
+decisions:
+  - number: 1
+    title: "LanguageDescriptor uses static data slices + two targeted override methods (not a generic escape hatch)"
+    rationale: >
+      User explicitly chose targeted overrides (visibility, metadata) over a single generic
+      override_build() hook. Generic hooks are too open-ended and hide where language-specific
+      logic actually lives. Two targeted methods cover all real deviations found across 7 parsers:
+      Go's naming-convention visibility and non-standard metadata node positioning.
+    code_impacts: []
+
+  - number: 2
+    title: "Rust impl_item is classified via semantic_kind_map, not special-cased"
+    rationale: >
+      The current RustParser's impl block flattening is a bug (impl_item not classified as a
+      semantic unit). The fix is to add impl_item to RustDescriptor's semantic_kind_map — the
+      generic builder then handles it correctly with byte coverage. No special case or flatten
+      config needed.
+    code_impacts: []
+
+  - number: 3
+    title: "GenericSemanticTreeBuilder<D: LanguageDescriptor> implements LanguageParser — callers unchanged"
+    rationale: >
+      Wrapping the builder as LanguageParser preserves the existing interface used by
+      decision_based_diff.rs, reviewable_diff.rs, review_engine_builder.rs, and test_utils.rs.
+      No caller changes in Phase 1.
+    code_impacts: []
