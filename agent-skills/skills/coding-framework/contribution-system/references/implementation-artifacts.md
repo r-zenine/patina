@@ -24,6 +24,8 @@ Then fill in the decisions. After completing your work, validate with:
 diffviz validate decision-log decision-log.yaml
 ```
 
+These steps above are mandatory
+
 ### Schema Overview
 
 The template has this structure:
