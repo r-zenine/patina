@@ -193,7 +193,7 @@ Use template: [`contribution-system/assets/templates/context-document-template.m
 
 ### Artifact 3: Decision Log (`decision-log.yaml`)
 
-Use template: [`contribution-system/assets/templates/decision-log-template.yaml`](../contribution-system/assets/templates/decision-log-template.yaml)
+Get the template by running: `diffviz templates decision-log`
 
 **Purpose**: Mutable record of decisions made. Document: selected strategy + rationale, rejected alternatives, key technology/architecture choices.
 

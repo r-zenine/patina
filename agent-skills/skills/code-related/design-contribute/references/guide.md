@@ -246,7 +246,7 @@ Document the chosen approach:
 
 **2. decision-log.yaml**
 
-Use [decision-log-template.yaml](../contribution-system/assets/templates/decision-log-template.yaml)
+Get the template by running: `diffviz templates decision-log`
 
 Document primary design decision with rationale:
 - What was decided
