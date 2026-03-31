@@ -1,0 +1,54 @@
+contribution:
+  id: "002"
+  phase: 2
+  type: implementation
+  title: "Phase 2: Integration - DecisionInstructions into ReviewState"
+  commit: "26fba67"
+
+decisions:
+  - id: "002-001"
+    title: "Use #[allow(clippy::too_many_arguments)] on with_review_data"
+    rationale: >
+      Adding decision_instructions as an 8th parameter to with_review_data pushed
+      it past clippy's default limit of 7. Creating a builder or data struct for
+      a function that has exactly one call site would be premature abstraction.
+      The allow attribute is the minimal, correct fix.
+    alternatives_considered:
+      - "Extract parameters into a ReviewStateData struct — overkill for one call site"
+      - "Builder pattern — unnecessary complexity for MVP"
+    code_impacts:
+      - file: "diffviz-review/src/state/mod.rs"
+        lines: "115"
+        description: "#[allow(clippy::too_many_arguments)] added to with_review_data"
+
+  - id: "002-002"
+    title: "decision_instructions is a required field (never Option<>)"
+    rationale: >
+      Consistent with Decision #4 from Phase 1 planning. An empty DecisionInstructions
+      is a valid initial state; wrapping it in Option would add unwrap() noise everywhere.
+    alternatives_considered:
+      - "Option<DecisionInstructions> — rejected, adds unnecessary complexity"
+    code_impacts:
+      - file: "diffviz-review/src/state/mod.rs"
+        lines: "43"
+        description: "decision_instructions: DecisionInstructions field declaration"
+
+tests_added:
+  - name: "test_decision_instructions_field_initializes_empty"
+    file: "diffviz-review/src/state/mod.rs"
+    covers: "ReviewState::new initializes field with empty DecisionInstructions"
+  - name: "test_decision_instructions_survives_state_clone"
+    file: "diffviz-review/src/state/mod.rs"
+    covers: "DecisionInstructions is preserved through state.clone()"
+  - name: "test_decision_instructions_accessible_through_state"
+    file: "diffviz-review/src/state/mod.rs"
+    covers: "Instructions added to field are readable via state"
+  - name: "test_review_state_with_review_data_includes_decision_instructions"
+    file: "diffviz-review/src/state/mod.rs"
+    covers: "with_review_data constructor accepts and preserves decision_instructions"
+
+quality:
+  tests_total: 151
+  tests_added: 4
+  clippy_warnings: 0
+  fmt_applied: true
