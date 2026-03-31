@@ -4,67 +4,67 @@
       "reviewable_id": {
         "query": {
           "from": {
-            "Commit": "8d30d48bf498c002770dde32b658689a4e7279d6"
+            "Commit": "26f7ccd3c507026a049040ab21d8f59a2f470c0a"
           },
           "to": {
-            "Commit": "2768848"
+            "Commit": "b9a5bae"
           }
         },
-        "file_path": "diffviz-review/src/errors.rs",
+        "file_path": "diffviz-review/src/engines/review_engine.rs",
         "line_range": {
-          "start_line": 29,
-          "end_line": 108,
+          "start_line": 919,
+          "end_line": 963,
+          "start_column": 4,
+          "end_column": 5
+        }
+      },
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-03-31 08:44:49 UTC"
+    },
+    {
+      "reviewable_id": {
+        "query": {
+          "from": {
+            "Commit": "26f7ccd3c507026a049040ab21d8f59a2f470c0a"
+          },
+          "to": {
+            "Commit": "b9a5bae"
+          }
+        },
+        "file_path": "diffviz-review/src/engines/review_engine.rs",
+        "line_range": {
+          "start_line": 142,
+          "end_line": 150,
           "start_column": 0,
           "end_column": 1
         }
       },
       "approved": true,
       "approved_by": "ryad",
-      "approval_timestamp": "2026-03-31 08:19:59 UTC"
+      "approval_timestamp": "2026-03-31 08:44:48 UTC"
     },
     {
       "reviewable_id": {
         "query": {
           "from": {
-            "Commit": "8d30d48bf498c002770dde32b658689a4e7279d6"
+            "Commit": "26f7ccd3c507026a049040ab21d8f59a2f470c0a"
           },
           "to": {
-            "Commit": "2768848"
+            "Commit": "b9a5bae"
           }
         },
         "file_path": "diffviz-review/src/engines/review_engine.rs",
         "line_range": {
-          "start_line": 809,
-          "end_line": 822,
-          "start_column": 4,
-          "end_column": 5
+          "start_line": 133,
+          "end_line": 139,
+          "start_column": 0,
+          "end_column": 1
         }
       },
       "approved": true,
       "approved_by": "ryad",
-      "approval_timestamp": "2026-03-31 08:19:55 UTC"
-    },
-    {
-      "reviewable_id": {
-        "query": {
-          "from": {
-            "Commit": "8d30d48bf498c002770dde32b658689a4e7279d6"
-          },
-          "to": {
-            "Commit": "2768848"
-          }
-        },
-        "file_path": "diffviz-review/src/engines/review_engine.rs",
-        "line_range": {
-          "start_line": 774,
-          "end_line": 806,
-          "start_column": 4,
-          "end_column": 5
-        }
-      },
-      "approved": true,
-      "approved_by": "ryad",
-      "approval_timestamp": "2026-03-31 08:19:56 UTC"
+      "approval_timestamp": "2026-03-31 08:44:48 UTC"
     }
   ],
   "instructions": {
@@ -99,22 +99,22 @@
   },
   "decision_approvals": [
     {
-      "decision_number": 2,
+      "decision_number": 1,
       "approved": true,
       "approved_by": "ryad",
-      "approval_timestamp": "2026-03-31 08:19:56 UTC"
+      "approval_timestamp": "2026-03-31 08:44:48 UTC"
     },
     {
       "decision_number": 3,
       "approved": true,
       "approved_by": "ryad",
-      "approval_timestamp": "2026-03-31 08:19:56 UTC"
+      "approval_timestamp": "2026-03-31 08:44:49 UTC"
     },
     {
-      "decision_number": 1,
+      "decision_number": 2,
       "approved": true,
       "approved_by": "ryad",
-      "approval_timestamp": "2026-03-31 08:19:59 UTC"
+      "approval_timestamp": "2026-03-31 08:44:46 UTC"
     }
   ]
 }

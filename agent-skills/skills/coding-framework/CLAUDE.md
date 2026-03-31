@@ -57,5 +57,5 @@ These skills are **canonical references** — not invoked directly, but fundamen
 
 ## Important Context
 
-The decision log artifacts (see `decision-log-template.yaml` in `contribution-system/assets/templates/`) use a unified YAML schema that directly matches the `diffviz-review::Decision` struct in the codebase. This schema cannot be changed without corresponding updates to diffviz-cli's parsing logic.
+The decision log artifacts use a unified YAML schema that directly matches the `diffviz-review::Decision` struct in the codebase. Get the canonical template via `diffviz templates decision-log`. This schema cannot be changed without corresponding updates to diffviz-cli's parsing logic.
 
