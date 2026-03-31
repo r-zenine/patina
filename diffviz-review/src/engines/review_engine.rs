@@ -143,9 +143,7 @@ impl ReviewEngine {
         on_result: OperationCallback,
     ) -> Result<()> {
         self.state.approve(reviewable_id.clone(), reviewer.clone());
-
-        // Invalidate cache for this ReviewableDiff
-        self.renderable_cache.remove(&reviewable_id);
+        self.invalidate_cache(&reviewable_id);
 
         // Check for reverse cascade: if all chunks for any decision are now approved, auto-approve the decision
         let decisions_for_chunk: Vec<u32> = self
@@ -177,9 +175,7 @@ impl ReviewEngine {
         on_result: OperationCallback,
     ) -> Result<()> {
         self.state.unapprove(&reviewable_id);
-
-        // Invalidate cache for this ReviewableDiff
-        self.renderable_cache.remove(&reviewable_id);
+        self.invalidate_cache(&reviewable_id);
 
         // Check for reverse cascade: if a decision was approved but now not all chunks are approved, unapprove the decision
         let decisions_for_chunk: Vec<u32> = self
@@ -226,9 +222,7 @@ impl ReviewEngine {
 
         self.state
             .add_instruction(reviewable_id.clone(), instruction);
-
-        // Invalidate cache for this ReviewableDiff
-        self.renderable_cache.remove(&reviewable_id);
+        self.invalidate_cache(&reviewable_id);
 
         if let Some(callback) = on_result {
             callback(true, Some("Instruction added".to_string()));
@@ -256,7 +250,7 @@ impl ReviewEngine {
 
         // Approve each one and invalidate caches
         for reviewable_id in &reviewable_ids {
-            self.renderable_cache.remove(reviewable_id);
+            self.invalidate_cache(reviewable_id);
             approved_count += 1;
         }
 
@@ -278,6 +272,10 @@ impl ReviewEngine {
 
     // === Decision Approval Methods ===
 
+    fn invalidate_cache(&mut self, id: &ReviewableDiffId) {
+        self.renderable_cache.remove(id);
+    }
+
     /// Get all chunks (ReviewableDiffIds) for a specific decision
     fn get_chunks_for_decision(&self, decision_number: u32) -> Vec<ReviewableDiffId> {
         self.state
@@ -289,6 +287,43 @@ impl ReviewEngine {
             .collect()
     }
 
+    fn cascade_decision(
+        &mut self,
+        decision_number: u32,
+        reviewer: Option<String>,
+    ) -> Result<CascadeResult> {
+        if let Some(ref r) = reviewer {
+            self.state.approve_decision(decision_number, r.clone());
+        } else {
+            self.state.unapprove_decision(decision_number);
+        }
+
+        let chunks = self.get_chunks_for_decision(decision_number);
+
+        for chunk_id in &chunks {
+            if let Some(ref r) = reviewer {
+                self.state.approve(chunk_id.clone(), r.clone());
+            } else {
+                self.state.unapprove(chunk_id);
+            }
+            self.invalidate_cache(chunk_id);
+        }
+
+        Ok(if chunks.is_empty() {
+            CascadeResult::NoChunksAffected { decision_number }
+        } else if reviewer.is_some() {
+            CascadeResult::DecisionApproved {
+                decision_number,
+                chunks_affected: chunks.len(),
+            }
+        } else {
+            CascadeResult::DecisionUnapproved {
+                decision_number,
+                chunks_affected: chunks.len(),
+            }
+        })
+    }
+
     /// Approve an entire decision, cascading to all affected chunks
     ///
     /// Returns a CascadeResult describing what was affected by this operation.
@@ -297,58 +332,14 @@ impl ReviewEngine {
         decision_number: u32,
         reviewer: String,
     ) -> Result<CascadeResult> {
-        // Approve the decision itself
-        self.state
-            .approve_decision(decision_number, reviewer.clone());
-
-        // Get all chunks for this decision
-        let chunks = self.get_chunks_for_decision(decision_number);
-
-        // Approve each chunk
-        for chunk_id in &chunks {
-            self.state.approve(chunk_id.clone(), reviewer.clone());
-            self.renderable_cache.remove(chunk_id);
-        }
-
-        let result = if chunks.is_empty() {
-            CascadeResult::NoChunksAffected { decision_number }
-        } else {
-            CascadeResult::DecisionApproved {
-                decision_number,
-                chunks_affected: chunks.len(),
-            }
-        };
-
-        Ok(result)
+        self.cascade_decision(decision_number, Some(reviewer))
     }
 
-    /// Reject/unapprove an entire decision, cascading to all affected chunks
     /// Reject/unapprove an entire decision, cascading to all affected chunks
     ///
     /// Returns a CascadeResult describing what was affected by this operation.
     pub fn reject_decision(&mut self, decision_number: u32) -> Result<CascadeResult> {
-        // Unapprove the decision itself
-        self.state.unapprove_decision(decision_number);
-
-        // Get all chunks for this decision
-        let chunks = self.get_chunks_for_decision(decision_number);
-
-        // Reject each chunk
-        for chunk_id in &chunks {
-            self.state.unapprove(chunk_id);
-            self.renderable_cache.remove(chunk_id);
-        }
-
-        let result = if chunks.is_empty() {
-            CascadeResult::NoChunksAffected { decision_number }
-        } else {
-            CascadeResult::DecisionUnapproved {
-                decision_number,
-                chunks_affected: chunks.len(),
-            }
-        };
-
-        Ok(result)
+        self.cascade_decision(decision_number, None)
     }
 
     /// Check if a decision is approved
@@ -361,25 +352,20 @@ impl ReviewEngine {
         self.state.decision_approval_progress(decision_number)
     }
 
+    fn compute_renderable(&self, id: &ReviewableDiffId) -> Option<String> {
+        self.state
+            .get_reviewable_diff(id)
+            .map(|diff| format_renderable_diff_for_display(&RenderableDiff::from(&diff.core_diff)))
+    }
+
     /// Get a RenderableDiff for a ReviewableDiff (with caching)
     pub fn get_renderable_diff(&mut self, reviewable_id: &ReviewableDiffId) -> Option<String> {
-        // Check cache first
         if let Some(cached) = self.renderable_cache.get(reviewable_id) {
             return Some(cached.clone());
         }
-
-        // Generate RenderableDiff if not cached
-        if let Some(reviewable_diff) = self.state.get_reviewable_diff(reviewable_id) {
-            // Convert ReviewableDiff to RenderableDiff using core conversion
-            let renderable_diff = RenderableDiff::from(&reviewable_diff.core_diff);
-
-            // Convert RenderableDiff to string format for caching and display
-            let renderable = format_renderable_diff_for_display(&renderable_diff);
-
-            // Cache the result
+        if let Some(renderable) = self.compute_renderable(reviewable_id) {
             self.renderable_cache
                 .insert(reviewable_id.clone(), renderable.clone());
-
             Some(renderable)
         } else {
             None
@@ -389,15 +375,7 @@ impl ReviewEngine {
     /// Get a RenderableDiff for a ReviewableDiff (read-only, no caching)
     /// This version can be called with &self for TUI rendering
     pub fn render_diff(&self, reviewable_id: &ReviewableDiffId) -> Option<String> {
-        if let Some(reviewable_diff) = self.state.get_reviewable_diff(reviewable_id) {
-            // Convert ReviewableDiff to RenderableDiff using core conversion
-            let renderable_diff = RenderableDiff::from(&reviewable_diff.core_diff);
-
-            // Convert RenderableDiff to string format for display
-            Some(format_renderable_diff_for_display(&renderable_diff))
-        } else {
-            None
-        }
+        self.compute_renderable(reviewable_id)
     }
 
     /// Get a RenderableDiff object for direct widget usage
@@ -841,11 +819,66 @@ pub struct CacheStats {
     pub cache_hit_ratio: f32,
 }
 
+fn format_renderable_diff_for_display(renderable_diff: &RenderableDiff) -> String {
+    let mut output = String::new();
+
+    output.push_str(&format!(
+        "=== {} ===\n",
+        renderable_diff.metadata.boundary_name
+    ));
+    output.push_str(&format!("Language: {:?}\n", renderable_diff.language));
+    output.push_str(&format!(
+        "Lines: {} | Essential: {}\n\n",
+        renderable_diff.lines.len(),
+        renderable_diff.metadata.essential_line_count
+    ));
+
+    for line in &renderable_diff.lines {
+        let change_indicator = if line.annotations.iter().any(|a| a.change_type.is_some()) {
+            match line.annotations.iter().find(|a| a.change_type.is_some()) {
+                Some(annotation) => match annotation.change_type {
+                    Some(diffviz_core::renderable_diff::ChangeType::Added) => "+ ",
+                    Some(diffviz_core::renderable_diff::ChangeType::Deleted) => "- ",
+                    Some(diffviz_core::renderable_diff::ChangeType::Modified) => "~ ",
+                    _ => "  ",
+                },
+                None => "  ",
+            }
+        } else {
+            "  "
+        };
+
+        output.push_str(&format!(
+            "{:4} {}{}\n",
+            line.line_number, change_indicator, line.content
+        ));
+    }
+
+    output
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::entities::git_ref::DiffQuery;
     use crate::entities::reviewable_diff_id::LineRange;
+
+    fn test_range(start: usize, end: usize) -> LineRange {
+        LineRange {
+            start_line: start,
+            end_line: end,
+            start_column: 0,
+            end_column: 0,
+        }
+    }
+
+    fn test_id(file: &str, start: usize, end: usize) -> ReviewableDiffId {
+        ReviewableDiffId::new(
+            DiffQuery::head_to_unstaged(),
+            file.to_string(),
+            test_range(start, end),
+        )
+    }
 
     fn create_test_reviewable_diff(file_path: &str, start_line: usize) -> ReviewableDiff {
         use diffviz_core::{
@@ -860,12 +893,7 @@ mod tests {
         let reviewable_id = ReviewableDiffId::new(
             DiffQuery::head_to_unstaged(),
             file_path.to_string(),
-            LineRange {
-                start_line,
-                end_line: start_line + 10,
-                start_column: 0,
-                end_column: 0,
-            },
+            test_range(start_line, start_line + 10),
         );
 
         let placeholder_content = format!("test content for {file_path}");
@@ -1085,16 +1113,7 @@ mod tests {
         let diff = create_test_reviewable_diff("test.rs", 1);
         let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
-        let reviewable_id = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
+        let reviewable_id = test_id("test.rs", 10, 12);
 
         let result = engine.add_instruction(
             reviewable_id.clone(),
@@ -1116,16 +1135,7 @@ mod tests {
         let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
         // Add first instruction (lines 10-12)
-        let id1 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
+        let id1 = test_id("test.rs", 10, 12);
 
         engine
             .add_instruction(
@@ -1137,16 +1147,7 @@ mod tests {
             .unwrap();
 
         // Add non-overlapping instruction (lines 20-22)
-        let id2 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 20,
-                end_line: 22,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
+        let id2 = test_id("test.rs", 20, 22);
 
         let result = engine.add_instruction(
             id2.clone(),
@@ -1164,16 +1165,7 @@ mod tests {
         let diff = create_test_reviewable_diff("test.rs", 1);
         let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
-        let id = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 20,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
+        let id = test_id("test.rs", 10, 20);
 
         engine
             .add_instruction(
@@ -1206,16 +1198,7 @@ mod tests {
         let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
         // Add first instruction (lines 10-12)
-        let id1 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
+        let id1 = test_id("test.rs", 10, 12);
 
         engine
             .add_instruction(
@@ -1227,16 +1210,7 @@ mod tests {
             .unwrap();
 
         // Add adjacent instruction (lines 13-15) - no overlap
-        let id2 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 13,
-                end_line: 15,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
+        let id2 = test_id("test.rs", 13, 15);
 
         let result = engine.add_instruction(
             id2.clone(),
@@ -1273,27 +1247,8 @@ mod tests {
         let mut engine = ReviewEngine::new(vec![diff1, diff2], "test_author".to_string());
 
         // Add instructions to both files
-        let id1 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test1.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
-
-        let id2 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test2.rs".to_string(),
-            LineRange {
-                start_line: 20,
-                end_line: 22,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
+        let id1 = test_id("test1.rs", 10, 12);
+        let id2 = test_id("test2.rs", 20, 22);
 
         engine
             .add_instruction(
@@ -1340,16 +1295,7 @@ mod tests {
         let diff = create_test_reviewable_diff("test.rs", 1);
         let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
-        let id = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
+        let id = test_id("test.rs", 10, 12);
 
         engine
             .add_instruction(
@@ -1390,16 +1336,7 @@ mod tests {
         let diff = create_test_reviewable_diff("test.rs", 1);
         let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
-        let id = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
+        let id = test_id("test.rs", 10, 12);
 
         engine
             .add_instruction(id, "Test".to_string(), "reviewer".to_string(), None)
@@ -1526,12 +1463,7 @@ mod tests {
         let content = "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10\n";
         mock_provider.add_file_content("test.rs", &GitRef::head(), content);
 
-        let line_range = LineRange {
-            start_line: 3,
-            end_line: 5,
-            start_column: 0,
-            end_column: 0,
-        };
+        let line_range = test_range(3, 5);
 
         let snapshot = mock_provider
             .get_content_snapshot("test.rs", &GitRef::head(), &line_range)
@@ -1549,12 +1481,7 @@ mod tests {
         let content = "line1\nline2\nline3\n";
         mock_provider.add_file_content("test.rs", &GitRef::head(), content);
 
-        let line_range = LineRange {
-            start_line: 1,
-            end_line: 2,
-            start_column: 0,
-            end_column: 0,
-        };
+        let line_range = test_range(1, 2);
 
         let snapshot = mock_provider
             .get_content_snapshot("test.rs", &GitRef::head(), &line_range)
@@ -1572,12 +1499,7 @@ mod tests {
         let content = "line1\nline2\nline3\n";
         mock_provider.add_file_content("test.rs", &GitRef::head(), content);
 
-        let line_range = LineRange {
-            start_line: 2,
-            end_line: 3,
-            start_column: 0,
-            end_column: 0,
-        };
+        let line_range = test_range(2, 3);
 
         let snapshot = mock_provider
             .get_content_snapshot("test.rs", &GitRef::head(), &line_range)
@@ -1595,12 +1517,7 @@ mod tests {
         let content = "line1\nline2\nline3\n";
         mock_provider.add_file_content("test.rs", &GitRef::head(), content);
 
-        let line_range = LineRange {
-            start_line: 10,
-            end_line: 15,
-            start_column: 0,
-            end_column: 0,
-        };
+        let line_range = test_range(10, 15);
 
         let snapshot = mock_provider
             .get_content_snapshot("test.rs", &GitRef::head(), &line_range)
@@ -1618,12 +1535,7 @@ mod tests {
         let content = "line1\nline2\nline3\n";
         mock_provider.add_file_content("test.rs", &GitRef::head(), content);
 
-        let line_range = LineRange {
-            start_line: 2,
-            end_line: 2,
-            start_column: 0,
-            end_column: 0,
-        };
+        let line_range = test_range(2, 2);
 
         let snapshot = mock_provider
             .get_content_snapshot("test.rs", &GitRef::head(), &line_range)
@@ -1638,16 +1550,7 @@ mod tests {
         let diff = create_test_reviewable_diff("test.rs", 1);
         let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
-        let reviewable_id = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
+        let reviewable_id = test_id("test.rs", 10, 12);
 
         engine
             .add_instruction(
@@ -1674,16 +1577,7 @@ mod tests {
         let diff = create_test_reviewable_diff("test.rs", 1);
         let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
-        let reviewable_id = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
+        let reviewable_id = test_id("test.rs", 10, 12);
 
         engine
             .add_instruction(
@@ -1711,16 +1605,7 @@ mod tests {
         let diff = create_test_reviewable_diff("test.rs", 1);
         let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
-        let reviewable_id = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 2,
-                end_line: 3,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
+        let reviewable_id = test_id("test.rs", 2, 3);
 
         engine
             .add_instruction(
@@ -1783,16 +1668,7 @@ mod tests {
         let diff = create_test_reviewable_diff("test.rs", 1);
         let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
-        let reviewable_id = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
+        let reviewable_id = test_id("test.rs", 10, 12);
 
         engine
             .add_instruction(
@@ -1820,27 +1696,8 @@ mod tests {
         let mut engine = ReviewEngine::new(vec![diff1, diff2], "test_author".to_string());
 
         // Add instructions to different files
-        let id1 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test1.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
-
-        let id2 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test2.rs".to_string(),
-            LineRange {
-                start_line: 20,
-                end_line: 22,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
+        let id1 = test_id("test1.rs", 10, 12);
+        let id2 = test_id("test2.rs", 20, 22);
 
         engine
             .add_instruction(
@@ -2076,16 +1933,7 @@ mod tests {
         let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
         // Add an instruction first
-        let reviewable_id = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "src/main.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
+        let reviewable_id = test_id("src/main.rs", 10, 12);
 
         engine
             .add_instruction(
@@ -2671,45 +2519,4 @@ mod tests {
         assert_eq!(engine.state().instructions.total_instructions(), 1);
         assert_eq!(engine.state().decision_instructions.total_instructions(), 1);
     }
-}
-
-/// Helper function to convert RenderableDiff to string format for caching and display
-fn format_renderable_diff_for_display(renderable_diff: &RenderableDiff) -> String {
-    let mut output = String::new();
-
-    // Add metadata header
-    output.push_str(&format!(
-        "=== {} ===\n",
-        renderable_diff.metadata.boundary_name
-    ));
-    output.push_str(&format!("Language: {:?}\n", renderable_diff.language));
-    output.push_str(&format!(
-        "Lines: {} | Essential: {}\n\n",
-        renderable_diff.lines.len(),
-        renderable_diff.metadata.essential_line_count
-    ));
-
-    // Add each line with change indicators
-    for line in &renderable_diff.lines {
-        let change_indicator = if line.annotations.iter().any(|a| a.change_type.is_some()) {
-            match line.annotations.iter().find(|a| a.change_type.is_some()) {
-                Some(annotation) => match annotation.change_type {
-                    Some(diffviz_core::renderable_diff::ChangeType::Added) => "+ ",
-                    Some(diffviz_core::renderable_diff::ChangeType::Deleted) => "- ",
-                    Some(diffviz_core::renderable_diff::ChangeType::Modified) => "~ ",
-                    _ => "  ",
-                },
-                None => "  ",
-            }
-        } else {
-            "  "
-        };
-
-        output.push_str(&format!(
-            "{:4} {}{}\n",
-            line.line_number, change_indicator, line.content
-        ));
-    }
-
-    output
 }
