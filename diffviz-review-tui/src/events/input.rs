@@ -73,9 +73,7 @@ pub enum UiEvent {
     DeactivateLeader,
     LeaderTimeout,
 
-    // Export actions
-    ExportFile,
-    ExportSingleInstruction,
+    // Export action
     ExportAll,
 
     // Help overlay
