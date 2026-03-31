@@ -5,7 +5,8 @@
 
 use crate::entities::reviewable_diff_id::ReviewableDiffId;
 use crate::entities::{
-    DecisionApprovals, Instruction, ReviewApprovals, ReviewDecisions, ReviewInstructions,
+    DecisionApprovals, DecisionInstructions, Instruction, ReviewApprovals, ReviewDecisions,
+    ReviewInstructions,
 };
 // Simplified structures for review workflow
 #[derive(Debug, Clone, Default)]
@@ -40,6 +41,7 @@ pub struct ReviewState {
     pub instructions: ReviewInstructions,
     pub decisions: ReviewDecisions,
     pub decision_approvals: DecisionApprovals,
+    pub decision_instructions: DecisionInstructions,
     pub journey: ReviewJourney,
 
     /// Session metadata
@@ -102,6 +104,7 @@ impl ReviewState {
             instructions: ReviewInstructions::new(),
             decisions: ReviewDecisions::new(),
             decision_approvals: DecisionApprovals::new(),
+            decision_instructions: DecisionInstructions::new(),
             journey: ReviewJourney::new(),
             author,
             session_metadata: None,
@@ -109,6 +112,7 @@ impl ReviewState {
     }
 
     /// Create review state with existing review data (for loading sessions)
+    #[allow(clippy::too_many_arguments)]
     pub fn with_review_data(
         reviewable_diffs: Vec<ReviewableDiff>,
         author: String,
@@ -117,6 +121,7 @@ impl ReviewState {
         instructions: ReviewInstructions,
         decisions: ReviewDecisions,
         decision_approvals: DecisionApprovals,
+        decision_instructions: DecisionInstructions,
     ) -> Self {
         let mut diffs_map = BTreeMap::new();
         for diff in reviewable_diffs {
@@ -129,6 +134,7 @@ impl ReviewState {
             instructions,
             decisions,
             decision_approvals,
+            decision_instructions,
             journey,
             author,
             session_metadata: None,
@@ -526,5 +532,95 @@ mod tests {
         assert_eq!(instructions.len(), 2);
         assert_eq!(instructions[0].content, "First instruction");
         assert_eq!(instructions[1].content, "Second instruction");
+    }
+
+    #[test]
+    fn test_decision_instructions_field_initializes_empty() {
+        let diff = create_test_reviewable_diff();
+        let state = ReviewState::new(vec![diff], "test_author".to_string());
+
+        assert_eq!(state.decision_instructions.total_instructions(), 0);
+    }
+
+    #[test]
+    fn test_decision_instructions_survives_state_clone() {
+        let diff = create_test_reviewable_diff();
+        let mut state = ReviewState::new(vec![diff], "test_author".to_string());
+
+        use crate::entities::instruction::{Instruction, InstructionStatus};
+        state.decision_instructions.add_instruction(
+            1,
+            Instruction {
+                id: "di_1".to_string(),
+                content: "Check this decision".to_string(),
+                author: "reviewer".to_string(),
+                timestamp: "2024-01-10T10:00:00Z".to_string(),
+                status: InstructionStatus::Active,
+            },
+        );
+
+        let cloned = state.clone();
+        assert_eq!(cloned.decision_instructions.total_instructions(), 1);
+    }
+
+    #[test]
+    fn test_decision_instructions_accessible_through_state() {
+        let diff = create_test_reviewable_diff();
+        let mut state = ReviewState::new(vec![diff], "test_author".to_string());
+
+        use crate::entities::instruction::{Instruction, InstructionStatus};
+        state.decision_instructions.add_instruction(
+            42,
+            Instruction {
+                id: "di_42".to_string(),
+                content: "Review decision 42 carefully".to_string(),
+                author: "author".to_string(),
+                timestamp: "2024-01-10T10:00:00Z".to_string(),
+                status: InstructionStatus::Active,
+            },
+        );
+
+        assert!(state.decision_instructions.has_instructions(42));
+        assert_eq!(
+            state
+                .decision_instructions
+                .get_instructions(42)
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn test_review_state_with_review_data_includes_decision_instructions() {
+        use crate::entities::DecisionInstructions;
+        use crate::entities::instruction::{Instruction, InstructionStatus};
+
+        let diff = create_test_reviewable_diff();
+        let mut decision_instructions = DecisionInstructions::new();
+        decision_instructions.add_instruction(
+            1,
+            Instruction {
+                id: "di_1".to_string(),
+                content: "Test decision instruction".to_string(),
+                author: "author".to_string(),
+                timestamp: "2024-01-10T10:00:00Z".to_string(),
+                status: InstructionStatus::Active,
+            },
+        );
+
+        let state = ReviewState::with_review_data(
+            vec![diff],
+            "test_author".to_string(),
+            ReviewJourney::new(),
+            ReviewApprovals::new(),
+            ReviewInstructions::new(),
+            ReviewDecisions::new(),
+            DecisionApprovals::new(),
+            decision_instructions,
+        );
+
+        assert_eq!(state.decision_instructions.total_instructions(), 1);
+        assert!(state.decision_instructions.has_instructions(1));
     }
 }
