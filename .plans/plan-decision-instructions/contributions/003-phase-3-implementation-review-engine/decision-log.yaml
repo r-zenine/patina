@@ -1,0 +1,44 @@
+commit: 2768848  # Git hash of the commit containing the code changes described by these decisions
+decisions:
+  - number: 1
+    title: Add InvalidDecision and InstructionNotFound error variants to ReviewError
+    rationale: >
+      Phase 3 methods need to signal two distinct failure modes: the caller referenced a
+      decision number that doesn't exist, and the caller referenced an instruction ID that
+      doesn't exist. Both variants carry the offending identifier so callers can produce
+      actionable error messages without unpacking the error string.
+    code_impacts:
+      - reasoning: Two new variants added to the ReviewError enum
+        file: diffviz-review/src/errors.rs
+        line_ranges:
+          - start: 101
+            end: 106
+
+  - number: 2
+    title: Validate decision existence in add_decision_instruction before mutating state
+    rationale: >
+      add_decision_instruction must guard against adding instructions to decisions that
+      don't exist in ReviewState. The check uses contains_key on decisions.decisions
+      (HashMap<u32, Decision>), which is O(1) and consistent with how approve_decision
+      and reject_decision already work. Fail-fast: return Err(InvalidDecision) immediately,
+      no partial mutation.
+    code_impacts:
+      - reasoning: Guard at top of add_decision_instruction method
+        file: diffviz-review/src/engines/review_engine.rs
+        line_ranges:
+          - start: 779
+            end: 800
+
+  - number: 3
+    title: Instruction creation in add_decision_instruction mirrors add_instruction pattern
+    rationale: >
+      The new method produces Instruction values using uuid::Uuid::new_v4() for the id
+      and chrono::Utc::now().format(...) for the timestamp, matching the existing
+      add_instruction() method exactly. Both crates were already present in Cargo.toml;
+      no new dependencies required.
+    code_impacts:
+      - reasoning: Instruction construction inside add_decision_instruction
+        file: diffviz-review/src/engines/review_engine.rs
+        line_ranges:
+          - start: 800
+            end: 815
