@@ -13,7 +13,7 @@ use commands::{
 use diffviz_git::GitRepository;
 use diffviz_review::{
     Approval, DecisionApproval, DecisionApprovals, DecisionLog, DiffQuery, ReviewApprovals,
-    ReviewEngineBuilder, engines::review_engine::ExportScope,
+    ReviewEngineBuilder,
 };
 use diffviz_review_tui::ReviewTuiApp;
 use environment::{EnvironmentBuilder, TerminalBackend};
@@ -76,9 +76,6 @@ enum Commands {
         /// Include explanations for folding decisions
         #[arg(long)]
         explain_folding: bool,
-        /// Export fixture to file path
-        #[arg(long, value_name = "FILE")]
-        export_fixture: Option<String>,
         /// Output human-readable text instead of JSON
         #[arg(long)]
         human: bool,
@@ -139,7 +136,7 @@ fn load_review_state(folder: &Path, engine: &mut diffviz_review::ReviewEngine) -
 
 fn save_review_state(folder: &Path, engine: &diffviz_review::ReviewEngine) -> Result<()> {
     let instructions_str = engine
-        .export_instructions_json(ExportScope::All)
+        .export_instructions_json()
         .map_err(|e| anyhow::anyhow!("Failed to export instructions: {e}"))?;
     let instructions: serde_json::Value = serde_json::from_str(&instructions_str)?;
     let approvals_vec: Vec<Approval> = engine
@@ -256,7 +253,6 @@ fn main() -> Result<()> {
                     to,
                     phase,
                     explain_folding,
-                    export_fixture,
                     human,
                     line_range,
                 } => {
@@ -266,7 +262,6 @@ fn main() -> Result<()> {
                         to,
                         phase,
                         explain_folding,
-                        export_fixture,
                         human,
                         line_range,
                     };

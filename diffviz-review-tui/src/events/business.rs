@@ -6,7 +6,6 @@
 use crate::events::UiEvent;
 use crate::state::{InputMode, UiState};
 use diffviz_review::ReviewableDiffId;
-use diffviz_review::engines::review_engine::ExportScope;
 
 /// Business events that require ReviewEngine operations
 #[derive(Debug, Clone)]
@@ -32,8 +31,8 @@ pub enum BusinessEvent {
         new_content: String,
     },
 
-    /// Export instructions to JSON file
-    ExportInstructions { scope: ExportScope },
+    /// Export all instructions to JSON file
+    ExportInstructions,
 
     /// Save current review session
     SaveSession,
@@ -77,25 +76,7 @@ pub fn ui_event_to_business_event(ui_event: &UiEvent, ui_state: &UiState) -> Opt
             InputMode::Navigation => None,
         },
 
-        UiEvent::ExportFile => {
-            ui_state
-                .current_file_path()
-                .map(|path| BusinessEvent::ExportInstructions {
-                    scope: ExportScope::SingleFile(path),
-                })
-        }
-
-        UiEvent::ExportSingleInstruction => {
-            ui_state
-                .current_reviewable_id()
-                .map(|id| BusinessEvent::ExportInstructions {
-                    scope: ExportScope::SingleInstruction(id),
-                })
-        }
-
-        UiEvent::ExportAll => Some(BusinessEvent::ExportInstructions {
-            scope: ExportScope::All,
-        }),
+        UiEvent::ExportAll => Some(BusinessEvent::ExportInstructions),
 
         // Other UI events don't generate business events
         _ => None,

@@ -423,10 +423,8 @@ impl ReviewTuiApp {
                 self.ui_state.show_help = !self.ui_state.show_help;
             }
 
-            // Export events are handled as business events
-            UiEvent::ExportFile | UiEvent::ExportSingleInstruction | UiEvent::ExportAll => {
-                // These are converted to BusinessEvent::ExportInstructions
-                // and handled in handle_business_event
+            // Export event is handled as a business event
+            UiEvent::ExportAll => {
                 self.ui_state.deactivate_leader();
             }
 
@@ -472,24 +470,9 @@ impl ReviewTuiApp {
                 Ok(Command::None)
             }
 
-            BusinessEvent::ExportInstructions { ref scope } => {
-                // Generate JSON export
-                let json = self.review_engine.export_instructions_json(scope.clone())?;
-
-                // Determine file path based on scope
-                let filename = match scope {
-                    diffviz_review::engines::review_engine::ExportScope::SingleFile(path) => {
-                        format!("instructions-{}.json", path.replace('/', "-"))
-                    }
-                    diffviz_review::engines::review_engine::ExportScope::SingleInstruction(_) => {
-                        "instructions-single.json".to_string()
-                    }
-                    diffviz_review::engines::review_engine::ExportScope::All => {
-                        "instructions-all.json".to_string()
-                    }
-                };
-
-                // Return commands for file write and message
+            BusinessEvent::ExportInstructions => {
+                let json = self.review_engine.export_instructions_json()?;
+                let filename = "instructions-all.json".to_string();
                 Ok(Command::Batch(vec![
                     Command::WriteFile {
                         path: filename.clone(),
@@ -843,10 +826,8 @@ impl HeadlessApp {
                 self.ui_state.show_help = !self.ui_state.show_help;
             }
 
-            // Export events are handled as business events
-            UiEvent::ExportFile | UiEvent::ExportSingleInstruction | UiEvent::ExportAll => {
-                // These are converted to BusinessEvent::ExportInstructions
-                // and handled in handle_business_event
+            // Export event is handled as a business event
+            UiEvent::ExportAll => {
                 self.ui_state.deactivate_leader();
             }
 
@@ -892,24 +873,9 @@ impl HeadlessApp {
                 Ok(Command::None)
             }
 
-            BusinessEvent::ExportInstructions { ref scope } => {
-                // Generate JSON export
-                let json = self.review_engine.export_instructions_json(scope.clone())?;
-
-                // Determine file path based on scope
-                let filename = match scope {
-                    diffviz_review::engines::review_engine::ExportScope::SingleFile(path) => {
-                        format!("instructions-{}.json", path.replace('/', "-"))
-                    }
-                    diffviz_review::engines::review_engine::ExportScope::SingleInstruction(_) => {
-                        "instructions-single.json".to_string()
-                    }
-                    diffviz_review::engines::review_engine::ExportScope::All => {
-                        "instructions-all.json".to_string()
-                    }
-                };
-
-                // Return commands for file write and message
+            BusinessEvent::ExportInstructions => {
+                let json = self.review_engine.export_instructions_json()?;
+                let filename = "instructions-all.json".to_string();
                 Ok(Command::Batch(vec![
                     Command::WriteFile {
                         path: filename.clone(),

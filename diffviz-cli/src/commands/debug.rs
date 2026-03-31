@@ -27,8 +27,6 @@ pub struct DebugCommand {
     pub phase: Option<u8>,
     /// Optional: include explanations for folding decisions
     pub explain_folding: bool,
-    /// Optional: export fixture to file path
-    pub export_fixture: Option<String>,
     /// Optional: output human-readable text instead of JSON
     pub human: bool,
     /// Optional: filter results to line range (start-end)
@@ -74,19 +72,6 @@ struct LineRangeFilter {
     end: usize,
     filtered_diff_count: usize,
     total_diff_count: usize,
-}
-
-/// Minimal fixture for test data creation
-#[derive(Serialize, Deserialize, Debug)]
-struct ReviewFixture {
-    /// Original code before the change
-    old_code: String,
-    /// Modified code after the change
-    new_code: String,
-    /// File path being analyzed
-    file_path: String,
-    /// Detected programming language
-    language: String,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -227,18 +212,6 @@ impl CommandExecutor for DebugCommand {
             },
             phases,
         };
-
-        // Export fixture if requested
-        if let Some(ref fixture_path) = self.export_fixture {
-            let fixture_diff_provider = environment.diff_provider()?;
-            self.export_fixture_json(
-                fixture_path,
-                fixture_diff_provider,
-                &from_ref,
-                &to_ref,
-                &language,
-            )?;
-        }
 
         // Output result
         if self.human {
@@ -637,37 +610,5 @@ impl DebugCommand {
             "type": "final_output",
             "summary": impacts
         }))
-    }
-
-    /// Export minimal ReviewFixture JSON for test data creation
-    fn export_fixture_json(
-        &self,
-        fixture_path: &str,
-        diff_provider: Box<dyn diffviz_review::providers::DiffProvider>,
-        from_ref: &diffviz_review::entities::git_ref::GitRef,
-        to_ref: &diffviz_review::entities::git_ref::GitRef,
-        language: &str,
-    ) -> Result<()> {
-        // Extract source code from both refs
-        let old_code = diff_provider
-            .get_source_code(&self.file_path, from_ref)
-            .map_err(|e| anyhow::anyhow!("Failed to get old code: {e}"))?;
-        let new_code = diff_provider
-            .get_source_code(&self.file_path, to_ref)
-            .map_err(|e| anyhow::anyhow!("Failed to get new code: {e}"))?;
-
-        // Create fixture
-        let fixture = ReviewFixture {
-            old_code,
-            new_code,
-            file_path: self.file_path.clone(),
-            language: language.to_string(),
-        };
-
-        // Serialize to JSON and write to file
-        let json = serde_json::to_string_pretty(&fixture)?;
-        fs::write(fixture_path, json)?;
-
-        Ok(())
     }
 }

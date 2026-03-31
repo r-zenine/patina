@@ -74,8 +74,6 @@ fn create_help_content() -> Vec<Line<'static>> {
         create_help_line("Space t s", "Toggle semantic highlighting"),
         create_help_line("Space t c", "Toggle context folding"),
         Line::from(""),
-        create_help_line("Space e f", "Export file"),
-        create_help_line("Space e e", "Export instruction"),
         create_help_line("Space e a", "Export all"),
         Line::from(""),
         create_section_header("UTILITY"),

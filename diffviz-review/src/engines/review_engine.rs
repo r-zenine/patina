@@ -19,17 +19,6 @@ use std::collections::HashMap;
 /// NOTE: Cascade methods (approve_decision/reject_decision) use CascadeResult instead of callbacks
 type OperationCallback = Option<Box<dyn FnOnce(bool, Option<String>) + Send>>;
 
-/// Export scope for filtering instructions during JSON export
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ExportScope {
-    /// Export all instructions for a specific file
-    SingleFile(String),
-    /// Export a single instruction by its ReviewableDiffId
-    SingleInstruction(ReviewableDiffId),
-    /// Export all instructions across all files
-    All,
-}
-
 /// JSON representation of an instruction for export/import
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportedInstruction {
@@ -127,34 +116,6 @@ pub struct ImportSummary {
     pub active_count: usize,
     pub stale_count: usize,
     pub errors: Vec<String>,
-}
-
-/// Export scope for filtering decision instructions during JSON export
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum DecisionExportScope {
-    /// Export instructions for a specific decision
-    SingleDecision(u32),
-    /// Export all decision instructions
-    All,
-}
-
-/// JSON representation of a decision instruction for export/import
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExportedDecisionInstruction {
-    pub decision_number: u32,
-    pub content: String,
-    pub author: String,
-    pub timestamp: String,
-    #[serde(default = "default_status")]
-    pub status: String,
-}
-
-/// Container for exported decision instructions
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExportedDecisionInstructions {
-    #[serde(rename = "_meta")]
-    pub meta: ExportMetadata,
-    pub decision_instructions: Vec<ExportedDecisionInstruction>,
 }
 
 /// Core review engine with ReviewableDiff-based state management
@@ -534,20 +495,15 @@ impl ReviewEngine {
         self.state.get_reviewable_diff(id)
     }
 
-    /// Export instructions to JSON format based on the specified scope
-    pub fn export_instructions_json(&self, scope: ExportScope) -> Result<String> {
-        // Collect (ReviewableDiffId, Instruction) pairs matching scope
+    /// Export all instructions to JSON format
+    pub fn export_instructions_json(&self) -> Result<String> {
+        // Collect all (ReviewableDiffId, Instruction) pairs
         let pairs: Vec<(&ReviewableDiffId, &Instruction)> = self
             .state
             .instructions
             .instructions
             .iter()
             .flat_map(|(id, instructions)| instructions.iter().map(move |inst| (id, inst)))
-            .filter(|(id, _)| match &scope {
-                ExportScope::SingleFile(file_path) => id.file_path() == file_path,
-                ExportScope::SingleInstruction(reviewable_id) => *id == reviewable_id,
-                ExportScope::All => true,
-            })
             .collect();
 
         // Convert to exportable format
@@ -855,111 +811,6 @@ impl ReviewEngine {
             .decision_instructions
             .get_instructions(decision_number)
             .map(|instructions| instructions.iter().collect())
-    }
-
-    /// Export decision instructions to JSON format based on the specified scope
-    pub fn export_decision_instructions_json(&self, scope: DecisionExportScope) -> Result<String> {
-        let decision_instructions: Vec<ExportedDecisionInstruction> = self
-            .state
-            .decision_instructions
-            .instructions
-            .iter()
-            .filter(|(decision_num, _)| match &scope {
-                DecisionExportScope::SingleDecision(num) => *decision_num == num,
-                DecisionExportScope::All => true,
-            })
-            .flat_map(|(decision_num, instructions)| {
-                instructions
-                    .iter()
-                    .map(move |inst| ExportedDecisionInstruction {
-                        decision_number: *decision_num,
-                        content: inst.content.clone(),
-                        author: inst.author.clone(),
-                        timestamp: inst.timestamp.clone(),
-                        status: match inst.status {
-                            InstructionStatus::Active => "active".to_string(),
-                            InstructionStatus::Addressed => "addressed".to_string(),
-                        },
-                    })
-            })
-            .collect();
-
-        let meta = ExportMetadata {
-            format_version: "1.1".to_string(),
-            description: "DiffViz decision instructions export for code reviews".to_string(),
-            field_descriptions: Some(ExportFieldDescriptions {
-                file: "N/A - decision level annotations".to_string(),
-                query: "N/A - decision level annotations".to_string(),
-                line_range: "N/A - decision level annotations".to_string(),
-                content: "The instruction text for reviewers to consider".to_string(),
-                author: "Username/identifier of instruction author".to_string(),
-                timestamp: "When instruction was created (UTC format)".to_string(),
-                status: "Instruction status: 'active' (pending), 'addressed' (completed)"
-                    .to_string(),
-                file_content_hash: "N/A - decision level annotations".to_string(),
-                content_snapshot: "N/A - decision level annotations".to_string(),
-            }),
-            query_formats: None,
-            git_usage_examples: None,
-        };
-
-        let export = ExportedDecisionInstructions {
-            meta,
-            decision_instructions,
-        };
-
-        serde_json::to_string_pretty(&export).map_err(|e| {
-            crate::errors::DiffVizError::Review(crate::errors::ReviewError::ExportFailed {
-                reason: format!("JSON serialization failed: {e}"),
-            })
-        })
-    }
-
-    /// Import decision instructions from JSON
-    pub fn import_decision_instructions_json(&mut self, json: &str) -> Result<ImportSummary> {
-        let exported: ExportedDecisionInstructions = serde_json::from_str(json).map_err(|e| {
-            crate::errors::DiffVizError::Review(crate::errors::ReviewError::ImportFailed {
-                reason: format!("Failed to parse JSON: {e}"),
-            })
-        })?;
-
-        let mut summary = ImportSummary::default();
-
-        for exported_inst in exported.decision_instructions {
-            if !self
-                .state
-                .decisions
-                .decisions
-                .contains_key(&exported_inst.decision_number)
-            {
-                summary.errors.push(format!(
-                    "Skipping instruction for non-existent decision #{}",
-                    exported_inst.decision_number
-                ));
-                continue;
-            }
-
-            let instruction = Instruction {
-                id: format!(
-                    "decision_{}:{}",
-                    exported_inst.decision_number,
-                    chrono::Utc::now().timestamp_millis()
-                ),
-                author: exported_inst.author,
-                timestamp: exported_inst.timestamp,
-                content: exported_inst.content,
-                status: InstructionStatus::Active,
-            };
-
-            self.state
-                .decision_instructions
-                .add_instruction(exported_inst.decision_number, instruction);
-
-            summary.total_imported += 1;
-            summary.active_count += 1;
-        }
-
-        Ok(summary)
     }
 }
 
@@ -1462,7 +1313,7 @@ mod tests {
             .unwrap();
 
         // Export all
-        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let json = engine.export_instructions_json().unwrap();
 
         // Verify JSON is valid
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
@@ -1472,124 +1323,12 @@ mod tests {
     }
 
     #[test]
-    fn test_export_single_file() {
-        let diff1 = create_test_reviewable_diff("test1.rs", 1);
-        let diff2 = create_test_reviewable_diff("test2.rs", 1);
-        let mut engine = ReviewEngine::new(vec![diff1, diff2], "test_author".to_string());
-
-        // Add instructions to both files
-        let id1 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test1.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
-
-        let id2 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test2.rs".to_string(),
-            LineRange {
-                start_line: 20,
-                end_line: 22,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
-
-        engine
-            .add_instruction(
-                id1,
-                "Instruction 1".to_string(),
-                "reviewer".to_string(),
-                None,
-            )
-            .unwrap();
-        engine
-            .add_instruction(
-                id2,
-                "Instruction 2".to_string(),
-                "reviewer".to_string(),
-                None,
-            )
-            .unwrap();
-
-        // Export single file
-        let json = engine
-            .export_instructions_json(ExportScope::SingleFile("test1.rs".to_string()))
-            .unwrap();
-
-        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
-        let instructions = parsed["instructions"].as_array().unwrap();
-        assert_eq!(instructions.len(), 1);
-        assert_eq!(instructions[0]["file"], "test1.rs");
-    }
-
-    #[test]
-    fn test_export_single_instruction() {
-        let diff = create_test_reviewable_diff("test.rs", 1);
-        let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string());
-
-        let id1 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 10,
-                end_line: 12,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
-
-        let id2 = ReviewableDiffId::new(
-            DiffQuery::head_to_unstaged(),
-            "test.rs".to_string(),
-            LineRange {
-                start_line: 20,
-                end_line: 22,
-                start_column: 0,
-                end_column: 0,
-            },
-        );
-
-        engine
-            .add_instruction(
-                id1.clone(),
-                "Instruction 1".to_string(),
-                "reviewer".to_string(),
-                None,
-            )
-            .unwrap();
-        engine
-            .add_instruction(
-                id2,
-                "Instruction 2".to_string(),
-                "reviewer".to_string(),
-                None,
-            )
-            .unwrap();
-
-        // Export single instruction
-        let json = engine
-            .export_instructions_json(ExportScope::SingleInstruction(id1))
-            .unwrap();
-
-        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
-        let instructions = parsed["instructions"].as_array().unwrap();
-        assert_eq!(instructions.len(), 1);
-        assert_eq!(instructions[0]["content"], "Instruction 1");
-    }
-
-    #[test]
     fn test_export_empty_scope() {
         let diff = create_test_reviewable_diff("test.rs", 1);
         let engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
         // Export with no instructions
-        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let json = engine.export_instructions_json().unwrap();
 
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert_eq!(parsed["instructions"].as_array().unwrap().len(), 0);
@@ -1621,7 +1360,7 @@ mod tests {
             )
             .unwrap();
 
-        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let json = engine.export_instructions_json().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
         // Verify metadata structure
@@ -1666,7 +1405,7 @@ mod tests {
             .add_instruction(id, "Test".to_string(), "reviewer".to_string(), None)
             .unwrap();
 
-        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let json = engine.export_instructions_json().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
         // Verify "working" is mapped to "HEAD..unstaged"
@@ -1919,7 +1658,7 @@ mod tests {
             )
             .unwrap();
 
-        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let json = engine.export_instructions_json().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
         let instructions = parsed["instructions"].as_array().unwrap();
@@ -1955,7 +1694,7 @@ mod tests {
             )
             .unwrap();
 
-        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let json = engine.export_instructions_json().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
         let instructions = parsed["instructions"].as_array().unwrap();
@@ -1992,7 +1731,7 @@ mod tests {
             )
             .unwrap();
 
-        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let json = engine.export_instructions_json().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
         let instructions = parsed["instructions"].as_array().unwrap();
@@ -2008,7 +1747,7 @@ mod tests {
         let diff = create_test_reviewable_diff("test.rs", 1);
         let engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
-        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let json = engine.export_instructions_json().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
         assert_eq!(parsed["_meta"]["format_version"], "1.1");
@@ -2019,7 +1758,7 @@ mod tests {
         let diff = create_test_reviewable_diff("test.rs", 1);
         let engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
-        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let json = engine.export_instructions_json().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
         let field_descriptions = &parsed["_meta"]["field_descriptions"];
@@ -2064,7 +1803,7 @@ mod tests {
             )
             .unwrap();
 
-        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let json = engine.export_instructions_json().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
         let instructions = parsed["instructions"].as_array().unwrap();
@@ -2121,8 +1860,7 @@ mod tests {
             )
             .unwrap();
 
-        // Test ExportScope::All
-        let json = engine.export_instructions_json(ExportScope::All).unwrap();
+        let json = engine.export_instructions_json().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
         let instructions = parsed["instructions"].as_array().unwrap();
 
@@ -2132,17 +1870,6 @@ mod tests {
             assert!(inst["file_content_hash"].is_string());
             assert!(inst.get("content_snapshot").is_some());
         }
-
-        // Test ExportScope::SingleFile
-        let json = engine
-            .export_instructions_json(ExportScope::SingleFile("test1.rs".to_string()))
-            .unwrap();
-        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
-        let instructions = parsed["instructions"].as_array().unwrap();
-
-        assert_eq!(instructions.len(), 1);
-        assert!(instructions[0]["status"].is_string());
-        assert!(instructions[0]["file_content_hash"].is_string());
     }
 
     // ========== Phase 4: Import Functionality Tests ==========
@@ -2943,175 +2670,6 @@ mod tests {
 
         assert_eq!(engine.state().instructions.total_instructions(), 1);
         assert_eq!(engine.state().decision_instructions.total_instructions(), 1);
-    }
-
-    // === Phase 4: Export/Import Tests ===
-
-    #[test]
-    fn test_export_all_decision_instructions() {
-        let mut engine = create_engine_with_decision();
-        engine
-            .add_decision_instruction(1, "First instruction".to_string(), "author".to_string())
-            .unwrap();
-        engine
-            .add_decision_instruction(1, "Second instruction".to_string(), "author".to_string())
-            .unwrap();
-
-        let json = engine
-            .export_decision_instructions_json(
-                crate::engines::review_engine::DecisionExportScope::All,
-            )
-            .unwrap();
-
-        assert!(json.contains("First instruction"));
-        assert!(json.contains("Second instruction"));
-        assert!(json.contains("decision_instructions"));
-        assert!(json.contains("_meta"));
-    }
-
-    #[test]
-    fn test_export_single_decision() {
-        let mut engine = create_engine_with_two_decisions();
-        engine
-            .add_decision_instruction(
-                1,
-                "Decision 1 instruction".to_string(),
-                "author".to_string(),
-            )
-            .unwrap();
-        engine
-            .add_decision_instruction(
-                2,
-                "Decision 2 instruction".to_string(),
-                "author".to_string(),
-            )
-            .unwrap();
-
-        let json = engine
-            .export_decision_instructions_json(
-                crate::engines::review_engine::DecisionExportScope::SingleDecision(1),
-            )
-            .unwrap();
-
-        assert!(json.contains("Decision 1 instruction"));
-        assert!(!json.contains("Decision 2 instruction"));
-    }
-
-    #[test]
-    fn test_export_empty_decision_instructions() {
-        let engine = create_engine_with_decision();
-
-        let json = engine
-            .export_decision_instructions_json(
-                crate::engines::review_engine::DecisionExportScope::All,
-            )
-            .unwrap();
-
-        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
-        assert_eq!(parsed["decision_instructions"].as_array().unwrap().len(), 0);
-    }
-
-    #[test]
-    fn test_export_decision_json_structure() {
-        let mut engine = create_engine_with_decision();
-        engine
-            .add_decision_instruction(1, "Test content".to_string(), "tester".to_string())
-            .unwrap();
-
-        let json = engine
-            .export_decision_instructions_json(
-                crate::engines::review_engine::DecisionExportScope::All,
-            )
-            .unwrap();
-
-        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
-        let instructions = parsed["decision_instructions"].as_array().unwrap();
-        assert_eq!(instructions.len(), 1);
-        assert_eq!(instructions[0]["decision_number"], 1);
-        assert_eq!(instructions[0]["content"], "Test content");
-        assert_eq!(instructions[0]["author"], "tester");
-        assert_eq!(instructions[0]["status"], "active");
-        assert!(parsed["_meta"]["format_version"].is_string());
-    }
-
-    #[test]
-    fn test_import_decision_instructions_success() {
-        let mut engine = create_engine_with_decision();
-        engine
-            .add_decision_instruction(1, "Original".to_string(), "author".to_string())
-            .unwrap();
-
-        let json = engine
-            .export_decision_instructions_json(
-                crate::engines::review_engine::DecisionExportScope::All,
-            )
-            .unwrap();
-
-        let mut target_engine = create_engine_with_decision();
-        let summary = target_engine
-            .import_decision_instructions_json(&json)
-            .unwrap();
-
-        assert_eq!(summary.total_imported, 1);
-        assert_eq!(summary.active_count, 1);
-        assert!(summary.errors.is_empty());
-        assert_eq!(target_engine.get_decision_instructions(1).unwrap().len(), 1);
-    }
-
-    #[test]
-    fn test_import_decision_instructions_invalid_decision() {
-        let mut source_engine = create_engine_with_decision();
-        source_engine
-            .add_decision_instruction(1, "Some instruction".to_string(), "author".to_string())
-            .unwrap();
-
-        let json = source_engine
-            .export_decision_instructions_json(
-                crate::engines::review_engine::DecisionExportScope::All,
-            )
-            .unwrap();
-
-        // Target engine has no decisions — import should skip with error
-        let diff = create_test_reviewable_diff("test.rs", 1);
-        let mut empty_engine = ReviewEngine::new(vec![diff], "author".to_string());
-
-        let summary = empty_engine
-            .import_decision_instructions_json(&json)
-            .unwrap();
-
-        assert_eq!(summary.total_imported, 0);
-        assert_eq!(summary.errors.len(), 1);
-        assert!(summary.errors[0].contains("non-existent decision"));
-    }
-
-    #[test]
-    fn test_export_import_round_trip() {
-        let mut engine = create_engine_with_decision();
-        engine
-            .add_decision_instruction(1, "Round-trip content".to_string(), "rt_author".to_string())
-            .unwrap();
-
-        let json = engine
-            .export_decision_instructions_json(
-                crate::engines::review_engine::DecisionExportScope::All,
-            )
-            .unwrap();
-
-        let mut new_engine = create_engine_with_decision();
-        let summary = new_engine.import_decision_instructions_json(&json).unwrap();
-
-        assert_eq!(summary.total_imported, 1);
-        let instructions = new_engine.get_decision_instructions(1).unwrap();
-        assert_eq!(instructions.len(), 1);
-        assert_eq!(instructions[0].content, "Round-trip content");
-        assert_eq!(instructions[0].author, "rt_author");
-    }
-
-    #[test]
-    fn test_import_malformed_json_returns_error() {
-        let mut engine = create_engine_with_decision();
-        let result = engine.import_decision_instructions_json("not valid json at all");
-        assert!(result.is_err());
     }
 }
 
