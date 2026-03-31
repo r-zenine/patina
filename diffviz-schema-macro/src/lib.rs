@@ -2,7 +2,7 @@ extern crate proc_macro;
 
 use darling::FromField;
 use proc_macro::TokenStream;
-use proc_macro2::{Span, TokenStream as TokenStream2};
+use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{
     Data, DeriveInput, Fields, GenericArgument, PathArguments, Type, TypePath, parse_macro_input,
