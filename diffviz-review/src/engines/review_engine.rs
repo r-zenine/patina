@@ -767,6 +767,67 @@ impl ReviewEngine {
         }
         result
     }
+
+    // === Decision Instruction Methods ===
+
+    /// Add an instruction to a specific decision
+    pub fn add_decision_instruction(
+        &mut self,
+        decision_number: u32,
+        content: String,
+        author: String,
+    ) -> Result<()> {
+        if !self
+            .state
+            .decisions
+            .decisions
+            .contains_key(&decision_number)
+        {
+            return Err(crate::errors::DiffVizError::Review(
+                crate::errors::ReviewError::InvalidDecision { decision_number },
+            ));
+        }
+
+        let instruction = Instruction {
+            id: uuid::Uuid::new_v4().to_string(),
+            author,
+            timestamp: chrono::Utc::now()
+                .format("%Y-%m-%d %H:%M:%S UTC")
+                .to_string(),
+            content,
+            status: InstructionStatus::Active,
+        };
+
+        self.state
+            .decision_instructions
+            .add_instruction(decision_number, instruction);
+
+        Ok(())
+    }
+
+    /// Remove a specific decision instruction by ID
+    pub fn remove_decision_instruction(&mut self, instruction_id: &str) -> Result<()> {
+        match self
+            .state
+            .decision_instructions
+            .remove_instruction_by_id(instruction_id)
+        {
+            Some(_) => Ok(()),
+            None => Err(crate::errors::DiffVizError::Review(
+                crate::errors::ReviewError::InstructionNotFound {
+                    instruction_id: instruction_id.to_string(),
+                },
+            )),
+        }
+    }
+
+    /// Get all instructions for a specific decision
+    pub fn get_decision_instructions(&self, decision_number: u32) -> Option<Vec<&Instruction>> {
+        self.state
+            .decision_instructions
+            .get_instructions(decision_number)
+            .map(|instructions| instructions.iter().collect())
+    }
 }
 
 /// Review progress information
@@ -2537,6 +2598,197 @@ mod tests {
         let diffs = engine.get_decision_reviewable_diffs();
         assert_eq!(diffs.len(), 2);
         assert!(diffs.iter().all(|d| d.decision_number == 1));
+    }
+
+    // === Decision Instruction Tests ===
+
+    fn create_engine_with_decision() -> ReviewEngine {
+        use crate::entities::decision::Decision;
+
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string());
+
+        let decision = Decision {
+            number: 1,
+            title: "Test decision".to_string(),
+            rationale: None,
+            code_impacts: vec![],
+        };
+        engine.state.decisions.add_decision(decision);
+        engine
+    }
+
+    #[test]
+    fn test_add_decision_instruction_success() {
+        let mut engine = create_engine_with_decision();
+
+        let result = engine.add_decision_instruction(
+            1,
+            "Review this carefully".to_string(),
+            "reviewer".to_string(),
+        );
+
+        assert!(result.is_ok());
+        assert!(engine.get_decision_instructions(1).is_some());
+        assert_eq!(engine.get_decision_instructions(1).unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_add_decision_instruction_invalid_decision() {
+        let mut engine = create_engine_with_decision();
+
+        let result =
+            engine.add_decision_instruction(999, "Should fail".to_string(), "reviewer".to_string());
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            crate::errors::DiffVizError::Review(crate::errors::ReviewError::InvalidDecision {
+                decision_number,
+            }) => assert_eq!(decision_number, 999),
+            e => panic!("Expected InvalidDecision, got: {e:?}"),
+        }
+    }
+
+    #[test]
+    fn test_add_decision_instruction_multiple_to_same_decision() {
+        let mut engine = create_engine_with_decision();
+
+        engine
+            .add_decision_instruction(1, "First instruction".to_string(), "author1".to_string())
+            .unwrap();
+        engine
+            .add_decision_instruction(1, "Second instruction".to_string(), "author2".to_string())
+            .unwrap();
+
+        let instructions = engine.get_decision_instructions(1).unwrap();
+        assert_eq!(instructions.len(), 2);
+    }
+
+    #[test]
+    fn test_remove_decision_instruction_success() {
+        let mut engine = create_engine_with_decision();
+
+        engine
+            .add_decision_instruction(1, "To be removed".to_string(), "author".to_string())
+            .unwrap();
+
+        let instruction_id = engine
+            .get_decision_instructions(1)
+            .unwrap()
+            .first()
+            .unwrap()
+            .id
+            .clone();
+
+        let result = engine.remove_decision_instruction(&instruction_id);
+        assert!(result.is_ok());
+        assert_eq!(engine.get_decision_instructions(1).unwrap().len(), 0);
+    }
+
+    #[test]
+    fn test_remove_decision_instruction_not_found() {
+        let mut engine = create_engine_with_decision();
+
+        let result = engine.remove_decision_instruction("nonexistent-id");
+
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            crate::errors::DiffVizError::Review(
+                crate::errors::ReviewError::InstructionNotFound { instruction_id },
+            ) => assert_eq!(instruction_id, "nonexistent-id"),
+            e => panic!("Expected InstructionNotFound, got: {e:?}"),
+        }
+    }
+
+    #[test]
+    fn test_get_decision_instructions_returns_all() {
+        let mut engine = create_engine_with_decision();
+
+        engine
+            .add_decision_instruction(1, "First".to_string(), "author".to_string())
+            .unwrap();
+        engine
+            .add_decision_instruction(1, "Second".to_string(), "author".to_string())
+            .unwrap();
+        engine
+            .add_decision_instruction(1, "Third".to_string(), "author".to_string())
+            .unwrap();
+
+        let instructions = engine.get_decision_instructions(1).unwrap();
+        assert_eq!(instructions.len(), 3);
+    }
+
+    #[test]
+    fn test_get_decision_instructions_for_missing_decision() {
+        let engine = create_engine_with_decision();
+
+        let result = engine.get_decision_instructions(999);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_add_and_remove_decision_instructions() {
+        let mut engine = create_engine_with_decision();
+
+        engine
+            .add_decision_instruction(1, "Keep this".to_string(), "author".to_string())
+            .unwrap();
+        engine
+            .add_decision_instruction(1, "Remove this".to_string(), "author".to_string())
+            .unwrap();
+
+        let remove_id = engine
+            .get_decision_instructions(1)
+            .unwrap()
+            .iter()
+            .find(|i| i.content == "Remove this")
+            .unwrap()
+            .id
+            .clone();
+
+        engine.remove_decision_instruction(&remove_id).unwrap();
+
+        let remaining = engine.get_decision_instructions(1).unwrap();
+        assert_eq!(remaining.len(), 1);
+        assert_eq!(remaining[0].content, "Keep this");
+    }
+
+    #[test]
+    fn test_decision_instructions_persist_through_state() {
+        let mut engine = create_engine_with_decision();
+
+        engine
+            .add_decision_instruction(
+                1,
+                "Persistent instruction".to_string(),
+                "author".to_string(),
+            )
+            .unwrap();
+
+        // Access via state directly to verify persistence
+        let count = engine.state().decision_instructions.total_instructions();
+        assert_eq!(count, 1);
+    }
+
+    #[test]
+    fn test_decision_instructions_independent_from_reviewable_instructions() {
+        let diff = create_test_reviewable_diff("test.rs", 1);
+        let diff_id = diff.id.clone();
+        let mut engine = create_engine_with_decision();
+        engine
+            .add_instruction(
+                diff_id,
+                "Code instruction".to_string(),
+                "author".to_string(),
+                None,
+            )
+            .unwrap();
+        engine
+            .add_decision_instruction(1, "Decision instruction".to_string(), "author".to_string())
+            .unwrap();
+
+        assert_eq!(engine.state().instructions.total_instructions(), 1);
+        assert_eq!(engine.state().decision_instructions.total_instructions(), 1);
     }
 }
 

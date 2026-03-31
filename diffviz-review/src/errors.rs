@@ -99,6 +99,12 @@ pub enum ReviewError {
 
     #[error("Import failed: {reason}")]
     ImportFailed { reason: String },
+
+    #[error("Decision #{decision_number} not found")]
+    InvalidDecision { decision_number: u32 },
+
+    #[error("Instruction not found: {instruction_id}")]
+    InstructionNotFound { instruction_id: String },
 }
 
 pub type Result<T> = std::result::Result<T, DiffVizError>;
