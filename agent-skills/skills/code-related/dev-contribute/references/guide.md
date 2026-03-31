@@ -244,6 +244,7 @@ Before finalizing contribution, confirm all of these:
 - [ ] Can another agent understand what was done and why?
 - [ ] Are assumptions and blockers clearly documented?
 - [ ] Does decision-log.yaml reference the commit hash with all code_impacts populated?
+- [ ] Is the decision-log.yaml you produced valid ? ( use `diffviz validate decision-log <path-to-decision-log.yaml>`)
 - [ ] Does context-handoff.md explain what works, what's fragile, and what's next?
 - [ ] If a prior decision needed revision, is there a revision contribution with clear reasoning?
 
@@ -263,6 +264,8 @@ First, generate the template by running:
 ```bash
 diffviz templates decision-log > decision-log.yaml
 ```
+
+It is MANDATORY for you to use this template.
 
 Then fill in the decisions you made during this contribution:
 - What trade-offs were made?
