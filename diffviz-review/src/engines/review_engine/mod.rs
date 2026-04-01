@@ -16,8 +16,7 @@ pub mod decision;
 pub mod export_import;
 
 pub use export_import::{
-    ExportFieldDescriptions, ExportGitExamples, ExportMetadata, ExportQueryFormats,
-    ExportedInstruction, ExportedInstructions, ExportedLineRange, ImportSummary,
+    ExportMetadata, ExportedInstruction, ExportedInstructions, ExportedLineRange, ImportSummary,
 };
 
 /// Type alias for review operation callbacks (used by existing approve/reject/add_instruction methods)
@@ -52,15 +51,7 @@ impl ReviewEngine {
         self.invalidate_cache(&reviewable_id);
 
         // Check for reverse cascade: if all chunks for any decision are now approved, auto-approve the decision
-        let decisions_for_chunk: Vec<u32> = self
-            .state
-            .decisions
-            .decision_index
-            .get(&reviewable_id)
-            .cloned()
-            .unwrap_or_default();
-
-        for decision_num in decisions_for_chunk {
+        for decision_num in self.decisions_for_reviewable(&reviewable_id) {
             let (approved, total) = self.state.decision_approval_progress(decision_num);
             // If all chunks are approved, auto-approve the decision
             if total > 0 && approved == total && !self.state.is_decision_approved(decision_num) {
@@ -84,15 +75,7 @@ impl ReviewEngine {
         self.invalidate_cache(&reviewable_id);
 
         // Check for reverse cascade: if a decision was approved but now not all chunks are approved, unapprove the decision
-        let decisions_for_chunk: Vec<u32> = self
-            .state
-            .decisions
-            .decision_index
-            .get(&reviewable_id)
-            .cloned()
-            .unwrap_or_default();
-
-        for decision_num in decisions_for_chunk {
+        for decision_num in self.decisions_for_reviewable(&reviewable_id) {
             if self.state.is_decision_approved(decision_num) {
                 let (approved, total) = self.state.decision_approval_progress(decision_num);
                 // If not all chunks are approved anymore, unapprove the decision
@@ -180,10 +163,22 @@ impl ReviewEngine {
         self.renderable_cache.remove(id);
     }
 
-    fn compute_renderable(&self, id: &ReviewableDiffId) -> Option<String> {
+    fn decisions_for_reviewable(&self, id: &ReviewableDiffId) -> Vec<u32> {
         self.state
-            .get_reviewable_diff(id)
-            .map(|diff| format_renderable_diff_for_display(&RenderableDiff::from(&diff.core_diff)))
+            .decisions
+            .decision_index
+            .get(id)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    fn compute_renderable(&self, id: &ReviewableDiffId) -> Option<String> {
+        self.state.get_reviewable_diff(id).map(|diff| {
+            format_renderable_diff_for_display(
+                &RenderableDiff::try_from(&diff.core_diff)
+                    .expect("ReviewableDiff should produce valid RenderableDiff"),
+            )
+        })
     }
 
     /// Get a RenderableDiff for a ReviewableDiff (with caching)
@@ -213,7 +208,10 @@ impl ReviewEngine {
     ) -> Option<RenderableDiff> {
         self.state
             .get_reviewable_diff(reviewable_id)
-            .map(|reviewable_diff| RenderableDiff::from(&reviewable_diff.core_diff))
+            .map(|reviewable_diff| {
+                RenderableDiff::try_from(&reviewable_diff.core_diff)
+                    .expect("ReviewableDiff should produce valid RenderableDiff")
+            })
     }
 
     /// Get all ReviewableDiffs grouped by file

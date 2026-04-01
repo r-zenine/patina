@@ -1,6 +1,5 @@
 use crate::diff::inline::derive_inline_diff_map;
 use crate::theme::Colors;
-use diffviz_core::ast_diff::BACKGROUND;
 use diffviz_core::renderable_diff::{ChangeType, RenderableDiff, RenderableLine};
 use ratatui::{
     layout::Rect,
@@ -215,12 +214,7 @@ fn should_hide_line(line: &RenderableLine<'_>) -> bool {
         return true;
     }
 
-    let is_structural_context = matches!(
-        line.primary_change_type(),
-        Some(ChangeType::Moved | ChangeType::Reordered)
-    );
-
-    line.max_relevance() >= BACKGROUND && is_structural_context
+    false
 }
 
 /// Renders the gutter bracket based on the instruction position
@@ -452,8 +446,6 @@ fn change_indicator(change: Option<&ChangeType>) -> String {
         Some(ChangeType::Added) => "+".to_string(),
         Some(ChangeType::Deleted) => "-".to_string(),
         Some(ChangeType::Modified) => "~".to_string(),
-        Some(ChangeType::Moved) => ">".to_string(),
-        Some(ChangeType::Reordered) => "↕".to_string(),
         None => " ".to_string(),
     }
 }
@@ -463,8 +455,6 @@ fn style_for_change(change: Option<&ChangeType>) -> Style {
         Some(ChangeType::Added) => Style::default().fg(Colors::DIFF_ADDED),
         Some(ChangeType::Deleted) => Style::default().fg(Colors::DIFF_REMOVED),
         Some(ChangeType::Modified) => Style::default().fg(Colors::WARNING),
-        Some(ChangeType::Moved) => Style::default().fg(Colors::ACCENT_3),
-        Some(ChangeType::Reordered) => Style::default().fg(Colors::ACCENT_2),
         None => Style::default().fg(Color::Gray),
     }
 }

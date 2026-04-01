@@ -14,8 +14,7 @@
 //! 7. Produces a ReviewableDiff with proper DiffNode tree and context
 
 use crate::ast_diff::{
-    ASTChangeType, BACKGROUND, ESSENTIAL, FullSourceProvider, IMPORTANT, OwnedNodeData,
-    SourceProvider,
+    ASTChangeType, BACKGROUND, ESSENTIAL, IMPORTANT, OwnedNodeData, SourceProvider,
 };
 use crate::common::{LanguageParser, ProgrammingLanguage};
 use crate::reviewable_diff::{DiffMetadata, DiffNode, NodeChangeStatus, ReviewableDiff};
@@ -486,8 +485,8 @@ pub fn create_reviewable_diff_from_range(
     _file_path: &str,
     start_line: usize,
     end_line: usize,
-    old_source: Option<&dyn FullSourceProvider>,
-    new_source: &dyn FullSourceProvider,
+    old_source: Option<&dyn SourceProvider>,
+    new_source: &dyn SourceProvider,
     language: ProgrammingLanguage,
     parser: &dyn LanguageParser,
 ) -> Result<Vec<ReviewableDiff>, DecisionDiffError> {
@@ -555,10 +554,10 @@ pub fn create_reviewable_diff_from_range(
         }
 
         if contained.is_empty() {
-            // No semantic units found in range - skip this change rather than failing
-            // This can happen with pure declarative lines like "pub mod X;" that don't form
-            // semantic units on their own
-            return Ok(vec![]);
+            return Err(DecisionDiffError::NoUnitsInRange {
+                start_line,
+                end_line,
+            });
         }
 
         // Look up old counterparts for all contained units in one pass while old_tree is alive

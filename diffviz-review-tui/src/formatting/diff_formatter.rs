@@ -56,8 +56,8 @@ impl TuiDiffFormatter {
 
     /// Format a ReviewableDiff for TUI display
     pub fn format_reviewable_diff(&self, reviewable_diff: &ReviewableDiff) -> FormattedDiff {
-        // Convert to RenderableDiff using the trait
-        let renderable: RenderableDiff = reviewable_diff.into();
+        let renderable = RenderableDiff::try_from(reviewable_diff)
+            .expect("ReviewableDiff should produce valid RenderableDiff");
         self.format_renderable_diff(&renderable)
     }
 

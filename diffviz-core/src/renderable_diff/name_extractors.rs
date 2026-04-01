@@ -85,8 +85,6 @@ fn get_display_node(change_status: &NodeChangeStatus) -> Option<&crate::ast_diff
         NodeChangeStatus::Added { node, .. } => Some(node),
         NodeChangeStatus::Deleted { node, .. } => Some(node),
         NodeChangeStatus::Modified { new_node, .. } => Some(new_node),
-        NodeChangeStatus::Moved { new_node, .. } => Some(new_node),
-        NodeChangeStatus::Reordered { new_node, .. } => Some(new_node),
     }
 }
 

@@ -396,8 +396,6 @@ impl DebugCommand {
             diffviz_core::reviewable_diff::NodeChangeStatus::Added { .. } => "added",
             diffviz_core::reviewable_diff::NodeChangeStatus::Deleted { .. } => "deleted",
             diffviz_core::reviewable_diff::NodeChangeStatus::Modified { .. } => "modified",
-            diffviz_core::reviewable_diff::NodeChangeStatus::Moved { .. } => "moved",
-            diffviz_core::reviewable_diff::NodeChangeStatus::Reordered { .. } => "reordered",
             diffviz_core::reviewable_diff::NodeChangeStatus::Unchanged { .. } => "unchanged",
         };
 

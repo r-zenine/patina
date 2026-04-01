@@ -25,12 +25,6 @@ pub enum DiffOp {
 pub struct DiffResult {
     /// The sequence of diff operations
     pub ops: Vec<DiffOp>,
-    /// Total number of additions
-    #[allow(dead_code)]
-    pub additions: usize,
-    /// Total number of deletions
-    #[allow(dead_code)]
-    pub deletions: usize,
 }
 
 /// Apply Myers diff algorithm to two sequences of lines with semantic anchors
@@ -43,11 +37,7 @@ pub fn myers_diff_semantic(
 
     // Handle edge cases
     if n == 0 && m == 0 {
-        return DiffResult {
-            ops: Vec::new(),
-            additions: 0,
-            deletions: 0,
-        };
+        return DiffResult { ops: Vec::new() };
     }
 
     if n == 0 {
@@ -58,8 +48,6 @@ pub fn myers_diff_semantic(
                     line: line.to_string(),
                 })
                 .collect(),
-            additions: m,
-            deletions: 0,
         };
     }
 
@@ -71,8 +59,6 @@ pub fn myers_diff_semantic(
                     line: line.to_string(),
                 })
                 .collect(),
-            additions: 0,
-            deletions: n,
         };
     }
 
@@ -83,139 +69,7 @@ pub fn myers_diff_semantic(
     // Post-process to merge identical add/delete pairs into keep operations
     let operations = merge_identical_add_delete_pairs(operations);
 
-    // Count additions and deletions
-    let mut additions = 0;
-    let mut deletions = 0;
-    for op in &operations {
-        match op {
-            DiffOp::Add { .. } => additions += 1,
-            DiffOp::Delete { .. } => deletions += 1,
-            DiffOp::Modify { .. } => {
-                // Modify counts as both an addition and deletion from diff perspective
-                additions += 1;
-                deletions += 1;
-            }
-            DiffOp::Keep { .. } => {}
-        }
-    }
-
-    DiffResult {
-        ops: operations,
-        additions,
-        deletions,
-    }
-}
-
-/// Apply Myers diff algorithm to two sequences of lines (backward compatibility)
-#[allow(dead_code)]
-pub fn myers_diff(old_lines: &[&str], new_lines: &[&str]) -> DiffResult {
-    let n = old_lines.len();
-    let m = new_lines.len();
-
-    // Handle edge cases
-    if n == 0 && m == 0 {
-        return DiffResult {
-            ops: Vec::new(),
-            additions: 0,
-            deletions: 0,
-        };
-    }
-
-    if n == 0 {
-        return DiffResult {
-            ops: new_lines
-                .iter()
-                .map(|line| DiffOp::Add {
-                    line: line.to_string(),
-                })
-                .collect(),
-            additions: m,
-            deletions: 0,
-        };
-    }
-
-    if m == 0 {
-        return DiffResult {
-            ops: old_lines
-                .iter()
-                .map(|line| DiffOp::Delete {
-                    line: line.to_string(),
-                })
-                .collect(),
-            additions: 0,
-            deletions: n,
-        };
-    }
-
-    // Find the shortest edit script using Myers algorithm
-    let trace = shortest_edit_script(old_lines, new_lines);
-    let operations = backtrack_operations(&trace, old_lines, new_lines);
-
-    // Count additions and deletions
-    let mut additions = 0;
-    let mut deletions = 0;
-    for op in &operations {
-        match op {
-            DiffOp::Add { .. } => additions += 1,
-            DiffOp::Delete { .. } => deletions += 1,
-            DiffOp::Modify { .. } => {
-                // Modify counts as both an addition and deletion from diff perspective
-                additions += 1;
-                deletions += 1;
-            }
-            DiffOp::Keep { .. } => {}
-        }
-    }
-
-    DiffResult {
-        ops: operations,
-        additions,
-        deletions,
-    }
-}
-
-/// Find the shortest edit script using Myers algorithm
-#[allow(dead_code)]
-fn shortest_edit_script(old_lines: &[&str], new_lines: &[&str]) -> Vec<Vec<i32>> {
-    let n = old_lines.len() as i32;
-    let m = new_lines.len() as i32;
-    let max = n + m;
-
-    let mut v = vec![0i32; (2 * max + 1) as usize];
-    let mut trace = Vec::new();
-
-    for d in 0..=max {
-        trace.push(v.clone());
-
-        let mut k = -d;
-        while k <= d {
-            let k_idx = (k + max) as usize;
-
-            let x = if k == -d || (k != d && v[(k - 1 + max) as usize] < v[(k + 1 + max) as usize])
-            {
-                v[(k + 1 + max) as usize]
-            } else {
-                v[(k - 1 + max) as usize] + 1
-            };
-
-            let mut y = x - k;
-
-            while x < n && y < m && old_lines[x as usize] == new_lines[y as usize] {
-                y += 1;
-            }
-            let x = x + (y - (x - k));
-
-            v[k_idx] = x;
-
-            if x >= n && y >= m {
-                return trace;
-            }
-
-            k += 2;
-        }
-    }
-
-    trace
+    DiffResult { ops: operations }
 }
 
 /// Check if two lines are semantically related (for alignment preference)
@@ -371,64 +225,6 @@ fn backtrack_operations_semantic(
             } else if y > prev_y {
                 operations.push(DiffOp::Add {
                     line: new_lines[(y - 1) as usize].0.to_string(),
-                });
-                y -= 1;
-            }
-        }
-    }
-
-    operations.reverse();
-    operations
-}
-
-/// Backtrack through the trace to construct the sequence of operations
-#[allow(dead_code)]
-fn backtrack_operations(trace: &[Vec<i32>], old_lines: &[&str], new_lines: &[&str]) -> Vec<DiffOp> {
-    let n = old_lines.len() as i32;
-    let m = new_lines.len() as i32;
-    let max = n + m;
-
-    let mut x = n;
-    let mut y = m;
-    let mut operations = Vec::new();
-
-    for d in (0..trace.len()).rev() {
-        let v = &trace[d];
-        let k = x - y;
-        let k_idx = (k + max) as usize;
-
-        let prev_k = if k == -(d as i32)
-            || (k != d as i32 && k_idx > 0 && k_idx < v.len() - 1 && v[k_idx - 1] < v[k_idx + 1])
-        {
-            k + 1
-        } else {
-            k - 1
-        };
-
-        let prev_x = if k_idx > 0 && k_idx < v.len() && ((prev_k + max) as usize) < v.len() {
-            v[(prev_k + max) as usize]
-        } else {
-            0
-        };
-        let prev_y = prev_x - prev_k;
-
-        while x > prev_x && y > prev_y {
-            operations.push(DiffOp::Keep {
-                line: old_lines[(x - 1) as usize].to_string(),
-            });
-            x -= 1;
-            y -= 1;
-        }
-
-        if d > 0 {
-            if x > prev_x {
-                operations.push(DiffOp::Delete {
-                    line: old_lines[(x - 1) as usize].to_string(),
-                });
-                x -= 1;
-            } else if y > prev_y {
-                operations.push(DiffOp::Add {
-                    line: new_lines[(y - 1) as usize].to_string(),
                 });
                 y -= 1;
             }

@@ -162,46 +162,6 @@ fn test_leader_submenu_toggles() {
 }
 
 #[test]
-fn test_leader_submenu_export() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    let state = harness
-        .run_sequence_final_state("<Space>e")
-        .expect("Export submenu failed");
-
-    assert!(
-        state.leader_active,
-        "Leader should remain active in submenu"
-    );
-    assert_eq!(
-        state.leader_submenu,
-        Some('e'),
-        "Should be in export submenu"
-    );
-}
-
-#[test]
-fn test_leader_submenu_comments() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    let state = harness
-        .run_sequence_final_state("<Space>c")
-        .expect("Comments submenu failed");
-
-    assert!(
-        state.leader_active,
-        "Leader should remain active in submenu"
-    );
-    assert_eq!(
-        state.leader_submenu,
-        Some('c'),
-        "Should be in comments submenu"
-    );
-}
-
-#[test]
 fn test_leader_exit_submenu_with_esc() {
     let engine = create_test_engine();
     let mut harness = InputTestHarness::new(engine);

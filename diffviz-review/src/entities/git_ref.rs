@@ -67,6 +67,26 @@ impl DiffQuery {
     }
 }
 
+impl std::str::FromStr for DiffQuery {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s {
+            "HEAD..unstaged" => Ok(DiffQuery::head_to_unstaged()),
+            _ => {
+                if let Some((from, to)) = s.split_once("..") {
+                    Ok(DiffQuery::new(
+                        GitRef::commit(from.to_string()),
+                        GitRef::commit(to.to_string()),
+                    ))
+                } else {
+                    Err(format!("Invalid query format: {s}"))
+                }
+            }
+        }
+    }
+}
+
 impl GitRef {
     /// Create a GitRef for a specific commit
     pub fn commit(commit: String) -> Self {

@@ -6,27 +6,37 @@ diffviz-core implements a **clean layered architecture** with strict separation 
 
 ```
 diffviz-core/
-├── ast_diff/            # Pure Tree-sitter AST diffing with Merkle trees
-├── semantic_ast/        # Language-aware semantic analysis
-├── reviewable_diff/     # Business logic for review preparation
-├── renderable_diff/     # UI-ready diff presentation
-├── parsers/            # Tree-sitter language implementations
-└── semantic_unit_partitioner/ # Intelligent code unit extraction
+├── ast_diff/            # Source access, node abstractions, relevance scoring, change types
+├── semantic_ast/        # Language-aware semantic analysis and tree representation
+├── decision_based_diff/ # Production pipeline: create ReviewableDiff from a line range
+├── reviewable_diff/     # ReviewableDiff, DiffNode, NodeChangeStatus data structures
+├── renderable_diff/     # UI-ready diff presentation (line-by-line, semantic anchors)
+└── parsers/             # Tree-sitter language implementations (11 languages)
 ```
 
-### Key Capabilities
+### Production Pipeline
 
-**Sophisticated Change Detection:**
-- Merkle tree hashing for O(log n) structural comparison
-- Multiple detection strategies: structural, positional, content
-- Relevance scoring (ESSENTIAL, IMPORTANT, BACKGROUND, NOISE)
-- Context preservation around changes
+```
+Line range decision → decision_based_diff::create_reviewable_diff_from_range()
+                    → SemanticTree (via parsers)
+                    → ReviewableDiff (DiffNode tree)
+                    → RenderableDiff (line-by-line with anchors)
+```
 
-**Clean Domain Modeling:**
-- `ReviewableDiff` - Business entity for review workflows
-- `RenderableDiff` - UI-ready presentation layer
-- `SemanticTree` - Language-aware AST representation
-- `MerkleASTNode` - Efficient tree comparison
+### Key Domain Types
+
+- `ReviewableDiff` — self-contained diff container for the review layer
+- `RenderableDiff` — line-based representation for TUI display
+- `SemanticTree` — language-aware AST grouping code into meaningful units
+- `ASTChangeType` — change classification (Structural, Content, Rename, Reorder)
+
+### Relevance Scoring
+
+All nodes carry a relevance score used for UI collapsing/filtering:
+- `ESSENTIAL (0)` — the changed node itself
+- `IMPORTANT (1)` — direct semantic container of the change
+- `BACKGROUND (2)` — sibling context (collapsible in UI)
+- `NOISE (3)` — unrelated context (hideable in UI)
 
 ## Tree-sitter Language Support
 
@@ -65,31 +75,6 @@ To add a new language:
 
 ## Test Infrastructure
 
-### Comprehensive Fixture Coverage
-**100+ structured test fixtures** organized by language and change type:
-
-```
-tests/fixtures/{language}/
-├── content_changes/     # Identifier renames, literal changes, type modifications
-├── structural_changes/  # Function additions, class modifications, import changes
-├── reorder_changes/     # Parameter reordering, field rearrangement
-├── kind_changes/        # Type transformations (struct→enum, sync→async)
-└── complex_combinations/ # Multi-faceted refactoring scenarios
-```
-
-### Fixture Format
-```json
-{
-  "name": "rust_identifier_rename",
-  "language": "rust",
-  "category": "content_changes",
-  "old_code": "...",
-  "new_code": "...",
-  "expected_changes": [...],
-  "performance_expectations": {"max_duration_ms": 120}
-}
-```
-
 ### Bug Tracking System
 Bug reproduction tests live in `tests/bug_*.rs` and follow TDD principles.
 All previously-active bugs have been fixed; see `bugs.md` for the full history.
@@ -111,12 +96,5 @@ When filing a new bug: write a failing test first, then fix, then update `bugs.m
 - **Self-contained Core**: diffviz-core has no dependencies on review/git layers
 - **Pure Functions**: AST operations should be deterministic and side-effect free
 - **Clean Interfaces**: All public APIs should be well-typed and documented
-
-## Performance Characteristics
-
-**Optimized for Large Codebases:**
-- SHA-256 Merkle tree hashing for efficient comparisons
-- Structured change detection strategies
-- O(log n) tree comparison algorithms
 
 This crate represents the **domain expertise** that makes DiffViz valuable - deep semantic understanding of code changes across multiple programming languages.

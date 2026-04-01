@@ -25,17 +25,12 @@ pub trait SourceProvider: Send + Sync {
     /// Line numbers are 1-based, columns are 0-based.
     fn line_range(&self, node: &dyn NodeLike) -> LineRange;
 
+    /// Get the complete source code
+    fn full_source(&self) -> &str;
+
     /// Clone this SourceProvider into a Box
     /// This enables cloning through trait objects
     fn clone_box(&self) -> Box<dyn SourceProvider>;
-}
-
-/// Extended source provider that allows access to full source content
-/// Used for operations that require the complete file text (e.g., parsing, semantic tree building)
-/// This trait bridges the gap between the AST-first SourceProvider and parsing requirements
-pub trait FullSourceProvider: SourceProvider {
-    /// Get the complete source code
-    fn full_source(&self) -> &str;
 }
 
 /// Restricted source code access that only allows extracting content for specific AST nodes.
@@ -162,13 +157,11 @@ impl SourceProvider for SourceCode {
         }
     }
 
-    fn clone_box(&self) -> Box<dyn SourceProvider> {
-        Box::new(self.clone())
-    }
-}
-
-impl FullSourceProvider for SourceCode {
     fn full_source(&self) -> &str {
         &self.content
+    }
+
+    fn clone_box(&self) -> Box<dyn SourceProvider> {
+        Box::new(self.clone())
     }
 }

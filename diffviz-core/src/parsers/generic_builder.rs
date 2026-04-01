@@ -191,7 +191,6 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
         let name_node = node.child_by_field_name("name");
         let parameters_node = node.child_by_field_name("parameters");
         let return_type_node = node.child_by_field_name("return_type");
-        let body_node = node.child_by_field_name("body");
         let type_parameters = node.child_by_field_name("type_parameters");
 
         let parameter_count = parameters_node
@@ -209,11 +208,6 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
             .map(|p| self.descriptor.collect_metadata(node, p))
             .unwrap_or_default();
 
-        let mut metadata = HashMap::new();
-        if let Some(ctx) = parent_context {
-            metadata.insert("parent_impl".to_string(), ctx.to_string());
-        }
-
         SemanticNode::new(
             node,
             name_node,
@@ -225,8 +219,6 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
                 visibility,
                 is_method: parent_context.is_some(),
                 signature_node: parameters_node,
-                body_node,
-                metadata,
             },
             metadata_nodes,
         )
@@ -260,7 +252,6 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
             SemanticUnitType::DataStructure {
                 is_generic: type_parameters.is_some(),
                 field_count,
-                inheritance: Vec::new(),
                 visibility,
                 signature_node: body,
                 metadata: HashMap::new(),

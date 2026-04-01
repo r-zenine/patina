@@ -11,13 +11,6 @@
 //! 3. **Review-Focused**: Each semantic unit represents a discrete, reviewable change
 //! 4. **Coverage Guarantee**: Every source byte belongs to exactly one semantic node
 //!
-//! ## Example Usage
-//! ```ignore
-//! // This will work once we extend LanguageParser trait
-//! let parser = RustParser::new();
-//! let semantic_tree = parser.build_semantic_tree(&ast, source)?;
-//! let pairs = build_semantic_pairs(old_tree, new_tree)?;
-//! ```
 
 use crate::common::ProgrammingLanguage;
 use std::collections::HashMap;
@@ -87,9 +80,6 @@ pub enum SemanticUnitType<'a> {
         /// Number of fields/members (None if not easily countable)
         field_count: Option<usize>,
 
-        /// Base classes, traits, interfaces this inherits from/implements
-        inheritance: Vec<String>,
-
         /// Visibility modifier (pub, private, protected, etc.)
         visibility: String,
 
@@ -122,12 +112,6 @@ pub enum SemanticUnitType<'a> {
 
         /// Reference to the function signature (parameters, return type)
         signature_node: Option<Node<'a>>,
-
-        /// Reference to the function body/implementation
-        body_node: Option<Node<'a>>,
-
-        /// Language-specific metadata (decorators, extern, unsafe, etc.)
-        metadata: HashMap<String, String>,
     },
 
     /// Variables and constants: global vars, static vars, file-level constants
@@ -229,190 +213,6 @@ pub struct SourceRange {
 
     /// Ending line number (1-indexed)
     pub end_line: usize,
-}
-
-/// Semantic similarity between two units with multiple concurrent change types
-#[derive(Debug, Clone, PartialEq)]
-pub struct SemanticSimilarity {
-    /// Whether there are name/identifier changes
-    pub name_changed: bool,
-
-    /// Whether there are signature changes (parameters, return type, modifiers)
-    pub signature_changed: bool,
-
-    /// Whether there are body/implementation changes
-    pub body_changed: bool,
-
-    /// Whether there are structural changes (visibility, inheritance, etc.)
-    pub structural_changed: bool,
-
-    /// Overall confidence that these units represent the same semantic concept (0.0 to 1.0)
-    pub match_confidence: f32,
-
-    /// Specific confidence metrics for different change aspects
-    pub confidence_metrics: SimilarityMetrics,
-}
-
-/// Detailed confidence metrics for similarity assessment
-#[derive(Debug, Clone, PartialEq)]
-pub struct SimilarityMetrics {
-    /// How similar the names are (0.0 to 1.0)
-    pub name_similarity: f32,
-
-    /// How similar the signatures are (0.0 to 1.0)
-    pub signature_similarity: f32,
-
-    /// How similar the body structure is (0.0 to 1.0)
-    pub body_similarity: f32,
-
-    /// How similar the overall structure is (0.0 to 1.0)
-    pub structural_similarity: f32,
-}
-
-impl SemanticSimilarity {
-    /// Create a new similarity with no changes (identical units)
-    pub fn identical() -> Self {
-        Self {
-            name_changed: false,
-            signature_changed: false,
-            body_changed: false,
-            structural_changed: false,
-            match_confidence: 1.0,
-            confidence_metrics: SimilarityMetrics::perfect(),
-        }
-    }
-
-    /// Create similarity for body-only changes
-    pub fn body_change() -> Self {
-        Self {
-            name_changed: false,
-            signature_changed: false,
-            body_changed: true,
-            structural_changed: false,
-            match_confidence: 1.0,
-            confidence_metrics: SimilarityMetrics {
-                name_similarity: 1.0,
-                signature_similarity: 1.0,
-                body_similarity: 0.8,
-                structural_similarity: 1.0,
-            },
-        }
-    }
-
-    /// Create similarity for name refactoring
-    pub fn name_refactor(confidence: f32) -> Self {
-        Self {
-            name_changed: true,
-            signature_changed: false,
-            body_changed: false,
-            structural_changed: false,
-            match_confidence: confidence,
-            confidence_metrics: SimilarityMetrics {
-                name_similarity: 0.0,
-                signature_similarity: 1.0,
-                body_similarity: 1.0,
-                structural_similarity: 1.0,
-            },
-        }
-    }
-
-    /// Create similarity for signature changes
-    pub fn signature_change(name_identical: bool, signature_similarity: f32) -> Self {
-        Self {
-            name_changed: !name_identical,
-            signature_changed: true,
-            body_changed: false,
-            structural_changed: false,
-            match_confidence: signature_similarity,
-            confidence_metrics: SimilarityMetrics {
-                name_similarity: if name_identical { 1.0 } else { 0.0 },
-                signature_similarity,
-                body_similarity: 1.0,
-                structural_similarity: 1.0,
-            },
-        }
-    }
-
-    /// Create similarity for structural refactoring
-    pub fn structural_refactor(confidence: f32) -> Self {
-        Self {
-            name_changed: false,
-            signature_changed: false,
-            body_changed: false,
-            structural_changed: true,
-            match_confidence: confidence,
-            confidence_metrics: SimilarityMetrics {
-                name_similarity: 1.0,
-                signature_similarity: 1.0,
-                body_similarity: 1.0,
-                structural_similarity: confidence,
-            },
-        }
-    }
-
-    /// Create similarity for unrelated units
-    pub fn unrelated() -> Self {
-        Self {
-            name_changed: true,
-            signature_changed: true,
-            body_changed: true,
-            structural_changed: true,
-            match_confidence: 0.0,
-            confidence_metrics: SimilarityMetrics::none(),
-        }
-    }
-
-    /// Whether this similarity represents identical units
-    pub fn is_identical(&self) -> bool {
-        !self.name_changed
-            && !self.signature_changed
-            && !self.body_changed
-            && !self.structural_changed
-    }
-
-    /// Whether any changes exist
-    pub fn has_changes(&self) -> bool {
-        self.name_changed || self.signature_changed || self.body_changed || self.structural_changed
-    }
-
-    /// Get primary change type for backwards compatibility
-    pub fn primary_change_type(&self) -> &'static str {
-        if self.is_identical() {
-            "Identical"
-        } else if self.structural_changed {
-            "Structural"
-        } else if self.signature_changed {
-            "Signature"
-        } else if self.name_changed {
-            "NameRefactor"
-        } else if self.body_changed {
-            "BodyChange"
-        } else {
-            "Unknown"
-        }
-    }
-}
-
-impl SimilarityMetrics {
-    /// Perfect similarity metrics (1.0 for all)
-    pub fn perfect() -> Self {
-        Self {
-            name_similarity: 1.0,
-            signature_similarity: 1.0,
-            body_similarity: 1.0,
-            structural_similarity: 1.0,
-        }
-    }
-
-    /// No similarity metrics (0.0 for all)
-    pub fn none() -> Self {
-        Self {
-            name_similarity: 0.0,
-            signature_similarity: 0.0,
-            body_similarity: 0.0,
-            structural_similarity: 0.0,
-        }
-    }
 }
 
 impl<'a> SemanticTree<'a> {
@@ -877,8 +677,6 @@ mod tests {
                 visibility: "pub".to_string(),
                 is_method: false,
                 signature_node: None,
-                body_node: None,
-                metadata: HashMap::new(),
             },
             Vec::new(), // metadata_nodes
         );
@@ -915,8 +713,6 @@ mod tests {
                 visibility: "public".to_string(),
                 is_method: false,
                 signature_node: None,
-                body_node: None,
-                metadata: HashMap::new(),
             },
             Vec::new(), // metadata_nodes
         );
