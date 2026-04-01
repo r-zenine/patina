@@ -1,94 +1,76 @@
-contribution:
-  id: "002"
-  phase: 1
-  type: implementation
-  specialty: code
-  agent: general-purpose
-  title: "Phase 1 Implementation — LanguageDescriptor + GenericSemanticTreeBuilder + RustDescriptor"
-  commit: "13322de"
-
+commit: 13322de
 decisions:
-
-  - id: D1
-    title: "impl_item as Module(Namespace), not DataStructure"
-    status: decided
-    chosen: "Map impl_item → SemanticNodeKind::ImplBlock; GenericSemanticTreeBuilder maps ImplBlock to SemanticUnitType::Module { Namespace }"
-    rejected:
-      - "DataStructure — triggers expand path in create_reviewable_diff_from_range; impl block ~240 bytes > total_bytes/2 (~199), so test 1 fails"
-    rationale: >
-      Module(Namespace) triggers the decompose path in create_reviewable_diff_from_range, so byte
-      ranges covering the impl header correctly resolve to the enclosed methods rather than the
-      entire file. DataStructure would take the expand path and return the impl block itself as the
-      boundary — which is larger than total_bytes/2 and fails the test assertion.
+  - number: 1
+    title: impl_item represented as Module(Namespace) so ranges resolve to methods, not the file
+    rationale: create_reviewable_diff_from_range takes the decompose path only for Module variants. DataStructure takes the expand path — impl block is ~240 bytes, total_bytes/2 is ~199, so the test assertion boundary_lines < total_bytes/2 would fail. Module(Namespace) causes decompose, which finds the enclosed function_item and returns it as the boundary.
     code_impacts:
-      - "diffviz-core/src/parsers/generic_builder.rs: build_impl_container creates Module{Namespace}"
-      - "diffviz-core/src/parsers/rust.rs: impl_item → ImplBlock in semantic_kind_map"
-    context: "classify_node_kind(impl_item) still returns ImplBlock — classification is separate from tree node type"
+      - reasoning: build_impl_container creates Module{Namespace} when SemanticNodeKind::ImplBlock is encountered
+        file: diffviz-core/src/parsers/generic_builder.rs
+        line_ranges:
+          - start: 277
+            end: 300
+      - reasoning: impl_item maps to ImplBlock in the kind map, which generic_builder converts to Module{Namespace}
+        file: diffviz-core/src/parsers/rust.rs
+        line_ranges:
+          - start: 38
+            end: 38
 
-  - id: D2
-    title: "attribute_item as Unknown children, not metadata_nodes"
-    status: decided
-    chosen: "metadata_kind() returns Some(\"attribute_item\"); generic builder creates Unknown children for attribute_item nodes"
-    rejected:
-      - "metadata_nodes list only — bytes owned by metadata_node siblings are invisible to find_unit_recursive, so struct-range-expansion bug persists"
-    rationale: >
-      find_unit_recursive checks only tree_sitter_node.byte_range() of SemanticNode children. If
-      attribute bytes aren't owned by a SemanticNode child, a range covering only #[derive] + struct
-      keyword finds nothing contained and returns an empty diff list. Making attribute_item an Unknown
-      child gives its bytes a SemanticNode owner, so find_contained_units_recursive finds it and the
-      struct-range tests pass.
+  - number: 2
+    title: attribute_item nodes become Unknown children (not metadata_nodes) to give their bytes a SemanticNode owner
+    rationale: find_unit_recursive checks only tree_sitter_node.byte_range() of SemanticNode children. Bytes belonging to no SemanticNode are unowned — a range covering only #[derive] + struct keyword finds nothing and returns empty. Making attribute_item an Unknown child transfers byte ownership, so find_contained_units_recursive finds it and the struct-range tests pass.
     code_impacts:
-      - "diffviz-core/src/parsers/generic_builder.rs: build_container_children creates Unknown for metadata_kind() nodes"
-      - "diffviz-core/src/parsers/rust.rs: metadata_kind() returns Some(\"attribute_item\")"
+      - reasoning: build_container_children pushes an Unknown node for any child matching metadata_kind()
+        file: diffviz-core/src/parsers/generic_builder.rs
+        line_ranges:
+          - start: 96
+            end: 103
+      - reasoning: metadata_kind() returns Some("attribute_item") so attribute nodes become Unknown children
+        file: diffviz-core/src/parsers/rust.rs
+        line_ranges:
+          - start: 209
+            end: 211
 
-  - id: D3
-    title: "doc_comment in trivial_kinds (skipped, not Unknown)"
-    status: decided
-    chosen: "doc_comment in RUST_TRIVIAL_KINDS — skipped entirely during tree construction"
-    rejected:
-      - "Unknown child — find_units_touching_range_recursive returns doc_comment node first, so diffs.remove(0) is Unknown not Callable; test 2 fails"
-    rationale: >
-      Test 2 (range_starting_at_impl_header_should_resolve_to_method) selects lines 9-14 which
-      includes the two doc-comment lines before the method. If doc_comment becomes an Unknown child,
-      the range query returns the doc comment as the first result instead of the function. Keeping
-      doc_comment trivial ensures the query skips it and surfaces the enclosing function_item.
+  - number: 3
+    title: doc_comment in trivial_kinds so range queries return the enclosing function, not the comment
+    rationale: If doc_comment becomes an Unknown child, find_units_touching_range_recursive returns the doc comment as the first result for a range starting at the comment lines. diffs.remove(0) is then Unknown instead of Callable, and the test assertion node_type.contains("Callable") fails. Keeping doc_comment trivial skips it entirely.
     code_impacts:
-      - "diffviz-core/src/parsers/rust.rs: doc_comment in RUST_TRIVIAL_KINDS"
+      - reasoning: doc_comment added to RUST_TRIVIAL_KINDS
+        file: diffviz-core/src/parsers/rust.rs
+        line_ranges:
+          - start: 179
+            end: 179
 
-  - id: D4
-    title: "get_unit_type_name(Callable) changed from \"Function\" to \"Callable\""
-    status: decided
-    chosen: "\"Callable\""
-    rejected:
-      - "\"Function\" — test 2 asserts node_type.contains(\"Callable\"), would fail"
-    rationale: >
-      The SemanticUnitType variant is Callable. Using "Callable" as the display name aligns with
-      the enum variant name and satisfies the test assertion. "Function" was a legacy name from the
-      old RustParser that predated the generic builder.
+  - number: 4
+    title: get_unit_type_name(Callable) returns "Callable" instead of "Function"
+    rationale: The bug test asserts node_type.contains("Callable"). The SemanticUnitType variant is Callable, so the display name should match. "Function" was a legacy name from the old bespoke RustParser.
     code_impacts:
-      - "diffviz-core/src/decision_based_diff.rs: get_unit_type_name Callable arm"
+      - reasoning: Callable arm of get_unit_type_name changed to "Callable"
+        file: diffviz-core/src/decision_based_diff.rs
+        line_ranges:
+          - start: 445
+            end: 445
 
-  - id: D5
-    title: "visibility_modifier in both trivial_kinds and semantic_kind_map"
-    status: decided
-    chosen: "Included in both; trivial_kinds governs tree building, semantic_kind_map governs classify_node_kind"
-    rationale: >
-      The regression test (regression_rust_parser_visibility_modifier_classification.rs) asserts
-      classify_node_kind("visibility_modifier") == SignatureComponent → classify_leaf_relevance == IMPORTANT.
-      visibility_modifier must be in semantic_kind_map for this to work. It must also be in trivial_kinds
-      so it doesn't create SemanticNode children during tree construction. The two lists serve
-      orthogonal purposes.
+  - number: 5
+    title: visibility_modifier appears in both semantic_kind_map and trivial_kinds — the two lists serve orthogonal purposes
+    rationale: The regression test asserts classify_node_kind("visibility_modifier") == SignatureComponent, so it must be in semantic_kind_map. It must also be in trivial_kinds to be skipped during tree construction. trivial_kinds governs tree building; semantic_kind_map governs classify_node_kind. Overlap is intentional.
     code_impacts:
-      - "diffviz-core/src/parsers/rust.rs: visibility_modifier in both RUST_SEMANTIC_KIND_MAP and RUST_TRIVIAL_KINDS"
+      - reasoning: visibility_modifier entry in RUST_SEMANTIC_KIND_MAP
+        file: diffviz-core/src/parsers/rust.rs
+        line_ranges:
+          - start: 55
+            end: 55
+      - reasoning: visibility_modifier entry in RUST_TRIVIAL_KINDS
+        file: diffviz-core/src/parsers/rust.rs
+        line_ranges:
+          - start: 150
+            end: 151
 
-  - id: D6
-    title: "RustParser as newtype over GenericSemanticTreeBuilder<RustDescriptor>"
-    status: decided
-    chosen: "pub struct RustParser(GenericSemanticTreeBuilder<RustDescriptor>); delegates all LanguageParser methods except get_context_boundaries"
-    rationale: >
-      Zero caller changes — all callsites hold &dyn LanguageParser and the public API is unchanged.
-      get_context_boundaries carries Rust-specific boundary semantics (ImplBlock context for functions,
-      etc.) that cannot be expressed in the generic builder. Overriding only this one method keeps the
-      newtype minimal.
+  - number: 6
+    title: RustParser is a newtype over GenericSemanticTreeBuilder<RustDescriptor>, delegating all methods except get_context_boundaries
+    rationale: Zero caller changes — all callsites hold &dyn LanguageParser. get_context_boundaries carries Rust-specific boundary semantics (ImplBlock context for functions, etc.) that cannot be expressed in the generic builder, so only that method is overridden.
     code_impacts:
-      - "diffviz-core/src/parsers/rust.rs: RustParser newtype with LanguageParser impl"
+      - reasoning: RustParser newtype struct and LanguageParser impl
+        file: diffviz-core/src/parsers/rust.rs
+        line_ranges:
+          - start: 222
+            end: 295
