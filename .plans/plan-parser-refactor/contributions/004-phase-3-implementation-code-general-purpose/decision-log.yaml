@@ -1,0 +1,21 @@
+commit: 9ebc06b
+decisions:
+  - number: 1
+    title: Documentation-only phase — no caller changes needed
+    rationale: review_engine_builder.rs already used the new public parser names (RustParser, PythonParser, etc.) unchanged from Phase 2. test_utils.rs similarly required no changes. The workspace compiled cleanly with zero warnings, all 240 tests passed, and clippy was clean before any Phase 3 work began.
+    code_impacts:
+      - reasoning: Parser Architecture section replaced with descriptor+generic-builder explanation; bug-tracking section updated (all bugs resolved)
+        file: diffviz-core/CLAUDE.md
+        line_ranges:
+          - start: 47
+            end: 67
+      - reasoning: Phase 1-2 description and directory map updated to reference descriptor.rs and generic_builder.rs; Recent Changes section added for the refactor
+        file: diffviz-core/onboarding.md
+        line_ranges:
+          - start: 1
+            end: 50
+      - reasoning: impl_block, struct_range_expansion, TypeScript classification, and JavaScript stub bugs moved from Active to Fixed with fix details
+        file: diffviz-core/bugs.md
+        line_ranges:
+          - start: 1
+            end: 120
