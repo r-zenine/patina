@@ -26,7 +26,6 @@ pub struct OtherStruct {
 "#;
 
     #[test]
-    #[ignore = "Bug: Rust impl blocks are flattened in SemanticTree — ranges covering impl header expand to entire file (see bugs.md)"]
     fn impl_block_range_should_not_expand_to_module() {
         // Lines 8-15 cover the entire `impl DecisionLog { ... }` block.
         // The expected behavior is that the expansion resolves to a boundary
@@ -78,7 +77,6 @@ pub struct OtherStruct {
     }
 
     #[test]
-    #[ignore = "Bug: Rust impl blocks are flattened in SemanticTree — range starting at impl header expands to entire file (see bugs.md)"]
     fn range_starting_at_impl_header_should_resolve_to_method() {
         // Even a tighter range covering just the method body (lines 9-14, inside the impl)
         // expands to the full file because the impl header bytes (line 8) are not owned

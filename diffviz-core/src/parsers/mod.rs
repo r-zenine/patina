@@ -1,6 +1,8 @@
 pub mod c;
 pub mod cpp;
 pub mod css;
+pub mod descriptor;
+pub mod generic_builder;
 pub mod go;
 pub mod java;
 pub mod javascript;

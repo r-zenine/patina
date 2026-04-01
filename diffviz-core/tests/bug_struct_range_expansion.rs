@@ -13,7 +13,6 @@ use diffviz_core::decision_based_diff::create_reviewable_diff_from_range;
 use diffviz_core::parsers::RustParser;
 
 #[test]
-#[ignore] // TODO: Bug - struct range expansion not working. Returns empty vec instead of expanding to full struct
 fn test_struct_declaration_range_should_expand_to_full_struct() {
     // Rust code with a struct that has field-level attributes
     // Lines are 1-based for the user-facing API
@@ -79,7 +78,6 @@ pub struct CodeImpact {
 }
 
 #[test]
-#[ignore] // TODO: Bug - struct range expansion not working. Reproduces actual decision-log.yaml bug
 fn test_decision_log_scenario_struct_range_should_expand() {
     // This reproduces the actual bug from decision-log.yaml:
     // Decision 2 specifies lines 34-35 for CodeImpact struct in diffviz-review/src/entities/decision.rs

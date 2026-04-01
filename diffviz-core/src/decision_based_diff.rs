@@ -442,7 +442,7 @@ fn unit_type_to_semantic_kind(unit_type: &SemanticUnitType) -> crate::common::Se
 fn get_unit_type_name(unit_type: &SemanticUnitType) -> &'static str {
     match unit_type {
         SemanticUnitType::DataStructure { .. } => "DataStructure",
-        SemanticUnitType::Callable { .. } => "Function",
+        SemanticUnitType::Callable { .. } => "Callable",
         SemanticUnitType::Variable { .. } => "Variable",
         SemanticUnitType::Import { .. } => "Import",
         SemanticUnitType::Module { .. } => "Module",
