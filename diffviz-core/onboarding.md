@@ -1,6 +1,6 @@
 # diffviz-core - Orientation Guide
 
-Updated: 2026-01-31 - Added comprehensive pipeline documentation and recent parent-child deletion overlap fix
+Updated: 2026-04-01 - Parser refactor complete (descriptor + generic builder), all bug tests passing
 
 ## What This Module Does
 Transforms raw source code diffs into semantic, reviewable changes through Tree-sitter AST analysis and intelligent pairing algorithms.
@@ -18,7 +18,8 @@ Transforms raw source code diffs into semantic, reviewable changes through Tree-
 - `RenderableDiff`: Line-oriented display format - use for all rendering, don't bypass this layer
 
 **Integration Points:**
-- Language parsers implement `LanguageParser` trait (`parsers/rust.rs`, etc.) for semantic tree building
+- Language parsers implement `LanguageParser` trait via `GenericSemanticTreeBuilder<D>` where `D: LanguageDescriptor`
+- `LanguageDescriptor` (`parsers/descriptor.rs`) is the extension point for new languages — static kind tables + optional overrides
 - `semantic_pairs_to_reviewable_diffs()` bridges semantic analysis to review layer
 - `RenderableDiff::from()` converts tree-based diffs to line-based display
 
@@ -33,14 +34,16 @@ Transforms raw source code diffs into semantic, reviewable changes through Tree-
 ### Phase 2: Tree-sitter AST → SemanticTree
 **Entry Point:** `LanguageParser::build_semantic_tree()`
 - Transforms low-level Tree-sitter nodes into meaningful semantic constructs
-- Each language parser walks the AST and creates `SemanticNode` instances
-- Filters trivial syntax tokens (punctuation, keywords) to focus on semantic units
-- Captures metadata nodes (attributes, decorators) and associates them with their targets
+- All languages share `GenericSemanticTreeBuilder<D>` — language-specific behaviour is
+  encoded in a `LanguageDescriptor` (kind tables, trivial tokens, metadata kind, overrides)
+- Enforces byte-coverage invariant: every source byte maps to exactly one `SemanticNode`
 - **Key Types:**
   - `SemanticTree`: Root container with language and source ranges
   - `SemanticNode`: Universal semantic construct with 5 unit types (DataStructure, Callable, Variable, Import, Module)
   - `SemanticUnitType`: Enum discriminating semantic categories with rich metadata
-- **Location:** `src/parsers/rust.rs::build_semantic_node()` (example implementation)
+  - `LanguageDescriptor`: Trait for language static configuration (`src/parsers/descriptor.rs`)
+  - `GenericSemanticTreeBuilder`: Shared builder logic (`src/parsers/generic_builder.rs`)
+- **Canonical Reference:** `src/parsers/rust.rs` — `RustDescriptor` + `RustParser`
 - **Output:** Complete semantic tree ensuring exhaustive source coverage
 
 ### Phase 3: SemanticTree Pair → SemanticPairs
@@ -200,15 +203,33 @@ diffviz-core/src/
 │   ├── semantic_anchors.rs      # Navigation anchor extraction
 │   └── line_utils.rs            # Line extraction utilities
 ├── parsers/
-│   ├── rust.rs                  # Phase 1-2: Rust semantic tree building
-│   ├── python.rs                # Phase 1-2: Python semantic tree building
-│   ├── typescript.rs            # Phase 1-2: TypeScript semantic tree building
-│   └── ...                      # Other language parsers
+│   ├── descriptor.rs            # LanguageDescriptor trait (extension point)
+│   ├── generic_builder.rs       # GenericSemanticTreeBuilder<D> — shared Phase 1-2 logic
+│   ├── rust.rs                  # RustDescriptor + RustParser (canonical reference)
+│   ├── python.rs                # PythonDescriptor + PythonParser
+│   ├── typescript.rs            # TypeScriptDescriptor + TypeScriptParser
+│   └── ...                      # go, java, c, cpp, javascript, css, json, toml
 ├── ast_diff/                    # Low-level AST diffing (Merkle trees)
 └── common.rs                    # Shared traits and types
 ```
 
-## Recent Changes (2026-01-31)
+## Recent Changes (2026-04-01)
+
+### Parser Refactor: Descriptor + Generic Builder
+All 7 bespoke language parsers (Rust, Python, Go, TypeScript, Java, C, C++) and the
+JavaScript stub have been replaced with the `LanguageDescriptor` + `GenericSemanticTreeBuilder`
+pattern. The 4 previously-ignored bug test suites now pass:
+- `bug_rust_impl_block_not_classified.rs` — impl blocks correctly classified
+- `bug_struct_range_expansion.rs` — struct ranges cover full declaration
+- `bug_typescript_file_classification.rs` — TypeScript no longer classified as new file
+- `bug_javascript_error_message.rs` — JavaScript no longer reports unsupported language
+
+See `src/parsers/descriptor.rs` and `src/parsers/generic_builder.rs` for the core abstractions.
+`src/parsers/rust.rs` is the canonical reference implementation.
+
+---
+
+## Earlier Changes (2026-01-31)
 
 ### Bug Fix: Parent-Child Deletion Overlap
 **Problem:** When a parent AST node was deleted (e.g., class declaration), the algorithm created BOTH:

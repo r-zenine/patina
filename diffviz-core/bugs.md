@@ -1,38 +1,6 @@
 # Active Bugs - diffviz-core
 
-## 🐛 Bug: Rust Parser Does Not Classify `impl` Blocks as Semantic Units
-
-**Issue**: The Rust parser flattens `impl` blocks: methods are extracted and promoted as direct
-children of the module, but the `impl_item` node itself is discarded from the SemanticTree.
-This means byte ranges that start anywhere in the `impl` header (e.g. `impl Foo {`) or in doc
-comments preceding a method do not fall inside any SemanticNode smaller than the module root.
-
-When `find_semantic_unit_at_range()` is used (decision-based diff expansion), any input range
-that covers the impl header escalates all the way to the Module node, producing catastrophic
-expansion factors (100–150×).
-
-**Repro**:
-```
-cargo run --bin diffviz -- debug --file <file> --from <commit> --line-range <start-end>
-```
-Input range covering `impl Foo { ... }` → expands to entire file.
-
-**Root Cause**: `build_source_file_node()` in `src/parsers/rust.rs` calls `build_impl_items()`
-which extracts only `function_item` children and adds them as siblings at module level.
-The `impl_item` tree-sitter node is never wrapped in a `SemanticNode`.
-
-**Impact**:
-- Decision-based context expansion is unusable for any range touching an impl block header,
-  doc comments before a method, or any gap between methods within an impl block.
-- The expansion reports `Unit type: Module` and 100× expansion factors.
-
-**Affected Languages**: Rust only (other languages don't have impl blocks)
-
-**Test Location**: `tests/bug_rust_impl_block_not_classified.rs`
-
-**Fix Required**: Represent `impl_item` as a `SemanticNode` (likely as a `DataStructure` or
-dedicated `Module` subtype) with its methods as children, so that byte ranges inside impl
-blocks resolve to the impl node rather than the file-level module.
+*(no active bugs)*
 
 ---
 
@@ -66,3 +34,80 @@ This created redundant/overlapping semantic pairs that represented the same stru
 **Behavior Change**:
 - Before: Multiple overlapping deletion pairs for parent + all children
 - After: Single deletion pair for parent node (children implicitly included)
+
+---
+
+## ✅ Bug: Rust `impl` Blocks Not Classified as Semantic Units (FIXED)
+
+**Issue**: The old `RustParser` flattened `impl` blocks — methods were promoted as module-level
+siblings and the `impl_item` node itself was never wrapped in a `SemanticNode`. Byte ranges
+covering an impl header escalated to the file-level Module node (100–150× expansion).
+
+**Affected Languages**: Rust only
+
+**Test Location**: `tests/bug_rust_impl_block_not_classified.rs`
+- `impl_block_range_should_not_expand_to_module()` — [PASSING] ✅
+- `impl_block_method_should_resolve_to_impl_not_module()` — [PASSING] ✅
+
+**Fix**: Phase 1 of the parser refactor. `RustDescriptor` maps `impl_item` → `ImplBlock` in
+`RUST_SEMANTIC_KIND_MAP` and sets `container_body_field("impl_item") = Some("body")`.
+`GenericSemanticTreeBuilder` recurses into the body, producing an `ImplBlock` node that wraps
+its `function_item` children. Ranges inside impl blocks now resolve to the `ImplBlock` node,
+not the file-level module.
+
+---
+
+## ✅ Bug: Struct Declaration Range Expansion (FIXED)
+
+**Issue**: `SemanticNode` for a struct reported a byte range covering only its name/fields,
+not the full struct including attributes and `pub` keyword. `find_semantic_unit_at_range()`
+missed ranges that touched the keyword or leading attribute.
+
+**Affected Languages**: Rust
+
+**Test Location**: `tests/bug_struct_range_expansion.rs`
+- `test_struct_declaration_range_should_expand_to_full_struct()` — [PASSING] ✅
+- `test_decision_log_scenario_struct_range_should_expand()` — [PASSING] ✅
+
+**Fix**: Phase 1 of the parser refactor. `GenericSemanticTreeBuilder::build_semantic_node()`
+uses the tree-sitter node's own `.byte_range()`, which covers the complete source span including
+leading modifiers and decorators already gathered as `metadata_nodes`.
+
+---
+
+## ✅ Bug: TypeScript Files Classified as "New File" Instead of "Modified" (Parser Layer) (FIXED)
+
+**Issue**: `TypeScriptParser::build_semantic_tree()` returned an error for valid TypeScript source,
+causing the review layer to fall back to a "new file" classification.
+
+**Affected Languages**: TypeScript, TSX
+
+**Test Location**: `tests/bug_typescript_file_classification.rs`
+- `test_typescript_modified_file_classification()` — [PASSING] ✅
+- `test_typescript_file_type_detection()` — [PASSING] ✅
+- `test_typescript_new_files_work_correctly()` — [PASSING] ✅
+
+**Fix**: Phase 2 of the parser refactor. `TypeScriptDescriptor` correctly maps TypeScript
+tree-sitter node kinds (`function_declaration`, `class_declaration`, `interface_declaration`,
+`type_alias_declaration`, etc.) and `GenericSemanticTreeBuilder` produces a valid `SemanticTree`
+for all TypeScript source.
+
+---
+
+## ✅ Bug: JavaScript Files Shown as Unsupported Language Error (FIXED)
+
+**Issue**: `JavaScriptParser` was a stub that returned `SemanticError::UnsupportedLanguage` for
+all input, causing the review layer to surface a spurious "unsupported language" error for `.js`
+and `.jsx` files.
+
+**Affected Languages**: JavaScript, JSX
+
+**Test Location**: `tests/bug_javascript_error_message.rs`
+- `test_javascript_modified_files_should_not_show_error()` — [PASSING] ✅
+- `test_javascript_new_files_work_correctly()` — [PASSING] ✅
+- `test_cross_language_modified_file_error_pattern()` — [PASSING] ✅
+
+**Fix**: Phase 2 of the parser refactor. `JavaScriptDescriptor` implements the full
+`LanguageDescriptor` trait mapping JS node kinds (`function_declaration`, `class_declaration`,
+`arrow_function`, `import_statement`, `export_statement`, etc.). JavaScript is now a fully
+supported language in the semantic pipeline.

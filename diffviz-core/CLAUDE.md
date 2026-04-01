@@ -45,11 +45,23 @@ Comprehensive parsing capabilities across **11 programming languages**:
 - **JSON/CSS/TOML** (`tree-sitter-json/css/toml`) - Configuration and data formats
 
 ### Parser Architecture
-Each parser implements:
-- **Language-specific AST analysis** through semantic tree building
-- **Node classification** for different code constructs
-- **Change detection strategies** optimized per language
-- **Context expansion** for meaningful diff boundaries
+
+All parsers use a **descriptor + generic builder** pattern:
+
+- **`LanguageDescriptor` trait** (`src/parsers/descriptor.rs`) — language-specific static
+  configuration: kind tables, trivial token lists, container body fields, metadata kind,
+  and optional override hooks (`extract_visibility`, `collect_metadata`).
+- **`GenericSemanticTreeBuilder<D: LanguageDescriptor>`** (`src/parsers/generic_builder.rs`)
+  — shared tree-walking logic that consumes any `LanguageDescriptor`. Enforces the complete
+  byte-coverage invariant (every source byte maps to exactly one `SemanticNode`).
+- **Language newtype wrappers** (e.g. `RustParser`) — thin structs that hold a
+  `GenericSemanticTreeBuilder<XxxDescriptor>` and implement `LanguageParser`. Override only
+  language-specific behaviour (e.g. `get_context_boundaries` in `RustParser`).
+
+To add a new language:
+1. Create `src/parsers/<lang>.rs` with a `XxxDescriptor` implementing `LanguageDescriptor`.
+2. Wrap it: `struct XxxParser(GenericSemanticTreeBuilder<XxxDescriptor>)`.
+3. Register the extension in `review_engine_builder.rs`.
 
 ## Test Infrastructure
 
@@ -79,10 +91,9 @@ tests/fixtures/{language}/
 ```
 
 ### Bug Tracking System
-**6 active bug reproduction tests** following TDD principles:
-- `tests/bug_issue_*.rs` - Systematic issue reproduction
-- Tests document exact failure conditions
-- Ready for test-driven fixes per project guidelines
+Bug reproduction tests live in `tests/bug_*.rs` and follow TDD principles.
+All previously-active bugs have been fixed; see `bugs.md` for the full history.
+When filing a new bug: write a failing test first, then fix, then update `bugs.md`.
 
 ## Development Guidelines
 
