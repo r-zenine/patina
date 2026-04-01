@@ -82,9 +82,6 @@ pub enum ProgrammingLanguage {
     Java,
     C,
     Cpp,
-    Json,
-    Toml,
-    Css,
     Unknown,
 }
 
@@ -101,9 +98,6 @@ impl ProgrammingLanguage {
                 "java" => Self::Java,
                 "c" | "h" => Self::C,
                 "cpp" | "cxx" | "cc" | "hpp" => Self::Cpp,
-                "json" => Self::Json,
-                "toml" => Self::Toml,
-                "css" => Self::Css,
                 _ => Self::Unknown,
             }
         } else {

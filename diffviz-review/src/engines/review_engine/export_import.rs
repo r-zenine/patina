@@ -1,6 +1,6 @@
 use super::ReviewEngine;
 use crate::entities::Instruction;
-use crate::entities::git_ref::{DiffQuery, GitRef};
+use crate::entities::git_ref::DiffQuery;
 use crate::entities::instruction::InstructionStatus;
 use crate::entities::reviewable_diff_id::{LineRange, ReviewableDiffId};
 use crate::errors::Result;
@@ -15,21 +15,12 @@ pub struct ExportedInstruction {
     pub content: String,
     pub author: String,
     pub timestamp: String,
-    #[serde(default = "default_status")]
-    pub status: String,
-    #[serde(default = "default_empty_string")]
+    #[serde(default)]
+    pub status: InstructionStatus,
+    #[serde(default)]
     pub file_content_hash: String,
     #[serde(default)]
     pub content_snapshot: Option<String>,
-}
-
-// Helper functions for serde defaults
-fn default_status() -> String {
-    "active".to_string()
-}
-
-fn default_empty_string() -> String {
-    String::new()
 }
 
 /// JSON representation of a line range
@@ -45,47 +36,11 @@ pub struct ExportMetadata {
     pub format_version: String,
     pub description: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub field_descriptions: Option<ExportFieldDescriptions>,
+    pub field_descriptions: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub query_formats: Option<ExportQueryFormats>,
+    pub query_formats: Option<serde_json::Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub git_usage_examples: Option<ExportGitExamples>,
-}
-
-/// Field descriptions for agent understanding
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExportFieldDescriptions {
-    pub file: String,
-    pub query: String,
-    pub line_range: String,
-    pub content: String,
-    pub author: String,
-    pub timestamp: String,
-    pub status: String,
-    pub file_content_hash: String,
-    pub content_snapshot: String,
-}
-
-/// Query format descriptions
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExportQueryFormats {
-    #[serde(rename = "HEAD..unstaged")]
-    pub head_to_unstaged: String,
-    #[serde(rename = "commit_hash..HEAD")]
-    pub commit_to_head: String,
-    #[serde(rename = "HEAD..commit_hash")]
-    pub head_to_commit: String,
-    #[serde(rename = "commit_hash..commit_hash")]
-    pub commit_to_commit: String,
-}
-
-/// Git command usage examples
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ExportGitExamples {
-    pub view_diff: String,
-    pub view_historical_diff: String,
-    pub get_file_at_head: String,
-    pub get_file_at_commit: String,
+    pub git_usage_examples: Option<serde_json::Value>,
 }
 
 /// Container for exported instructions
@@ -144,43 +99,39 @@ impl ReviewEngine {
                     content: inst.content.clone(),
                     author: inst.author.clone(),
                     timestamp: inst.timestamp.clone(),
-                    status: match inst.status {
-                        InstructionStatus::Active => "active".to_string(),
-                        InstructionStatus::Addressed => "addressed".to_string(),
-                    },
+                    status: inst.status.clone(),
                     file_content_hash: String::new(),
                     content_snapshot: None,
                 }
             })
             .collect();
 
-        // Create metadata section
         let meta = ExportMetadata {
             format_version: "1.1".to_string(),
             description: "DiffViz instruction export for coding agents".to_string(),
-            field_descriptions: Some(ExportFieldDescriptions {
-                file: "Relative path to the file from repository root".to_string(),
-                query: "Git diff query to retrieve file content. Format: 'from_ref..to_ref'. Use with: git diff <query> <file>".to_string(),
-                line_range: "1-based line numbers where instruction applies (inclusive range)".to_string(),
-                content: "The instruction text for the coding agent to follow".to_string(),
-                author: "Username/identifier of instruction author".to_string(),
-                timestamp: "When instruction was created/last modified (UTC format)".to_string(),
-                status: "Instruction validity: 'active' (file unchanged), 'stale' (file changed), 'addressed' (completed)".to_string(),
-                file_content_hash: "SHA256 hash of file content at time of instruction creation, used for validity verification".to_string(),
-                content_snapshot: "Code lines from instruction range for visual reference (optional)".to_string(),
-            }),
-            query_formats: Some(ExportQueryFormats {
-                head_to_unstaged: "Uncommitted changes in working directory".to_string(),
-                commit_to_head: "Changes from specific commit to current HEAD".to_string(),
-                head_to_commit: "Changes from HEAD to specific commit".to_string(),
-                commit_to_commit: "Changes between two commits".to_string(),
-            }),
-            git_usage_examples: Some(ExportGitExamples {
-                view_diff: "git diff HEAD..unstaged src/main.rs".to_string(),
-                view_historical_diff: "git diff abc123d..HEAD src/main.rs".to_string(),
-                get_file_at_head: "git show HEAD:src/main.rs".to_string(),
-                get_file_at_commit: "git show abc123d:src/main.rs".to_string(),
-            }),
+            field_descriptions: Some(serde_json::json!({
+                "file": "Relative path to the file from repository root",
+                "query": "Git diff query to retrieve file content. Format: 'from_ref..to_ref'. Use with: git diff <query> <file>",
+                "line_range": "1-based line numbers where instruction applies (inclusive range)",
+                "content": "The instruction text for the coding agent to follow",
+                "author": "Username/identifier of instruction author",
+                "timestamp": "When instruction was created/last modified (UTC format)",
+                "status": "Instruction validity: 'active' (file unchanged), 'stale' (file changed), 'addressed' (completed)",
+                "file_content_hash": "SHA256 hash of file content at time of instruction creation, used for validity verification",
+                "content_snapshot": "Code lines from instruction range for visual reference (optional)"
+            })),
+            query_formats: Some(serde_json::json!({
+                "HEAD..unstaged": "Uncommitted changes in working directory",
+                "commit_hash..HEAD": "Changes from specific commit to current HEAD",
+                "HEAD..commit_hash": "Changes from HEAD to specific commit",
+                "commit_hash..commit_hash": "Changes between two commits"
+            })),
+            git_usage_examples: Some(serde_json::json!({
+                "view_diff": "git diff HEAD..unstaged src/main.rs",
+                "view_historical_diff": "git diff abc123d..HEAD src/main.rs",
+                "get_file_at_head": "git show HEAD:src/main.rs",
+                "get_file_at_commit": "git show abc123d:src/main.rs"
+            })),
         };
 
         let export = ExportedInstructions {
@@ -270,10 +221,10 @@ impl ReviewEngine {
         &self,
         exported: &ExportedInstruction,
     ) -> Result<ReviewableDiffId> {
-        // Parse query to DiffQuery
-        let diff_query = self.parse_diff_query_from_string(&exported.query)?;
+        let diff_query = exported.query.parse::<DiffQuery>().map_err(|reason| {
+            crate::errors::DiffVizError::Review(crate::errors::ReviewError::ImportFailed { reason })
+        })?;
 
-        // Create LineRange
         let line_range = LineRange {
             start_line: exported.line_range.start_line,
             end_line: exported.line_range.end_line,
@@ -287,35 +238,12 @@ impl ReviewEngine {
             line_range,
         ))
     }
-
-    /// Helper to parse DiffQuery from query string
-    fn parse_diff_query_from_string(&self, query: &str) -> Result<DiffQuery> {
-        match query {
-            "HEAD..unstaged" => Ok(DiffQuery::head_to_unstaged()),
-            _ => {
-                // Try to parse as commit-to-head, head-to-commit, or commit-to-commit
-                if let Some((from, to)) = query.split_once("..") {
-                    Ok(DiffQuery::new(
-                        GitRef::commit(from.to_string()),
-                        GitRef::commit(to.to_string()),
-                    ))
-                } else {
-                    Err(crate::errors::DiffVizError::Review(
-                        crate::errors::ReviewError::ImportFailed {
-                            reason: format!("Invalid query format: {query}"),
-                        },
-                    ))
-                }
-            }
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::super::test_helpers::*;
     use super::*;
-    use crate::entities::git_ref::GitRef;
 
     // Tests for JSON export functionality (Phase 4)
     #[test]
@@ -425,201 +353,6 @@ mod tests {
 
         // Verify "working" is mapped to "HEAD..unstaged"
         assert_eq!(parsed["instructions"][0]["query"], "HEAD..unstaged");
-    }
-
-    // ===== Hash Calculation Tests =====
-
-    #[test]
-    fn test_calculate_file_hash_known_content() {
-        use crate::providers::DiffProvider;
-        use crate::providers::mock_provider::MockDiffProvider;
-        use sha2::{Digest, Sha256};
-
-        let mut mock_provider = MockDiffProvider::new();
-        mock_provider.add_file_content("test.rs", &GitRef::head(), "hello world\n");
-
-        let hash = mock_provider
-            .get_file_hash("test.rs", &GitRef::head())
-            .unwrap();
-
-        // Calculate expected hash
-        let mut hasher = Sha256::new();
-        hasher.update(b"hello world\n");
-        let expected = format!("{:x}", hasher.finalize());
-
-        assert_eq!(hash, expected);
-    }
-
-    #[test]
-    fn test_calculate_file_hash_identical_content_identical_hash() {
-        use crate::providers::DiffProvider;
-        use crate::providers::mock_provider::MockDiffProvider;
-
-        let mut mock_provider = MockDiffProvider::new();
-        mock_provider.add_file_content("file1.rs", &GitRef::head(), "same content\n");
-        mock_provider.add_file_content("file2.rs", &GitRef::head(), "same content\n");
-
-        let hash1 = mock_provider
-            .get_file_hash("file1.rs", &GitRef::head())
-            .unwrap();
-        let hash2 = mock_provider
-            .get_file_hash("file2.rs", &GitRef::head())
-            .unwrap();
-
-        assert_eq!(hash1, hash2);
-    }
-
-    #[test]
-    fn test_calculate_file_hash_different_content_different_hash() {
-        use crate::providers::DiffProvider;
-        use crate::providers::mock_provider::MockDiffProvider;
-
-        let mut mock_provider = MockDiffProvider::new();
-        mock_provider.add_file_content("file1.rs", &GitRef::head(), "content A\n");
-        mock_provider.add_file_content("file2.rs", &GitRef::head(), "content B\n");
-
-        let hash1 = mock_provider
-            .get_file_hash("file1.rs", &GitRef::head())
-            .unwrap();
-        let hash2 = mock_provider
-            .get_file_hash("file2.rs", &GitRef::head())
-            .unwrap();
-
-        assert_ne!(hash1, hash2);
-    }
-
-    #[test]
-    fn test_calculate_file_hash_crlf_normalization() {
-        use crate::providers::DiffProvider;
-        use crate::providers::mock_provider::MockDiffProvider;
-
-        let mut mock_provider = MockDiffProvider::new();
-        mock_provider.add_file_content("crlf.rs", &GitRef::head(), "line1\r\nline2\r\n");
-        mock_provider.add_file_content("lf.rs", &GitRef::head(), "line1\nline2\n");
-
-        let hash_crlf = mock_provider
-            .get_file_hash("crlf.rs", &GitRef::head())
-            .unwrap();
-        let hash_lf = mock_provider
-            .get_file_hash("lf.rs", &GitRef::head())
-            .unwrap();
-
-        // Should be identical after normalization
-        assert_eq!(hash_crlf, hash_lf);
-    }
-
-    #[test]
-    fn test_calculate_file_hash_lf_unchanged() {
-        use crate::providers::DiffProvider;
-        use crate::providers::mock_provider::MockDiffProvider;
-        use sha2::{Digest, Sha256};
-
-        let mut mock_provider = MockDiffProvider::new();
-        let content = "line1\nline2\n";
-        mock_provider.add_file_content("test.rs", &GitRef::head(), content);
-
-        let hash = mock_provider
-            .get_file_hash("test.rs", &GitRef::head())
-            .unwrap();
-
-        // Calculate expected hash directly from LF content
-        let mut hasher = Sha256::new();
-        hasher.update(content.as_bytes());
-        let expected = format!("{:x}", hasher.finalize());
-
-        assert_eq!(hash, expected);
-    }
-
-    // ===== Content Snapshot Extraction Tests =====
-
-    #[test]
-    fn test_extract_content_snapshot_middle_lines() {
-        use crate::providers::DiffProvider;
-        use crate::providers::mock_provider::MockDiffProvider;
-
-        let mut mock_provider = MockDiffProvider::new();
-        let content = "line1\nline2\nline3\nline4\nline5\nline6\nline7\nline8\nline9\nline10\n";
-        mock_provider.add_file_content("test.rs", &GitRef::head(), content);
-
-        let line_range = test_range(3, 5);
-
-        let snapshot = mock_provider
-            .get_content_snapshot("test.rs", &GitRef::head(), &line_range)
-            .unwrap();
-
-        assert_eq!(snapshot, Some("line3\nline4\nline5".to_string()));
-    }
-
-    #[test]
-    fn test_extract_content_snapshot_start_of_file() {
-        use crate::providers::DiffProvider;
-        use crate::providers::mock_provider::MockDiffProvider;
-
-        let mut mock_provider = MockDiffProvider::new();
-        let content = "line1\nline2\nline3\n";
-        mock_provider.add_file_content("test.rs", &GitRef::head(), content);
-
-        let line_range = test_range(1, 2);
-
-        let snapshot = mock_provider
-            .get_content_snapshot("test.rs", &GitRef::head(), &line_range)
-            .unwrap();
-
-        assert_eq!(snapshot, Some("line1\nline2".to_string()));
-    }
-
-    #[test]
-    fn test_extract_content_snapshot_end_of_file() {
-        use crate::providers::DiffProvider;
-        use crate::providers::mock_provider::MockDiffProvider;
-
-        let mut mock_provider = MockDiffProvider::new();
-        let content = "line1\nline2\nline3\n";
-        mock_provider.add_file_content("test.rs", &GitRef::head(), content);
-
-        let line_range = test_range(2, 3);
-
-        let snapshot = mock_provider
-            .get_content_snapshot("test.rs", &GitRef::head(), &line_range)
-            .unwrap();
-
-        assert_eq!(snapshot, Some("line2\nline3".to_string()));
-    }
-
-    #[test]
-    fn test_extract_content_snapshot_beyond_file_bounds() {
-        use crate::providers::DiffProvider;
-        use crate::providers::mock_provider::MockDiffProvider;
-
-        let mut mock_provider = MockDiffProvider::new();
-        let content = "line1\nline2\nline3\n";
-        mock_provider.add_file_content("test.rs", &GitRef::head(), content);
-
-        let line_range = test_range(10, 15);
-
-        let snapshot = mock_provider
-            .get_content_snapshot("test.rs", &GitRef::head(), &line_range)
-            .unwrap();
-
-        assert_eq!(snapshot, None);
-    }
-
-    #[test]
-    fn test_extract_content_snapshot_empty_range() {
-        use crate::providers::DiffProvider;
-        use crate::providers::mock_provider::MockDiffProvider;
-
-        let mut mock_provider = MockDiffProvider::new();
-        let content = "line1\nline2\nline3\n";
-        mock_provider.add_file_content("test.rs", &GitRef::head(), content);
-
-        let line_range = test_range(2, 2);
-
-        let snapshot = mock_provider
-            .get_content_snapshot("test.rs", &GitRef::head(), &line_range)
-            .unwrap();
-
-        assert_eq!(snapshot, Some("line2".to_string()));
     }
 
     // Tests for Phase 3: Export Format Enhancement

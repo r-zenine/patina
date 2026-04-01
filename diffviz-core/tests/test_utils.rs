@@ -6,8 +6,8 @@
 use diffviz_core::common::LanguageParser;
 use diffviz_core::common::ProgrammingLanguage;
 use diffviz_core::parsers::{
-    CParser, CppParser, CssParser, GoParser, JavaParser, JavaScriptParser, JsonParser,
-    PythonParser, RustParser, TomlParser, TypeScriptParser,
+    CParser, CppParser, GoParser, JavaParser, JavaScriptParser, PythonParser, RustParser,
+    TypeScriptParser,
 };
 
 /// Get the appropriate language parser for a given programming language
@@ -23,10 +23,7 @@ pub fn get_parser_for_language(language: ProgrammingLanguage) -> Box<dyn Languag
         ProgrammingLanguage::Java => Box::new(JavaParser::new()),
         ProgrammingLanguage::C => Box::new(CParser::new()),
         ProgrammingLanguage::Cpp => Box::new(CppParser::new()),
-        ProgrammingLanguage::Json => Box::new(JsonParser::new()),
         ProgrammingLanguage::JavaScript => Box::new(JavaScriptParser::new()),
-        ProgrammingLanguage::Css => Box::new(CssParser::new()),
-        ProgrammingLanguage::Toml => Box::new(TomlParser::new()),
         ProgrammingLanguage::Unknown => Box::new(RustParser::new()), // Default to Rust for unknown languages
     }
 }

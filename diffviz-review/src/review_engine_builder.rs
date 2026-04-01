@@ -96,10 +96,10 @@ impl ReviewEngineBuilder {
 
                     // Create providers for the sources
                     let new_provider = Box::new(SourceCode::new(new_source_str.clone()))
-                        as Box<dyn diffviz_core::ast_diff::FullSourceProvider>;
+                        as Box<dyn diffviz_core::ast_diff::SourceProvider>;
                     let old_provider = old_source_str.as_ref().map(|src| {
                         Box::new(SourceCode::new(src.clone()))
-                            as Box<dyn diffviz_core::ast_diff::FullSourceProvider>
+                            as Box<dyn diffviz_core::ast_diff::SourceProvider>
                     });
 
                     // Call decision-based diff creation (returns one or more diffs)
@@ -177,8 +177,6 @@ fn extract_line_range_from_core_diff(
         NodeChangeStatus::Added { node } => (Some(node), new_source),
         NodeChangeStatus::Deleted { node } => (Some(node), old_source),
         NodeChangeStatus::Modified { new_node, .. } => (Some(new_node), new_source),
-        NodeChangeStatus::Moved { new_node, .. } => (Some(new_node), new_source),
-        NodeChangeStatus::Reordered { new_node, .. } => (Some(new_node), new_source),
     };
 
     if let Some(node) = node_data {
@@ -243,57 +241,3 @@ fn get_language_parser_for_file(
         ))),
     }
 }
-
-// TODO: Future implementation would include:
-//
-// fn perform_semantic_analysis(
-//     old_content: &str,
-//     new_content: &str,
-//     language: ProgrammingLanguage,
-//     query: &DiffQuery,
-//     file_path: &str,
-// ) -> Result<Vec<ReviewableDiff>> {
-//     use diffviz_core::ast_diff::{diff_ast_trees_with_strategies, ChangeDetectionStrategies, SourceCode};
-//     use diffviz_core::reviewable_diff::expand_changes_to_reviewable_diffs;
-//     use diffviz_core::common::LanguageParser;
-//     use tree_sitter::Parser;
-//
-//     // 1. Create SourceCode objects
-//     let old_source = SourceCode::new(old_content);
-//     let new_source = SourceCode::new(new_content);
-//
-//     // 2. Get appropriate parser for language
-//     let parser_impl: Box<dyn LanguageParser> = get_parser_for_language(language)
-//         .with_context(|| format!("Unsupported language for file: {}", file_path))?;
-//     let mut ts_parser = Parser::new();
-//     ts_parser.set_language(parser_impl.get_language())
-//         .with_context(|| "Failed to set TreeSitter language")?;
-//
-//     // 3. Parse AST trees
-//     let old_tree = ts_parser.parse(old_content, None)
-//         .with_context(|| "Failed to parse old content")?;
-//     let new_tree = ts_parser.parse(new_content, None)
-//         .with_context(|| "Failed to parse new content")?;
-//
-//     // 4. Detect changes using strategies
-//     let strategies = ChangeDetectionStrategies::default_strategies();
-//     let ast_diff = diff_ast_trees_with_strategies(
-//         &old_tree, &new_tree, old_content, new_content, strategies
-//     );
-//
-//     // 5. Expand changes to ReviewableDiffs with context
-//     let core_reviewable_diffs = expand_changes_to_reviewable_diffs(
-//         &ast_diff.changes,
-//         parser_impl.as_ref(),
-//         &old_source,
-//         &new_source,
-//         language,
-//     );
-//
-//     // 6. Convert diffviz-core ReviewableDiffs to review-layer ReviewableDiffs
-//     let review_layer_diffs = core_reviewable_diffs.into_iter().map(|core_diff| {
-//         convert_core_to_review_diff(core_diff, query, file_path)
-//     }).collect::<Result<Vec<_>>>()?;
-//
-//     Ok(review_layer_diffs)
-// }

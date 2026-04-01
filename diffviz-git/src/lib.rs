@@ -96,39 +96,6 @@ impl GitRepository {
         Ok(Self { repo })
     }
 
-    // /// Computes the diff between two commits in the repository.
-    // ///
-    // /// This function takes commit references (hashes, branch names, tags, etc.) and returns
-    // /// a structured diff showing all file changes, hunks, and individual line modifications.
-    // ///
-    // /// # Arguments
-    // ///
-    // /// * `from_commit` - Source commit reference (hash, branch, tag, etc.)
-    // /// * `to_commit` - Target commit reference to compare against
-    // ///
-    // /// # Returns
-    // ///
-    // /// TODO: BROKEN - References non-existent Diff type. Needs refactoring.
-    // /// Returns a Diff containing semantic chunk information for code review analysis.
-    // ///
-    // /// # Example
-    // ///
-    // /// This method is currently disabled (see TODO above).
-    // TODO: BROKEN - Diff type doesn't exist, needs refactoring
-    /*
-    pub fn get_diff(&self, from_commit: &str, to_commit: &str) -> Result<Diff> {
-        // NOTE: In the new architecture, the git layer only provides raw git data.
-        // Semantic chunks are created by the semantic layer using ChunkProcessor + DiffProvider.
-        // This method now returns an empty diff that should be populated by the semantic layer.
-
-        Ok(Diff {
-            from_commit: from_commit.to_string(),
-            to_commit: to_commit.to_string(),
-            chunks: Vec::new(), // Empty - will be populated by semantic processing
-        })
-    }
-    */
-
     /// Resolves commit references to their corresponding git tree objects.
     ///
     /// Takes commit references (which can be hashes, branch names, tags, etc.) and converts
@@ -215,67 +182,6 @@ impl GitRepository {
             .map_err(GitError::Git)
     }
 
-    // TODO: BROKEN - Diff type doesn't exist, needs refactoring
-    /*
-    /// Get the diff for working directory changes (unstaged changes)
-    ///
-    /// # Returns
-    ///
-    /// Returns a Diff struct with empty chunks that should be populated by semantic processing
-    pub fn get_working_directory_diff(&self) -> Result<Diff> {
-        // NOTE: Like get_diff, this returns empty chunks that should be populated
-        // by the semantic layer in the new architecture
-
-        Ok(Diff {
-            from_commit: "HEAD".to_string(),
-            to_commit: "working-directory".to_string(),
-            chunks: Vec::new(), // Empty - will be populated by semantic processing
-        })
-    }
-
-    /// Get the diff for staged changes (changes in index)
-    ///
-    /// # Returns
-    ///
-    /// Returns a Diff struct with empty chunks that should be populated by semantic processing
-    pub fn get_staged_diff(&self) -> Result<Diff> {
-        // NOTE: Like get_diff, this returns empty chunks that should be populated
-        // by the semantic layer in the new architecture
-
-        Ok(Diff {
-            from_commit: "HEAD".to_string(),
-            to_commit: "index".to_string(),
-            chunks: Vec::new(), // Empty - will be populated by semantic processing
-        })
-    }
-    */
-
-    // TODO: BROKEN - RetrievalContext type doesn't exist, needs refactoring
-    /*
-    pub fn stage_file(&self, file_path: &str, _context: &RetrievalContext) -> Result<()> {
-        // Get the index
-        let mut index = self.repo.index().map_err(GitError::Git)?;
-
-        // Add the file to the index
-        index
-            .add_path(Path::new(file_path))
-            .map_err(|e| GitError::StagingFailed {
-                file: file_path.to_string(),
-                reason: e.to_string(),
-                source: Some(e),
-            })?;
-
-        // Write the index
-        index.write().map_err(|e| GitError::StagingFailed {
-            file: file_path.to_string(),
-            reason: format!("Failed to write index: {e}"),
-            source: Some(e),
-        })?;
-
-        Ok(())
-    }
-    */
-
     /// Gets the HEAD tree for diff comparisons
     fn get_head_tree(&self) -> Result<git2::Tree> {
         let head = self.repo.head().map_err(GitError::Git)?;
@@ -283,99 +189,6 @@ impl GitRepository {
         head_commit.tree().map_err(GitError::Git)
     }
 
-    // /// Retrieves the content of specific lines from a file at a given commit.
-    // ///
-    // /// This method is used to expand semantic chunks with additional context lines
-    // /// during the review process. It leverages git's object storage to efficiently
-    // /// retrieve historical file content.
-    // ///
-    // /// # Arguments
-    // ///
-    // /// * `hunk_ref` - Reference containing file path, commit info, and line range
-    // ///
-    // /// # Returns
-    // ///
-    // /// Returns the requested lines as strings, or GitError if retrieval fails.
-    // TODO: BROKEN - RetrievalContext type doesn't exist, needs refactoring
-    /*
-    pub fn retrieve_lines(
-        &self,
-        context: &RetrievalContext,
-        file_path: &str,
-    ) -> Result<Vec<String>> {
-        let (commit_hash, start_line, line_count) = match context {
-            RetrievalContext::SingleCommit {
-                commit,
-                start_line,
-                line_count,
-            } => (commit, *start_line, *line_count),
-            RetrievalContext::CommitComparison {
-                to_commit,
-                new_start,
-                new_lines,
-                ..
-            } => (to_commit, *new_start, *new_lines),
-            _ => {
-                return Err(GitError::PatchCreationFailed {
-                    file: file_path.to_string(),
-                    reason: "No git commit context available".to_string(),
-                });
-            }
-        };
-
-        // Resolve the commit
-        let commit_obj =
-            self.repo
-                .revparse_single(commit_hash)
-                .map_err(|source| GitError::InvalidCommit {
-                    hash: commit_hash.to_string(),
-                    source,
-                })?;
-
-        let commit = commit_obj
-            .as_commit()
-            .ok_or_else(|| GitError::InvalidCommit {
-                hash: commit_hash.to_string(),
-                source: git2::Error::from_str("Object is not a commit"),
-            })?;
-
-        let tree = commit.tree().map_err(|source| GitError::InvalidCommit {
-            hash: commit_hash.to_string(),
-            source,
-        })?;
-
-        // Find the file in the tree
-        let tree_entry =
-            tree.get_path(Path::new(file_path))
-                .map_err(|e| GitError::PatchCreationFailed {
-                    file: file_path.to_string(),
-                    reason: format!("File not found in commit {commit_hash}: {e}"),
-                })?;
-
-        let blob = self
-            .repo
-            .find_blob(tree_entry.id())
-            .map_err(GitError::Git)?;
-
-        let content =
-            std::str::from_utf8(blob.content()).map_err(|_| GitError::PatchCreationFailed {
-                file: file_path.to_string(),
-                reason: "File contains invalid UTF-8".to_string(),
-            })?;
-
-        // Extract the requested line range
-        let lines: Vec<&str> = content.lines().collect();
-        let start_index = (start_line.saturating_sub(1)) as usize;
-        let end_index = (start_index + line_count as usize).min(lines.len());
-
-        let selected_lines = lines[start_index..end_index]
-            .iter()
-            .map(|&line| line.to_string())
-            .collect();
-
-        Ok(selected_lines)
-    }
-    */
     // Helper methods for DiffProvider implementation
 
     /// Get file content at a specific commit

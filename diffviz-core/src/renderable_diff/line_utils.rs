@@ -26,25 +26,11 @@ pub struct NodeAnnotation {
     pub depth: usize,
 }
 
-/// Find a line in source text and return a reference if found
-/// Returns None if the line is not found in the source
-#[allow(dead_code)]
-fn find_line_in_source<'source>(line: &str, source_text: &'source str) -> Option<&'source str> {
-    // Find the line in the source text by exact match
-    source_text.lines().find(|source_line| *source_line == line)
-}
-
-/// Create lines using single source (for non-Modified boundaries)  
+/// Create lines using single source (for non-Modified boundaries)
 pub fn create_single_source_lines<'source>(
     reviewable: &'source ReviewableDiff,
-) -> Vec<RenderableLine<'source>> {
-    // Extract boundary source with proper error handling
-    let source = extract_boundary_source(reviewable).unwrap_or_else(|err| {
-        eprintln!(
-            "Warning: Failed to extract boundary source: {err}. Using fallback empty source."
-        );
-        "" // Return empty source as fallback
-    });
+) -> Result<Vec<RenderableLine<'source>>, crate::ast_diff::SourceError> {
+    let source = extract_boundary_source(reviewable)?;
 
     // Split into lines with byte positions
     let line_infos = split_into_lines_with_positions(source);
@@ -62,7 +48,7 @@ pub fn create_single_source_lines<'source>(
     }
 
     // Map annotations to lines
-    line_infos
+    Ok(line_infos
         .into_iter()
         .map(|line_info| {
             let annotations = map_annotations_to_line(&line_info, &node_annotations);
@@ -79,7 +65,7 @@ pub fn create_single_source_lines<'source>(
                 ),
             }
         })
-        .collect()
+        .collect())
 }
 
 /// Extract boundary source text from ReviewableDiff
@@ -107,8 +93,6 @@ fn get_display_node_with_source<'a>(
         NodeChangeStatus::Added { node, .. } => Some((node, new_source)), // Added nodes are in new source
         NodeChangeStatus::Deleted { node, .. } => Some((node, old_source)), // Deleted nodes are in old source
         NodeChangeStatus::Modified { new_node, .. } => Some((new_node, new_source)), // Use new version
-        NodeChangeStatus::Moved { new_node, .. } => Some((new_node, new_source)), // Use new position
-        NodeChangeStatus::Reordered { new_node, .. } => Some((new_node, new_source)), // Use new order
     }
 }
 
@@ -119,8 +103,6 @@ fn get_display_node(change_status: &NodeChangeStatus) -> Option<&crate::ast_diff
         NodeChangeStatus::Added { node, .. } => Some(node),
         NodeChangeStatus::Deleted { node, .. } => Some(node),
         NodeChangeStatus::Modified { new_node, .. } => Some(new_node),
-        NodeChangeStatus::Moved { new_node, .. } => Some(new_node),
-        NodeChangeStatus::Reordered { new_node, .. } => Some(new_node),
     }
 }
 
@@ -176,8 +158,6 @@ fn extract_change_type(change_status: &NodeChangeStatus) -> Option<ChangeType> {
         NodeChangeStatus::Added { .. } => Some(ChangeType::Added),
         NodeChangeStatus::Deleted { .. } => Some(ChangeType::Deleted),
         NodeChangeStatus::Modified { .. } => Some(ChangeType::Modified),
-        NodeChangeStatus::Moved { .. } => Some(ChangeType::Moved),
-        NodeChangeStatus::Reordered { .. } => Some(ChangeType::Reordered),
         NodeChangeStatus::Unchanged { .. } => None,
     }
 }

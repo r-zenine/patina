@@ -240,3 +240,7 @@ impl DiffProvider for MockDiffProvider {
         Ok(Some(snapshot))
     }
 }
+
+#[cfg(test)]
+#[path = "mock_provider_tests.rs"]
+mod tests;

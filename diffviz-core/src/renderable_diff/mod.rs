@@ -4,6 +4,7 @@
 //! diffs that bridges between tree-based semantic analysis and character/line-based
 //! display systems.
 
+use crate::ast_diff::SourceError;
 use crate::common::ProgrammingLanguage;
 use crate::{
     ast_diff::{BACKGROUND, ESSENTIAL, LineRange, NOISE, RelevanceScore},
@@ -11,6 +12,13 @@ use crate::{
     reviewable_diff::{NodeChangeStatus, ReviewableDiff},
 };
 use std::collections::HashMap;
+
+/// Error type for RenderableDiff creation
+#[derive(Debug, thiserror::Error)]
+pub enum RenderableDiffError {
+    #[error("Failed to extract source for rendering: {0}")]
+    SourceError(#[from] SourceError),
+}
 
 mod line_utils;
 mod myers_diff;
@@ -68,8 +76,6 @@ pub enum ChangeType {
     Added,
     Deleted,
     Modified,
-    Moved,
-    Reordered,
 }
 
 /// Semantic anchor identifying what a line represents
@@ -371,27 +377,17 @@ fn find_original_line_content<'source>(
     }
 }
 
-/// Idiomatic conversion from ReviewableDiff to RenderableDiff
-impl<'source> From<&'source ReviewableDiff> for RenderableDiff<'source> {
-    fn from(reviewable: &'source ReviewableDiff) -> Self {
+/// Fallible conversion from ReviewableDiff to RenderableDiff
+impl<'source> TryFrom<&'source ReviewableDiff> for RenderableDiff<'source> {
+    type Error = RenderableDiffError;
+
+    fn try_from(reviewable: &'source ReviewableDiff) -> Result<Self, Self::Error> {
         // Use Myers diff for Modified changes, single source for others
         let lines = match &reviewable.boundary.change_status {
             NodeChangeStatus::Modified {
                 old_node, new_node, ..
-            } => {
-                // Use Myers diff to show proper before/after lines
-                match create_line_by_line_diff_for_modified(reviewable, old_node, new_node) {
-                    Ok(myers_lines) => myers_lines,
-                    Err(_) => {
-                        // Fallback to single source approach if Myers diff fails
-                        create_single_source_lines(reviewable)
-                    }
-                }
-            }
-            _ => {
-                // For non-Modified changes, use single source approach
-                create_single_source_lines(reviewable)
-            }
+            } => create_line_by_line_diff_for_modified(reviewable, old_node, new_node)?,
+            _ => create_single_source_lines(reviewable)?,
         };
 
         // Create simplified metadata
@@ -422,18 +418,11 @@ impl<'source> From<&'source ReviewableDiff> for RenderableDiff<'source> {
             changed_line_numbers,
         };
 
-        RenderableDiff {
+        Ok(RenderableDiff {
             lines,
             metadata,
             language: reviewable.language,
-        }
-    }
-}
-
-/// Support collecting ReviewableDiffs into RenderableDiffs
-impl<'source> FromIterator<&'source ReviewableDiff> for Vec<RenderableDiff<'source>> {
-    fn from_iter<I: IntoIterator<Item = &'source ReviewableDiff>>(iter: I) -> Self {
-        iter.into_iter().map(RenderableDiff::from).collect()
+        })
     }
 }
 
@@ -472,8 +461,6 @@ impl<'source> RenderableLine<'source> {
             Some(ChangeType::Added) => ("+", "\x1b[32m"),   // Green
             Some(ChangeType::Deleted) => ("-", "\x1b[31m"), // Red
             Some(ChangeType::Modified) => ("~", "\x1b[33m"), // Yellow
-            Some(ChangeType::Moved) => (">", "\x1b[33m"),   // Yellow
-            Some(ChangeType::Reordered) => ("↕", "\x1b[33m"), // Yellow
             None => ("  ", "\x1b[37m"),                     // Light Gray
         }
     }
@@ -530,8 +517,6 @@ fn get_display_node(change_status: &NodeChangeStatus) -> Option<&crate::ast_diff
         NodeChangeStatus::Added { node, .. } => Some(node),
         NodeChangeStatus::Deleted { node, .. } => Some(node),
         NodeChangeStatus::Modified { new_node, .. } => Some(new_node),
-        NodeChangeStatus::Moved { new_node, .. } => Some(new_node),
-        NodeChangeStatus::Reordered { new_node, .. } => Some(new_node),
     }
 }
 
@@ -541,7 +526,5 @@ fn change_type_priority(change_type: &ChangeType) -> u8 {
         ChangeType::Added => 0,
         ChangeType::Deleted => 1,
         ChangeType::Modified => 2,
-        ChangeType::Moved => 3,
-        ChangeType::Reordered => 4,
     }
 }
