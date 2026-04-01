@@ -1,606 +1,236 @@
-//! Rust language parser implementation
+//! Rust language parser — `RustDescriptor` + `RustParser` newtype wrapper.
 //!
-//! This module provides Rust-specific parsing using TreeSitter and implements
-//! the simplified LanguageParser trait for AST analysis.
+//! `RustDescriptor` implements `LanguageDescriptor` with Rust-specific kind tables.
+//! `RustParser` wraps `GenericSemanticTreeBuilder<RustDescriptor>` and overrides
+//! only `get_context_boundaries` with the Rust-specific boundary logic.
 
-use crate::common::{ASTError, LanguageParser, ProgrammingLanguage, Result, SemanticNodeKind};
-use crate::semantic_ast::{
-    ImportType, MetadataNode, MetadataPosition, ModuleType, SemanticError, SemanticNode,
-    SemanticTree, SemanticUnitType,
-};
-use std::collections::HashMap;
-use tree_sitter::{Node, Parser, Tree};
+use crate::ast_diff::ASTChangeType;
+use crate::common::{LanguageParser, ProgrammingLanguage, Result, SemanticNodeKind};
+use crate::parsers::descriptor::LanguageDescriptor;
+use crate::parsers::generic_builder::GenericSemanticTreeBuilder;
+use crate::semantic_ast::{SemanticError, SemanticTree};
+use tree_sitter::{Language, Node, Tree};
 
-/// Rust language parser using TreeSitter
-pub struct RustParser;
+// ── RustDescriptor ────────────────────────────────────────────────────────────
+
+/// Language descriptor for Rust — static kind tables consumed by
+/// `GenericSemanticTreeBuilder`.
+pub struct RustDescriptor;
+
+/// Maps tree-sitter node kinds to `SemanticNodeKind`.
+///
+/// Serves two purposes:
+/// - Tree construction: Function/Struct/Enum/ImplBlock/Module/Import/Variable
+///   kinds produce typed `SemanticNode`s in the semantic tree.
+/// - Classification: all other kinds (Statement, Expression, SignatureComponent,
+///   Comment, SourceFile) are returned by `classify_node_kind` only.
+///
+/// Note: `visibility_modifier` and `function_modifiers` appear here for
+/// classification (→ `SignatureComponent`) and in `RUST_TRIVIAL_KINDS` to be
+/// skipped during tree construction.  Trivial-kinds governs tree building;
+/// this map governs `classify_node_kind`.
+static RUST_SEMANTIC_KIND_MAP: &[(&str, SemanticNodeKind)] = &[
+    // ── Construction kinds ────────────────────────────────────────────────
+    ("function_item", SemanticNodeKind::Function),
+    ("struct_item", SemanticNodeKind::Struct),
+    ("enum_item", SemanticNodeKind::Enum),
+    ("impl_item", SemanticNodeKind::ImplBlock),
+    ("trait_item", SemanticNodeKind::Interface),
+    ("mod_item", SemanticNodeKind::Module),
+    ("use_declaration", SemanticNodeKind::Import),
+    ("const_item", SemanticNodeKind::Variable),
+    ("static_item", SemanticNodeKind::Variable),
+    ("let_declaration", SemanticNodeKind::Variable),
+    // ── Classification-only: statements ──────────────────────────────────
+    ("expression_statement", SemanticNodeKind::Statement),
+    ("assignment_expression", SemanticNodeKind::Statement),
+    // ── Classification-only: expressions ─────────────────────────────────
+    ("call_expression", SemanticNodeKind::Expression),
+    ("method_call_expression", SemanticNodeKind::Expression),
+    ("binary_expression", SemanticNodeKind::Expression),
+    ("unary_expression", SemanticNodeKind::Expression),
+    ("field_expression", SemanticNodeKind::Expression),
+    ("index_expression", SemanticNodeKind::Expression),
+    // ── Classification-only: type definitions ────────────────────────────
+    ("type_alias", SemanticNodeKind::TypeDefinition),
+    // ── Classification-only: signature components ─────────────────────────
+    ("visibility_modifier", SemanticNodeKind::SignatureComponent),
+    ("function_modifiers", SemanticNodeKind::SignatureComponent),
+    ("parameters", SemanticNodeKind::SignatureComponent),
+    ("return_type", SemanticNodeKind::SignatureComponent),
+    ("type_parameters", SemanticNodeKind::SignatureComponent),
+    ("generic_type", SemanticNodeKind::SignatureComponent),
+    ("type_parameter", SemanticNodeKind::SignatureComponent),
+    // ── Classification-only: comments ────────────────────────────────────
+    ("line_comment", SemanticNodeKind::Comment),
+    ("block_comment", SemanticNodeKind::Comment),
+    // ── Root ─────────────────────────────────────────────────────────────
+    ("source_file", SemanticNodeKind::SourceFile),
+];
+
+/// Node kinds with no semantic value — skipped during tree construction.
+///
+/// Intentional overlaps with `RUST_SEMANTIC_KIND_MAP`:
+/// - `visibility_modifier`, `function_modifiers` → skipped in the tree but
+///   classified as `SignatureComponent` by `classify_node_kind`.
+/// - `doc_comment` → skipped so that `find_units_touching_range_recursive`
+///   returns the enclosing function, not the comment node.
+static RUST_TRIVIAL_KINDS: &[&str] = &[
+    // Punctuation / operators
+    "(",
+    ")",
+    "[",
+    "]",
+    "{",
+    "}",
+    ",",
+    ";",
+    ":",
+    "::",
+    ".",
+    "..",
+    "...",
+    "?",
+    "!",
+    "#",
+    "@",
+    "$",
+    "%",
+    "^",
+    "&",
+    "*",
+    "-",
+    "=",
+    "+",
+    "|",
+    "\\",
+    "/",
+    "<",
+    ">",
+    // Keywords
+    "fn",
+    "struct",
+    "enum",
+    "impl",
+    "trait",
+    "mod",
+    "use",
+    "pub",
+    "const",
+    "static",
+    "let",
+    "mut",
+    "if",
+    "else",
+    "match",
+    "for",
+    "while",
+    "loop",
+    "break",
+    "continue",
+    "return",
+    "async",
+    "await",
+    "move",
+    "where",
+    "as",
+    "in",
+    // Common derive identifiers
+    "derive",
+    "Debug",
+    "Clone",
+    "Copy",
+    "PartialEq",
+    "Eq",
+    "Hash",
+    "Default",
+    "Serialize",
+    "Deserialize",
+    // Visibility / modifiers — skipped in tree, classifiable via kind map
+    "visibility_modifier",
+    "function_modifiers",
+    // Literals
+    "string_literal",
+    "raw_string_literal",
+    "integer_literal",
+    "float_literal",
+    "boolean_literal",
+    "char_literal",
+    // Identifiers
+    "identifier",
+    "field_identifier",
+    "type_identifier",
+    // Type tokens
+    "primitive_type",
+    "reference_type",
+    "pointer_type",
+    "array_type",
+    "tuple_type",
+    // Expression components
+    "binary_operator",
+    "unary_operator",
+    "assignment_operator",
+    "compound_assignment_expr",
+    "range_expression",
+    // Comments (including doc comments) — kept trivial so range queries find
+    // the enclosing function rather than the doc comment node
+    "line_comment",
+    "block_comment",
+    "doc_comment",
+    // Error nodes
+    "ERROR",
+    "MISSING",
+];
+
+impl LanguageDescriptor for RustDescriptor {
+    fn ts_language(&self) -> Language {
+        tree_sitter_rust::language()
+    }
+
+    fn programming_language(&self) -> ProgrammingLanguage {
+        ProgrammingLanguage::Rust
+    }
+
+    fn semantic_kind_map(&self) -> &[(&'static str, SemanticNodeKind)] {
+        RUST_SEMANTIC_KIND_MAP
+    }
+
+    fn trivial_kinds(&self) -> &[&'static str] {
+        RUST_TRIVIAL_KINDS
+    }
+
+    fn container_body_field(&self, kind: &str) -> Option<&'static str> {
+        match kind {
+            "mod_item" | "impl_item" => Some("body"),
+            _ => None,
+        }
+    }
+
+    fn metadata_kind(&self) -> Option<&'static str> {
+        Some("attribute_item")
+    }
+
+    // `extract_visibility` uses the default: scan `node.children` for a
+    // `"visibility_modifier"` child.  In the Rust grammar, visibility modifiers
+    // are direct children of the item node (function_item, struct_item, …),
+    // so the default is correct.
+
+    // `collect_metadata` uses the default: scan backwards through `parent.children`
+    // collecting `"attribute_item"` siblings immediately preceding the node.
+}
+
+// ── RustParser (newtype wrapper) ──────────────────────────────────────────────
+
+/// Rust language parser.
+///
+/// Thin newtype over `GenericSemanticTreeBuilder<RustDescriptor>`.
+/// Delegates all `LanguageParser` methods except `get_context_boundaries`,
+/// which carries Rust-specific boundary semantics.
+pub struct RustParser(GenericSemanticTreeBuilder<RustDescriptor>);
 
 impl RustParser {
-    /// Create a new RustParser
     pub fn new() -> Self {
-        Self
-    }
-
-    /// Build a semantic node from a TreeSitter node
-    /// Only creates semantic nodes for meaningful constructs, skips trivial syntax tokens
-    fn build_semantic_node<'a>(
-        &self,
-        node: Node<'a>,
-        source: &str,
-        parent: Option<Node<'a>>,
-        parent_context: Option<&str>,
-    ) -> std::result::Result<SemanticNode<'a>, SemanticError> {
-        match node.kind() {
-            "source_file" => self.build_source_file_node(node, source),
-            "function_item" => self.build_function_node(node, source, parent, parent_context),
-            "struct_item" => self.build_struct_node(node, source, parent),
-            "enum_item" => self.build_enum_node(node, source, parent),
-            "mod_item" => self.build_module_node(node, source, parent),
-            "use_declaration" => self.build_import_node(node, source, parent),
-            "const_item" | "static_item" => self.build_variable_node(node, source, parent),
-            "impl_item" => {
-                // Skip impl, return error since this should be handled at source file level
-                Err(SemanticError::TreeBuildError(
-                    "Impl items should be handled at parent level".to_string(),
-                ))
-            }
-            _ => {
-                // Skip trivial syntax tokens - only process meaningful semantic constructs
-                if self.is_trivial_syntax_token(node.kind()) {
-                    return Err(SemanticError::TreeBuildError(format!(
-                        "Skipping trivial syntax token: {}",
-                        node.kind()
-                    )));
-                }
-
-                // For non-trivial unknown node types, look for meaningful children
-                let mut meaningful_children = Vec::new();
-                let mut cursor = node.walk();
-                for child in node.children(&mut cursor) {
-                    // Only try to build semantic nodes for potentially meaningful children
-                    if !self.is_trivial_syntax_token(child.kind()) {
-                        match self.build_semantic_node(child, source, Some(node), parent_context) {
-                            Ok(child_node) => meaningful_children.push(child_node),
-                            Err(_) => {
-                                // Skip children that failed to parse - no need to create Unknown nodes
-                                continue;
-                            }
-                        }
-                    }
-                }
-
-                // If we found meaningful children, create a container node
-                if !meaningful_children.is_empty() {
-                    let mut metadata = HashMap::new();
-                    metadata.insert("original_kind".to_string(), node.kind().to_string());
-
-                    let mut container_node = SemanticNode::new(
-                        node,
-                        None,
-                        SemanticUnitType::Unknown {
-                            node_kind: node.kind().to_string(),
-                            metadata,
-                        },
-                        Vec::new(),
-                    );
-                    container_node.children = meaningful_children;
-
-                    Ok(container_node)
-                } else {
-                    // No meaningful children found, skip this node
-                    Err(SemanticError::TreeBuildError(format!(
-                        "No meaningful children found for node: {}",
-                        node.kind()
-                    )))
-                }
-            }
-        }
-    }
-
-    /// Check if a node kind represents trivial syntax that should not become a semantic node
-    fn is_trivial_syntax_token(&self, node_kind: &str) -> bool {
-        matches!(
-            node_kind,
-            // Punctuation and operators
-            "(" | ")" | "[" | "]" | "{" | "}" | "," | ";" | ":" | "::" |
-            "." | ".." | "..." | "?" | "!" | "#" | "@" | "$" | "%" |
-            "^" | "&" | "*" | "-" | "=" | "+" | "|" | "\\" | "/" | "<" | ">" |
-
-            // Keywords that are part of larger constructs
-            "fn" | "struct" | "enum" | "impl" | "trait" | "mod" | "use" |
-            "pub" | "const" | "static" | "let" | "mut" | "if" | "else" |
-            "match" | "for" | "while" | "loop" | "break" | "continue" |
-            "return" | "async" | "await" | "move" | "where" | "as" | "in" |
-
-            // Derives (these should be part of their parent construct, but not the attribute container)
-            "derive" | "Debug" | "Clone" | "Copy" | "PartialEq" |
-            "Eq" | "Hash" | "Default" | "Serialize" | "Deserialize" |
-
-            // Visibility and modifiers
-            "visibility_modifier" | "function_modifiers" |
-
-            // Literals and identifiers (these should be part of their parent construct)
-            "string_literal" | "raw_string_literal" | "integer_literal" |
-            "float_literal" | "boolean_literal" | "char_literal" |
-            "identifier" | "field_identifier" | "type_identifier" |
-
-            // Type-related tokens
-            "primitive_type" | "generic_type" | "reference_type" |
-            "pointer_type" | "array_type" | "tuple_type" |
-
-            // Expression components (should be part of larger expressions)
-            "binary_operator" | "unary_operator" | "assignment_operator" |
-            "compound_assignment_expr" | "range_expression" |
-
-            // Comments and whitespace
-            "line_comment" | "block_comment" | "doc_comment" |
-
-            // Error nodes
-            "ERROR" | "MISSING"
-        )
-    }
-
-    /// Extract attribute information from an attribute_item node
-    #[allow(dead_code)]
-    fn extract_attribute_info(&self, node: Node<'_>, source: &str) -> String {
-        // Find the attribute node inside the attribute_item
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            if child.kind() == "attribute" {
-                return child.utf8_text(source.as_bytes()).unwrap_or("").to_string();
-            }
-        }
-        // Fallback: return the full text
-        node.utf8_text(source.as_bytes()).unwrap_or("").to_string()
-    }
-
-    /// Build semantic node with attributes, delegating to the existing build_semantic_node
-    #[allow(dead_code)]
-    fn build_semantic_node_with_attributes<'a>(
-        &self,
-        node: Node<'a>,
-        source: &str,
-        parent_context: Option<&str>,
-        attributes: &[String],
-    ) -> std::result::Result<SemanticNode<'a>, SemanticError> {
-        let mut semantic_node = self.build_semantic_node(node, source, None, parent_context)?;
-
-        // Add attributes to the node's metadata if there are any
-        if !attributes.is_empty() {
-            match &mut semantic_node.unit_type {
-                SemanticUnitType::Callable { metadata, .. }
-                | SemanticUnitType::DataStructure { metadata, .. }
-                | SemanticUnitType::Variable { metadata, .. } => {
-                    metadata.insert("attributes".to_string(), attributes.join(", "));
-                }
-                _ => {
-                    // For other types, we could extend this as needed
-                }
-            }
-        }
-
-        Ok(semantic_node)
-    }
-
-    /// Build semantic node for source file (root)
-    fn build_source_file_node<'a>(
-        &self,
-        node: Node<'a>,
-        source: &str,
-    ) -> std::result::Result<SemanticNode<'a>, SemanticError> {
-        let mut children = Vec::new();
-        let mut cursor = node.walk();
-
-        for child in node.children(&mut cursor) {
-            // Skip trivial syntax tokens at the root level
-            if self.is_trivial_syntax_token(child.kind()) {
-                continue;
-            }
-
-            // Skip attribute items - they will be picked up by their target nodes
-            if child.kind() == "attribute_item" {
-                continue;
-            }
-
-            if child.kind() == "impl_item" {
-                // Special handling for impl blocks - extract the methods
-                match self.build_impl_items(child, source, Some(node)) {
-                    Ok(methods) => children.extend(methods),
-                    Err(_) => {
-                        // Skip impl blocks that failed to parse - no Unknown nodes
-                        continue;
-                    }
-                }
-            } else {
-                // Pass the source_file node as parent so children can find their attributes
-                match self.build_semantic_node(child, source, Some(node), None) {
-                    Ok(child_node) => children.push(child_node),
-                    Err(_) => {
-                        // Skip children that failed to parse - no Unknown nodes for trivial tokens
-                        continue;
-                    }
-                }
-            }
-        }
-
-        let mut root_node = SemanticNode::new(
-            node,
-            None,
-            SemanticUnitType::Module {
-                module_type: ModuleType::File,
-                is_public: true,
-                metadata: HashMap::new(),
-            },
-            Vec::new(), // Source file doesn't have metadata nodes
-        );
-        root_node.children = children;
-
-        Ok(root_node)
-    }
-
-    /// Build semantic node for function
-    fn build_function_node<'a>(
-        &self,
-        node: Node<'a>,
-        source: &str,
-        parent: Option<Node<'a>>,
-        parent_context: Option<&str>,
-    ) -> std::result::Result<SemanticNode<'a>, SemanticError> {
-        let name_node = node.child_by_field_name("name");
-        let parameters_node = node.child_by_field_name("parameters");
-        let return_type_node = node.child_by_field_name("return_type");
-        let body_node = node.child_by_field_name("body");
-        let type_parameters = node.child_by_field_name("type_parameters");
-
-        // Extract metadata
-        let mut metadata = HashMap::new();
-        if let Some(parent) = parent_context {
-            metadata.insert("parent_impl".to_string(), parent.to_string());
-        }
-
-        // Count parameters
-        let parameter_count = if let Some(params) = parameters_node {
-            params.child_count().saturating_sub(2) // Subtract parentheses
-        } else {
-            0
-        };
-
-        // Extract return type
-        let return_type = return_type_node
-            .and_then(|n| n.utf8_text(source.as_bytes()).ok())
-            .map(|s| s.to_string());
-
-        // Check for async
-        let is_async = Self::node_has_keyword(node, "async");
-
-        // Extract visibility
-        let visibility = self.extract_visibility(node, source);
-
-        // Find metadata nodes (attributes) if we have a parent
-        let metadata_nodes = if let Some(parent_node) = parent {
-            self.find_preceding_attributes(node, parent_node)
-        } else {
-            Vec::new()
-        };
-
-        Ok(SemanticNode::new(
-            node,
-            name_node,
-            SemanticUnitType::Callable {
-                is_generic: type_parameters.is_some(),
-                parameter_count,
-                return_type,
-                is_async,
-                visibility,
-                is_method: parent_context.is_some(),
-                signature_node: parameters_node,
-                body_node,
-                metadata,
-            },
-            metadata_nodes,
-        ))
-    }
-
-    /// Build semantic node for struct
-    fn build_struct_node<'a>(
-        &self,
-        node: Node<'a>,
-        source: &str,
-        parent: Option<Node<'a>>,
-    ) -> std::result::Result<SemanticNode<'a>, SemanticError> {
-        let name_node = node.child_by_field_name("name");
-        let type_parameters = node.child_by_field_name("type_parameters");
-        let body = node.child_by_field_name("body");
-
-        // Count fields
-        let field_count = body.map(|body_node| self.count_struct_fields(body_node));
-
-        let visibility = self.extract_visibility(node, source);
-
-        // Find metadata nodes (attributes) if we have a parent
-        let metadata_nodes = if let Some(parent_node) = parent {
-            self.find_preceding_attributes(node, parent_node)
-        } else {
-            Vec::new()
-        };
-
-        Ok(SemanticNode::new(
-            node,
-            name_node,
-            SemanticUnitType::DataStructure {
-                is_generic: type_parameters.is_some(),
-                field_count,
-                inheritance: Vec::new(), // Rust doesn't have inheritance
-                visibility,
-                signature_node: body,
-                metadata: HashMap::new(),
-            },
-            metadata_nodes,
-        ))
-    }
-
-    /// Build semantic node for enum
-    fn build_enum_node<'a>(
-        &self,
-        node: Node<'a>,
-        source: &str,
-        parent: Option<Node<'a>>,
-    ) -> std::result::Result<SemanticNode<'a>, SemanticError> {
-        let name_node = node.child_by_field_name("name");
-        let type_parameters = node.child_by_field_name("type_parameters");
-        let body = node.child_by_field_name("body");
-
-        // Count variants
-        let field_count = body.map(|body_node| self.count_enum_variants(body_node));
-
-        let visibility = self.extract_visibility(node, source);
-
-        // Find metadata nodes (attributes) if we have a parent
-        let metadata_nodes = if let Some(parent_node) = parent {
-            self.find_preceding_attributes(node, parent_node)
-        } else {
-            Vec::new()
-        };
-
-        Ok(SemanticNode::new(
-            node,
-            name_node,
-            SemanticUnitType::DataStructure {
-                is_generic: type_parameters.is_some(),
-                field_count,
-                inheritance: Vec::new(),
-                visibility,
-                signature_node: body,
-                metadata: HashMap::new(),
-            },
-            metadata_nodes,
-        ))
-    }
-
-    /// Build semantic node for module
-    fn build_module_node<'a>(
-        &self,
-        node: Node<'a>,
-        source: &str,
-        _parent: Option<Node<'a>>,
-    ) -> std::result::Result<SemanticNode<'a>, SemanticError> {
-        let name_node = node.child_by_field_name("name");
-        let visibility = self.extract_visibility(node, source);
-
-        let mut children = Vec::new();
-        if let Some(body) = node.child_by_field_name("body") {
-            let mut cursor = body.walk();
-            for child in body.children(&mut cursor) {
-                // Skip trivial syntax tokens in modules
-                if self.is_trivial_syntax_token(child.kind()) {
-                    continue;
-                }
-
-                if let Ok(child_node) = self.build_semantic_node(child, source, Some(body), None) {
-                    children.push(child_node);
-                }
-            }
-        }
-
-        let mut module_node = SemanticNode::new(
-            node,
-            name_node,
-            SemanticUnitType::Module {
-                module_type: ModuleType::Module,
-                is_public: visibility.starts_with("pub"),
-                metadata: HashMap::new(),
-            },
-            Vec::new(),
-        );
-        module_node.children = children;
-
-        Ok(module_node)
-    }
-
-    /// Build semantic node for import/use declaration
-    fn build_import_node<'a>(
-        &self,
-        node: Node<'a>,
-        source: &str,
-        _parent: Option<Node<'a>>,
-    ) -> std::result::Result<SemanticNode<'a>, SemanticError> {
-        // Extract import information
-        let (import_type, source_module, imported_items) =
-            self.parse_use_declaration(node, source)?;
-
-        Ok(SemanticNode::new(
-            node,
-            None,
-            SemanticUnitType::Import {
-                import_type,
-                source_module,
-                imported_items,
-                metadata: HashMap::new(),
-            },
-            Vec::new(),
-        ))
-    }
-
-    /// Build semantic node for const/static variable
-    fn build_variable_node<'a>(
-        &self,
-        node: Node<'a>,
-        source: &str,
-        _parent: Option<Node<'a>>,
-    ) -> std::result::Result<SemanticNode<'a>, SemanticError> {
-        let name_node = node.child_by_field_name("name");
-        let type_node = node.child_by_field_name("type");
-        let visibility = self.extract_visibility(node, source);
-
-        let type_annotation = type_node
-            .and_then(|n| n.utf8_text(source.as_bytes()).ok())
-            .map(|s| s.to_string());
-
-        let is_const = node.kind() == "const_item";
-        let is_static = node.kind() == "static_item";
-
-        Ok(SemanticNode::new(
-            node,
-            name_node,
-            SemanticUnitType::Variable {
-                is_const,
-                is_static,
-                type_annotation,
-                visibility,
-                metadata: HashMap::new(),
-            },
-            Vec::new(),
-        ))
-    }
-
-    /// Build semantic nodes for impl block contents (skip the impl itself)
-    fn build_impl_items<'a>(
-        &self,
-        node: Node<'a>,
-        source: &str,
-        parent: Option<Node<'a>>,
-    ) -> std::result::Result<Vec<SemanticNode<'a>>, SemanticError> {
-        // Extract the target type for context
-        let target_type = node
-            .child_by_field_name("type")
-            .and_then(|n| n.utf8_text(source.as_bytes()).ok())
-            .unwrap_or("Unknown");
-
-        let mut methods = Vec::new();
-
-        if let Some(body) = node.child_by_field_name("body") {
-            let mut cursor = body.walk();
-            for child in body.children(&mut cursor) {
-                if child.kind() == "function_item" {
-                    if let Ok(method_node) =
-                        self.build_function_node(child, source, parent, Some(target_type))
-                    {
-                        methods.push(method_node);
-                    }
-                }
-            }
-        }
-
-        Ok(methods)
-    }
-
-    /// Helper methods for metadata extraction
-    fn extract_visibility(&self, node: Node<'_>, source: &str) -> String {
-        // Look for visibility modifier as previous sibling
-        if let Some(parent) = node.parent() {
-            let mut cursor = parent.walk();
-            for child in parent.children(&mut cursor) {
-                if child.id() == node.id() {
-                    break;
-                }
-                if child.kind() == "visibility_modifier" {
-                    if let Ok(vis_text) = child.utf8_text(source.as_bytes()) {
-                        return vis_text.to_string();
-                    }
-                }
-            }
-        }
-        "private".to_string()
-    }
-
-    fn node_has_keyword(node: Node<'_>, keyword: &str) -> bool {
-        let mut cursor = node.walk();
-        for child in node.children(&mut cursor) {
-            // Check if this child is the keyword we're looking for
-            if child.kind() == keyword {
-                return true;
-            }
-
-            // Special handling for function_modifiers which contains async/pub/const etc.
-            if child.kind() == "function_modifiers" && Self::node_has_keyword(child, keyword) {
-                return true;
-            }
-
-            // For other container nodes, we could add recursive search here if needed
-            // but for now, let's be specific about function_modifiers
-        }
-        false
-    }
-
-    fn count_struct_fields(&self, body_node: Node<'_>) -> usize {
-        let mut count = 0;
-        let mut cursor = body_node.walk();
-        for child in body_node.children(&mut cursor) {
-            if child.kind() == "field_declaration" {
-                count += 1;
-            }
-        }
-        count
-    }
-
-    fn count_enum_variants(&self, body_node: Node<'_>) -> usize {
-        let mut count = 0;
-        let mut cursor = body_node.walk();
-        for child in body_node.children(&mut cursor) {
-            if child.kind() == "enum_variant" {
-                count += 1;
-            }
-        }
-        count
-    }
-
-    fn parse_use_declaration(
-        &self,
-        node: Node<'_>,
-        source: &str,
-    ) -> std::result::Result<(ImportType, String, Vec<String>), SemanticError> {
-        // Simple implementation - extract the use path
-        if let Ok(use_text) = node.utf8_text(source.as_bytes()) {
-            let use_text = use_text
-                .trim_start_matches("use ")
-                .trim_end_matches(';')
-                .trim();
-
-            if use_text.contains("*") {
-                Ok((
-                    ImportType::Wildcard,
-                    use_text.replace("::*", ""),
-                    Vec::new(),
-                ))
-            } else if use_text.contains("{") {
-                // Parse specific imports
-                let parts: Vec<&str> = use_text.split("::").collect();
-                let module = parts[..parts.len() - 1].join("::");
-                let items_part = parts.last().map_or("", |v| v);
-                let items: Vec<String> = items_part
-                    .trim_matches(|c| c == '{' || c == '}')
-                    .split(',')
-                    .map(|s| s.trim().to_string())
-                    .filter(|s| !s.is_empty())
-                    .collect();
-                Ok((ImportType::Specific, module, items))
-            } else {
-                Ok((ImportType::Default, use_text.to_string(), Vec::new()))
-            }
-        } else {
-            Err(SemanticError::TreeBuildError(
-                "Failed to extract use declaration text".to_string(),
-            ))
-        }
+        Self(GenericSemanticTreeBuilder::new(RustDescriptor))
     }
 }
 
@@ -610,136 +240,33 @@ impl Default for RustParser {
     }
 }
 
-impl RustParser {
-    /// Find preceding attribute siblings for a given node
-    fn find_preceding_attributes<'a>(
-        &self,
-        node: Node<'a>,
-        parent: Node<'a>,
-    ) -> Vec<MetadataNode<'a>> {
-        let mut metadata_nodes = Vec::new();
-        let mut cursor = parent.walk();
-        let mut position = -1;
-
-        // Iterate through parent's children in reverse to find preceding siblings
-        let children: Vec<Node> = parent.children(&mut cursor).collect();
-        let target_index = children.iter().position(|&n| n == node);
-
-        if let Some(idx) = target_index {
-            // Look backwards from the target node
-            for i in (0..idx).rev() {
-                let sibling = children[i];
-
-                if sibling.kind() == "attribute_item" {
-                    metadata_nodes.push(MetadataNode {
-                        node: sibling,
-                        position: MetadataPosition::PrecedingSibling(position),
-                    });
-                    position -= 1;
-                } else if !self.is_trivial_syntax_token(sibling.kind()) {
-                    // Stop at the first non-attribute, non-trivial node
-                    break;
-                }
-            }
-        }
-
-        // Reverse to maintain proper order (closest to furthest)
-        metadata_nodes.reverse();
-        metadata_nodes
-    }
-}
-
 impl LanguageParser for RustParser {
-    /// Parse Rust content into TreeSitter AST
     fn try_parse(&self, content: &str) -> Result<Tree> {
-        let mut parser = Parser::new();
-        parser
-            .set_language(tree_sitter_rust::language())
-            .map_err(|e| ASTError::TreeSitterError {
-                error: format!("Failed to set Rust language: {e}"),
-            })?;
-
-        parser
-            .parse(content, None)
-            .ok_or_else(|| ASTError::ParseError {
-                message: "Failed to parse Rust code".to_string(),
-            })
+        self.0.try_parse(content)
     }
 
-    /// Get the TreeSitter language for Rust
-    fn get_language(&self) -> tree_sitter::Language {
-        tree_sitter_rust::language()
+    fn get_language(&self) -> Language {
+        self.0.get_language()
     }
 
-    /// Build semantic AST tree from Rust TreeSitter AST
     fn build_semantic_tree<'a>(
         &self,
         ast: &'a Tree,
         source: &str,
     ) -> std::result::Result<SemanticTree<'a>, SemanticError> {
-        let root_node = ast.root_node();
-        let semantic_root = self.build_semantic_node(root_node, source, None, None)?;
-
-        Ok(SemanticTree::new(semantic_root, ProgrammingLanguage::Rust))
+        self.0.build_semantic_tree(ast, source)
     }
 
-    /// Classify TreeSitter node kinds into semantic categories for Rust
     fn classify_node_kind(&self, node_kind: &str) -> SemanticNodeKind {
-        match node_kind {
-            // Core language constructs
-            "function_item" => SemanticNodeKind::Function,
-            "struct_item" => SemanticNodeKind::Struct,
-            "enum_item" => SemanticNodeKind::Enum,
-            "impl_item" => SemanticNodeKind::ImplBlock,
-            "trait_item" => SemanticNodeKind::Interface,
-
-            // Module and imports
-            "mod_item" => SemanticNodeKind::Module,
-            "use_declaration" => SemanticNodeKind::Import,
-
-            // Variables and declarations
-            "let_declaration" | "const_item" | "static_item" => SemanticNodeKind::Variable,
-
-            // Statements and expressions
-            "expression_statement" | "assignment_expression" => SemanticNodeKind::Statement,
-            "call_expression"
-            | "method_call_expression"
-            | "binary_expression"
-            | "unary_expression"
-            | "field_expression"
-            | "index_expression" => SemanticNodeKind::Expression,
-
-            // Type definitions
-            "type_alias" => SemanticNodeKind::TypeDefinition,
-
-            // Signature components - visibility, modifiers, parameters, generics
-            "visibility_modifier"
-            | "function_modifiers"
-            | "parameters"
-            | "return_type"
-            | "type_parameters"
-            | "generic_type"
-            | "type_parameter" => SemanticNodeKind::SignatureComponent,
-
-            // Comments
-            "line_comment" | "block_comment" => SemanticNodeKind::Comment,
-
-            // Source file root
-            "source_file" => SemanticNodeKind::SourceFile,
-
-            // Everything else
-            _ => SemanticNodeKind::Other(node_kind.to_string()),
-        }
+        self.0.classify_node_kind(node_kind)
     }
 
-    /// Get Rust-specific context boundaries for different change types
     fn get_context_boundaries(
         &self,
-        change_type: &crate::ast_diff::ASTChangeType,
+        change_type: &ASTChangeType,
         change_node_kind: &SemanticNodeKind,
     ) -> Vec<SemanticNodeKind> {
         match (change_type, change_node_kind) {
-            // Function changes should look for enclosing impl blocks, structs, or modules
             (_, SemanticNodeKind::Function) => vec![
                 SemanticNodeKind::ImplBlock,
                 SemanticNodeKind::Struct,
@@ -747,35 +274,23 @@ impl LanguageParser for RustParser {
                 SemanticNodeKind::Module,
                 SemanticNodeKind::SourceFile,
             ],
-
-            // Struct/Enum changes should look for enclosing modules
             (_, SemanticNodeKind::Struct | SemanticNodeKind::Enum) => {
                 vec![SemanticNodeKind::Module, SemanticNodeKind::SourceFile]
             }
-
-            // Impl block changes should include the struct/enum being implemented
             (_, SemanticNodeKind::ImplBlock) => vec![
                 SemanticNodeKind::Struct,
                 SemanticNodeKind::Enum,
                 SemanticNodeKind::Module,
                 SemanticNodeKind::SourceFile,
             ],
-
-            // Trait changes should look for module context
             (_, SemanticNodeKind::Interface) => {
                 vec![SemanticNodeKind::Module, SemanticNodeKind::SourceFile]
             }
-
-            // Import changes should look for appropriate boundaries depending on context
-            (_, SemanticNodeKind::Import) => {
-                vec![
-                    SemanticNodeKind::Function,
-                    SemanticNodeKind::Module,
-                    SemanticNodeKind::SourceFile,
-                ]
-            }
-
-            // Variable/Statement/Expression changes should look for enclosing function
+            (_, SemanticNodeKind::Import) => vec![
+                SemanticNodeKind::Function,
+                SemanticNodeKind::Module,
+                SemanticNodeKind::SourceFile,
+            ],
             (
                 _,
                 SemanticNodeKind::Variable
@@ -787,18 +302,12 @@ impl LanguageParser for RustParser {
                 SemanticNodeKind::Module,
                 SemanticNodeKind::SourceFile,
             ],
-
-            // Module changes should look for parent modules
             (_, SemanticNodeKind::Module) => {
                 vec![SemanticNodeKind::Module, SemanticNodeKind::SourceFile]
             }
-
-            // Type definitions should look for module context
             (_, SemanticNodeKind::TypeDefinition) => {
                 vec![SemanticNodeKind::Module, SemanticNodeKind::SourceFile]
             }
-
-            // For other types, provide general boundaries
             _ => vec![
                 SemanticNodeKind::Function,
                 SemanticNodeKind::ImplBlock,
@@ -810,6 +319,30 @@ impl LanguageParser for RustParser {
     }
 }
 
+// The default `get_context_boundaries` implementation in `LanguageParser` is a
+// no-op (returns empty). `RustParser` overrides it with Rust-specific logic, so
+// we must NOT delegate to `self.0` for that method — the delegation above is
+// intentionally limited to the four methods that have no language-specific logic.
+
+// ── Unused node helper — kept for tree-sitter traversal parity ───────────────
+
+/// Walk `node.children()` looking for `keyword` (including inside
+/// `function_modifiers` children).
+fn _node_has_keyword(node: Node<'_>, keyword: &str) -> bool {
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        if child.kind() == keyword {
+            return true;
+        }
+        if child.kind() == "function_modifiers" && _node_has_keyword(child, keyword) {
+            return true;
+        }
+    }
+    false
+}
+
+// ── Unit tests ────────────────────────────────────────────────────────────────
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -819,7 +352,6 @@ mod tests {
     fn test_rust_parser_creation() {
         let parser = RustParser::new();
         let _language = parser.get_language();
-        // Basic creation test
     }
 
     #[test]
@@ -864,14 +396,12 @@ mod tests {
     fn test_context_boundaries() {
         let parser = RustParser::new();
 
-        // Test function boundaries
         let boundaries =
             parser.get_context_boundaries(&ASTChangeType::Content, &SemanticNodeKind::Function);
 
         assert!(boundaries.contains(&SemanticNodeKind::ImplBlock));
         assert!(boundaries.contains(&SemanticNodeKind::Module));
 
-        // Test struct boundaries
         let struct_boundaries =
             parser.get_context_boundaries(&ASTChangeType::Structural, &SemanticNodeKind::Struct);
 
