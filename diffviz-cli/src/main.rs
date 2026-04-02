@@ -3,7 +3,6 @@ mod environment;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 use commands::{
@@ -12,8 +11,7 @@ use commands::{
 };
 use diffviz_git::GitRepository;
 use diffviz_review::{
-    ApprovalRecord, DecisionApprovals, DecisionLog, DiffQuery, ReviewApprovals,
-    ReviewEngineBuilder, ReviewableDiffId,
+    DecisionLog, DiffQuery, ReviewEngineBuilder, load_review_state, save_review_state,
 };
 use diffviz_review_tui::ReviewTuiApp;
 use environment::EnvironmentBuilder;
@@ -97,110 +95,6 @@ enum Commands {
     },
 }
 
-/// Persisted chunk approval: key (reviewable_id) embedded alongside approval data.
-/// Stored as Vec because HashMap<ReviewableDiffId, _> keys are structs, not strings.
-#[derive(Serialize, Deserialize, Clone)]
-struct PersistedApproval {
-    reviewable_id: ReviewableDiffId,
-    approved: bool,
-    approved_by: String,
-    approval_timestamp: String,
-}
-
-/// Persisted decision approval: key (decision_number) embedded alongside approval data.
-#[derive(Serialize, Deserialize, Clone)]
-struct PersistedDecisionApproval {
-    decision_number: u32,
-    approved: bool,
-    approved_by: String,
-    approval_timestamp: String,
-}
-
-/// Persisted review state: chunk approvals + instructions + decision approvals in one file.
-#[derive(Serialize, Deserialize)]
-struct ReviewStateFile {
-    approvals: Vec<PersistedApproval>,
-    instructions: serde_json::Value,
-    #[serde(default)]
-    decision_approvals: Vec<PersistedDecisionApproval>,
-}
-
-fn load_review_state(folder: &Path, engine: &mut diffviz_review::ReviewEngine) -> Result<()> {
-    let path = folder.join("review-state.json");
-    if !path.exists() {
-        return Ok(());
-    }
-    let json = std::fs::read_to_string(&path)?;
-    let state_file: ReviewStateFile = serde_json::from_str(&json)?;
-    let mut approvals = ReviewApprovals::new();
-    for a in state_file.approvals {
-        approvals.approvals.insert(
-            a.reviewable_id,
-            ApprovalRecord {
-                approved: a.approved,
-                approved_by: a.approved_by,
-                approval_timestamp: a.approval_timestamp,
-            },
-        );
-    }
-    engine.load_approvals(approvals);
-    let mut decision_approvals = DecisionApprovals::new();
-    for da in state_file.decision_approvals {
-        decision_approvals.approvals.insert(
-            da.decision_number,
-            ApprovalRecord {
-                approved: da.approved,
-                approved_by: da.approved_by,
-                approval_timestamp: da.approval_timestamp,
-            },
-        );
-    }
-    engine.load_decision_approvals(decision_approvals);
-    let instructions_str = serde_json::to_string(&state_file.instructions)?;
-    engine
-        .import_instructions_json(&instructions_str)
-        .map_err(|e| anyhow::anyhow!("Failed to import instructions: {e}"))?;
-    Ok(())
-}
-
-fn save_review_state(folder: &Path, engine: &diffviz_review::ReviewEngine) -> Result<()> {
-    let instructions_str = engine
-        .export_instructions_json()
-        .map_err(|e| anyhow::anyhow!("Failed to export instructions: {e}"))?;
-    let instructions: serde_json::Value = serde_json::from_str(&instructions_str)?;
-    let approvals_vec: Vec<PersistedApproval> = engine
-        .state()
-        .approvals
-        .approvals
-        .iter()
-        .map(|(id, r)| PersistedApproval {
-            reviewable_id: id.clone(),
-            approved: r.approved,
-            approved_by: r.approved_by.clone(),
-            approval_timestamp: r.approval_timestamp.clone(),
-        })
-        .collect();
-    let decision_approvals_vec: Vec<PersistedDecisionApproval> = engine
-        .state()
-        .decision_approvals
-        .approvals
-        .iter()
-        .map(|(num, r)| PersistedDecisionApproval {
-            decision_number: *num,
-            approved: r.approved,
-            approved_by: r.approved_by.clone(),
-            approval_timestamp: r.approval_timestamp.clone(),
-        })
-        .collect();
-    let state_file = ReviewStateFile {
-        approvals: approvals_vec,
-        instructions,
-        decision_approvals: decision_approvals_vec,
-    };
-    let json = serde_json::to_string_pretty(&state_file)?;
-    std::fs::write(folder.join("review-state.json"), json)?;
-    Ok(())
-}
 
 fn resolve_commit_diff(git_repo: &GitRepository, commit_hash: String) -> Result<DiffQuery> {
     let parent_hash = git_repo
