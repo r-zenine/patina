@@ -8,7 +8,6 @@
 pub mod app;
 pub mod command;
 pub mod decision_navigation;
-pub mod diff;
 pub mod events;
 pub mod formatting;
 pub mod navigation;

@@ -109,7 +109,6 @@ fn render_diff_content(
         let widget = RenderableDiffWidget::new(&renderable_diff)
             .with_context(ui_state.show_all_context)
             .highlight_semantics(ui_state.highlight_semantics)
-            .show_inline_old(true)
             .with_scroll_offset(ui_state.scroll_offset)
             .with_selection(ui_state.selection_range)
             .with_cursor_line(cursor_line_num)

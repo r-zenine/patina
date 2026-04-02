@@ -61,6 +61,12 @@ For the canonical execution requirements template with dev-contribute specifics,
 
 Every contribution generates 2 mandatory files:
 - **decision-log.yaml** - Technical decisions made during work (structured YAML format)
+
+**For decision-log.yaml** (implementation contributions):
+- Generate using: `diffviz templates decision-log > decision-log.yaml`
+- This ensures your template always matches the current schema
+- Validate with: `diffviz validate decision-log decision-log.yaml`
+
 - **context-handoff.md** - Reasoning, exploration, and future guidance
 
 For artifact schemas, see [`contribution-system/references/implementation-artifacts.md`](../contribution-system/references/implementation-artifacts.md).

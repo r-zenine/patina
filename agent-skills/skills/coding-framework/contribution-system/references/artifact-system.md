@@ -18,7 +18,7 @@ Every contribution creates files in a numbered folder under `.plans/plan-[FEATUR
     │
     └── contributions/                            ← ⚠️ REQUIRED: All work goes here
         ├── 001-phase-1-implementation-code-general-purpose/
-        │   ├── decision-log.yaml
+        │   ├── decision-log.yaml <- ⚠️ REQUIRED: use `diffviz templates decision-log` to template and `diffviz validate decision-log <path-to-file> to validate format`
         │   ├── context-handoff.md
         │   └── [optional artifacts]
         │

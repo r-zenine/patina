@@ -12,72 +12,6 @@
         },
         "file_path": "diffviz-core/src/parsers/rust.rs",
         "line_range": {
-          "start_line": 252,
-          "end_line": 258,
-          "start_column": 4,
-          "end_column": 5
-        }
-      },
-      "approved": true,
-      "approved_by": "ryad",
-      "approval_timestamp": "2026-04-01 09:16:30 UTC"
-    },
-    {
-      "reviewable_id": {
-        "query": {
-          "from": {
-            "Commit": "e680781b6e296e894c530bd8821b44307d946878"
-          },
-          "to": {
-            "Commit": "13322de"
-          }
-        },
-        "file_path": "diffviz-core/src/parsers/rust.rs",
-        "line_range": {
-          "start_line": 209,
-          "end_line": 211,
-          "start_column": 4,
-          "end_column": 5
-        }
-      },
-      "approved": true,
-      "approved_by": "ryad",
-      "approval_timestamp": "2026-04-01 09:16:25 UTC"
-    },
-    {
-      "reviewable_id": {
-        "query": {
-          "from": {
-            "Commit": "e680781b6e296e894c530bd8821b44307d946878"
-          },
-          "to": {
-            "Commit": "13322de"
-          }
-        },
-        "file_path": "diffviz-core/src/parsers/generic_builder.rs",
-        "line_range": {
-          "start_line": 277,
-          "end_line": 300,
-          "start_column": 4,
-          "end_column": 5
-        }
-      },
-      "approved": true,
-      "approved_by": "ryad",
-      "approval_timestamp": "2026-04-01 09:16:24 UTC"
-    },
-    {
-      "reviewable_id": {
-        "query": {
-          "from": {
-            "Commit": "e680781b6e296e894c530bd8821b44307d946878"
-          },
-          "to": {
-            "Commit": "13322de"
-          }
-        },
-        "file_path": "diffviz-core/src/parsers/rust.rs",
-        "line_range": {
           "start_line": 244,
           "end_line": 246,
           "start_column": 4,
@@ -108,7 +42,29 @@
       },
       "approved": true,
       "approved_by": "ryad",
-      "approval_timestamp": "2026-04-01 09:16:27 UTC"
+      "approval_timestamp": "2026-04-01 15:39:46 UTC"
+    },
+    {
+      "reviewable_id": {
+        "query": {
+          "from": {
+            "Commit": "e680781b6e296e894c530bd8821b44307d946878"
+          },
+          "to": {
+            "Commit": "13322de"
+          }
+        },
+        "file_path": "diffviz-core/src/parsers/rust.rs",
+        "line_range": {
+          "start_line": 260,
+          "end_line": 262,
+          "start_column": 4,
+          "end_column": 5
+        }
+      },
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-01 09:16:30 UTC"
     },
     {
       "reviewable_id": {
@@ -144,8 +100,74 @@
         },
         "file_path": "diffviz-core/src/parsers/rust.rs",
         "line_range": {
+          "start_line": 232,
+          "end_line": 234,
+          "start_column": 4,
+          "end_column": 5
+        }
+      },
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-01 09:16:30 UTC"
+    },
+    {
+      "reviewable_id": {
+        "query": {
+          "from": {
+            "Commit": "e680781b6e296e894c530bd8821b44307d946878"
+          },
+          "to": {
+            "Commit": "13322de"
+          }
+        },
+        "file_path": "diffviz-core/src/parsers/rust.rs",
+        "line_range": {
           "start_line": 31,
           "end_line": 69,
+          "start_column": 0,
+          "end_column": 2
+        }
+      },
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-01 09:16:28 UTC"
+    },
+    {
+      "reviewable_id": {
+        "query": {
+          "from": {
+            "Commit": "e680781b6e296e894c530bd8821b44307d946878"
+          },
+          "to": {
+            "Commit": "13322de"
+          }
+        },
+        "file_path": "diffviz-core/src/parsers/rust.rs",
+        "line_range": {
+          "start_line": 209,
+          "end_line": 211,
+          "start_column": 4,
+          "end_column": 5
+        }
+      },
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-01 09:16:25 UTC"
+    },
+    {
+      "reviewable_id": {
+        "query": {
+          "from": {
+            "Commit": "e680781b6e296e894c530bd8821b44307d946878"
+          },
+          "to": {
+            "Commit": "13322de"
+          }
+        },
+        "file_path": "diffviz-core/src/parsers/rust.rs",
+        "line_range": {
+          "start_line": 77,
+          "end_line": 183,
           "start_column": 0,
           "end_column": 2
         }
@@ -186,10 +208,32 @@
             "Commit": "13322de"
           }
         },
+        "file_path": "diffviz-core/src/parsers/generic_builder.rs",
+        "line_range": {
+          "start_line": 277,
+          "end_line": 300,
+          "start_column": 4,
+          "end_column": 5
+        }
+      },
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-01 09:16:24 UTC"
+    },
+    {
+      "reviewable_id": {
+        "query": {
+          "from": {
+            "Commit": "e680781b6e296e894c530bd8821b44307d946878"
+          },
+          "to": {
+            "Commit": "13322de"
+          }
+        },
         "file_path": "diffviz-core/src/parsers/rust.rs",
         "line_range": {
-          "start_line": 232,
-          "end_line": 234,
+          "start_line": 238,
+          "end_line": 240,
           "start_column": 4,
           "end_column": 5
         }
@@ -232,52 +276,8 @@
         },
         "file_path": "diffviz-core/src/parsers/rust.rs",
         "line_range": {
-          "start_line": 260,
-          "end_line": 262,
-          "start_column": 4,
-          "end_column": 5
-        }
-      },
-      "approved": true,
-      "approved_by": "ryad",
-      "approval_timestamp": "2026-04-01 09:16:30 UTC"
-    },
-    {
-      "reviewable_id": {
-        "query": {
-          "from": {
-            "Commit": "e680781b6e296e894c530bd8821b44307d946878"
-          },
-          "to": {
-            "Commit": "13322de"
-          }
-        },
-        "file_path": "diffviz-core/src/parsers/rust.rs",
-        "line_range": {
-          "start_line": 77,
-          "end_line": 183,
-          "start_column": 0,
-          "end_column": 2
-        }
-      },
-      "approved": true,
-      "approved_by": "ryad",
-      "approval_timestamp": "2026-04-01 09:16:28 UTC"
-    },
-    {
-      "reviewable_id": {
-        "query": {
-          "from": {
-            "Commit": "e680781b6e296e894c530bd8821b44307d946878"
-          },
-          "to": {
-            "Commit": "13322de"
-          }
-        },
-        "file_path": "diffviz-core/src/parsers/rust.rs",
-        "line_range": {
-          "start_line": 238,
-          "end_line": 240,
+          "start_line": 252,
+          "end_line": 258,
           "start_column": 4,
           "end_column": 5
         }
@@ -290,30 +290,7 @@
   "instructions": {
     "_meta": {
       "description": "DiffViz instruction export for coding agents",
-      "field_descriptions": {
-        "author": "Username/identifier of instruction author",
-        "content": "The instruction text for the coding agent to follow",
-        "content_snapshot": "Code lines from instruction range for visual reference (optional)",
-        "file": "Relative path to the file from repository root",
-        "file_content_hash": "SHA256 hash of file content at time of instruction creation, used for validity verification",
-        "line_range": "1-based line numbers where instruction applies (inclusive range)",
-        "query": "Git diff query to retrieve file content. Format: 'from_ref..to_ref'. Use with: git diff <query> <file>",
-        "status": "Instruction validity: 'active' (file unchanged), 'stale' (file changed), 'addressed' (completed)",
-        "timestamp": "When instruction was created/last modified (UTC format)"
-      },
-      "format_version": "1.1",
-      "git_usage_examples": {
-        "get_file_at_commit": "git show abc123d:src/main.rs",
-        "get_file_at_head": "git show HEAD:src/main.rs",
-        "view_diff": "git diff HEAD..unstaged src/main.rs",
-        "view_historical_diff": "git diff abc123d..HEAD src/main.rs"
-      },
-      "query_formats": {
-        "HEAD..commit_hash": "Changes from HEAD to specific commit",
-        "HEAD..unstaged": "Uncommitted changes in working directory",
-        "commit_hash..HEAD": "Changes from specific commit to current HEAD",
-        "commit_hash..commit_hash": "Changes between two commits"
-      }
+      "format_version": "1.2"
     },
     "instructions": []
   },
@@ -325,28 +302,28 @@
       "approval_timestamp": "2026-04-01 09:16:28 UTC"
     },
     {
-      "decision_number": 6,
-      "approved": true,
-      "approved_by": "ryad",
-      "approval_timestamp": "2026-04-01 09:16:30 UTC"
-    },
-    {
       "decision_number": 1,
       "approved": true,
       "approved_by": "ryad",
       "approval_timestamp": "2026-04-01 09:16:24 UTC"
     },
     {
-      "decision_number": 3,
+      "decision_number": 6,
       "approved": true,
       "approved_by": "ryad",
-      "approval_timestamp": "2026-04-01 09:16:26 UTC"
+      "approval_timestamp": "2026-04-01 09:16:30 UTC"
     },
     {
       "decision_number": 4,
       "approved": true,
       "approved_by": "ryad",
-      "approval_timestamp": "2026-04-01 09:16:27 UTC"
+      "approval_timestamp": "2026-04-01 15:39:46 UTC"
+    },
+    {
+      "decision_number": 3,
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-01 09:16:26 UTC"
     },
     {
       "decision_number": 2,

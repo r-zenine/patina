@@ -1,4 +1,3 @@
-use crate::diff::inline::derive_inline_diff_map;
 use crate::theme::Colors;
 use diffviz_core::renderable_diff::{ChangeType, RenderableDiff, RenderableLine};
 use ratatui::{
@@ -8,10 +7,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Widget, Wrap},
 };
-use std::borrow::Cow;
 use std::collections::HashMap;
-
-pub use crate::diff::inline::{InlineDiffMap, InlineOldLine, InlineOldSegment};
 
 /// Position of a line within an instruction range for gutter bracket rendering
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -34,9 +30,7 @@ pub struct RenderableDiffWidget<'a> {
     diff: &'a RenderableDiff<'a>,
     pub show_all_context: bool,
     pub highlight_semantics: bool,
-    pub show_inline_old: bool,
     pub title: Option<String>,
-    inline_changes: Option<&'a InlineDiffMap>,
     pub scroll_offset: usize,
     selection_range: Option<(usize, usize)>,
     cursor_line: Option<usize>,
@@ -51,9 +45,7 @@ impl<'a> RenderableDiffWidget<'a> {
             diff,
             show_all_context: true,
             highlight_semantics: true,
-            show_inline_old: false,
             title: None,
-            inline_changes: None,
             scroll_offset: 0,
             selection_range: None,
             cursor_line: None,
@@ -77,18 +69,6 @@ impl<'a> RenderableDiffWidget<'a> {
     /// Toggle whether semantic anchors should be rendered next to the content.
     pub fn highlight_semantics(mut self, highlight: bool) -> Self {
         self.highlight_semantics = highlight;
-        self
-    }
-
-    /// Toggle whether inline virtual text with old content should appear below modified lines.
-    pub fn show_inline_old(mut self, show: bool) -> Self {
-        self.show_inline_old = show;
-        self
-    }
-
-    /// Attach inline old-content snippets for rendering.
-    pub fn with_inline_changes(mut self, inline_changes: &'a InlineDiffMap) -> Self {
-        self.inline_changes = Some(inline_changes);
         self
     }
 
@@ -129,9 +109,7 @@ impl<'a> Widget for RenderableDiffWidget<'a> {
             diff,
             show_all_context,
             highlight_semantics,
-            show_inline_old,
             title,
-            inline_changes,
             scroll_offset,
             selection_range,
             cursor_line,
@@ -139,21 +117,8 @@ impl<'a> Widget for RenderableDiffWidget<'a> {
             instruction_indicators,
         } = self;
 
-        let inline_changes = if show_inline_old {
-            Some(match inline_changes {
-                Some(map) => Cow::Borrowed(map),
-                None => Cow::Owned(derive_inline_diff_map(diff)),
-            })
-        } else {
-            None
-        };
-
-        let inline_changes_ref = inline_changes.as_deref();
-
         let ctx = LineRenderContext {
             highlight_semantics,
-            show_inline_old,
-            inline_changes: inline_changes_ref,
             selection_range,
             cursor_line,
             instruction_indicators,
@@ -225,8 +190,6 @@ fn render_gutter_bracket(_position: GutterPosition) -> &'static str {
 /// Context for rendering a single line
 struct LineRenderContext<'a> {
     highlight_semantics: bool,
-    show_inline_old: bool,
-    inline_changes: Option<&'a InlineDiffMap>,
     selection_range: Option<(usize, usize)>,
     cursor_line: Option<usize>,
     instruction_indicators: Option<&'a GutterBracketMap>,
@@ -343,14 +306,6 @@ fn append_line(
         ctx.instruction_indicators,
     );
     lines.push(rendered);
-
-    if ctx.show_inline_old {
-        if let Some(map) = ctx.inline_changes {
-            if let Some(inline_line) = create_inline_old_line(line, map) {
-                lines.push(inline_line);
-            }
-        }
-    }
 }
 
 fn render_lines(
@@ -376,69 +331,6 @@ fn render_lines(
         .scroll((scroll_offset as u16, 0));
 
     paragraph.render(area, buf);
-}
-
-#[allow(clippy::vec_init_then_push)]
-fn create_inline_old_line(
-    line: &RenderableLine<'_>,
-    inline_changes: &InlineDiffMap,
-) -> Option<Line<'static>> {
-    if should_hide_line(line) {
-        return None;
-    }
-
-    let inline = inline_changes.get(&line.line_number)?;
-    if inline.segments.is_empty() {
-        return None;
-    }
-
-    let indent: String = line
-        .content
-        .chars()
-        .take_while(|c| c.is_whitespace())
-        .collect();
-
-    let mut spans = Vec::new();
-    spans.push(Span::styled(
-        "    ",
-        Style::default().fg(Color::DarkGray).bg(Color::Reset),
-    ));
-    spans.push(Span::raw(" "));
-    spans.push(Span::styled(
-        "↺",
-        Style::default().fg(Color::DarkGray).bg(Color::Reset),
-    ));
-    spans.push(Span::raw(" "));
-    if !indent.is_empty() {
-        spans.push(Span::styled(
-            indent.clone(),
-            Style::default().fg(Color::DarkGray).bg(Color::Reset),
-        ));
-    }
-
-    let mut current_col = indent.chars().count();
-
-    for segment in &inline.segments {
-        if segment.start_col > current_col {
-            let pad = " ".repeat(segment.start_col - current_col);
-            spans.push(Span::styled(
-                pad,
-                Style::default().fg(Color::DarkGray).bg(Color::Reset),
-            ));
-            current_col = segment.start_col;
-        }
-
-        spans.push(Span::styled(
-            segment.text.clone(),
-            Style::default()
-                .fg(Colors::ACCENT_1)
-                .bg(Color::Reset)
-                .add_modifier(Modifier::ITALIC),
-        ));
-        current_col += segment.text.chars().count();
-    }
-
-    Some(Line::from(spans))
 }
 
 fn change_indicator(change: Option<&ChangeType>) -> String {
