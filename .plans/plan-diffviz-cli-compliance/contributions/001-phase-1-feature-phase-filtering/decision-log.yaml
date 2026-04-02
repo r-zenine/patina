@@ -1,0 +1,12 @@
+commit: "2a2d9784f4a2d89392553f7db70b57cdaa1b4fa8"
+
+decisions:
+  - number: 1
+    title: "Implement conditional phase field construction for --phase filtering"
+    rationale: "The debug command accepts and validates --phase (1-7) but never applies filtering. Using conditional construction with matches! pattern leverages existing serde skip_serializing_if infrastructure to omit unwanted phases from JSON output. This restores the contract with users and enables single-phase debugging without noise."
+    code_impacts:
+      - file: "diffviz-cli/src/commands/debug.rs"
+        reasoning: "Phases struct construction (lines 177-186) now conditionally includes each phase based on self.phase filter. Uses matches!(p, None | Some(N)) pattern for clarity and correctness."
+        line_ranges:
+          - start: 177
+            end: 186
