@@ -8,6 +8,15 @@ use diffviz_review::ReviewableDiffId;
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
+/// Timeout duration for leader key mode (seconds)
+const LEADER_TIMEOUT: Duration = Duration::from_secs(2);
+
+/// Number of lines to scroll per page operation
+const PAGE_SCROLL_STEP: usize = 10;
+
+/// Default view height used when total lines is unknown (for cursor positioning)
+const CURSOR_VIEW_HEIGHT_FALLBACK: usize = 20;
+
 /// Which panel currently has focus
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FocusPanel {
@@ -230,18 +239,17 @@ impl UiState {
 
     /// Page up in diff view
     pub fn page_up(&mut self) {
-        self.scroll_up(10);
+        self.scroll_up(PAGE_SCROLL_STEP);
     }
 
     /// Page down in diff view
     pub fn page_down(&mut self) {
-        self.scroll_down(10);
+        self.scroll_down(PAGE_SCROLL_STEP);
     }
 
     /// Move cursor and page up
     pub fn cursor_page_up(&mut self, _total_lines: usize) {
-        let step = 10;
-        self.cursor_index = self.cursor_index.saturating_sub(step);
+        self.cursor_index = self.cursor_index.saturating_sub(PAGE_SCROLL_STEP);
         self.update_selection_range();
         self.page_up();
         if self.cursor_index < self.scroll_offset {
@@ -251,8 +259,8 @@ impl UiState {
 
     /// Move cursor and page down
     pub fn cursor_page_down(&mut self, total_lines: usize) {
-        let step = 10;
-        self.cursor_index = (self.cursor_index + step).min(total_lines.saturating_sub(1));
+        self.cursor_index =
+            (self.cursor_index + PAGE_SCROLL_STEP).min(total_lines.saturating_sub(1));
         self.update_selection_range();
         self.page_down();
     }
@@ -269,8 +277,7 @@ impl UiState {
         if total_lines > 0 {
             self.cursor_index = total_lines - 1;
             self.update_selection_range();
-            let view_height = 20;
-            self.scroll_offset = total_lines.saturating_sub(view_height);
+            self.scroll_offset = total_lines.saturating_sub(CURSOR_VIEW_HEIGHT_FALLBACK);
         }
     }
 
@@ -290,8 +297,7 @@ impl UiState {
         if self.cursor_index + 1 < total_lines {
             self.cursor_index += 1;
             self.update_selection_range();
-            let view_height = 20;
-            if self.cursor_index >= self.scroll_offset + view_height {
+            if self.cursor_index >= self.scroll_offset + CURSOR_VIEW_HEIGHT_FALLBACK {
                 self.scroll_down(1);
             }
         }
@@ -390,10 +396,10 @@ impl UiState {
         self.leader_submenu = None;
     }
 
-    /// Check if leader key has timed out (2 seconds)
+    /// Check if leader key has timed out
     pub fn is_leader_timed_out(&self) -> bool {
         if let Some(pressed_at) = self.leader_pressed_at {
-            pressed_at.elapsed() > Duration::from_secs(2)
+            pressed_at.elapsed() > LEADER_TIMEOUT
         } else {
             false
         }
