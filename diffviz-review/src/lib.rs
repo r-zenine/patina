@@ -1,6 +1,7 @@
 pub mod engines;
 pub mod entities;
 pub mod errors;
+pub mod persistence;
 pub mod providers;
 pub mod review_engine_builder;
 pub mod state;
@@ -16,6 +17,7 @@ pub use entities::{
     InstructionMap, ReviewApprovals, ReviewDecisions, ReviewInstructions,
 };
 pub use providers::{DiffProvider, FileStats, FileStatus};
+pub use persistence::{load_review_state, save_review_state, PersistenceError};
 pub use review_engine_builder::ReviewEngineBuilder;
 pub use state::{ReviewState, ReviewableDiff};
 pub use templates::SchemaTemplate;
