@@ -2,52 +2,66 @@ commit: 23cb1045618545fe0b60defc8e7c3173279925f2
 
 decisions:
   - number: 1
-    title: "Removed misleading TODO comment from diff_formatter.rs"
-    rationale: "The comment 'Fix lifetime issues properly' was misleading. The current owned-string approach (using `format!()` to create `String` for `Line<'static>`) is correct and solves the lifetime issue by moving data into the owned String. No actual work needed here."
+    title: Remove misleading TODO comment from diff_formatter.rs
+    rationale: Comment claimed lifetime issues needed fixing, but the owned-string approach (format! into Line<'static>) is correct and solves the lifetime issue by moving data into owned String. No work needed — comment was stale documentation.
     code_impacts:
-      - file: "diffviz-review-tui/src/formatting/diff_formatter.rs"
-        location: "fn format_diff_line, line 144"
-        change: "Removed 2-line TODO comment"
+      - reasoning: Stale TODO comment removed from format_diff_line function
+        file: diffviz-review-tui/src/formatting/diff_formatter.rs
+        line_ranges:
+          - start: 144
+            end: 145
 
   - number: 2
-    title: "Extracted 3 magic numbers as named constants"
-    rationale: "Replace hardcoded numeric literals with named constants for clarity and maintainability. Three constants extracted: LEADER_TIMEOUT (2 seconds), PAGE_SCROLL_STEP (10 lines), CURSOR_VIEW_HEIGHT_FALLBACK (20 lines). All occurrences replaced to use the constants."
+    title: Extract 3 magic numbers as named constants
+    rationale: Replace hardcoded numeric literals with named constants for clarity and maintainability. LEADER_TIMEOUT (2s timeout for leader key), PAGE_SCROLL_STEP (10 lines per page), CURSOR_VIEW_HEIGHT_FALLBACK (20 lines for viewport fallback height).
     code_impacts:
-      - file: "diffviz-review-tui/src/state.rs"
-        location: "module-level constants, lines 11-19"
-        change: "Added 3 const definitions"
-      - file: "diffviz-review-tui/src/state.rs"
-        location: "fn page_up, page_down, cursor_page_up, cursor_page_down"
-        change: "Replaced 4 occurrences of magic number 10 with PAGE_SCROLL_STEP"
-      - file: "diffviz-review-tui/src/state.rs"
-        location: "fn cursor_to_bottom, cursor_down"
-        change: "Replaced 2 occurrences of magic number 20 with CURSOR_VIEW_HEIGHT_FALLBACK"
-      - file: "diffviz-review-tui/src/state.rs"
-        location: "fn is_leader_timed_out"
-        change: "Replaced Duration::from_secs(2) with LEADER_TIMEOUT constant"
+      - reasoning: Added 3 const definitions at module level
+        file: diffviz-review-tui/src/state.rs
+        line_ranges:
+          - start: 11
+            end: 19
+      - reasoning: Replaced 4 occurrences of magic number 10 with PAGE_SCROLL_STEP in pagination methods
+        file: diffviz-review-tui/src/state.rs
+        line_ranges:
+          - start: 232
+            end: 266
+      - reasoning: Replaced 2 occurrences of magic number 20 with CURSOR_VIEW_HEIGHT_FALLBACK
+        file: diffviz-review-tui/src/state.rs
+        line_ranges:
+          - start: 268
+            end: 298
+      - reasoning: Replaced Duration::from_secs(2) with LEADER_TIMEOUT constant
+        file: diffviz-review-tui/src/state.rs
+        line_ranges:
+          - start: 394
+            end: 399
 
   - number: 3
-    title: "Replaced unsafe ManuallyDrop + ptr::read with safe Option<ReviewEngine> + take()"
-    rationale: "The into_review_engine() method used ManuallyDrop + unsafe ptr::read to extract ownership of ReviewEngine, bypassing the Drop impl. Using Option<ReviewEngine> with take() achieves identical semantics safely. When into_review_engine() is called, self is consumed (moved), so the Drop impl will run naturally after manual terminal cleanup."
+    title: Replace unsafe ManuallyDrop + ptr::read with safe Option<ReviewEngine> + take()
+    rationale: into_review_engine() used unsafe ManuallyDrop + ptr::read to extract ownership while preventing Drop. Option<ReviewEngine> with take() achieves identical semantics safely. When into_review_engine() consumes self, Drop impl runs naturally after manual terminal cleanup.
     code_impacts:
-      - file: "diffviz-review-tui/src/app.rs"
-        location: "struct ReviewTuiApp"
-        change: "Changed field type from `review_engine: ReviewEngine` to `review_engine: Option<ReviewEngine>`"
-      - file: "diffviz-review-tui/src/app.rs"
-        location: "fn new()"
-        change: "Wrapped review_engine in Some() when constructing Self"
-      - file: "diffviz-review-tui/src/app.rs"
-        location: "fn into_review_engine()"
-        change: "Removed ManuallyDrop wrapper, manual cleanup code, and unsafe ptr::read. Now uses take().expect() to extract ReviewEngine. Drop impl runs naturally after method returns."
-      - file: "diffviz-review-tui/src/app.rs"
-        location: "fn render()"
-        change: "Added as_ref().expect() to unwrap Option<ReviewEngine> before passing to ui::draw()"
-      - file: "diffviz-review-tui/src/app.rs"
-        location: "fn process_key_event()"
-        change: "Added as_mut().expect() to unwrap Option<ReviewEngine> before passing to process_key_event_impl()"
-
-validation:
-  - "cargo clippy --workspace -- -D warnings: PASS"
-  - "cargo check --workspace: PASS"
-  - "No unsafe blocks remain in app.rs"
-  - "All three objectives from Phase 1 roadmap completed"
+      - reasoning: Changed field type to Option to enable safe take() pattern
+        file: diffviz-review-tui/src/app.rs
+        line_ranges:
+          - start: 28
+            end: 28
+      - reasoning: Wrap review_engine in Some() during construction
+        file: diffviz-review-tui/src/app.rs
+        line_ranges:
+          - start: 50
+            end: 50
+      - reasoning: Removed ManuallyDrop wrapper and unsafe ptr::read, now uses take().expect()
+        file: diffviz-review-tui/src/app.rs
+        line_ranges:
+          - start: 74
+            end: 82
+      - reasoning: Added as_ref().expect() to unwrap Option before rendering
+        file: diffviz-review-tui/src/app.rs
+        line_ranges:
+          - start: 124
+            end: 130
+      - reasoning: Added as_mut().expect() to unwrap Option before processing key event
+        file: diffviz-review-tui/src/app.rs
+        line_ranges:
+          - start: 161
+            end: 164
