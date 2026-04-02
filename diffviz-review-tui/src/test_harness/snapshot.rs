@@ -77,7 +77,6 @@ impl StateSnapshot {
             input_mode: match &ui_state.input_mode {
                 InputMode::Navigation => "Navigation".to_string(),
                 InputMode::Instruction { .. } => "Instruction".to_string(),
-                InputMode::Edit { .. } => "Edit".to_string(),
             },
             input_buffer: ui_state.input_buffer.clone(),
             input_cursor: ui_state.input_cursor,

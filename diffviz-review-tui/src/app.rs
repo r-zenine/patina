@@ -382,14 +382,6 @@ fn handle_ui_event_impl(
             ui_state.deactivate_leader();
         }
 
-        UiEvent::EnterEditMode => {
-            if let Some(reviewable_id) = ui_state.current_reviewable_id() {
-                ui_state.start_edit_mode(reviewable_id);
-            }
-            // Deactivate leader after executing complete action
-            ui_state.deactivate_leader();
-        }
-
         UiEvent::ExitInputMode | UiEvent::CancelInput => {
             ui_state.exit_input_mode();
         }
@@ -552,9 +544,7 @@ fn handle_business_event_impl(engine: &mut ReviewEngine, event: BusinessEvent) -
         }
 
         // Not implemented yet
-        BusinessEvent::EditContent { .. }
-        | BusinessEvent::SaveSession
-        | BusinessEvent::LoadSession { .. } => Ok(Command::None),
+        BusinessEvent::SaveSession | BusinessEvent::LoadSession { .. } => Ok(Command::None),
     }
 }
 

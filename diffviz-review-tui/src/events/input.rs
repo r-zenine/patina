@@ -36,7 +36,6 @@ pub enum UiEvent {
 
     // Input mode transitions
     EnterInstructionMode,
-    EnterEditMode,
     ExitInputMode,
     SubmitInput,
     CancelInput,
@@ -95,7 +94,7 @@ pub fn handle_key_event(
                 handle_navigation_keys(key)
             }
         }
-        InputMode::Instruction { .. } | InputMode::Edit { .. } => handle_input_mode_keys(key),
+        InputMode::Instruction { .. } => handle_input_mode_keys(key),
     }
 }
 
@@ -281,7 +280,6 @@ fn handle_leader_keys(key: KeyEvent, submenu: Option<char>) -> Option<UiEvent> {
 
         // Instructions submenu (Space + i + ?)
         (Some('i'), KeyCode::Char('i')) => Some(UiEvent::EnterInstructionMode),
-        (Some('i'), KeyCode::Char('e')) => Some(UiEvent::EnterEditMode),
         (Some('i'), KeyCode::Char('t')) => Some(UiEvent::ToggleInstructions),
 
         // Toggles submenu (Space + t + ?)
