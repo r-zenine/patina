@@ -11,8 +11,6 @@ pub struct Config {
     pub repo_path: String,
     /// Enable verbose logging
     pub verbose: bool,
-    /// Terminal backend type
-    pub terminal_backend: TerminalBackend,
 }
 
 impl Default for Config {
@@ -21,16 +19,8 @@ impl Default for Config {
             author: whoami::username(),
             repo_path: ".".to_string(),
             verbose: false,
-            terminal_backend: TerminalBackend::Crossterm,
         }
     }
-}
-
-/// Supported terminal backends
-#[derive(Debug, Clone, PartialEq)]
-pub enum TerminalBackend {
-    Crossterm,
-    // Future: Termion, TestBackend, WebBackend
 }
 
 /// Environment that assembles all dependencies for the application
@@ -115,12 +105,6 @@ impl EnvironmentBuilder {
         self
     }
 
-    /// Set terminal backend
-    pub fn terminal_backend(mut self, backend: TerminalBackend) -> Self {
-        self.config.terminal_backend = backend;
-        self
-    }
-
     /// Build the environment
     pub fn build(self) -> CoreResult<Environment> {
         Environment::new(self.config)
@@ -170,7 +154,6 @@ mod tests {
         let config = Config::default();
         assert_eq!(config.repo_path, ".");
         assert!(!config.verbose);
-        assert_eq!(config.terminal_backend, TerminalBackend::Crossterm);
         assert!(!config.author.is_empty());
     }
 
@@ -182,14 +165,12 @@ mod tests {
             .repo_path(&repo_path)
             .author("test_user")
             .verbose(true)
-            .terminal_backend(TerminalBackend::Crossterm)
             .build()
             .expect("Failed to build environment");
 
         assert_eq!(env.config.repo_path, repo_path);
         assert_eq!(env.config.author, "test_user");
         assert!(env.config.verbose);
-        assert_eq!(env.config.terminal_backend, TerminalBackend::Crossterm);
     }
 
     #[test]
@@ -209,7 +190,6 @@ mod tests {
             .repo_path(&repo_path)
             .author("fluent_user")
             .verbose(true)
-            .terminal_backend(TerminalBackend::Crossterm)
             .build()
             .expect("Failed to build environment");
 
@@ -221,11 +201,5 @@ mod tests {
     fn test_environment_invalid_repo() {
         let result = Environment::from_repo_path("/non/existent/path");
         assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_terminal_backend_variants() {
-        assert_eq!(TerminalBackend::Crossterm, TerminalBackend::Crossterm);
-        assert_ne!(format!("{:?}", TerminalBackend::Crossterm), "");
     }
 }
