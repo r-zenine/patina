@@ -408,12 +408,8 @@ impl DebugCommand {
 
     /// Serialize Phase 1: Semantic Tree (AST outline)
     fn serialize_phase_1(&self) -> Option<serde_json::Value> {
-        // Phase 1: AST outline — tree-sitter semantic tree structure
-        // For now, output empty structure; will be enhanced if needed
-        Some(serde_json::json!({
-            "type": "semantic_tree",
-            "nodes": []
-        }))
+        // ReviewEngine does not expose semantic tree data; phase not currently supported
+        None
     }
 
     /// Serialize Phase 2: Semantic Pairs
@@ -421,13 +417,8 @@ impl DebugCommand {
         &self,
         _review_state: &diffviz_review::state::ReviewState,
     ) -> Option<serde_json::Value> {
-        // Phase 2: Semantic pairing results (matched/added/deleted pairs)
-        Some(serde_json::json!({
-            "type": "semantic_pairs",
-            "matched": 0,
-            "added": 0,
-            "deleted": 0
-        }))
+        // ReviewEngine does not expose semantic pairing data; phase not currently supported
+        None
     }
 
     /// Serialize Phase 3: Reviewable Diffs
@@ -537,42 +528,24 @@ impl DebugCommand {
             &diffviz_review::state::ReviewableDiff,
         )],
     ) -> Option<serde_json::Value> {
-        let impacts = filtered_diffs
-            .iter()
-            .map(|(id, diff)| {
-                let mut impact_obj = serde_json::json!({
-                    "file": id.file_path,
-                    "line_range": {
-                        "start": id.line_range.start_line,
-                        "end": id.line_range.end_line,
-                    },
-                    "relevance_score": diff.core_diff.boundary.relevance,
-                });
-
-                // Add explanation if --explain-folding flag is set
-                if self.explain_folding {
-                    if let Some(obj) = impact_obj.as_object_mut() {
-                        let explanation = self.generate_node_explanation(&diff.core_diff.boundary);
-                        obj.insert(
-                            "explanation".to_string(),
-                            serde_json::Value::String(explanation),
-                        );
-                    }
-                }
-
-                impact_obj
-            })
-            .collect::<Vec<_>>();
-
-        Some(serde_json::json!({
-            "type": "code_impact",
-            "impacted_areas": impacts
-        }))
+        self.serialize_impact_phase("code_impact", filtered_diffs)
     }
 
     /// Serialize Phase 7: Final Output (same as Phase 6 for now)
     fn serialize_phase_7(
         &self,
+        filtered_diffs: &[(
+            &diffviz_review::entities::reviewable_diff_id::ReviewableDiffId,
+            &diffviz_review::state::ReviewableDiff,
+        )],
+    ) -> Option<serde_json::Value> {
+        self.serialize_impact_phase("final_output", filtered_diffs)
+    }
+
+    /// Shared helper for phases 6 & 7: both serialize per-diff impact areas
+    fn serialize_impact_phase(
+        &self,
+        type_label: &str,
         filtered_diffs: &[(
             &diffviz_review::entities::reviewable_diff_id::ReviewableDiffId,
             &diffviz_review::state::ReviewableDiff,
@@ -590,7 +563,6 @@ impl DebugCommand {
                     "relevance_score": diff.core_diff.boundary.relevance,
                 });
 
-                // Add explanation if --explain-folding flag is set
                 if self.explain_folding {
                     if let Some(obj) = impact_obj.as_object_mut() {
                         let explanation = self.generate_node_explanation(&diff.core_diff.boundary);
@@ -606,8 +578,8 @@ impl DebugCommand {
             .collect::<Vec<_>>();
 
         Some(serde_json::json!({
-            "type": "final_output",
-            "summary": impacts
+            "type": type_label,
+            "impacted_areas": impacts
         }))
     }
 }
