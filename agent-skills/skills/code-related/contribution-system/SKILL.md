@@ -39,9 +39,9 @@ Load this skill when:
 ## Templates
 
 **For decision-log.yaml** (implementation contributions):
-- Generate using: `diffviz templates decision-log > decision-log.yaml`
+- MANDATORY Generate using: `diffviz templates decision-log > decision-log.yaml`
 - This ensures your template always matches the current schema
-- Validate with: `diffviz validate decision-log decision-log.yaml`
+- MANDATORY Validate with: `diffviz validate decision-log decision-log.yaml`
 
 **Reference templates** (design, strategy, other artifacts):
 - [context-handoff-template.md](assets/templates/context-handoff-template.md)
