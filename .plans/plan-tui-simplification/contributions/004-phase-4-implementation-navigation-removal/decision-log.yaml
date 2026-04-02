@@ -1,0 +1,111 @@
+commit: 0408408a7fbc73b62b61dc1d4c09ba33d9abb08b
+
+decisions:
+  - number: 1
+    title: Remove all three legacy navigation files entirely
+    rationale: |
+      The files navigation.rs, decision_list.rs, and file_list.rs are completely dead code with zero live callers.
+      The decision_tree system (in decision_navigation.rs) is the active, working navigation pattern.
+      These three modules were partial infrastructure left from an earlier navigation approach and should be fully removed.
+      Keeping them increases codebase size and creates confusion about which navigation system is active.
+    code_impacts:
+      - reasoning: Deleted navigation.rs file (dead module with no callers)
+        file: diffviz-review-tui/src/navigation.rs
+        line_ranges: []
+      - reasoning: Removed pub mod navigation from lib.rs (module declaration cleanup)
+        file: diffviz-review-tui/src/lib.rs
+        line_ranges:
+          - start: 8
+            end: 16
+      - reasoning: Deleted decision_list.rs file (dead component with no callers)
+        file: diffviz-review-tui/src/ui/components/decision_list.rs
+        line_ranges: []
+      - reasoning: Deleted file_list.rs file (dead component with no callers)
+        file: diffviz-review-tui/src/ui/components/file_list.rs
+        line_ranges: []
+      - reasoning: Removed pub mod decision_list and pub mod file_list from components/mod.rs
+        file: diffviz-review-tui/src/ui/components/mod.rs
+        line_ranges:
+          - start: 1
+            end: 13
+
+  - number: 2
+    title: Remove orphaned state fields file_list_selection and expanded_files
+    rationale: |
+      These two fields in UiState exist only to support the dead file_list navigation component.
+      They are not referenced by any active code paths:
+      - toggle_file_expansion() method has zero callers (was only used by deleted file_list.rs)
+      - is_file_expanded() method has zero callers (was only used by deleted file_list.rs)
+      - file_list_selection has no references in active navigation logic (decision_tree is the active system)
+      - expanded_files HashSet is initialized but never used
+
+      Removing them from UiState and StateSnapshot makes the state model cleaner and removes confusion
+      about which navigation system is canonical.
+    code_impacts:
+      - reasoning: Removed HashSet import (no longer needed after field removal)
+        file: diffviz-review-tui/src/state.rs
+        line_ranges:
+          - start: 1
+            end: 9
+      - reasoning: Removed expanded_files field from UiState struct
+        file: diffviz-review-tui/src/state.rs
+        line_ranges:
+          - start: 60
+            end: 70
+      - reasoning: Removed file_list_selection field from UiState struct
+        file: diffviz-review-tui/src/state.rs
+        line_ranges:
+          - start: 60
+            end: 70
+      - reasoning: Removed default values for expanded_files and file_list_selection in UiState::default()
+        file: diffviz-review-tui/src/state.rs
+        line_ranges:
+          - start: 95
+            end: 115
+      - reasoning: Removed toggle_file_expansion() method (had zero callers)
+        file: diffviz-review-tui/src/state.rs
+        line_ranges:
+          - start: 340
+            end: 368
+      - reasoning: Removed is_file_expanded() method (had zero callers)
+        file: diffviz-review-tui/src/state.rs
+        line_ranges:
+          - start: 340
+            end: 368
+      - reasoning: Removed file_list_selection field from StateSnapshot struct
+        file: diffviz-review-tui/src/test_harness/snapshot.rs
+        line_ranges:
+          - start: 30
+            end: 40
+      - reasoning: Removed expanded_files field from StateSnapshot struct
+        file: diffviz-review-tui/src/test_harness/snapshot.rs
+        line_ranges:
+          - start: 54
+            end: 62
+      - reasoning: Removed field initialization for expanded_files in StateSnapshot::from_ui_state()
+        file: diffviz-review-tui/src/test_harness/snapshot.rs
+        line_ranges:
+          - start: 69
+            end: 99
+      - reasoning: Removed field initialization for file_list_selection in StateSnapshot::from_ui_state()
+        file: diffviz-review-tui/src/test_harness/snapshot.rs
+        line_ranges:
+          - start: 69
+            end: 99
+      - reasoning: Removed both fields from test constructor in snapshot.rs tests
+        file: diffviz-review-tui/src/test_harness/snapshot.rs
+        line_ranges:
+          - start: 104
+            end: 137
+
+  - number: 3
+    title: Test harness module unchanged (intentional infrastructure)
+    rationale: |
+      The test_harness feature-gated module is excluded from simplification because it is intentional,
+      necessary agentic infrastructure. Agents cannot launch a TTY to drive the TUI interactively,
+      so the harness is the only way to exercise TUI behavior in CI or automated test contexts.
+      This is not speculative code — it is load-bearing infrastructure for the project.
+
+      Only fields from StateSnapshot that became structurally dead (expanded_files, file_list_selection)
+      were removed as a necessary side-effect of state.rs cleanup.
+    code_impacts: []
