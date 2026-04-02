@@ -504,7 +504,7 @@ fn test_decision_approval_lifecycle() {
     let decision_number = 1;
 
     // Initially not approved
-    assert!(!approvals.is_approved(decision_number));
+    assert!(!approvals.is_approved(&decision_number));
     assert_eq!(approvals.total_approved(), 0);
 
     // Approve it
@@ -513,17 +513,17 @@ fn test_decision_approval_lifecycle() {
         "reviewer".to_string(),
         "2023-01-01T00:00:00Z".to_string(),
     );
-    assert!(approvals.is_approved(decision_number));
+    assert!(approvals.is_approved(&decision_number));
     assert_eq!(approvals.total_approved(), 1);
 
     // Verify approval details
-    let approval = approvals.get_approval(decision_number).unwrap();
+    let approval = approvals.get_approval(&decision_number).unwrap();
     assert_eq!(approval.approved_by, "reviewer");
     assert_eq!(approval.approval_timestamp, "2023-01-01T00:00:00Z");
 
     // Unapprove it
-    approvals.unapprove(decision_number);
-    assert!(!approvals.is_approved(decision_number));
+    approvals.unapprove(&decision_number);
+    assert!(!approvals.is_approved(&decision_number));
     assert_eq!(approvals.total_approved(), 0);
 }
 
@@ -567,11 +567,11 @@ fn test_decision_approval_serialization() {
         serde_json::from_str(&json).expect("Failed to deserialize");
 
     // Verify
-    assert!(deserialized.is_approved(1));
-    assert!(deserialized.is_approved(2));
+    assert!(deserialized.is_approved(&1));
+    assert!(deserialized.is_approved(&2));
     assert_eq!(deserialized.total_approved(), 2);
     assert_eq!(
-        deserialized.get_approval(1).unwrap().approved_by,
+        deserialized.get_approval(&1).unwrap().approved_by,
         "reviewer"
     );
 }
@@ -601,11 +601,11 @@ fn test_decision_approval_multiple_approvals() {
     assert!((approvals.approval_percentage(5) - 60.0).abs() < 0.01);
 
     // Unapprove one
-    approvals.unapprove(2);
+    approvals.unapprove(&2);
     assert_eq!(approvals.total_approved(), 2);
-    assert!(!approvals.is_approved(2));
-    assert!(approvals.is_approved(1));
-    assert!(approvals.is_approved(3));
+    assert!(!approvals.is_approved(&2));
+    assert!(approvals.is_approved(&1));
+    assert!(approvals.is_approved(&3));
 }
 
 #[test]
@@ -613,11 +613,11 @@ fn test_decision_approval_edge_cases() {
     let mut approvals = DecisionApprovals::new();
 
     // Unapproving non-existent decision should not panic
-    approvals.unapprove(999);
-    assert!(!approvals.is_approved(999));
+    approvals.unapprove(&999);
+    assert!(!approvals.is_approved(&999));
 
     // Getting non-existent decision should return None
-    assert_eq!(approvals.get_approval(999), None);
+    assert_eq!(approvals.get_approval(&999), None);
 
     // Approving twice should update the approval
     approvals.approve(
@@ -631,7 +631,7 @@ fn test_decision_approval_edge_cases() {
         "2023-01-02T00:00:00Z".to_string(),
     );
 
-    let approval = approvals.get_approval(1).unwrap();
+    let approval = approvals.get_approval(&1).unwrap();
     assert_eq!(approval.approved_by, "reviewer2");
     assert_eq!(approval.approval_timestamp, "2023-01-02T00:00:00Z");
     assert_eq!(approvals.total_approved(), 1); // Still only 1 approval

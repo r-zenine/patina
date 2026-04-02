@@ -1,11 +1,12 @@
 //! Instruction system for code review workflow
 //!
-//! This module contains the instruction entities used in the ReviewableDiff-based
-//! review system, allowing reviewers to provide actionable guidance for code changes.
+//! This module contains the instruction entities used in the review system,
+//! allowing reviewers to provide actionable guidance for code changes.
 
 use crate::entities::reviewable_diff_id::ReviewableDiffId;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::hash::Hash;
 
 /// Status of an instruction indicating its validity after code changes
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -34,76 +35,62 @@ pub struct Instruction {
     pub status: InstructionStatus,
 }
 
-/// Collection of instructions organized by ReviewableDiffId
+/// Generic collection of instructions keyed by any hashable type.
+///
+/// Used for both chunk-level instructions (`K = ReviewableDiffId`) and
+/// decision-level instructions (`K = u32`).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct ReviewInstructions {
-    pub instructions: HashMap<ReviewableDiffId, Vec<Instruction>>,
+#[serde(bound(
+    serialize = "K: Serialize + Hash + Eq + Clone",
+    deserialize = "K: for<'de2> Deserialize<'de2> + Hash + Eq + Clone"
+))]
+pub struct InstructionMap<K: Hash + Eq + Clone> {
+    pub instructions: HashMap<K, Vec<Instruction>>,
 }
 
-impl ReviewInstructions {
+impl<K: Hash + Eq + Clone> InstructionMap<K> {
     pub fn new() -> Self {
         Self {
             instructions: HashMap::new(),
         }
     }
 
-    pub fn add_instruction(&mut self, reviewable_id: ReviewableDiffId, instruction: Instruction) {
-        self.instructions
-            .entry(reviewable_id)
-            .or_default()
-            .push(instruction);
+    pub fn add_instruction(&mut self, key: K, instruction: Instruction) {
+        self.instructions.entry(key).or_default().push(instruction);
     }
 
-    pub fn get_instructions(&self, reviewable_id: &ReviewableDiffId) -> Option<&Vec<Instruction>> {
-        self.instructions.get(reviewable_id)
+    pub fn get_instructions(&self, key: &K) -> Option<&Vec<Instruction>> {
+        self.instructions.get(key)
     }
 
-    pub fn has_instructions(&self, reviewable_id: &ReviewableDiffId) -> bool {
-        self.instructions
-            .get(reviewable_id)
-            .is_some_and(|instructions| !instructions.is_empty())
+    pub fn has_instructions(&self, key: &K) -> bool {
+        self.instructions.get(key).is_some_and(|v| !v.is_empty())
     }
 
     pub fn total_instructions(&self) -> usize {
-        self.instructions
-            .values()
-            .map(|instructions| instructions.len())
-            .sum()
+        self.instructions.values().map(|v| v.len()).sum()
     }
 
     pub fn get_all_instructions(&self) -> Vec<&Instruction> {
-        self.instructions
-            .values()
-            .flat_map(|instructions| instructions.iter())
-            .collect()
+        self.instructions.values().flat_map(|v| v.iter()).collect()
     }
 
-    /// Get the first instruction for a ReviewableDiffId (convenience method)
-    pub fn get_instructions_for_reviewable(
-        &self,
-        reviewable_id: &ReviewableDiffId,
-    ) -> Option<&Instruction> {
-        self.instructions.get(reviewable_id)?.first()
+    pub fn get_first_instruction(&self, key: &K) -> Option<&Instruction> {
+        self.instructions.get(key)?.first()
     }
 
-    /// Remove all instructions for a specific ReviewableDiffId
-    pub fn remove_instructions(
-        &mut self,
-        reviewable_id: &ReviewableDiffId,
-    ) -> Option<Vec<Instruction>> {
-        self.instructions.remove(reviewable_id)
+    pub fn remove_instructions(&mut self, key: &K) -> Option<Vec<Instruction>> {
+        self.instructions.remove(key)
     }
 
-    /// Get all instructions filtered by status
     pub fn get_instructions_by_status(&self, status: &InstructionStatus) -> Vec<&Instruction> {
         self.instructions
             .values()
-            .flat_map(|instructions| instructions.iter())
-            .filter(|instruction| &instruction.status == status)
+            .flat_map(|v| v.iter())
+            .filter(|i| &i.status == status)
             .collect()
     }
 
-    /// Remove a specific instruction by ID
     pub fn remove_instruction_by_id(&mut self, instruction_id: &str) -> Option<Instruction> {
         for instructions in self.instructions.values_mut() {
             if let Some(pos) = instructions.iter().position(|i| i.id == instruction_id) {
@@ -113,6 +100,22 @@ impl ReviewInstructions {
         None
     }
 }
+
+/// Instructions keyed by ReviewableDiffId (chunk-level annotations)
+pub type ReviewInstructions = InstructionMap<ReviewableDiffId>;
+
+impl ReviewInstructions {
+    /// Get the first instruction for a ReviewableDiffId (compatibility method)
+    pub fn get_instructions_for_reviewable(
+        &self,
+        reviewable_id: &ReviewableDiffId,
+    ) -> Option<&Instruction> {
+        self.get_first_instruction(reviewable_id)
+    }
+}
+
+/// Instructions keyed by decision number (decision-level annotations)
+pub type DecisionInstructions = InstructionMap<u32>;
 
 #[cfg(test)]
 mod tests {

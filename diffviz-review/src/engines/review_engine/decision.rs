@@ -193,7 +193,7 @@ impl ReviewEngine {
     pub fn get_decision_instructions(&self, decision_number: u32) -> Option<Vec<&Instruction>> {
         self.state
             .decision_instructions
-            .get_instructions(decision_number)
+            .get_instructions(&decision_number)
             .map(|instructions| instructions.iter().collect())
     }
 }
