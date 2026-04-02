@@ -500,15 +500,15 @@ fn handle_business_event_impl(engine: &mut ReviewEngine, event: BusinessEvent) -
     match event {
         BusinessEvent::ToggleApprove { reviewable_id } => {
             if engine.state().is_approved(&reviewable_id) {
-                engine.reject(reviewable_id, None)?;
+                engine.reject(reviewable_id)?;
             } else {
-                engine.approve(reviewable_id, author, None)?;
+                engine.approve(reviewable_id, author)?;
             }
             Ok(Command::None)
         }
 
         BusinessEvent::ApproveFile { file_path } => {
-            engine.approve_all_in_file(&file_path, author, None)?;
+            engine.approve_all_in_file(&file_path, author)?;
             Ok(Command::None)
         }
 
@@ -517,7 +517,7 @@ fn handle_business_event_impl(engine: &mut ReviewEngine, event: BusinessEvent) -
             content,
         } => {
             if !content.trim().is_empty() {
-                engine.add_instruction(reviewable_id, content, author, None)?;
+                engine.add_instruction(reviewable_id, content, author)?;
             }
             Ok(Command::None)
         }

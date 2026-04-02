@@ -156,7 +156,7 @@ fn test_reverse_cascade_all_chunks_approved() {
     // Approve chunks one by one
     for (i, chunk_id) in chunk_ids.iter().enumerate() {
         engine
-            .approve(chunk_id.clone(), "reviewer".to_string(), None)
+            .approve(chunk_id.clone(), "reviewer".to_string())
             .unwrap();
 
         // Decision should still be unapproved until ALL chunks are approved
@@ -181,9 +181,7 @@ fn test_reverse_cascade_reject_one_chunk_unapproves_decision() {
         .map(|d| d.id.clone())
         .collect();
     for chunk_id in chunk_ids {
-        engine
-            .approve(chunk_id, "reviewer".to_string(), None)
-            .unwrap();
+        engine.approve(chunk_id, "reviewer".to_string()).unwrap();
     }
 
     // Verify decision is auto-approved
@@ -199,7 +197,7 @@ fn test_reverse_cascade_reject_one_chunk_unapproves_decision() {
         .id
         .clone();
 
-    engine.reject(first_chunk_id, None).unwrap();
+    engine.reject(first_chunk_id).unwrap();
 
     // Decision should be unapproved since not all chunks are approved anymore
     assert!(!engine.is_decision_approved(1));
@@ -224,7 +222,7 @@ fn test_decision_progress_partial_approval() {
 
     // Approve first chunk
     engine
-        .approve(chunk_ids[0].clone(), "reviewer".to_string(), None)
+        .approve(chunk_ids[0].clone(), "reviewer".to_string())
         .unwrap();
     let (approved, total) = engine.decision_approval_progress(1);
     assert_eq!(approved, 1);
@@ -232,7 +230,7 @@ fn test_decision_progress_partial_approval() {
 
     // Approve second chunk
     engine
-        .approve(chunk_ids[1].clone(), "reviewer".to_string(), None)
+        .approve(chunk_ids[1].clone(), "reviewer".to_string())
         .unwrap();
     let (approved, total) = engine.decision_approval_progress(1);
     assert_eq!(approved, 2);
@@ -240,7 +238,7 @@ fn test_decision_progress_partial_approval() {
 
     // Approve third chunk - should trigger reverse cascade
     engine
-        .approve(chunk_ids[2].clone(), "reviewer".to_string(), None)
+        .approve(chunk_ids[2].clone(), "reviewer".to_string())
         .unwrap();
     let (approved, total) = engine.decision_approval_progress(1);
     assert_eq!(approved, 3);
@@ -541,7 +539,6 @@ fn test_decision_instructions_independent_from_reviewable_instructions() {
             diff_id,
             "Code instruction".to_string(),
             "author".to_string(),
-            None,
         )
         .unwrap();
     engine

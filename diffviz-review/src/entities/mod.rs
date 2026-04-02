@@ -11,12 +11,13 @@ pub mod reviewable_diff_id;
 // Git reference types
 pub mod git_ref;
 
-// Re-exports for backward compatibility
-pub use approval::{Approval, ReviewApprovals};
+// Re-exports
+pub use approval::{Approval, ApprovalMap, ApprovalRecord, DecisionApprovals, ReviewApprovals};
 pub use cascade_result::CascadeResult;
 pub use decision::{
-    CodeImpact, Decision, DecisionApproval, DecisionApprovals, DecisionLineRange, DecisionLog,
-    DecisionReviewableDiff, ReviewDecisions,
+    CodeImpact, Decision, DecisionApproval, DecisionLineRange, DecisionLog, DecisionReviewableDiff,
+    ReviewDecisions,
 };
-pub use decision_instructions::DecisionInstructions;
-pub use instruction::{Instruction, ReviewInstructions};
+pub use instruction::{
+    DecisionInstructions, Instruction, InstructionMap, InstructionStatus, ReviewInstructions,
+};

@@ -19,10 +19,6 @@ pub use export_import::{
     ExportMetadata, ExportedInstruction, ExportedInstructions, ExportedLineRange, ImportSummary,
 };
 
-/// Type alias for review operation callbacks (used by existing approve/reject/add_instruction methods)
-/// NOTE: Cascade methods (approve_decision/reject_decision) use CascadeResult instead of callbacks
-type OperationCallback = Option<Box<dyn FnOnce(bool, Option<String>) + Send>>;
-
 /// Core review engine with ReviewableDiff-based state management
 pub struct ReviewEngine {
     state: ReviewState,
@@ -41,53 +37,36 @@ impl ReviewEngine {
     }
 
     /// Approve a specific ReviewableDiff
-    pub fn approve(
-        &mut self,
-        reviewable_id: ReviewableDiffId,
-        reviewer: String,
-        on_result: OperationCallback,
-    ) -> Result<()> {
+    pub fn approve(&mut self, reviewable_id: ReviewableDiffId, reviewer: String) -> Result<()> {
         self.state.approve(reviewable_id.clone(), reviewer.clone());
         self.invalidate_cache(&reviewable_id);
 
-        // Check for reverse cascade: if all chunks for any decision are now approved, auto-approve the decision
+        // Reverse cascade: if all chunks for any decision are now approved, auto-approve the decision
         for decision_num in self.decisions_for_reviewable(&reviewable_id) {
             let (approved, total) = self.state.decision_approval_progress(decision_num);
-            // If all chunks are approved, auto-approve the decision
             if total > 0 && approved == total && !self.state.is_decision_approved(decision_num) {
                 self.state.approve_decision(decision_num, reviewer.clone());
             }
         }
 
-        if let Some(callback) = on_result {
-            callback(true, Some("ReviewableDiff approved".to_string()));
-        }
         Ok(())
     }
 
     /// Reject/unapprove a specific ReviewableDiff
-    pub fn reject(
-        &mut self,
-        reviewable_id: ReviewableDiffId,
-        on_result: OperationCallback,
-    ) -> Result<()> {
+    pub fn reject(&mut self, reviewable_id: ReviewableDiffId) -> Result<()> {
         self.state.unapprove(&reviewable_id);
         self.invalidate_cache(&reviewable_id);
 
-        // Check for reverse cascade: if a decision was approved but now not all chunks are approved, unapprove the decision
+        // Reverse cascade: if a decision was approved but now not all chunks are approved, unapprove it
         for decision_num in self.decisions_for_reviewable(&reviewable_id) {
             if self.state.is_decision_approved(decision_num) {
                 let (approved, total) = self.state.decision_approval_progress(decision_num);
-                // If not all chunks are approved anymore, unapprove the decision
                 if total > 0 && approved < total {
                     self.state.unapprove_decision(decision_num);
                 }
             }
         }
 
-        if let Some(callback) = on_result {
-            callback(true, Some("ReviewableDiff rejected".to_string()));
-        }
         Ok(())
     }
 
@@ -97,7 +76,6 @@ impl ReviewEngine {
         reviewable_id: ReviewableDiffId,
         content: String,
         author: String,
-        on_result: OperationCallback,
     ) -> Result<()> {
         let instruction = Instruction {
             id: uuid::Uuid::new_v4().to_string(),
@@ -113,22 +91,11 @@ impl ReviewEngine {
             .add_instruction(reviewable_id.clone(), instruction);
         self.invalidate_cache(&reviewable_id);
 
-        if let Some(callback) = on_result {
-            callback(true, Some("Instruction added".to_string()));
-        }
         Ok(())
     }
 
     /// Approve all ReviewableDiffs in a specific file
-    pub fn approve_all_in_file(
-        &mut self,
-        file_path: &str,
-        reviewer: String,
-        on_result: OperationCallback,
-    ) -> Result<()> {
-        let mut approved_count = 0;
-
-        // Get all ReviewableDiff IDs for this file
+    pub fn approve_all_in_file(&mut self, file_path: &str, reviewer: String) -> Result<()> {
         let reviewable_ids: Vec<ReviewableDiffId> = self
             .state
             .reviewable_diffs
@@ -137,24 +104,11 @@ impl ReviewEngine {
             .map(|diff| diff.id.clone())
             .collect();
 
-        // Approve each one and invalidate caches
         for reviewable_id in &reviewable_ids {
             self.invalidate_cache(reviewable_id);
-            approved_count += 1;
         }
 
         self.state.approve_all_in_file(file_path, reviewer);
-
-        if let Some(callback) = on_result {
-            if approved_count > 0 {
-                callback(
-                    true,
-                    Some(format!("Approved {approved_count} ReviewableDiffs in file")),
-                );
-            } else {
-                callback(false, Some("No ReviewableDiffs found in file".to_string()));
-            }
-        }
 
         Ok(())
     }
@@ -195,12 +149,6 @@ impl ReviewEngine {
         }
     }
 
-    /// Get a RenderableDiff for a ReviewableDiff (read-only, no caching)
-    /// This version can be called with &self for TUI rendering
-    pub fn render_diff(&self, reviewable_id: &ReviewableDiffId) -> Option<String> {
-        self.compute_renderable(reviewable_id)
-    }
-
     /// Get a RenderableDiff object for direct widget usage
     pub fn get_renderable_diff_object(
         &self,
@@ -235,19 +183,6 @@ impl ReviewEngine {
         }
     }
 
-    /// Complete the review and generate a summary
-    pub fn complete_review(&self) -> Result<ReviewSummary> {
-        let progress = self.get_review_progress();
-
-        Ok(ReviewSummary {
-            total_reviewable_diffs: progress.total_reviewable_diffs,
-            approved_reviewable_diffs: progress.approved_reviewable_diffs,
-            instructions_added: progress.total_instructions,
-            files_reviewed: self.state.get_file_paths().len(),
-            cache_hits: self.renderable_cache.len(),
-        })
-    }
-
     /// Get reference to the centralized state
     pub fn state(&self) -> &ReviewState {
         &self.state
@@ -276,22 +211,9 @@ impl ReviewEngine {
         self.state.get_file_paths()
     }
 
-    /// Clear the RenderableDiff cache (useful for memory management)
+    /// Clear the RenderableDiff cache
     pub fn clear_cache(&mut self) {
         self.renderable_cache.clear();
-    }
-
-    /// Get cache statistics for monitoring
-    pub fn cache_stats(&self) -> CacheStats {
-        CacheStats {
-            total_entries: self.renderable_cache.len(),
-            total_reviewable_diffs: self.state.total_reviewable_diffs(),
-            cache_hit_ratio: if self.state.total_reviewable_diffs() > 0 {
-                self.renderable_cache.len() as f32 / self.state.total_reviewable_diffs() as f32
-            } else {
-                0.0
-            },
-        }
     }
 
     /// Get a specific ReviewableDiff by ID
@@ -307,24 +229,6 @@ pub struct ReviewProgress {
     pub approved_reviewable_diffs: usize,
     pub approval_percentage: f32,
     pub total_instructions: usize,
-}
-
-/// Summary of a completed review session
-#[derive(Debug, Clone)]
-pub struct ReviewSummary {
-    pub total_reviewable_diffs: usize,
-    pub approved_reviewable_diffs: usize,
-    pub instructions_added: usize,
-    pub files_reviewed: usize,
-    pub cache_hits: usize,
-}
-
-/// Cache performance statistics
-#[derive(Debug, Clone)]
-pub struct CacheStats {
-    pub total_entries: usize,
-    pub total_reviewable_diffs: usize,
-    pub cache_hit_ratio: f32,
 }
 
 fn format_renderable_diff_for_display(renderable_diff: &RenderableDiff) -> String {
@@ -464,7 +368,7 @@ mod tests {
         let reviewable_id = diff.id.clone();
         let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
-        let result = engine.approve(reviewable_id.clone(), "reviewer".to_string(), None);
+        let result = engine.approve(reviewable_id.clone(), "reviewer".to_string());
         assert!(result.is_ok());
         assert!(engine.state.is_approved(&reviewable_id));
     }
@@ -483,10 +387,7 @@ mod tests {
         let renderable2 = engine.get_renderable_diff(&reviewable_id);
         assert_eq!(renderable1, renderable2);
 
-        // Cache should have one entry
-        let stats = engine.cache_stats();
-        assert_eq!(stats.total_entries, 1);
-        assert_eq!(stats.cache_hit_ratio, 1.0);
+        assert_eq!(engine.renderable_cache.len(), 1);
     }
 
     #[test]
@@ -495,15 +396,14 @@ mod tests {
         let reviewable_id = diff.id.clone();
         let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
-        // Generate cached entry
         engine.get_renderable_diff(&reviewable_id);
-        assert_eq!(engine.cache_stats().total_entries, 1);
+        assert_eq!(engine.renderable_cache.len(), 1);
 
         // Approval should invalidate cache
         engine
-            .approve(reviewable_id.clone(), "reviewer".to_string(), None)
+            .approve(reviewable_id.clone(), "reviewer".to_string())
             .unwrap();
-        assert_eq!(engine.cache_stats().total_entries, 0);
+        assert_eq!(engine.renderable_cache.len(), 0);
     }
 
     #[test]
@@ -515,7 +415,7 @@ mod tests {
         ];
         let mut engine = ReviewEngine::new(diffs, "test_author".to_string());
 
-        let result = engine.approve_all_in_file("test1.rs", "reviewer".to_string(), None);
+        let result = engine.approve_all_in_file("test1.rs", "reviewer".to_string());
         assert!(result.is_ok());
 
         // Check that only test1.rs diffs are approved
@@ -546,53 +446,12 @@ mod tests {
 
         // Approve one diff
         engine
-            .approve(diffs[0].id.clone(), "reviewer".to_string(), None)
+            .approve(diffs[0].id.clone(), "reviewer".to_string())
             .unwrap();
 
         let progress = engine.get_review_progress();
         assert_eq!(progress.approved_reviewable_diffs, 1);
         assert_eq!(progress.approval_percentage, 50.0);
-    }
-
-    #[test]
-    fn test_complete_review() {
-        let diffs = vec![
-            create_test_reviewable_diff("test1.rs", 1),
-            create_test_reviewable_diff("test2.rs", 1),
-        ];
-        let mut engine = ReviewEngine::new(diffs.clone(), "test_author".to_string());
-
-        // Approve diffs
-        engine
-            .approve(diffs[0].id.clone(), "reviewer".to_string(), None)
-            .unwrap();
-        engine
-            .approve(diffs[1].id.clone(), "reviewer".to_string(), None)
-            .unwrap();
-
-        let summary = engine.complete_review().unwrap();
-        assert_eq!(summary.total_reviewable_diffs, 2);
-        assert_eq!(summary.approved_reviewable_diffs, 2);
-        assert_eq!(summary.files_reviewed, 2);
-    }
-
-    #[test]
-    fn test_render_diff() {
-        let diff = create_test_reviewable_diff("test.rs", 1);
-        let reviewable_id = diff.id.clone();
-        let engine = ReviewEngine::new(vec![diff], "test_author".to_string());
-
-        // Test the render_diff method
-        let rendered = engine.render_diff(&reviewable_id);
-        assert!(rendered.is_some());
-
-        let content = rendered.unwrap();
-
-        // Should contain the metadata header
-        assert!(content.contains("=== test content for test.rs ==="));
-        assert!(content.contains("Language: Rust"));
-        assert!(content.contains("Lines: 1 | Essential: 1"));
-        assert!(content.contains("test content for test.rs"));
     }
 
     #[test]
@@ -633,44 +492,30 @@ mod tests {
             reviewable_id.clone(),
             "Extract this to a separate function".to_string(),
             "reviewer".to_string(),
-            None,
         );
 
         assert!(result.is_ok());
     }
-
-    // This test has been removed because overlap now triggers automatic extension
-    // instead of an error. See test_add_instruction_with_overlap_auto_extends for
-    // the new behavior.
 
     #[test]
     fn test_add_instruction_non_overlapping_ranges() {
         let diff = create_test_reviewable_diff("test.rs", 1);
         let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
-        // Add first instruction (lines 10-12)
-        let id1 = test_id("test.rs", 10, 12);
-
         engine
             .add_instruction(
-                id1,
+                test_id("test.rs", 10, 12),
                 "First instruction".to_string(),
                 "reviewer".to_string(),
-                None,
             )
             .unwrap();
 
-        // Add non-overlapping instruction (lines 20-22)
-        let id2 = test_id("test.rs", 20, 22);
-
         let result = engine.add_instruction(
-            id2.clone(),
+            test_id("test.rs", 20, 22),
             "Second instruction".to_string(),
             "reviewer".to_string(),
-            None,
         );
 
-        // Should succeed - no overlap
         assert!(result.is_ok());
     }
 
@@ -686,24 +531,13 @@ mod tests {
                 id.clone(),
                 "First instruction".to_string(),
                 "reviewer".to_string(),
-                None,
             )
             .unwrap();
-
         engine
-            .add_instruction(
-                id,
-                "Second instruction".to_string(),
-                "reviewer".to_string(),
-                None,
-            )
+            .add_instruction(id, "Second instruction".to_string(), "reviewer".to_string())
             .unwrap();
 
-        assert_eq!(
-            engine.state().instructions.total_instructions(),
-            2,
-            "Two instructions on the same range should be stored separately"
-        );
+        assert_eq!(engine.state().instructions.total_instructions(), 2);
     }
 
     #[test]
@@ -711,26 +545,18 @@ mod tests {
         let diff = create_test_reviewable_diff("test.rs", 1);
         let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
-        // Add first instruction (lines 10-12)
-        let id1 = test_id("test.rs", 10, 12);
-
         engine
             .add_instruction(
-                id1.clone(),
+                test_id("test.rs", 10, 12),
                 "First instruction".to_string(),
                 "reviewer".to_string(),
-                None,
             )
             .unwrap();
 
-        // Add adjacent instruction (lines 13-15) - no overlap
-        let id2 = test_id("test.rs", 13, 15);
-
         let result = engine.add_instruction(
-            id2.clone(),
+            test_id("test.rs", 13, 15),
             "Second instruction".to_string(),
             "reviewer".to_string(),
-            None,
         );
 
         assert!(result.is_ok());

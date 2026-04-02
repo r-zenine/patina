@@ -1,52 +1,30 @@
 //! Review state management with ReviewableDiff-based architecture
 //!
 //! This module provides centralized state management for review sessions,
-//! now organized around ReviewableDiffs as the primary unit of review.
+//! organized around ReviewableDiffs as the primary unit of review.
 
 use crate::entities::reviewable_diff_id::ReviewableDiffId;
 use crate::entities::{
     DecisionApprovals, DecisionInstructions, Instruction, ReviewApprovals, ReviewDecisions,
     ReviewInstructions,
 };
-// Simplified structures for review workflow
-#[derive(Debug, Clone, Default)]
-pub struct ReviewJourney;
-
-impl ReviewJourney {
-    pub fn new() -> Self {
-        Self
-    }
-
-    pub fn something() {}
-}
-
-#[derive(Debug, Clone)]
-pub struct SessionMetadata {
-    pub session_id: String,
-    pub created_at: String,
-    pub author: String,
-}
 use std::collections::{BTreeMap, HashMap};
 
 /// Centralized application state containing all business data
-/// Now organized around ReviewableDiffs rather than legacy chunks
+/// Organized around ReviewableDiffs as the primary unit of review.
 #[derive(Debug, Clone)]
 pub struct ReviewState {
     /// Map of ReviewableDiffs indexed by their unique identifier
     /// Ordered by file path and line range for consistent iteration
     pub reviewable_diffs: BTreeMap<ReviewableDiffId, ReviewableDiff>,
 
-    /// Review progress and decisions
     pub approvals: ReviewApprovals,
     pub instructions: ReviewInstructions,
     pub decisions: ReviewDecisions,
     pub decision_approvals: DecisionApprovals,
     pub decision_instructions: DecisionInstructions,
-    pub journey: ReviewJourney,
 
-    /// Session metadata
     pub author: String,
-    pub session_metadata: Option<SessionMetadata>,
 }
 
 // Import ReviewableDiff from diffviz-core now that it's lifetime-independent
@@ -105,18 +83,14 @@ impl ReviewState {
             decisions: ReviewDecisions::new(),
             decision_approvals: DecisionApprovals::new(),
             decision_instructions: DecisionInstructions::new(),
-            journey: ReviewJourney::new(),
             author,
-            session_metadata: None,
         }
     }
 
     /// Create review state with existing review data (for loading sessions)
-    #[allow(clippy::too_many_arguments)]
     pub fn with_review_data(
         reviewable_diffs: Vec<ReviewableDiff>,
         author: String,
-        journey: ReviewJourney,
         approvals: ReviewApprovals,
         instructions: ReviewInstructions,
         decisions: ReviewDecisions,
@@ -135,9 +109,7 @@ impl ReviewState {
             decisions,
             decision_approvals,
             decision_instructions,
-            journey,
             author,
-            session_metadata: None,
         }
     }
 
@@ -248,7 +220,7 @@ impl ReviewState {
 
     /// Check if a decision is approved
     pub fn is_decision_approved(&self, decision_number: u32) -> bool {
-        self.decision_approvals.is_approved(decision_number)
+        self.decision_approvals.is_approved(&decision_number)
     }
 
     /// Get approval progress for a decision: (approved_chunks, total_chunks)
@@ -284,13 +256,7 @@ impl ReviewState {
 
     /// Unapprove/reject a decision (returns new state)
     pub fn unapprove_decision(&mut self, decision_number: u32) -> &mut Self {
-        self.decision_approvals.unapprove(decision_number);
-        self
-    }
-
-    /// Set session metadata
-    pub fn with_session_metadata(&mut self, metadata: SessionMetadata) -> &mut Self {
-        self.session_metadata = Some(metadata);
+        self.decision_approvals.unapprove(&decision_number);
         self
     }
 
@@ -580,11 +546,11 @@ mod tests {
             },
         );
 
-        assert!(state.decision_instructions.has_instructions(42));
+        assert!(state.decision_instructions.has_instructions(&42));
         assert_eq!(
             state
                 .decision_instructions
-                .get_instructions(42)
+                .get_instructions(&42)
                 .unwrap()
                 .len(),
             1
@@ -612,7 +578,6 @@ mod tests {
         let state = ReviewState::with_review_data(
             vec![diff],
             "test_author".to_string(),
-            ReviewJourney::new(),
             ReviewApprovals::new(),
             ReviewInstructions::new(),
             ReviewDecisions::new(),
@@ -621,6 +586,6 @@ mod tests {
         );
 
         assert_eq!(state.decision_instructions.total_instructions(), 1);
-        assert!(state.decision_instructions.has_instructions(1));
+        assert!(state.decision_instructions.has_instructions(&1));
     }
 }

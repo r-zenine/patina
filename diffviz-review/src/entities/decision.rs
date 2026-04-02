@@ -266,67 +266,9 @@ impl ReviewDecisions {
     }
 }
 
-/// An approval record for a decision
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct DecisionApproval {
-    pub decision_number: u32,
-    pub approved: bool,
-    pub approved_by: String,
-    pub approval_timestamp: String,
-}
-
-/// Collection of decision approvals organized by decision number
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct DecisionApprovals {
-    pub approvals: HashMap<u32, DecisionApproval>,
-}
-
-impl DecisionApprovals {
-    pub fn new() -> Self {
-        Self {
-            approvals: HashMap::new(),
-        }
-    }
-
-    pub fn approve(&mut self, decision_number: u32, approved_by: String, timestamp: String) {
-        let approval = DecisionApproval {
-            decision_number,
-            approved: true,
-            approved_by,
-            approval_timestamp: timestamp,
-        };
-        self.approvals.insert(decision_number, approval);
-    }
-
-    pub fn unapprove(&mut self, decision_number: u32) {
-        self.approvals.remove(&decision_number);
-    }
-
-    pub fn is_approved(&self, decision_number: u32) -> bool {
-        self.approvals
-            .get(&decision_number)
-            .is_some_and(|approval| approval.approved)
-    }
-
-    pub fn get_approval(&self, decision_number: u32) -> Option<&DecisionApproval> {
-        self.approvals.get(&decision_number)
-    }
-
-    pub fn total_approved(&self) -> usize {
-        self.approvals
-            .values()
-            .filter(|approval| approval.approved)
-            .count()
-    }
-
-    pub fn approval_percentage(&self, total_decisions: usize) -> f32 {
-        if total_decisions == 0 {
-            0.0
-        } else {
-            (self.total_approved() as f32 / total_decisions as f32) * 100.0
-        }
-    }
-}
+// DecisionApproval and DecisionApprovals are now defined in approval.rs
+// as ApprovalRecord and ApprovalMap<u32> respectively.
+pub use crate::entities::approval::{ApprovalRecord as DecisionApproval, DecisionApprovals};
 
 #[cfg(test)]
 #[path = "decision_tests.rs"]
