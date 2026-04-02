@@ -1,0 +1,21 @@
+commit: null
+decisions:
+  - number: 1
+    title: Standalone functions in persistence.rs, not ReviewEngine methods
+    rationale: Simplest lift-and-shift that restores the arch boundary. Call sites in main.rs change only in import path, not in call shape. ReviewEngine stays focused on orchestration, not file I/O.
+    code_impacts: []
+
+  - number: 2
+    title: Dedicated PersistenceError (thiserror) instead of anyhow::Result
+    rationale: Callers can distinguish Io / Json / Import failure kinds. thiserror and serde_json are already in diffviz-review/Cargo.toml — zero new dependencies. The Import variant replaces the anyhow::anyhow! string in load_review_state. Call sites in main.rs continue using anyhow::Result via automatic From conversion.
+    code_impacts: []
+
+  - number: 3
+    title: PersistedApproval / PersistedDecisionApproval / ReviewStateFile stay private
+    rationale: These are serialization-only DTOs — implementation details of load/save. No external code needs to construct or inspect them. Exposing them publicly would widen the module's surface without any current consumer.
+    code_impacts: []
+
+  - number: 4
+    title: review-state.json format unchanged
+    rationale: Backward compatibility preserved. The move is a code relocation, not a schema change. Existing state files on disk continue to load correctly.
+    code_impacts: []
