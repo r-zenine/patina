@@ -1,0 +1,40 @@
+commit: 6eb6250
+decisions:
+  - number: 1
+    title: Move state persistence to diffviz-review::persistence module
+    rationale: |
+      CLI layer was doing persistence work that belongs in the review layer.
+      Clean architecture requires each layer to own its domain concerns.
+      The design (contribution 004) specified a new persistence.rs module at the
+      diffviz-review crate root — verbatim move, no API redesign.
+    code_impacts:
+      - reasoning: New module containing all 5 moved items plus PersistenceError type
+        file: diffviz-review/src/persistence.rs
+        line_ranges:
+          - start: 1
+            end: 113
+      - reasoning: Added pub mod persistence; and re-exports for load_review_state, save_review_state, PersistenceError
+        file: diffviz-review/src/lib.rs
+        line_ranges:
+          - start: 4
+            end: 4
+      - reasoning: Removed 107 lines (3 struct defs + 2 fn defs + Serialize/Deserialize import); replaced with import from diffviz_review
+        file: diffviz-cli/src/main.rs
+        line_ranges:
+          - start: 4
+            end: 17
+
+  - number: 2
+    title: PersistenceError replaces anyhow at the boundary
+    rationale: |
+      The original functions used anyhow::anyhow!() to convert errors to strings.
+      The new module uses a structured PersistenceError (thiserror) with Io, Json, Import variants.
+      Call sites in main.rs use anyhow::Result and anyhow auto-converts from any std::error::Error,
+      so ? works unchanged — zero call-site changes required.
+      thiserror and serde_json were already in diffviz-review/Cargo.toml; no new dependencies added.
+    code_impacts:
+      - reasoning: PersistenceError defined here; Import variant replaces anyhow string wrapping
+        file: diffviz-review/src/persistence.rs
+        line_ranges:
+          - start: 8
+            end: 16
