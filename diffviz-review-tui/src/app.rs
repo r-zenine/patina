@@ -25,7 +25,7 @@ use crate::{
 /// Main TUI application that coordinates ReviewEngine and UI
 pub struct ReviewTuiApp {
     /// Business logic engine
-    review_engine: ReviewEngine,
+    review_engine: Option<ReviewEngine>,
 
     /// UI navigation and display state
     ui_state: UiState,
@@ -47,7 +47,7 @@ impl ReviewTuiApp {
         let ui_state = Self::initialize_ui_state(&review_engine);
 
         Ok(Self {
-            review_engine,
+            review_engine: Some(review_engine),
             ui_state,
             terminal,
         })
@@ -73,18 +73,16 @@ impl ReviewTuiApp {
 
     /// Consume the app and return the underlying ReviewEngine.
     ///
-    /// Performs terminal cleanup before returning (since Drop will not run via ManuallyDrop).
-    pub fn into_review_engine(self) -> ReviewEngine {
-        let mut manual = std::mem::ManuallyDrop::new(self);
-        // Manually run terminal teardown (Drop is suppressed by ManuallyDrop)
+    /// Performs terminal cleanup before returning.
+    pub fn into_review_engine(mut self) -> ReviewEngine {
+        // Manually run terminal teardown before Drop is called
         let _ = disable_raw_mode();
-        let _ = execute!(manual.terminal.backend_mut(), LeaveAlternateScreen);
-        let _ = manual.terminal.show_cursor();
-        // SAFETY: ManuallyDrop prevents automatic Drop. We take sole ownership of
-        // review_engine via ptr::read. The remaining fields (ui_state, terminal) are
-        // leaked, which is acceptable — their cleanup has been done manually above and
-        // the process exits shortly after this call.
-        unsafe { std::ptr::read(std::ptr::addr_of!(manual.review_engine)) }
+        let _ = execute!(self.terminal.backend_mut(), LeaveAlternateScreen);
+        let _ = self.terminal.show_cursor();
+        // Extract the ReviewEngine from the Option
+        self.review_engine
+            .take()
+            .expect("review_engine should be present")
     }
 
     /// Run the main application loop at a fixed ~60fps cadence.
@@ -122,8 +120,12 @@ impl ReviewTuiApp {
 
     /// Render the current UI state
     fn render(&mut self) -> Result<()> {
+        let review_engine = self
+            .review_engine
+            .as_ref()
+            .expect("review_engine should be present");
         self.terminal.draw(|f| {
-            ui::draw(f, &self.ui_state, &self.review_engine);
+            ui::draw(f, &self.ui_state, review_engine);
         })?;
         Ok(())
     }
@@ -159,7 +161,11 @@ impl ReviewTuiApp {
 
     /// Process a single key event and update state, returning command to execute
     pub fn process_key_event(&mut self, key: KeyEvent) -> Result<Command> {
-        process_key_event_impl(&mut self.review_engine, &mut self.ui_state, key)
+        let review_engine = self
+            .review_engine
+            .as_mut()
+            .expect("review_engine should be present");
+        process_key_event_impl(review_engine, &mut self.ui_state, key)
     }
 }
 

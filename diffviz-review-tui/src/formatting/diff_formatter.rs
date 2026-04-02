@@ -141,8 +141,6 @@ impl TuiDiffFormatter {
         &self,
         line: &diffviz_core::renderable_diff::RenderableLine,
     ) -> Line<'static> {
-        // TODO: Fix lifetime issues properly
-        // For now, create a simple owned line to make compilation work
         Line::from(vec![Span::styled(
             format!("{}: {}", line.line_number, line.content),
             Style::default(),
