@@ -1,0 +1,38 @@
+commit: 23cb1045618545fe0b60defc8e7c3173279925f2  # Phase 1 implementation complete
+
+phase_status:
+  phase_1: "COMPLETE (23cb104, 0cbfc98)"
+  phase_2: "READY"
+  phase_3: "PENDING"
+  phase_4: "PENDING"
+
+decisions:
+  - number: 1
+    title: "Test harness module is excluded from simplification"
+    rationale: "The test_harness feature-gated module is intentional agentic infrastructure — agents cannot launch a TTY to drive the TUI, so the harness is the only way to exercise TUI behaviour in CI or agentic contexts. It is not speculative infrastructure. Only fields that become structurally dead (file_list_selection, expanded_files) are removed from snapshot.rs as a necessary side-effect of state.rs cleanup."
+    code_impacts: []
+
+  - number: 2
+    title: "TDD strategy selected for all phases"
+    rationale: "All 6 changes have clear, unambiguous deletion requirements derived from the design-principles audit. There are no uncertain requirements or early-feedback needs. The zero-warning rule provides a natural, mechanical test criterion: cargo clippy -- -D warnings passes after each phase. TDD (where the test is 'compile clean + clippy clean') fits perfectly."
+    code_impacts: []
+
+  - number: 3
+    title: "Phases ordered safest-first: trivial cleanups → inline removal → EditContent removal → dead nav removal"
+    rationale: "Earlier phases touch fewer files and have no cross-file coordination requirements. Later phases (5, 6) have broader surface across state.rs, snapshot.rs, and multiple component files; doing them last keeps the blast radius predictable and avoids overlapping edits."
+    code_impacts: []
+
+  - number: 4
+    title: "into_review_engine() unsafe replaced with Option<ReviewEngine> + take()"
+    rationale: "The current implementation uses ManuallyDrop + ptr::read to extract ownership of ReviewEngine at shutdown. Using Option<ReviewEngine> with take() achieves identical semantics with no unsafe. The existing Drop impl on ReviewTuiApp already handles terminal cleanup via self.terminal — it runs when self drops at end of into_review_engine, which is correct."
+    code_impacts: []
+
+  - number: 5
+    title: "EditContent feature removed rather than implemented"
+    rationale: "BusinessEvent::EditContent has a no-op handler (Ok(Command::None)) with no planned implementation timeline. InputMode::Edit exists only to emit this unhandled event. YAGNI: remove the entire feature branch. If content editing is needed in the future, it can be implemented then with full context."
+    code_impacts: []
+
+  - number: 6
+    title: "Entire inline diff code path removed (not just the no-op function)"
+    rationale: "derive_inline_diff_map always returns InlineDiffMap::default(). Because show_inline_old(true) is hardcoded but the map is always empty, the append_line inline rendering block never executes. The Cow derivation block, LineRenderContext fields, create_inline_old_line, and re-exported types are all dead. Removing only the function while leaving the plumbing would violate Kent Beck rule 4 (minimal elements). Full removal is correct."
+    code_impacts: []
