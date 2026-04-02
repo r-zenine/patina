@@ -25,12 +25,6 @@ pub enum BusinessEvent {
         content: String,
     },
 
-    /// Edit content of a ReviewableDiff
-    EditContent {
-        reviewable_id: ReviewableDiffId,
-        new_content: String,
-    },
-
     /// Export all instructions to JSON file
     ExportInstructions,
 
@@ -66,11 +60,6 @@ pub fn ui_event_to_business_event(ui_event: &UiEvent, ui_state: &UiState) -> Opt
             InputMode::Instruction { reviewable_id } => Some(BusinessEvent::AddInstruction {
                 reviewable_id: reviewable_id.clone(),
                 content: ui_state.input_buffer.clone(),
-            }),
-
-            InputMode::Edit { reviewable_id } => Some(BusinessEvent::EditContent {
-                reviewable_id: reviewable_id.clone(),
-                new_content: ui_state.input_buffer.clone(),
             }),
 
             InputMode::Navigation => None,

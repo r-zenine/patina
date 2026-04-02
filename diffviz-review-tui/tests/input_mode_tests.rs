@@ -92,30 +92,6 @@ fn test_enter_instruction_mode() {
 }
 
 #[test]
-fn test_enter_edit_mode() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    // Navigate to chunk (depth 1) and enter edit mode
-    let state = harness
-        .run_sequence_final_state("<Tab>j<Space>ie")
-        .expect("Entering edit mode failed");
-
-    assert_eq!(
-        state.input_mode, "Edit",
-        "Should be in edit mode after Space+i+e"
-    );
-    assert_eq!(
-        state.input_buffer, "",
-        "Input buffer should be empty on mode entry"
-    );
-    assert_eq!(
-        state.input_cursor, 0,
-        "Input cursor should be at start on mode entry"
-    );
-}
-
-#[test]
 fn test_exit_input_mode_with_esc() {
     let engine = create_test_engine();
     let mut harness = InputTestHarness::new(engine);
@@ -487,25 +463,6 @@ fn test_instruction_mode_visual_modal_displays() {
     assert!(
         output.contains("Instruction") || output.contains("Input"),
         "Visual output should show instruction mode indicator"
-    );
-}
-
-#[test]
-fn test_edit_mode_visual_modal_displays() {
-    let engine = create_test_engine();
-    let mut harness = CombinedTestHarness::new(engine);
-
-    // Enter edit mode
-    let results = harness
-        .run_sequence_with_renders("<Tab>j<Space>ie")
-        .expect("Visual rendering failed");
-
-    let output = &results.last().expect("No results").visual;
-
-    // Check for input modal indicators
-    assert!(
-        output.contains("Edit") || output.contains("Input"),
-        "Visual output should show edit mode indicator"
     );
 }
 

@@ -70,11 +70,6 @@ fn get_modal_content(input_mode: &InputMode) -> (String, &'static str, &'static 
             "Enter your instruction for this diff:",
             "Type your instruction here...",
         ),
-        InputMode::Edit { reviewable_id } => (
-            format!("Edit Content - {}", reviewable_id.file_path),
-            "Edit the content of this diff:",
-            "Enter the new content...",
-        ),
         InputMode::Navigation => ("".to_string(), "", ""), // Should not happen
     }
 }
