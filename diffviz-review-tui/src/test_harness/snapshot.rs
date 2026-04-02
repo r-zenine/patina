@@ -33,9 +33,6 @@ pub struct StateSnapshot {
     /// Application should quit
     pub should_quit: bool,
 
-    /// Current file list selection index
-    pub file_list_selection: usize,
-
     /// Whether to highlight semantics
     pub highlight_semantics: bool,
 
@@ -56,9 +53,6 @@ pub struct StateSnapshot {
 
     /// Selection range (start, end) if active
     pub selection_range: Option<(usize, usize)>,
-
-    /// Currently expanded files in the tree
-    pub expanded_files: Vec<String>,
 
     /// Current decision tree selection path (decision_index, chunk_index)
     pub decision_tree_path: (usize, Option<usize>),
@@ -82,7 +76,6 @@ impl StateSnapshot {
             input_cursor: ui_state.input_cursor,
             show_all_context: ui_state.show_all_context,
             should_quit: ui_state.should_quit,
-            file_list_selection: ui_state.file_list_selection,
             highlight_semantics: ui_state.highlight_semantics,
             leader_active: ui_state.leader_active,
             leader_submenu: ui_state.leader_submenu,
@@ -90,7 +83,6 @@ impl StateSnapshot {
             show_instructions: ui_state.show_instructions,
             selection_anchor: ui_state.selection_anchor,
             selection_range: ui_state.selection_range,
-            expanded_files: ui_state.expanded_files.iter().cloned().collect(),
             decision_tree_path: (
                 ui_state.decision_tree.selected_path.decision_index,
                 ui_state.decision_tree.selected_path.chunk_index,
@@ -124,7 +116,6 @@ mod tests {
             input_cursor: 0,
             show_all_context: false,
             should_quit: false,
-            file_list_selection: 0,
             highlight_semantics: true,
             leader_active: false,
             leader_submenu: None,
@@ -132,7 +123,6 @@ mod tests {
             show_instructions: false,
             selection_anchor: None,
             selection_range: None,
-            expanded_files: vec![],
             decision_tree_path: (0, None),
         };
 

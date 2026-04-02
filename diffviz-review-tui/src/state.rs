@@ -5,7 +5,6 @@
 
 use crate::decision_navigation::DecisionNavigationTree;
 use diffviz_review::ReviewableDiffId;
-use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 /// Timeout duration for leader key mode (seconds)
@@ -61,12 +60,6 @@ pub struct UiState {
     /// Application should quit
     pub should_quit: bool,
 
-    /// Set of expanded file paths in the file list
-    pub expanded_files: HashSet<String>,
-
-    /// Currently selected item index in the file list (for navigation)
-    pub file_list_selection: usize,
-
     /// Whether to highlight semantic changes
     pub highlight_semantics: bool,
 
@@ -104,8 +97,6 @@ impl Default for UiState {
             input_cursor: 0,
             show_all_context: true,
             should_quit: false,
-            expanded_files: HashSet::new(),
-            file_list_selection: 0,
             highlight_semantics: true,
             cursor_index: 0,
             selection_anchor: None,
@@ -351,20 +342,6 @@ impl UiState {
             let end = anchor.max(self.cursor_index) + 1;
             self.selection_range = Some((start, end));
         }
-    }
-
-    /// Toggle expansion state of a file in the file list
-    pub fn toggle_file_expansion(&mut self, file_path: &str) {
-        if self.expanded_files.contains(file_path) {
-            self.expanded_files.remove(file_path);
-        } else {
-            self.expanded_files.insert(file_path.to_string());
-        }
-    }
-
-    /// Check if a file is expanded
-    pub fn is_file_expanded(&self, file_path: &str) -> bool {
-        self.expanded_files.contains(file_path)
     }
 
     /// Activate leader key mode
