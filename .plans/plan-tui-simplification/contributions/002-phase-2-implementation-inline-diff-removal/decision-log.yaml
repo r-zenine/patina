@@ -1,0 +1,82 @@
+commit: 4086021839f037d1fb7bd95bf63edb288031563c
+
+decisions:
+  - number: 1
+    title: Remove disabled inline diff module (src/diff/inline.rs and src/diff/mod.rs)
+    rationale: The inline diff system was disabled in version control with derive_inline_diff_map() always returning empty and derive_inline_segments() never called. Semantic pairing from Modify operations (adjacent Deleted+Added lines) makes inline old text visualization redundant — the deleted line is already displayed directly above the added line. Removing dead code improves clarity and reduces maintenance burden.
+    code_impacts:
+      - reasoning: Removed pub mod diff declaration to disconnect module from crate
+        file: diffviz-review-tui/src/lib.rs
+        line_ranges:
+          - start: 8
+            end: 14
+      - reasoning: Deleted entire inline.rs module (was always-empty derive_inline_diff_map and dead derive_inline_segments functions)
+        file: diffviz-review-tui/src/diff/inline.rs
+        line_ranges:
+          - start: 1
+            end: 75
+      - reasoning: Deleted entire mod.rs module declaration for inline submodule
+        file: diffviz-review-tui/src/diff/mod.rs
+        line_ranges:
+          - start: 1
+            end: 2
+
+  - number: 2
+    title: Remove show_inline_old field and builder methods from RenderableDiffWidget
+    rationale: With inline diff functionality disabled (derive_inline_diff_map always returns empty), the show_inline_old field, with_inline_changes() builder, show_inline_old() builder, and inline_changes field serve no purpose. Removing them simplifies the widget API and reduces dead code paths.
+    code_impacts:
+      - reasoning: Removed use statements for Cow, derive_inline_diff_map, and inline module re-exports
+        file: diffviz-review-tui/src/ui/components/renderable_diff_widget.rs
+        line_ranges:
+          - start: 1
+            end: 14
+      - reasoning: Removed show_inline_old, inline_changes fields from struct definition
+        file: diffviz-review-tui/src/ui/components/renderable_diff_widget.rs
+        line_ranges:
+          - start: 32
+            end: 45
+      - reasoning: Removed field initialization in new() constructor
+        file: diffviz-review-tui/src/ui/components/renderable_diff_widget.rs
+        line_ranges:
+          - start: 47
+            end: 63
+      - reasoning: Removed show_inline_old() and with_inline_changes() builder methods
+        file: diffviz-review-tui/src/ui/components/renderable_diff_widget.rs
+        line_ranges:
+          - start: 70
+            end: 93
+      - reasoning: Removed show_inline_old and inline_changes from destructuring and removed Cow derivation block
+        file: diffviz-review-tui/src/ui/components/renderable_diff_widget.rs
+        line_ranges:
+          - start: 106
+            end: 140
+
+  - number: 3
+    title: Remove inline rendering code path from append_line and delete create_inline_old_line function
+    rationale: The inline rendering block in append_line() (checking ctx.show_inline_old and calling create_inline_old_line()) and the create_inline_old_line() function (382-442 lines) are dead code paths that never execute since derive_inline_diff_map() always returns empty. Removing these simplifies the render pipeline and eliminates unnecessary complexity.
+    code_impacts:
+      - reasoning: Removed show_inline_old and inline_changes fields from LineRenderContext struct
+        file: diffviz-review-tui/src/ui/components/renderable_diff_widget.rs
+        line_ranges:
+          - start: 205
+            end: 210
+      - reasoning: Removed inline rendering block from append_line that checked ctx.show_inline_old
+        file: diffviz-review-tui/src/ui/components/renderable_diff_widget.rs
+        line_ranges:
+          - start: 295
+            end: 317
+      - reasoning: Deleted entire create_inline_old_line function (was 62 lines rendering inline old text snippets)
+        file: diffviz-review-tui/src/ui/components/renderable_diff_widget.rs
+        line_ranges:
+          - start: 336
+            end: 397
+
+  - number: 4
+    title: Remove .show_inline_old(true) call from diff_view builder chain
+    rationale: Since show_inline_old() builder method was removed and the feature is disabled, the .show_inline_old(true) call in diff_view.rs:112 is dead code that would fail to compile after the builder method removal.
+    code_impacts:
+      - reasoning: Removed .show_inline_old(true) from RenderableDiffWidget builder chain
+        file: diffviz-review-tui/src/ui/components/diff_view.rs
+        line_ranges:
+          - start: 109
+            end: 122
