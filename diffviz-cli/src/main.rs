@@ -16,7 +16,7 @@ use diffviz_review::{
     ReviewEngineBuilder, ReviewableDiffId,
 };
 use diffviz_review_tui::ReviewTuiApp;
-use environment::{EnvironmentBuilder, TerminalBackend};
+use environment::EnvironmentBuilder;
 
 #[derive(Parser)]
 #[command(name = "diffviz")]
@@ -266,8 +266,7 @@ fn main() -> Result<()> {
         (None, Some(command)) => {
             let mut env_builder = EnvironmentBuilder::new()
                 .repo_path(&cli.repo_path)
-                .verbose(cli.verbose)
-                .terminal_backend(TerminalBackend::Crossterm);
+                .verbose(cli.verbose);
 
             if let Some(ref a) = cli.author {
                 env_builder = env_builder.author(a.clone());
@@ -278,12 +277,8 @@ fn main() -> Result<()> {
                 .map_err(|e| anyhow::anyhow!("Failed to create environment: {e}"))?;
 
             match command {
-                Commands::Review {
-                    file_filter,
-                    from_commit,
-                    to_commit,
-                } => {
-                    let review_command = ReviewCommand::new(file_filter, from_commit, to_commit);
+                Commands::Review { .. } => {
+                    let review_command = ReviewCommand::new();
                     review_command.execute(environment)
                 }
                 Commands::Debug {

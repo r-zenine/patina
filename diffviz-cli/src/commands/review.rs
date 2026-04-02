@@ -12,11 +12,7 @@ pub struct ReviewCommand;
 
 impl ReviewCommand {
     /// Create a new Review command
-    pub fn new(
-        _file_filter: Option<String>,
-        _from_commit: Option<String>,
-        _to_commit: Option<String>,
-    ) -> Self {
+    pub fn new() -> Self {
         Self
     }
 }
