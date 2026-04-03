@@ -1,0 +1,104 @@
+decisions:
+  - number: 1
+    title: Strategy - Core-then-Integrate
+    rationale: |
+      User explicitly selected Core-then-Integrate. This is correct for this project because:
+      (1) the harness is a shared abstraction that must exist before either consumer can be ported,
+      (2) the ELMApp trait design must be validated against a real example before diffviz and sam integrate,
+      (3) the kitchen-sink example in Phase 1 proves the trait is sufficient before any port work begins.
+      Building core first eliminates the risk of designing a trait that doesn't fit both consumers.
+    code_impacts: []
+
+  - number: 2
+    title: ELMApp trait dispatches KeyEvent, not domain events
+    rationale: |
+      The harness boundary is crossterm::event::KeyEvent, not each app's internal domain event type.
+      Rationale: (1) the harness is testing infrastructure, not a domain framework — it just replays
+      keyboard input, (2) each app already owns its key→event mapping internally, no shared abstraction
+      is needed for that layer, (3) using KeyEvent means the input_parser output feeds directly into
+      dispatch_key() without any app-specific plumbing, (4) simplest interface that works for both apps.
+      Rejected: a generic `type DomainEvent` associated type — would require exposing sam's termion-era
+      Event enum externally and couple the harness to each app's event model.
+    code_impacts:
+      - file: tui-harness/src/traits.rs
+        line_ranges:
+          - start: 1
+            end: 20
+        reasoning: ELMApp trait definition with dispatch_key(KeyEvent)
+
+  - number: 3
+    title: tui-harness lives in patina workspace; sam references it via path dep
+    rationale: |
+      tui-harness must be accessible to both diffviz (patina workspace) and sam (separate workspace).
+      Options: (a) publish to crates.io, (b) path dep across workspaces, (c) git dep.
+      Decision: path dep for now (`path = "../../patina/tui-harness"` in sam workspace).
+      Rationale: avoids publish overhead during active development, keeps iteration fast.
+      Path dependencies work across workspace roots; Cargo resolves them correctly.
+      Can be converted to a git or crates.io dep later without changing the harness code.
+    code_impacts:
+      - file: sam-tui/Cargo.toml
+        line_ranges:
+          - start: 1
+            end: 20
+        reasoning: tui-harness = { path = "../../patina/tui-harness" } under [dev-dependencies]
+
+  - number: 4
+    title: Kitchen-sink example is a self-contained counter ELM app in tui-harness/examples/
+    rationale: |
+      The kitchen-sink example must: (1) implement ELMApp with a non-trivial Snapshot,
+      (2) exercise all three harness types (InputTestHarness, RenderTestHarness, CombinedTestHarness),
+      (3) be runnable as a standalone binary, (4) serve as documentation-by-example for integrators.
+      Decision: a toy counter app (increment/decrement/reset) with a visible TUI panel.
+      Counter is complex enough to show multi-step state transitions but simple enough to follow quickly.
+      The example binary both runs the TUI interactively AND, when passed --test-mode, runs the harness
+      and prints results — single binary, two modes, zero extra setup.
+    code_impacts:
+      - file: tui-harness/examples/kitchen_sink.rs
+        line_ranges:
+          - start: 1
+            end: 1
+        reasoning: New file — toy counter app implementing ELMApp + harness demo
+
+  - number: 5
+    title: sam-tui migrates to ratatui 0.28 + crossterm as part of Phase 3
+    rationale: |
+      tui 0.19 + termion cannot share TestBackend with ratatui — they are forks with separate types.
+      The harness's RenderTestHarness uses ratatui::backend::TestBackend.
+      Migration path: tui 0.19 → ratatui 0.28 is low-risk because ratatui is a maintained fork;
+      Widget, Layout, Style, Block, List APIs are API-compatible with minor namespace changes.
+      termion → crossterm: crossterm is cross-platform (Windows/Unix) vs termion (Unix only).
+      sam's key_transformer() replaces termion::event::Key matching with crossterm::event::KeyCode/KeyModifiers.
+      Recursive ModalView.run() is replaced with an iterative loop (matches diffviz pattern, avoids stack overflow
+      on long sessions).
+    code_impacts:
+      - file: sam-tui/Cargo.toml
+        line_ranges:
+          - start: 1
+            end: 20
+        reasoning: Replace tui + termion with ratatui + crossterm
+      - file: sam-tui/src/modal_view/view.rs
+        line_ranges:
+          - start: 1
+            end: 121
+        reasoning: Full rewrite of event loop and key mapping
+      - file: sam-tui/src/modal_view/ui.rs
+        line_ranges:
+          - start: 1
+            end: 1
+        reasoning: Update imports and backend type
+
+  - number: 6
+    title: sam-tui Snapshot is a concrete struct, not generic over V
+    rationale: |
+      ViewState<V: Value> is generic; V may not implement Serialize.
+      The ELMApp::Snapshot for sam's headless variant must be Serialize.
+      Decision: create a concrete SamSnapshot struct capturing primitives only:
+      { current_mode: String, cursor: usize, filter_query: String, item_count: usize, marked_count: usize }
+      This avoids requiring V: Serialize and keeps the snapshot lightweight and assertion-friendly.
+      Items themselves are not snapshotted (not needed for testing navigation logic).
+    code_impacts:
+      - file: sam-tui/src/modal_view/headless.rs
+        line_ranges:
+          - start: 1
+            end: 1
+        reasoning: New file — HeadlessModalView<V> + SamSnapshot struct
