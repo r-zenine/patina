@@ -1,0 +1,16 @@
+[package]
+name = "tui-harness"
+version = "0.1.0"
+edition = "2024"
+description = "Generic ELM TUI runtime and headless test harnesses"
+
+[dependencies]
+ratatui = "0.28"
+crossterm = "0.28"
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+
+[[example]]
+name = "kitchen_sink"
+path = "examples/kitchen_sink.rs"
