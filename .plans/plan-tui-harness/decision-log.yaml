@@ -10,21 +10,85 @@ decisions:
     code_impacts: []
 
   - number: 2
-    title: ELMApp trait dispatches KeyEvent, not domain events
+    title: ELMApp is both a development runtime and a testing interface
     rationale: |
-      The harness boundary is crossterm::event::KeyEvent, not each app's internal domain event type.
-      Rationale: (1) the harness is testing infrastructure, not a domain framework — it just replays
-      keyboard input, (2) each app already owns its key→event mapping internally, no shared abstraction
-      is needed for that layer, (3) using KeyEvent means the input_parser output feeds directly into
-      dispatch_key() without any app-specific plumbing, (4) simplest interface that works for both apps.
-      Rejected: a generic `type DomainEvent` associated type — would require exposing sam's termion-era
-      Event enum externally and couple the harness to each app's event model.
+      tui-harness serves two roles: (1) a development runtime that eliminates event-loop boilerplate
+      for any ELM-style TUI, and (2) a testing framework that enables agentic headless testing.
+      Both roles are built on the same ELMApp trait — implementing it once gives you both for free.
+
+      The trait interface:
+        type Snapshot: serde::Serialize          — serializable state for test assertions
+        type Error: std::error::Error + Send + Sync + 'static  — app-owned error type
+        fn dispatch_key(&mut self, key: KeyEvent) -> Result<(), Self::Error>
+        fn draw(&self, frame: &mut ratatui::Frame)
+        fn should_quit(&self) -> bool            — drives the run_app() loop
+        fn snapshot(&self) -> Self::Snapshot     — used by testing harnesses + debug modes
+
+      dispatch_key takes crossterm::event::KeyEvent (not each app's domain event type) because:
+      (1) the framework delivers raw input; the app owns its key→domain-event mapping — this is
+      the direct equivalent of how Elm's runtime delivers Msg values to the app's update function,
+      (2) domain events are app-specific; exposing them as an associated type would couple the
+      framework to unrelated event models (diffviz has a two-level UiEvent+BusinessEvent system;
+      sam has a flat 8-variant Event — no common abstraction exists),
+      (3) KeyEvent feeds directly from input_parser into dispatch_key with no app-specific plumbing.
+
+      Rejected: `type DomainEvent` associated type with separate `map_key + update` split — adds
+      complexity without benefit since each app already implements this split internally.
+
+      The framework provides run_app<M: ELMApp>(app: &mut M) -> Result<()> which handles terminal
+      setup, the 60fps frame loop, crossterm event polling, and teardown. diffviz's ReviewTuiApp::run()
+      and sam's ModalView::run() are both replaced by a single call to run_app().
     code_impacts:
       - file: tui-harness/src/traits.rs
         line_ranges:
           - start: 1
+            end: 30
+        reasoning: ELMApp trait with associated Error type, dispatch_key, draw, should_quit, snapshot
+      - file: tui-harness/src/runtime.rs
+        line_ranges:
+          - start: 1
+            end: 1
+        reasoning: New file — run_app<M: ELMApp>() implementing the production event loop
+
+  - number: 2b
+    title: No anyhow in tui-harness — thiserror + associated Error type
+    rationale: |
+      anyhow is appropriate for application binaries (rich error context, easy propagation).
+      tui-harness is a library crate used by other crates; libraries must not impose anyhow on
+      their consumers (anyhow::Error is opaque and hard to match on downstream).
+
+      Decision: use thiserror for the crate's own error type, and an associated type on ELMApp
+      so each app owns its error model without the framework imposing a type.
+
+      tui-harness defines:
+        #[derive(Debug, thiserror::Error)]
+        pub enum TuiError {
+            #[error("terminal I/O error")] Terminal(#[from] std::io::Error),
+            #[error("crossterm error")]    Crossterm(#[from] crossterm::ErrorKind),
+            #[error("application error: {0}")] App(Box<dyn std::error::Error + Send + Sync + 'static>),
+        }
+        pub type Result<T> = std::result::Result<T, TuiError>;
+
+      run_app() returns Result<()> (TuiError). App errors from dispatch_key are wrapped via
+      TuiError::App(Box::new(e)) — the framework propagates them without needing to know their type.
+
+      Each app provides its own Error type:
+        diffviz: type Error = anyhow::Error  (anyhow::Error: std::error::Error, so this compiles)
+        sam:     type Error = SamTuiError    (new thiserror-based type in Phase 3)
+
+      The harness test infrastructure (InputTestHarness etc.) returns Result<_, TuiError>.
+      App errors surface via TuiError::App without unwrapping.
+    code_impacts:
+      - file: tui-harness/src/error.rs
+        line_ranges:
+          - start: 1
+            end: 1
+        reasoning: New file — TuiError enum + Result<T> type alias
+      - file: tui-harness/Cargo.toml
+        line_ranges:
+          - start: 1
             end: 20
-        reasoning: ELMApp trait definition with dispatch_key(KeyEvent)
+        reasoning: thiserror in [dependencies]; no anyhow
 
   - number: 3
     title: tui-harness lives in patina workspace; sam references it via path dep

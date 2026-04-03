@@ -15,27 +15,37 @@ Extract a standalone `tui-harness` Rust crate that provides a generic `ELMApp` t
 
 ## ELMApp Trait Design
 
+`tui-harness` serves two roles built on a single trait: a **development runtime** that eliminates event-loop boilerplate, and a **testing framework** for agentic headless testing. Implementing `ELMApp` once gives both.
+
 ```rust
-/// A headless-testable ELM-architecture TUI application.
 pub trait ELMApp {
-    /// Serializable state snapshot for assertions
+    /// Serializable state snapshot for test assertions and debug modes
     type Snapshot: serde::Serialize;
 
+    /// App-owned error type — no framework type imposed
+    type Error: std::error::Error + Send + Sync + 'static;
+
     /// Process a raw key event, mutating internal state
-    fn dispatch_key(&mut self, key: crossterm::event::KeyEvent) -> anyhow::Result<()>;
+    fn dispatch_key(&mut self, key: crossterm::event::KeyEvent) -> std::result::Result<(), Self::Error>;
+
+    /// Draw current state into a ratatui Frame
+    fn draw(&self, frame: &mut ratatui::Frame);
+
+    /// Whether the app should stop running (drives run_app loop)
+    fn should_quit(&self) -> bool;
 
     /// Capture current state as a serializable snapshot
     fn snapshot(&self) -> Self::Snapshot;
-
-    /// Draw current state into a ratatui Frame (used by RenderTestHarness)
-    fn draw(&self, frame: &mut ratatui::Frame);
 }
 ```
 
-The trait dispatches at `KeyEvent` (not domain events) because: (1) the harness is testing infrastructure, not a business framework, (2) each app manages its own key→domain-event mapping internally, (3) this avoids needing a shared event abstraction across unrelated apps.
+The framework provides `run_app<M: ELMApp>(app: &mut M) -> Result<()>` which owns terminal setup, the 60fps frame loop, and teardown. Apps call it instead of implementing their own event loops.
+
+The trait dispatches `KeyEvent` (not domain events): each app owns its key→domain-event mapping internally. This mirrors Elm's runtime — it delivers `Msg` values; the app's `update` handles them. No shared event abstraction is needed or possible across unrelated apps.
 
 ## Technical Constraints
 
+- **No anyhow in tui-harness**: `anyhow` is for application binaries, not library crates. `tui-harness` uses `thiserror` for its own `TuiError`; consumers expose their errors via `type Error` without the framework imposing a type. diffviz can keep `type Error = anyhow::Error` (it implements `std::error::Error`); sam uses a new `SamTuiError` via `thiserror`.
 - **No TTY available to agents**: all test execution must be headless (no real terminal). This is the primary motivation for the harness.
 - **Workspace boundary**: `tui-harness` lives in the patina workspace. `sam-tui` references it via `path = "../../patina/tui-harness"` (relative from sam workspace). This is an acceptable path dep for development; can be published later.
 - **sam-tui migration prerequisite**: Phase 3 requires migrating sam-tui from `tui 0.19 + termion` to `ratatui 0.28 + crossterm` before ELMApp can be implemented. The migration is low-risk (ratatui is a maintained fork of tui; API is largely the same).

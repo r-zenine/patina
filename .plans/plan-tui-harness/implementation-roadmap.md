@@ -13,20 +13,28 @@
 
 **Objectives**:
 - **Implementation**: Add `tui-harness` to `Cargo.toml` workspace members in `/Users/ryad/workspace/patina/Cargo.toml`
-- **Implementation**: Create `tui-harness/Cargo.toml` with deps: `ratatui = "0.28"`, `crossterm = "0.28"`, `serde = { features = ["derive"] }`, `serde_json`, `anyhow`
-- **Implementation**: Define `ELMApp` trait in `tui-harness/src/traits.rs` — associated types `Snapshot: Serialize`, methods `dispatch_key(KeyEvent) -> Result<()>`, `snapshot() -> Snapshot`, `draw(&self, frame: &mut Frame)`
+- **Implementation**: Create `tui-harness/Cargo.toml` with deps: `ratatui = "0.28"`, `crossterm = "0.28"`, `serde = { features = ["derive"] }`, `serde_json`, `thiserror`; no anyhow
+- **Implementation**: Define `TuiError` + `Result<T>` alias in `tui-harness/src/error.rs` using `thiserror`: variants `Terminal(#[from] std::io::Error)`, `Crossterm(#[from] crossterm::ErrorKind)`, `App(Box<dyn std::error::Error + Send + Sync + 'static>)`
+- **Implementation**: Define `ELMApp` trait in `tui-harness/src/traits.rs`:
+  - `type Snapshot: serde::Serialize`
+  - `type Error: std::error::Error + Send + Sync + 'static`
+  - `fn dispatch_key(&mut self, key: crossterm::event::KeyEvent) -> std::result::Result<(), Self::Error>`
+  - `fn draw(&self, frame: &mut ratatui::Frame)`
+  - `fn should_quit(&self) -> bool`
+  - `fn snapshot(&self) -> Self::Snapshot`
+- **Implementation**: Implement `run_app<M: ELMApp>(app: &mut M) -> Result<()>` in `tui-harness/src/runtime.rs`: crossterm raw mode + alternate screen setup, 60fps iterative event loop (`event::poll` + `dispatch_key` + `terminal.draw`), Drop-safe teardown. App errors from `dispatch_key` wrapped via `TuiError::App(Box::new(e))`
 - **Implementation**: Port `parse_input_sequence()` from `diffviz-review-tui/src/test_harness/input_parser.rs` verbatim into `tui-harness/src/input_parser.rs` (zero coupling, moves cleanly)
-- **Implementation**: Implement `InputTestHarness<M: ELMApp>` in `tui-harness/src/input_test.rs` — `run_sequence(input: &str) -> Result<Vec<M::Snapshot>>` and `run_sequence_final_state(input: &str) -> Result<M::Snapshot>`
+- **Implementation**: Implement `InputTestHarness<M: ELMApp>` in `tui-harness/src/input_test.rs` — `run_sequence(input: &str) -> Result<Vec<M::Snapshot>>` and `run_sequence_final_state(input: &str) -> Result<M::Snapshot>`; app errors surface via `TuiError::App`
 - **Implementation**: Implement `RenderTestHarness` in `tui-harness/src/render_test.rs` — `new()`, `with_size(w, h)`, `render<M: ELMApp>(app: &M) -> Result<String>` using `Terminal<TestBackend>` + `buffer_to_string()`
 - **Implementation**: Implement `CombinedTestHarness<M: ELMApp>` in `tui-harness/src/combined.rs` — `run_sequence_with_renders(input: &str) -> Result<Vec<CombinedTestResult<M::Snapshot>>>`
 - **Implementation**: Create kitchen-sink example in `tui-harness/examples/kitchen_sink.rs`:
-  - Toy counter ELM app: `CounterApp` with `CounterSnapshot { count: i32, mode: String }`
-  - Keys: `j`/`k` increment/decrement, `r` reset, `i` enter label-edit mode, `<Esc>` exit mode, `q` quit
+  - Toy counter ELM app: `CounterApp` with `CounterSnapshot { count: i32, mode: String }`; `type Error = std::convert::Infallible` (dispatch is infallible for this toy app)
+  - Keys: `j`/`k` increment/decrement, `r` reset, `i` enter label-edit mode, `<Esc>` exit mode, `q` quit (sets `should_quit`)
   - `CounterApp` implements `ELMApp`
-  - `--test-input <seq>` flag: run `InputTestHarness`, print JSON snapshots, exit
-  - `--test-render` flag: run `RenderTestHarness`, print visual output, exit
-  - `--test-full <seq>` flag: run `CombinedTestHarness`, print each step, exit
-  - Default (no flags): run the TUI interactively
+  - Default (no flags): runs the TUI via `tui_harness::run_app(&mut app)` — demonstrates the runtime
+  - `--test-input <seq>` flag: runs `InputTestHarness`, prints JSON snapshots, exits
+  - `--test-render` flag: runs `RenderTestHarness`, prints visual output, exits
+  - `--test-full <seq>` flag: runs `CombinedTestHarness`, prints each step, exits
 
 **Testing Criteria**:
 - `cargo build --package tui-harness` compiles with zero warnings
@@ -42,14 +50,16 @@
 
 **Files to Modify**:
 - `/Users/ryad/workspace/patina/Cargo.toml` — add `"tui-harness"` to workspace members
-- `tui-harness/Cargo.toml` — new file
-- `tui-harness/src/lib.rs` — new file, pub mod declarations + re-exports
-- `tui-harness/src/traits.rs` — new: `ELMApp` trait
+- `tui-harness/Cargo.toml` — new file (thiserror, ratatui, crossterm, serde, serde_json; no anyhow)
+- `tui-harness/src/lib.rs` — new: pub mod declarations + top-level re-exports
+- `tui-harness/src/error.rs` — new: `TuiError` enum + `Result<T>` alias
+- `tui-harness/src/traits.rs` — new: `ELMApp` trait with associated `Error` + `Snapshot` types
+- `tui-harness/src/runtime.rs` — new: `run_app<M: ELMApp>()` production event loop
 - `tui-harness/src/input_parser.rs` — new: ported from diffviz (verbatim + tests)
 - `tui-harness/src/input_test.rs` — new: generic `InputTestHarness<M: ELMApp>`
 - `tui-harness/src/render_test.rs` — new: generic `RenderTestHarness`
 - `tui-harness/src/combined.rs` — new: generic `CombinedTestHarness<M: ELMApp>` + `CombinedTestResult<S>`
-- `tui-harness/examples/kitchen_sink.rs` — new: kitchen-sink counter app + harness demo
+- `tui-harness/examples/kitchen_sink.rs` — new: kitchen-sink counter app + runtime + harness demo
 
 ---
 
@@ -61,9 +71,12 @@
 - **Implementation**: Add `tui-harness` to `diffviz-review-tui/Cargo.toml` under `[dev-dependencies]` (or behind `test-harness` feature); also add under `[dependencies]` gated on `test-harness` feature
 - **Implementation**: Implement `ELMApp` for `HeadlessApp` in `diffviz-review-tui/src/app.rs` (behind `#[cfg(feature = "test-harness")]`):
   - `type Snapshot = StateSnapshot`
-  - `dispatch_key(key) -> Result<()>` — calls `process_key_event(key)`, discards `Command`
+  - `type Error = anyhow::Error` — anyhow::Error implements std::error::Error; no change to diffviz internals required
+  - `dispatch_key(key) -> Result<(), anyhow::Error>` — calls `process_key_event(key)`, discards `Command`
+  - `should_quit(&self) -> bool` — returns `self.ui_state.should_quit`
   - `snapshot() -> StateSnapshot` — calls `StateSnapshot::from_ui_state(&self.ui_state)`
   - `draw(&self, frame) -> ()` — calls `ui::draw(frame, &self.ui_state, &self.review_engine)`
+- **Implementation**: Replace `ReviewTuiApp::run()` body with a call to `tui_harness::run_app(self)` — implement `ELMApp` for `ReviewTuiApp` as well (same impls as HeadlessApp, but not feature-gated). Remove the bespoke event loop, terminal setup, and frame management from `ReviewTuiApp` — all of that moves into `run_app()`
 - **Implementation**: Delete `diffviz-review-tui/src/test_harness/input_parser.rs` — replaced by `tui_harness::parse_input_sequence`
 - **Implementation**: Rewrite `diffviz-review-tui/src/test_harness/input_test.rs` as a thin type alias + wrapper around `tui_harness::InputTestHarness<HeadlessApp>`
 - **Implementation**: Rewrite `diffviz-review-tui/src/test_harness/render_test.rs` as a thin wrapper around `tui_harness::RenderTestHarness` (same `new()`, `with_size()`, `render()` API but delegates to generic version)
@@ -83,8 +96,8 @@
 **Relevant Local Skills**: `dev-contribute`, `diffviz-tui-contribution` (mandatory for any diffviz-review-tui changes)
 
 **Files to Modify**:
-- `diffviz-review-tui/Cargo.toml` — add `tui-harness` dependency
-- `diffviz-review-tui/src/app.rs` — add `ELMApp` impl for `HeadlessApp` (behind feature gate)
+- `diffviz-review-tui/Cargo.toml` — add `tui-harness` dependency (non-dev, needed for `run_app`)
+- `diffviz-review-tui/src/app.rs` — implement `ELMApp` for both `ReviewTuiApp` and `HeadlessApp`; replace `ReviewTuiApp::run()` body with `tui_harness::run_app(self)`
 - `diffviz-review-tui/src/test_harness/mod.rs` — update re-exports
 - `diffviz-review-tui/src/test_harness/input_parser.rs` — DELETE
 - `diffviz-review-tui/src/test_harness/input_test.rs` — rewrite as thin wrapper
@@ -103,7 +116,9 @@
 - **Implementation**: Migrate `sam-tui/src/modal_view/ui.rs` + `ui_insert_mode.rs` + `ui_options_mode.rs`: update all `tui::` imports to `ratatui::`, update `TermionBackend` → `CrosstermBackend`, update `Terminal::new()` init to use crossterm raw mode setup
 - **Implementation**: Rewrite `sam-tui/src/modal_view/view.rs`: replace `termion::input::Keys` + recursive `run()` with crossterm `event::read()` iterative loop; replace `key_transformer(termion::Key)` with `key_transformer(crossterm::event::KeyEvent) -> Option<Event>`; add Drop impl for terminal cleanup
 - **Design**: Determine the right shape for `SamSnapshot` — what fields are needed for testing navigation, filtering, and marking? (Keep simple: mode, cursor, filter query, item count, marked count)
-- **Implementation**: Create `sam-tui/src/modal_view/headless.rs`: `HeadlessModalView<V: Value>` wrapping `ViewState<V>` + `key_transformer`; `SamSnapshot` struct with `#[derive(Serialize)]`; `ELMApp` impl for `HeadlessModalView<V>`
+- **Implementation**: Create `sam-tui/src/error.rs`: `SamTuiError` using `thiserror` (crossterm I/O variant + any sam-specific failures); no anyhow
+- **Implementation**: Create `sam-tui/src/modal_view/headless.rs`: `HeadlessModalView<V: Value>` wrapping `ViewState<V>` + `key_transformer`; `SamSnapshot { current_mode: String, cursor: usize, filter_query: String, item_count: usize, marked_count: usize }` with `#[derive(Serialize)]`; `ELMApp` impl with `type Error = SamTuiError`
+- **Implementation**: Replace `ModalView::run()` body with `tui_harness::run_app(self)` — implement `ELMApp` for `ModalView<V>` with `type Error = SamTuiError`; remove recursive loop, termion stdin reader, and raw mode management from `ModalView`
 - **Implementation**: Add `tests/` integration tests in sam-tui using `InputTestHarness<HeadlessModalView<MockValue>>`: test search filtering (`"co<Backspace>"`), mode toggle (`"<Esc>"`), navigation (`"jjk"`), multi-select (`"<C-s>"`), confirm (`"<Enter>"`)
 
 **Testing Criteria**:
