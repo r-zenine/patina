@@ -6,8 +6,10 @@ members = [
     "diffviz-git",
     "diffviz-core",
     "diffviz-llm",
-    "diffviz-review-tui"
-, "diffviz-schema-macro"]
+    "diffviz-review-tui",
+    "diffviz-schema-macro",
+    "tui-harness",
+]
 
 [workspace.dependencies]
 tokio = { version = "1.0", features = ["full"] }
