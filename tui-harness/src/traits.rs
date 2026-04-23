@@ -23,4 +23,10 @@ pub trait ELMApp {
 
     /// Capture current state as a serializable snapshot.
     fn snapshot(&self) -> Self::Snapshot;
+
+    /// Called once per frame before event polling.
+    ///
+    /// Use for time-based logic (e.g. leader key timeouts) that must fire
+    /// even when no key event arrives. Default is a no-op.
+    fn on_tick(&mut self) {}
 }

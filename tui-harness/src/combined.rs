@@ -2,7 +2,10 @@
 //!
 //! After each key event, captures both the state snapshot and the visual output.
 
-use crate::{Result, TuiError, input_parser::parse_input_sequence, render_test::RenderTestHarness, traits::ELMApp};
+use crate::{
+    Result, TuiError, input_parser::parse_input_sequence, render_test::RenderTestHarness,
+    traits::ELMApp,
+};
 
 /// Combined test result: state snapshot + visual output at one step.
 pub struct CombinedTestResult<S> {

@@ -1,0 +1,41 @@
+commit: 43e7f9c
+decisions:
+  - number: 1
+    title: anyhow::Error cannot be used as ELMApp::Error — needs a DispatchError wrapper
+    rationale: The plan stated "type Error = anyhow::Error — anyhow::Error implements std::error::Error". This is wrong. anyhow::Error deliberately does NOT implement std::error::Error to avoid conflicting blanket From impls. Defined a minimal pub struct DispatchError(String) in app.rs; dispatch_key converts via format!("{e:#}") preserving the full error chain as a string.
+    code_impacts:
+      - reasoning: DispatchError struct and std::error::Error impl; both ELMApp impls use it as their Error type
+        file: diffviz-review-tui/src/app.rs
+        line_ranges:
+          - start: 20
+            end: 33
+
+  - number: 2
+    title: Add on_tick default method to ELMApp for per-frame time-based logic
+    rationale: ReviewTuiApp's original run() loop fired a leader-key timeout check once per frame regardless of key events. The generic run_app event loop had no equivalent hook. Added fn on_tick(&mut self) {} as a default no-op to ELMApp and called it at the top of each frame. ReviewTuiApp::on_tick checks the leader timeout; all other impls use the default.
+    code_impacts:
+      - reasoning: on_tick default method added to trait
+        file: tui-harness/src/traits.rs
+        line_ranges:
+          - start: 27
+            end: 32
+      - reasoning: event_loop calls app.on_tick() at the top of each iteration
+        file: tui-harness/src/runtime.rs
+        line_ranges:
+          - start: 41
+            end: 43
+      - reasoning: ReviewTuiApp implements on_tick to deactivate an expired leader key
+        file: diffviz-review-tui/src/app.rs
+        line_ranges:
+          - start: 109
+            end: 113
+
+  - number: 3
+    title: RenderAdapter pattern preserves render(UiState, ReviewEngine) API without HeadlessApp
+    rationale: "The generic harness render<M: ELMApp>(&M) requires an ELMApp instance. Constructing HeadlessApp takes ownership of ReviewEngine, which existing test call sites do not hold exclusively. Introduced a private RenderAdapter<'a> holding borrows of UiState and ReviewEngine that implements ELMApp with a no-op dispatch_key. The public render() signature is unchanged; zero call sites modified."
+    code_impacts:
+      - reasoning: RenderAdapter struct and ELMApp impl; public render() delegates to inner harness via adapter
+        file: diffviz-review-tui/src/test_harness/render_test.rs
+        line_ranges:
+          - start: 45
+            end: 70

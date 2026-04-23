@@ -39,6 +39,7 @@ fn event_loop<M: ELMApp>(
     let frame_duration = Duration::from_millis(16); // ~60fps
 
     loop {
+        app.on_tick();
         terminal.draw(|f| app.draw(f))?;
 
         if event::poll(frame_duration)? {
