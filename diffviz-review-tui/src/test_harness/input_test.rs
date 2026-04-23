@@ -1,52 +1,34 @@
-//! Test harness for input processing
-//!
-//! Run input sequences through HeadlessApp and capture resulting state.
+//! Thin wrapper around `tui_harness::InputTestHarness` for diffviz-review-tui.
 
 use crate::Result;
 use crate::app::HeadlessApp;
 use diffviz_review::engines::ReviewEngine;
 
-use super::input_parser::parse_input_sequence;
 use super::snapshot::StateSnapshot;
 
 /// Test harness for validating input sequence → state transformations
 pub struct InputTestHarness {
-    app: HeadlessApp,
+    inner: tui_harness::InputTestHarness<HeadlessApp>,
 }
 
 impl InputTestHarness {
     /// Create a new input test harness
     pub fn new(review_engine: ReviewEngine) -> Self {
         Self {
-            app: HeadlessApp::new(review_engine),
+            inner: tui_harness::InputTestHarness::new(HeadlessApp::new(review_engine)),
         }
     }
 
     /// Run an input sequence and return final state snapshot
     pub fn run_sequence_final_state(&mut self, input: &str) -> Result<StateSnapshot> {
-        let events = parse_input_sequence(input)?;
-
-        for event in events {
-            self.app.process_key_event(event)?;
-        }
-
-        Ok(StateSnapshot::from_ui_state(&self.app.ui_state))
+        self.inner
+            .run_sequence_final_state(input)
+            .map_err(anyhow::Error::from)
     }
 
     /// Run an input sequence and return snapshots after each event
     pub fn run_sequence(&mut self, input: &str) -> Result<Vec<StateSnapshot>> {
-        let events = parse_input_sequence(input)?;
-        let mut snapshots = Vec::new();
-
-        // Capture initial state
-        snapshots.push(StateSnapshot::from_ui_state(&self.app.ui_state));
-
-        for event in events {
-            self.app.process_key_event(event)?;
-            snapshots.push(StateSnapshot::from_ui_state(&self.app.ui_state));
-        }
-
-        Ok(snapshots)
+        self.inner.run_sequence(input).map_err(anyhow::Error::from)
     }
 }
 

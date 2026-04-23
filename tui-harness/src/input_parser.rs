@@ -85,9 +85,7 @@ fn parse_modifiers(modifier_strs: &[&str]) -> Result<KeyModifiers> {
             "S" => mods |= KeyModifiers::SHIFT,
             "A" => mods |= KeyModifiers::ALT,
             other => {
-                return Err(TuiError::App(
-                    format!("Unknown modifier: {other}").into(),
-                ));
+                return Err(TuiError::App(format!("Unknown modifier: {other}").into()));
             }
         }
     }
