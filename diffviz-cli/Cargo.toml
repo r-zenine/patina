@@ -12,7 +12,6 @@ diffviz-review = { path = "../diffviz-review" }
 diffviz-review-tui = { path = "../diffviz-review-tui" }
 diffviz-git = { path = "../diffviz-git" }
 diffviz-core = { path = "../diffviz-core" }
-diffviz-llm = { path = "../diffviz-llm" }
 tokio = { workspace = true }
 clap = { version = "4.0", features = ["derive"] }
 anyhow = { workspace = true }

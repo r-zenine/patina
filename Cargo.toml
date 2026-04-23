@@ -5,7 +5,6 @@ members = [
     "diffviz-review",
     "diffviz-git",
     "diffviz-core",
-    "diffviz-llm",
     "diffviz-review-tui",
     "diffviz-schema-macro",
     "tui-harness",
