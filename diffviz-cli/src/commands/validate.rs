@@ -23,8 +23,8 @@ impl ValidateCommand {
     }
 }
 
-impl CommandExecutor for ValidateCommand {
-    fn execute(&self, _env: Environment) -> Result<()> {
+impl ValidateCommand {
+    pub fn run(&self) -> Result<()> {
         match self.artifact.as_str() {
             "decision-log" => {
                 let path = Path::new(&self.file);
@@ -55,6 +55,12 @@ impl CommandExecutor for ValidateCommand {
                 self.artifact
             )),
         }
+    }
+}
+
+impl CommandExecutor for ValidateCommand {
+    fn execute(&self, _env: Environment) -> Result<()> {
+        self.run()
     }
 }
 

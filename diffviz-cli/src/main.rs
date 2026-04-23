@@ -158,6 +158,14 @@ fn main() -> Result<()> {
         (Some(folder), None) => run_contribution_review(&folder, &cli.repo_path, &author),
 
         (None, Some(command)) => {
+            // Templates and Validate do not require a git repository
+            if let Commands::Templates { ref artifact } = command {
+                return TemplatesCommand::new(artifact.clone()).run();
+            }
+            if let Commands::Validate { ref artifact, ref file } = command {
+                return ValidateCommand::new(artifact.clone(), file.clone()).run();
+            }
+
             let mut env_builder = EnvironmentBuilder::new()
                 .repo_path(&cli.repo_path)
                 .verbose(cli.verbose);
@@ -195,14 +203,7 @@ fn main() -> Result<()> {
                     };
                     debug_command.execute(environment)
                 }
-                Commands::Templates { artifact } => {
-                    let templates_command = TemplatesCommand::new(artifact);
-                    templates_command.execute(environment)
-                }
-                Commands::Validate { artifact, file } => {
-                    let validate_command = ValidateCommand::new(artifact, file);
-                    validate_command.execute(environment)
-                }
+                Commands::Templates { .. } | Commands::Validate { .. } => unreachable!(),
             }
         }
 
