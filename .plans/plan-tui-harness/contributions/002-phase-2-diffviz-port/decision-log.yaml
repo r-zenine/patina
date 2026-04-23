@@ -1,4 +1,4 @@
-commit: 43e7f9c
+commit: 7d55788
 decisions:
   - number: 1
     title: anyhow::Error cannot be used as ELMApp::Error — needs a DispatchError wrapper
