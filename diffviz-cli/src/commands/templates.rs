@@ -19,8 +19,8 @@ impl TemplatesCommand {
     }
 }
 
-impl CommandExecutor for TemplatesCommand {
-    fn execute(&self, _env: Environment) -> Result<()> {
+impl TemplatesCommand {
+    pub fn run(&self) -> Result<()> {
         match self.artifact.as_str() {
             "decision-log" => {
                 println!("{}", diffviz_review::DecisionLog::yaml_template());
@@ -31,6 +31,12 @@ impl CommandExecutor for TemplatesCommand {
                 self.artifact
             )),
         }
+    }
+}
+
+impl CommandExecutor for TemplatesCommand {
+    fn execute(&self, _env: Environment) -> Result<()> {
+        self.run()
     }
 }
 
