@@ -76,7 +76,7 @@ For artifact schemas, see [`contribution-system/references/design-artifacts.md`]
 
 ## How to Use This Skill
 
-For the complete 5-step workflow, interactive techniques, validation strategy, and templates, see [references/guide.md](references/guide.md).
+For tactics available for each outcome, see [references/tactics.md](references/tactics.md).
 
 ## Core Principles
 
