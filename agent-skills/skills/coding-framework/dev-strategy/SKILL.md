@@ -63,14 +63,6 @@ To produce a sufficient implementation plan, ensure these outcomes are achieved:
 - First phase has sufficient detail to begin work
 - Future phases are deferred appropriately per Last Responsible Moment principle
 
-**How to achieve these outcomes:**
-1. Generate Behavioral Spec through user discussion or codebase analysis
-2. Analyze Codebase using Explore agent with onboarding prompt
-3. Conduct Technical Research only if new/unfamiliar technologies are involved
-4. Gather Constraints through interactive discovery (see [`constraint-discovery.md`](../contribution-system/references/constraint-discovery.md))
-5. Select Implementation Strategy based on findings → refer to [`execution-strategies` skill](../execution-strategies/SKILL.md)
-6. Create Plan artifacts following schemas in [`contribution-system` skill](../contribution-system/SKILL.md)
-
 ## Key Outputs
 
 The skill generates only the following structured artifacts in `.plans/plan-[FEATURE-NAME]/`:
@@ -81,7 +73,7 @@ The skill generates only the following structured artifacts in `.plans/plan-[FEA
 - **Decision Log** (YAML) - Technical decisions made during strategy development
 - **Implementation Roadmap** - Phased execution plan with strategy
 
-**Research Artifacts** (when research step is triggered):
+**Research Artifacts** (when research tactic is applied):
 - **Research Summary** - Key findings and recommendations
 - **Technology Research** - Deep-dive analysis of new technologies
 - **Implementation Examples** - Code patterns and usage examples
@@ -92,7 +84,7 @@ For principles applied during planning (YAGNI, Last Responsible Moment, Kent Bec
 
 ## How to Use This Skill
 
-For step-by-step execution instructions, see [references/guide.md](references/guide.md).
+For tactics available for each outcome, see [references/tactics.md](references/tactics.md).
 
 ## See Also
 
