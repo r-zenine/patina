@@ -91,20 +91,19 @@ decisions:
         reasoning: thiserror in [dependencies]; no anyhow
 
   - number: 3
-    title: tui-harness lives in patina workspace; sam references it via path dep
+    title: sam crates merged into patina monorepo; tui-harness is a sibling workspace dep
     rationale: |
-      tui-harness must be accessible to both diffviz (patina workspace) and sam (separate workspace).
-      Options: (a) publish to crates.io, (b) path dep across workspaces, (c) git dep.
-      Decision: path dep for now (`path = "../../patina/tui-harness"` in sam workspace).
-      Rationale: avoids publish overhead during active development, keeps iteration fast.
-      Path dependencies work across workspace roots; Cargo resolves them correctly.
-      Can be converted to a git or crates.io dep later without changing the harness code.
+      All sam crates have been moved into the patina workspace as a monorepo for personal productivity
+      (unified dependency management, consistent patterns, single cargo workspace).
+      tui-harness and sam-tui are now siblings under the same workspace root.
+      Decision: simple sibling path dep (`path = "../tui-harness"` in sam-tui/Cargo.toml).
+      No cross-workspace path dep, no publish overhead, no git dep needed.
     code_impacts:
       - file: sam-tui/Cargo.toml
         line_ranges:
           - start: 1
             end: 20
-        reasoning: tui-harness = { path = "../../patina/tui-harness" } under [dev-dependencies]
+        reasoning: tui-harness = { path = "../tui-harness" } under [dev-dependencies]
 
   - number: 4
     title: Kitchen-sink example is a self-contained counter ELM app in tui-harness/examples/

@@ -47,7 +47,7 @@ The trait dispatches `KeyEvent` (not domain events): each app owns its key→dom
 
 - **No anyhow in tui-harness**: `anyhow` is for application binaries, not library crates. `tui-harness` uses `thiserror` for its own `TuiError`; consumers expose their errors via `type Error` without the framework imposing a type. diffviz can keep `type Error = anyhow::Error` (it implements `std::error::Error`); sam uses a new `SamTuiError` via `thiserror`.
 - **No TTY available to agents**: all test execution must be headless (no real terminal). This is the primary motivation for the harness.
-- **Workspace boundary**: `tui-harness` lives in the patina workspace. `sam-tui` references it via `path = "../../patina/tui-harness"` (relative from sam workspace). This is an acceptable path dep for development; can be published later.
+- **Monorepo**: All sam crates have been moved into the patina workspace. `tui-harness` and `sam-tui` are now siblings in the same workspace — the dependency is simply `path = "../tui-harness"`. No cross-workspace path dep is needed.
 - **sam-tui migration prerequisite**: Phase 3 requires migrating sam-tui from `tui 0.19 + termion` to `ratatui 0.28 + crossterm` before ELMApp can be implemented. The migration is low-risk (ratatui is a maintained fork of tui; API is largely the same).
 - **Recursive loop in sam-tui**: `ModalView.run()` is recursive (stack-based). Phase 3 converts this to an iterative loop consistent with diffviz's frame-based approach.
 - **`ViewState<V: Value>` snapshot**: `V` may not be `Serialize`. The `ELMApp::Snapshot` for sam's headless app should be a concrete struct capturing only the primitives (cursor, filter, mode, marked count), not the generic items.
