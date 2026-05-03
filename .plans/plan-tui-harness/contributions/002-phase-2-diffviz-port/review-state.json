@@ -1,0 +1,251 @@
+{
+  "approvals": [
+    {
+      "reviewable_id": {
+        "query": {
+          "from": {
+            "Commit": "43e7f9c24c0645da257c79be4d166b4ac18df8cf"
+          },
+          "to": {
+            "Commit": "7d55788"
+          }
+        },
+        "file_path": "diffviz-review-tui/src/test_harness/render_test.rs",
+        "line_range": {
+          "start_line": 45,
+          "end_line": 49,
+          "start_column": 0,
+          "end_column": 1
+        }
+      },
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-23 08:10:36 UTC"
+    },
+    {
+      "reviewable_id": {
+        "query": {
+          "from": {
+            "Commit": "43e7f9c24c0645da257c79be4d166b4ac18df8cf"
+          },
+          "to": {
+            "Commit": "7d55788"
+          }
+        },
+        "file_path": "diffviz-review-tui/src/app.rs",
+        "line_range": {
+          "start_line": 24,
+          "end_line": 25,
+          "start_column": 0,
+          "end_column": 33
+        }
+      },
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-23 08:10:28 UTC"
+    },
+    {
+      "reviewable_id": {
+        "query": {
+          "from": {
+            "Commit": "43e7f9c24c0645da257c79be4d166b4ac18df8cf"
+          },
+          "to": {
+            "Commit": "7d55788"
+          }
+        },
+        "file_path": "diffviz-review-tui/src/test_harness/render_test.rs",
+        "line_range": {
+          "start_line": 59,
+          "end_line": 64,
+          "start_column": 4,
+          "end_column": 5
+        }
+      },
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-23 08:10:37 UTC"
+    },
+    {
+      "reviewable_id": {
+        "query": {
+          "from": {
+            "Commit": "43e7f9c24c0645da257c79be4d166b4ac18df8cf"
+          },
+          "to": {
+            "Commit": "7d55788"
+          }
+        },
+        "file_path": "tui-harness/src/traits.rs",
+        "line_range": {
+          "start_line": 4,
+          "end_line": 32,
+          "start_column": 0,
+          "end_column": 1
+        }
+      },
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-23 08:10:32 UTC"
+    },
+    {
+      "reviewable_id": {
+        "query": {
+          "from": {
+            "Commit": "43e7f9c24c0645da257c79be4d166b4ac18df8cf"
+          },
+          "to": {
+            "Commit": "7d55788"
+          }
+        },
+        "file_path": "tui-harness/src/runtime.rs",
+        "line_range": {
+          "start_line": 34,
+          "end_line": 58,
+          "start_column": 0,
+          "end_column": 1
+        }
+      },
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-23 08:10:31 UTC"
+    },
+    {
+      "reviewable_id": {
+        "query": {
+          "from": {
+            "Commit": "43e7f9c24c0645da257c79be4d166b4ac18df8cf"
+          },
+          "to": {
+            "Commit": "7d55788"
+          }
+        },
+        "file_path": "diffviz-review-tui/src/app.rs",
+        "line_range": {
+          "start_line": 28,
+          "end_line": 30,
+          "start_column": 4,
+          "end_column": 5
+        }
+      },
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-23 08:10:28 UTC"
+    },
+    {
+      "reviewable_id": {
+        "query": {
+          "from": {
+            "Commit": "43e7f9c24c0645da257c79be4d166b4ac18df8cf"
+          },
+          "to": {
+            "Commit": "7d55788"
+          }
+        },
+        "file_path": "diffviz-review-tui/src/app.rs",
+        "line_range": {
+          "start_line": 109,
+          "end_line": 113,
+          "start_column": 4,
+          "end_column": 5
+        }
+      },
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-23 08:10:33 UTC"
+    },
+    {
+      "reviewable_id": {
+        "query": {
+          "from": {
+            "Commit": "43e7f9c24c0645da257c79be4d166b4ac18df8cf"
+          },
+          "to": {
+            "Commit": "7d55788"
+          }
+        },
+        "file_path": "diffviz-review-tui/src/test_harness/render_test.rs",
+        "line_range": {
+          "start_line": 66,
+          "end_line": 68,
+          "start_column": 4,
+          "end_column": 5
+        }
+      },
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-23 08:10:38 UTC"
+    },
+    {
+      "reviewable_id": {
+        "query": {
+          "from": {
+            "Commit": "43e7f9c24c0645da257c79be4d166b4ac18df8cf"
+          },
+          "to": {
+            "Commit": "7d55788"
+          }
+        },
+        "file_path": "diffviz-review-tui/src/test_harness/render_test.rs",
+        "line_range": {
+          "start_line": 55,
+          "end_line": 57,
+          "start_column": 4,
+          "end_column": 5
+        }
+      },
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-23 08:10:36 UTC"
+    },
+    {
+      "reviewable_id": {
+        "query": {
+          "from": {
+            "Commit": "43e7f9c24c0645da257c79be4d166b4ac18df8cf"
+          },
+          "to": {
+            "Commit": "7d55788"
+          }
+        },
+        "file_path": "diffviz-review-tui/src/app.rs",
+        "line_range": {
+          "start_line": 23,
+          "end_line": 24,
+          "start_column": 0,
+          "end_column": 16
+        }
+      },
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-23 08:10:27 UTC"
+    }
+  ],
+  "instructions": {
+    "_meta": {
+      "description": "DiffViz instruction export for coding agents",
+      "format_version": "1.2"
+    },
+    "instructions": []
+  },
+  "decision_approvals": [
+    {
+      "decision_number": 1,
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-23 08:10:28 UTC"
+    },
+    {
+      "decision_number": 2,
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-23 08:10:33 UTC"
+    },
+    {
+      "decision_number": 3,
+      "approved": true,
+      "approved_by": "ryad",
+      "approval_timestamp": "2026-04-23 08:10:38 UTC"
+    }
+  ]
+}

@@ -112,7 +112,7 @@
 **Description**: Migrate sam-tui from `tui 0.19 + termion` to `ratatui 0.28 + crossterm`, add a `HeadlessModalView<V>` implementing `ELMApp`, and introduce harness-based tests. The public API of sam-tui (`ModalView::new()` + `run()`) is preserved.
 
 **Objectives**:
-- **Implementation**: Update `sam-tui/Cargo.toml`: replace `tui = "0.19" + termion = "4.0"` with `ratatui = "0.28" + crossterm = "0.28"`; add `tui-harness = { path = "../../patina/tui-harness" }` under `[dev-dependencies]`; add `serde = { features = ["derive"] }` + `serde_json`
+- **Implementation**: Update `sam-tui/Cargo.toml`: replace `tui = "0.19" + termion = "4.0"` with `ratatui = "0.28" + crossterm = "0.28"`; add `tui-harness = { path = "../tui-harness" }` under `[dev-dependencies]` (sibling crate in the shared patina monorepo workspace); add `serde = { features = ["derive"] }` + `serde_json`
 - **Implementation**: Migrate `sam-tui/src/modal_view/ui.rs` + `ui_insert_mode.rs` + `ui_options_mode.rs`: update all `tui::` imports to `ratatui::`, update `TermionBackend` → `CrosstermBackend`, update `Terminal::new()` init to use crossterm raw mode setup
 - **Implementation**: Rewrite `sam-tui/src/modal_view/view.rs`: replace `termion::input::Keys` + recursive `run()` with crossterm `event::read()` iterative loop; replace `key_transformer(termion::Key)` with `key_transformer(crossterm::event::KeyEvent) -> Option<Event>`; add Drop impl for terminal cleanup
 - **Design**: Determine the right shape for `SamSnapshot` — what fields are needed for testing navigation, filtering, and marking? (Keep simple: mode, cursor, filter query, item count, marked count)
