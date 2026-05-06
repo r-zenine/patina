@@ -2,9 +2,9 @@
 
 use diffviz_review::engines::ReviewEngine;
 
-use crate::{Result, app::HeadlessApp};
+use crate::{Result, app::ReviewTuiApp};
 
-use super::snapshot::StateSnapshot;
+use crate::state_snapshot::StateSnapshot;
 
 pub use tui_harness::CombinedTestResult;
 
@@ -13,14 +13,16 @@ pub use tui_harness::CombinedTestResult;
 /// Chains input processing and rendering to validate complete workflows
 /// from keyboard input through state changes to visual output.
 pub struct CombinedTestHarness {
-    inner: tui_harness::CombinedTestHarness<HeadlessApp>,
+    inner: tui_harness::CombinedTestHarness<ReviewTuiApp>,
 }
 
 impl CombinedTestHarness {
     /// Create a new combined test harness
     pub fn new(review_engine: ReviewEngine) -> Self {
         Self {
-            inner: tui_harness::CombinedTestHarness::new(HeadlessApp::new(review_engine)),
+            inner: tui_harness::CombinedTestHarness::new(
+                ReviewTuiApp::new(review_engine).expect("Failed to create ReviewTuiApp"),
+            ),
         }
     }
 
@@ -28,7 +30,7 @@ impl CombinedTestHarness {
     pub fn with_render_size(review_engine: ReviewEngine, width: u16, height: u16) -> Self {
         Self {
             inner: tui_harness::CombinedTestHarness::with_render_size(
-                HeadlessApp::new(review_engine),
+                ReviewTuiApp::new(review_engine).expect("Failed to create ReviewTuiApp"),
                 width,
                 height,
             ),

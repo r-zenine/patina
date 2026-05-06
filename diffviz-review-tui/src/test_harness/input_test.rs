@@ -1,21 +1,23 @@
 //! Thin wrapper around `tui_harness::InputTestHarness` for diffviz-review-tui.
 
 use crate::Result;
-use crate::app::HeadlessApp;
+use crate::app::ReviewTuiApp;
 use diffviz_review::engines::ReviewEngine;
 
-use super::snapshot::StateSnapshot;
+use crate::state_snapshot::StateSnapshot;
 
 /// Test harness for validating input sequence → state transformations
 pub struct InputTestHarness {
-    inner: tui_harness::InputTestHarness<HeadlessApp>,
+    inner: tui_harness::InputTestHarness<ReviewTuiApp>,
 }
 
 impl InputTestHarness {
     /// Create a new input test harness
     pub fn new(review_engine: ReviewEngine) -> Self {
         Self {
-            inner: tui_harness::InputTestHarness::new(HeadlessApp::new(review_engine)),
+            inner: tui_harness::InputTestHarness::new(
+                ReviewTuiApp::new(review_engine).expect("Failed to create ReviewTuiApp"),
+            ),
         }
     }
 

@@ -11,6 +11,7 @@ pub mod decision_navigation;
 pub mod events;
 pub mod formatting;
 pub mod state;
+pub mod state_snapshot;
 pub mod theme;
 pub mod ui;
 
@@ -21,11 +22,10 @@ pub mod test_harness;
 pub use app::ReviewTuiApp;
 pub use decision_navigation::DecisionNavigationTree;
 pub use state::{FocusPanel, InputMode, UiState};
+pub use state_snapshot::StateSnapshot;
 
 #[cfg(feature = "test-harness")]
-pub use app::HeadlessApp;
-#[cfg(feature = "test-harness")]
-pub use test_harness::{InputTestHarness, StateSnapshot};
+pub use test_harness::InputTestHarness;
 
 /// Result type used throughout the TUI
 pub type Result<T> = anyhow::Result<T>;
