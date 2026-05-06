@@ -1,0 +1,19 @@
+[package]
+name = "sam-persistence"
+version = "1.3.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+sam-utils = {path="../sam-utils"}
+sam-core = {path="../sam-core"}
+thiserror = "2.0.12"
+serde = { version = "1.0.136", features = ["derive"] }
+lazy_static = "1.4.0"
+rustbreak = { version = "2.0.0", features = ["ron_enc"] }
+regex = "1.5.5"
+maplit = "1.0.2"
+
+[dev-dependencies]
+tempfile = "3.2.0"
