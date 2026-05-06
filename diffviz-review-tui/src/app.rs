@@ -14,6 +14,7 @@ use crate::{
     command::{Command, execute_command},
     events::{BusinessEvent, UiEvent, handle_key_event, ui_event_to_business_event},
     state::UiState,
+    state_snapshot::StateSnapshot,
     ui,
 };
 
@@ -85,7 +86,7 @@ impl ReviewTuiApp {
 }
 
 impl ELMApp for ReviewTuiApp {
-    type Snapshot = ();
+    type Snapshot = StateSnapshot;
     type Error = DispatchError;
 
     fn dispatch_key(&mut self, key: KeyEvent) -> std::result::Result<(), DispatchError> {
@@ -104,65 +105,14 @@ impl ELMApp for ReviewTuiApp {
         self.ui_state.should_quit
     }
 
-    fn snapshot(&self) {}
+    fn snapshot(&self) -> StateSnapshot {
+        StateSnapshot::from_ui_state(&self.ui_state)
+    }
 
     fn on_tick(&mut self) {
         if self.ui_state.leader_active && self.ui_state.is_leader_timed_out() {
             self.ui_state.deactivate_leader();
         }
-    }
-}
-
-/// Headless application for testing without terminal
-#[cfg(feature = "test-harness")]
-pub struct HeadlessApp {
-    /// Business logic engine
-    pub review_engine: ReviewEngine,
-
-    /// UI navigation and display state
-    pub ui_state: UiState,
-}
-
-#[cfg(feature = "test-harness")]
-impl HeadlessApp {
-    /// Create a new headless application
-    pub fn new(review_engine: ReviewEngine) -> Self {
-        let ui_state = ReviewTuiApp::initialize_ui_state(&review_engine);
-        Self {
-            review_engine,
-            ui_state,
-        }
-    }
-
-    /// Process a single key event and update state, returning command to execute
-    pub fn process_key_event(&mut self, key: KeyEvent) -> Result<Command> {
-        process_key_event_impl(&mut self.review_engine, &mut self.ui_state, key)
-    }
-}
-
-#[cfg(feature = "test-harness")]
-impl ELMApp for HeadlessApp {
-    type Snapshot = crate::test_harness::snapshot::StateSnapshot;
-    type Error = DispatchError;
-
-    fn dispatch_key(&mut self, key: KeyEvent) -> std::result::Result<(), DispatchError> {
-        let command = self
-            .process_key_event(key)
-            .map_err(|e| DispatchError(format!("{e:#}")))?;
-        execute_command(command).map_err(|e| DispatchError(format!("{e:#}")))?;
-        Ok(())
-    }
-
-    fn draw(&self, frame: &mut Frame) {
-        ui::draw(frame, &self.ui_state, &self.review_engine);
-    }
-
-    fn should_quit(&self) -> bool {
-        self.ui_state.should_quit
-    }
-
-    fn snapshot(&self) -> crate::test_harness::snapshot::StateSnapshot {
-        crate::test_harness::snapshot::StateSnapshot::from_ui_state(&self.ui_state)
     }
 }
 
