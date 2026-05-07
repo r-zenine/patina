@@ -216,6 +216,10 @@ fn is_supported_file(file_path: &str) -> bool {
     )
 }
 
+#[cfg(test)]
+#[path = "review_engine_builder_tests.rs"]
+mod tests;
+
 /// Get the appropriate language parser for a file based on its extension
 /// Only supports languages that are fully implemented with semantic tree building
 fn get_language_parser_for_file(
