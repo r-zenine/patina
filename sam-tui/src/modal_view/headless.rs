@@ -3,7 +3,7 @@ use ratatui::Frame;
 use serde::Serialize;
 use tui_harness::ELMApp;
 
-use crate::error::SamTuiError;
+use tui_harness::TuiError;
 
 use super::state::{ExecutionState, OptionToggle, Value, ViewMode, ViewState};
 use super::theme::UITheme;
@@ -50,7 +50,7 @@ impl<V: Value> HeadlessModalView<V> {
 
 impl<V: Value> ELMApp for HeadlessModalView<V> {
     type Snapshot = SamSnapshot;
-    type Error = SamTuiError;
+    type Error = TuiError;
 
     fn dispatch_key(&mut self, key: KeyEvent) -> std::result::Result<(), Self::Error> {
         if let Some(event) = key_transformer(key, self.has_options, self.allow_multi_select) {

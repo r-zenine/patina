@@ -51,7 +51,7 @@ impl Tmux {
         directory: &str,
     ) -> Result<bool, TmuxError> {
         if self.list_windows()?.iter().any(|e| *e == target_window) {
-            debug!("target window {:?} was found!", target_window);
+            debug!("target window {target_window:?} was found!");
             let output = split_window!()
                 .target_window(target_window)
                 .vertical()
@@ -60,14 +60,11 @@ impl Tmux {
                 .build()
                 .into_tmux()
                 .output();
-            debug!("executed command {:?} and got output {:?}", command, output);
+            debug!("executed command {command:?} and got output {output:?}");
 
             Ok(output.map(|out| out.success())?)
         } else {
-            debug!(
-                "target window {:?} was not found! creating it",
-                target_window
-            );
+            debug!("target window {target_window:?} was not found! creating it");
             let output = new_window!()
                 .window_name(target_window)
                 .start_directory(directory)
@@ -76,7 +73,7 @@ impl Tmux {
                 .into_tmux()
                 .output();
 
-            debug!("executed command {:?} and got output {:?}", command, output);
+            debug!("executed command {command:?} and got output {output:?}");
 
             Ok(output.map(|out| out.success())?)
         }

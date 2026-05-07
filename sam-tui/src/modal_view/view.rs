@@ -2,9 +2,11 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Frame;
 use tui_harness::ELMApp;
 
-use crate::error::SamTuiError;
+use tui_harness::TuiError;
 
-use super::state::{Event as AppEvent, ExecutionState, OptionToggle, Value, ViewResponse, ViewState};
+use super::state::{
+    Event as AppEvent, ExecutionState, OptionToggle, Value, ViewResponse, ViewState,
+};
 use super::ui::UIModal;
 
 /// Map a crossterm KeyEvent to a sam domain Event.
@@ -23,9 +25,7 @@ pub(super) fn key_transformer(
         KeyCode::Down => Some(AppEvent::Down),
         KeyCode::Enter => Some(AppEvent::Entr),
         KeyCode::Char('p') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(AppEvent::Up),
-        KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-            Some(AppEvent::Down)
-        }
+        KeyCode::Char('n') if key.modifiers.contains(KeyModifiers::CONTROL) => Some(AppEvent::Down),
         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
             Some(AppEvent::AppClosed)
         }
@@ -82,7 +82,7 @@ impl<V: Value> ModalView<V> {
 
 impl<V: Value> ELMApp for ModalView<V> {
     type Snapshot = ();
-    type Error = SamTuiError;
+    type Error = TuiError;
 
     fn dispatch_key(&mut self, key: KeyEvent) -> std::result::Result<(), Self::Error> {
         if let Some(event) = key_transformer(key, self.has_options, self.allow_multi_select) {

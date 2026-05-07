@@ -1,6 +1,11 @@
 use sam_tui::modal_view::{HeadlessModalView, MockValue, OptionToggle};
 use tui_harness::{InputTestHarness, RenderTestHarness};
 
+const _: fn() = || {
+    fn assert_error_type<App: tui_harness::ELMApp<Error = tui_harness::TuiError>>() {}
+    assert_error_type::<HeadlessModalView<MockValue>>();
+};
+
 fn five_items() -> Vec<MockValue> {
     vec![
         MockValue::new(1, "one"),
