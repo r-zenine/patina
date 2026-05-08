@@ -6,8 +6,8 @@ use clap::{Parser, Subcommand};
 use std::path::Path;
 
 use commands::{
-    CommandExecutor, debug::DebugCommand, review::ReviewCommand, templates::TemplatesCommand,
-    validate::ValidateCommand,
+    CommandExecutor, debug::DebugCommand, display::DisplayReviewCommand, review::ReviewCommand,
+    templates::TemplatesCommand, validate::ValidateCommand,
 };
 use diffviz_git::GitRepository;
 use diffviz_review::{
@@ -93,8 +93,21 @@ enum Commands {
         /// Path to the file to validate
         file: String,
     },
+    /// Display information about a contribution review
+    Display {
+        #[command(subcommand)]
+        subcommand: DisplayCommands,
+    },
 }
 
+#[derive(Subcommand)]
+enum DisplayCommands {
+    /// Show YAML summary of a contribution's review state
+    Review {
+        /// Path to a contribution folder containing decision-log.yaml
+        folder: String,
+    },
+}
 
 fn resolve_commit_diff(git_repo: &GitRepository, commit_hash: String) -> Result<DiffQuery> {
     let parent_hash = git_repo
@@ -158,12 +171,22 @@ fn main() -> Result<()> {
         (Some(folder), None) => run_contribution_review(&folder, &cli.repo_path, &author),
 
         (None, Some(command)) => {
-            // Templates and Validate do not require a git repository
+            // Templates, Validate, and Display do not require a git repository
             if let Commands::Templates { ref artifact } = command {
                 return TemplatesCommand::new(artifact.clone()).run();
             }
-            if let Commands::Validate { ref artifact, ref file } = command {
+            if let Commands::Validate {
+                ref artifact,
+                ref file,
+            } = command
+            {
                 return ValidateCommand::new(artifact.clone(), file.clone()).run();
+            }
+            if let Commands::Display {
+                subcommand: DisplayCommands::Review { ref folder },
+            } = command
+            {
+                return DisplayReviewCommand::new(folder.clone()).run();
             }
 
             let mut env_builder = EnvironmentBuilder::new()
@@ -203,7 +226,9 @@ fn main() -> Result<()> {
                     };
                     debug_command.execute(environment)
                 }
-                Commands::Templates { .. } | Commands::Validate { .. } => unreachable!(),
+                Commands::Templates { .. }
+                | Commands::Validate { .. }
+                | Commands::Display { .. } => unreachable!(),
             }
         }
 

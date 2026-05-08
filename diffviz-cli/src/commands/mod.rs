@@ -4,6 +4,7 @@
 //! following clean separation of concerns and the Environment pattern.
 
 pub mod debug;
+pub mod display;
 pub mod review;
 pub mod templates;
 pub mod validate;
