@@ -85,6 +85,23 @@ pub enum ProgrammingLanguage {
     Unknown,
 }
 
+impl std::fmt::Display for ProgrammingLanguage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let name = match self {
+            Self::Rust => "Rust",
+            Self::Python => "Python",
+            Self::TypeScript => "TypeScript",
+            Self::JavaScript => "JavaScript",
+            Self::Go => "Go",
+            Self::Java => "Java",
+            Self::C => "C",
+            Self::Cpp => "C++",
+            Self::Unknown => "Unknown",
+        };
+        write!(f, "{name}")
+    }
+}
+
 impl ProgrammingLanguage {
     /// Detect programming language from file extension
     pub fn from_file_path(path: &str) -> Self {
@@ -92,12 +109,12 @@ impl ProgrammingLanguage {
             match extension.to_lowercase().as_str() {
                 "rs" => Self::Rust,
                 "py" => Self::Python,
-                "ts" => Self::TypeScript,
-                "js" => Self::JavaScript,
+                "ts" | "tsx" => Self::TypeScript,
+                "js" | "jsx" => Self::JavaScript,
                 "go" => Self::Go,
                 "java" => Self::Java,
                 "c" | "h" => Self::C,
-                "cpp" | "cxx" | "cc" | "hpp" => Self::Cpp,
+                "cpp" | "cxx" | "cc" | "hpp" | "hxx" => Self::Cpp,
                 _ => Self::Unknown,
             }
         } else {
