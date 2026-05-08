@@ -106,6 +106,9 @@ enum DisplayCommands {
     Review {
         /// Path to a contribution folder containing decision-log.yaml
         folder: String,
+        /// Include approved decisions and summary stats
+        #[arg(long)]
+        full: bool,
     },
 }
 
@@ -183,10 +186,10 @@ fn main() -> Result<()> {
                 return ValidateCommand::new(artifact.clone(), file.clone()).run();
             }
             if let Commands::Display {
-                subcommand: DisplayCommands::Review { ref folder },
+                subcommand: DisplayCommands::Review { ref folder, full },
             } = command
             {
-                return DisplayReviewCommand::new(folder.clone()).run();
+                return DisplayReviewCommand::new(folder.clone(), full).run();
             }
 
             let mut env_builder = EnvironmentBuilder::new()

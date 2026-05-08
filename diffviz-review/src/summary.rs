@@ -58,8 +58,43 @@ pub struct ReviewSummary {
     pub summary: ReviewSummaryStats,
 }
 
+#[derive(Serialize)]
+struct MinimalDecisionEntry<'a> {
+    number: u32,
+    title: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    rationale: &'a Option<String>,
+    code_impacts: &'a Vec<CodeImpact>,
+}
+
+#[derive(Serialize)]
+struct MinimalOutput<'a> {
+    commit: &'a str,
+    unapproved_decisions: Vec<MinimalDecisionEntry<'a>>,
+    instructions: &'a ReviewSummaryInstructions,
+}
+
 impl ReviewSummary {
-    pub fn to_yaml(&self) -> Result<String, serde_yaml::Error> {
+    pub fn to_yaml_minimal(&self) -> Result<String, serde_yaml::Error> {
+        let output = MinimalOutput {
+            commit: &self.commit,
+            unapproved_decisions: self
+                .decisions
+                .unapproved
+                .iter()
+                .map(|d| MinimalDecisionEntry {
+                    number: d.number,
+                    title: &d.title,
+                    rationale: &d.rationale,
+                    code_impacts: &d.code_impacts,
+                })
+                .collect(),
+            instructions: &self.instructions,
+        };
+        serde_yaml::to_string(&output)
+    }
+
+    pub fn to_yaml_full(&self) -> Result<String, serde_yaml::Error> {
         serde_yaml::to_string(self)
     }
 }
