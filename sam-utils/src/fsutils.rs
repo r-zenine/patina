@@ -1,56 +1,13 @@
-use rand::Rng;
-use std::cell::RefCell;
-use std::env::temp_dir;
-use std::fs::remove_dir_all;
-use std::fs::File;
 use std::path::Path;
 use std::path::PathBuf;
 use thiserror::Error;
-use uuid::Uuid;
 
 type Result<T> = std::result::Result<T, ErrorsFS>;
 
-#[derive(Debug)]
-pub struct TempDirectory {
-    pub path: PathBuf,
-}
-
-impl TempDirectory {
-    pub fn new() -> Result<Self> {
-        let seed: u16 = rand::rng().random();
-        let dir_name = format!("sam-temp-dir-{seed}");
-        let path = temp_dir().join(dir_name);
-        std::fs::create_dir(path.clone()).map_err(ErrorsFS::UnexpectedIOError)?;
-        Ok(TempDirectory { path })
-    }
-}
-
-impl Drop for TempDirectory {
-    fn drop(&mut self) {
-        remove_dir_all(&self.path).expect("Can't cleanup directory")
-    }
-}
-
-#[derive(Debug)]
-pub struct TempFile {
-    pub file: RefCell<File>,
-    pub path: PathBuf,
-}
-
-impl TempFile {
-    pub fn new() -> Result<TempFile> {
-        let mut path = temp_dir();
-        let file_name = format!("{}.tmp", Uuid::new_v4());
-        path.push(file_name);
-
-        let file = File::create(path.as_path())?;
-        Ok(TempFile {
-            file: RefCell::new(file),
-            path,
-        })
-    }
-}
-
+/// Returns all files reachable within two levels of `path`.
+///
+/// Includes files directly in `path` and files inside immediate subdirectories.
+/// Deeper subdirectories and their contents are silently ignored.
 pub fn walk_dir(path: &Path) -> Result<Vec<PathBuf>> {
     let dir_content = std::fs::read_dir(path)?;
     let paths = dir_content.flat_map(|e| e.map(|e| e.path()));

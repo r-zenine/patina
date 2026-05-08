@@ -148,13 +148,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use sam_utils::fsutils::TempFile;
+    use tempfile::NamedTempFile;
 
     use super::{AssociativeStateWithTTL, Value};
 
     fn make_temp_state<V: Value>() -> AssociativeStateWithTTL<V> {
-        let f = TempFile::new().expect("failed to created a temporary file");
-        AssociativeStateWithTTL::new(f.path).expect("failed to create a new db")
+        let f = NamedTempFile::new().expect("failed to created a temporary file");
+        AssociativeStateWithTTL::new(f.path()).expect("failed to create a new db")
     }
 
     #[test]
