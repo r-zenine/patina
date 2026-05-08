@@ -1,10 +1,10 @@
-use std::fmt::Write;
 use ratatui::{
     layout::Alignment,
     style::Style,
     widgets::{Block, Borders, Paragraph, Wrap},
     Frame,
 };
+use std::fmt::Write;
 
 use super::state::OptionsState;
 use super::theme::UITheme;

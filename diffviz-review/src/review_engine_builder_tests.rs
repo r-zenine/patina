@@ -9,7 +9,6 @@ use crate::review_engine_builder::ReviewEngineBuilder;
 // Expected: builder skips (or gracefully handles) deleted files and returns Ok.
 // Actual:   builder calls get_source_code on the "to" ref, gets "File not found",
 //           and propagates DiffVizError::Git("Failed to get new source for …").
-#[ignore]
 #[test]
 fn test_build_from_decisions_does_not_crash_on_deleted_file() {
     let old_ref = GitRef::commit("abc123".to_string());
