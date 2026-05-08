@@ -4,22 +4,15 @@ Opportunities to remove duplication and consolidate utilities across the workspa
 
 ---
 
-## 1. Language Detection Duplication (Critical)
+## 1. Language Detection Duplication ~~(Critical)~~ ✅ Done
 
 **Problem**: Two implementations mapping the same file extensions to language names.
 
-| Location | Function | Returns |
-|---|---|---|
-| `diffviz-core/src/common.rs:90-106` | `ProgrammingLanguage::from_file_path()` | `ProgrammingLanguage` enum |
-| `diffviz-cli/src/commands/debug.rs:110-121` | `detect_language()` | `Result<String>` |
-
-**Fix**: Add `Display` impl (or `display_name()`) to `ProgrammingLanguage` in diffviz-core, then delete `detect_language()` from diffviz-cli.
-
-**Estimated savings**: ~30 LOC
+**Fix applied**: Added `Display` impl to `ProgrammingLanguage` in `diffviz-core/src/common.rs`. Deleted `detect_language()` from `diffviz-cli/src/commands/debug.rs` and replaced call sites with `ProgrammingLanguage::from_file_path(&path).to_string()`.
 
 ---
 
-## 2. Git Reference Formatting Duplication (Critical)
+## 2. Git Reference Formatting Duplication ~~(Critical)~~ ✅ Done
 
 **Problem**: Two near-identical implementations of `GitRef → String` conversion.
 
@@ -30,50 +23,40 @@ Opportunities to remove duplication and consolidate utilities across the workspa
 
 Both shorten commit hashes to 7 chars. `shorten_ref` is private so diffviz-git can't reuse it.
 
-**Fix**: Make `shorten_ref` public and shared. Consider a `Display` impl on `GitRef` for the display case, and keep the git-operation variant in diffviz-git where it belongs. Remove the private duplication.
+**Fix applied**: Added `Display` impl to `GitRef` in `git_ref.rs` (truncates commit hashes to 7 chars, maps others to `HEAD`/`STAGED`/`UNSTAGED`). Deleted `format_git_ref()` from `reviewable_diff_id.rs` and replaced its call site with `query.from` via `Display`. The git-operation variant (`git_ref_to_string` returning `--staged` etc.) stays in `diffviz-git` where it belongs.
 
 **Estimated savings**: ~20 LOC, better cohesion
 
 ---
 
-## 3. Language Support Check Duplicated in review_engine_builder (High)
+## 3. Language Support Check Duplicated in review_engine_builder ~~(High)~~ ✅ Done
 
 **Problem**: `diffviz-review/src/review_engine_builder.rs` re-implements language-from-path logic that diffviz-core already owns.
 
 - `is_supported_file(file_path: &str) -> bool` — checks extension against a hardcoded list
 - `get_language_parser_for_file()` — factory that duplicates what `ProgrammingLanguage::from_file_path()` + the parser registry already do
 
-**Fix**: Delete both functions, call `ProgrammingLanguage::from_file_path()` directly and route to the existing parser infrastructure.
+**Fix applied**: Added `tsx`/`jsx`/`hxx` to `ProgrammingLanguage::from_file_path()`. Added `parser_for_language(ProgrammingLanguage) -> Option<Box<dyn LanguageParser>>` factory in `diffviz-core/src/parsers/mod.rs`. Deleted both private functions from `review_engine_builder.rs` and replaced the call sites with `from_file_path()` + `parser_for_language()`.
 
 ---
 
-## 4. Private Utility Functions Trapped in reviewable_diff_id.rs (High)
+## 4. Private Utility Functions Trapped in reviewable_diff_id.rs ~~(High)~~ ✅ Done
 
-**Problem**: Five pure utility functions are private to `reviewable_diff_id.rs`, making them unreusable.
+**Problem**: Five pure utility functions were private to `reviewable_diff_id.rs`, making them unreusable.
 
-- `categorize_query()`
-- `compare_queries()`
-- `format_diff_query()`
-- `format_git_ref()`
-- `shorten_ref()`
-
-These operate on `DiffQuery` and `GitRef` — types that live elsewhere. They should be methods on those types or live in the module where those types are defined (`git_ref.rs`), not buried in the ID module.
-
-**Fix**: Move to `diffviz-review/src/entities/git_ref.rs` as inherent methods or a shared formatting module. Expose where appropriate.
+**Fix applied**: Moved `categorize_query`, `compare_queries`, `format_diff_query`, and `shorten_ref` into `git_ref.rs` as `Display` and `Ord`/`PartialOrd` impls on `DiffQuery`. `ReviewableDiffId`'s `Display` now delegates to `self.query` and its `Ord` uses `self.query.cmp()`.
 
 ---
 
-## 5. TempFile / TempDirectory Reimplement the `tempfile` Crate (Medium)
+## 5. TempFile / TempDirectory Reimplement the `tempfile` Crate ~~(Medium)~~ ✅ Done
 
-**Problem**: `sam-utils/src/fsutils.rs` has hand-rolled `TempFile` and `TempDirectory` structs using UUID-generated names and manual `Drop` cleanup.
+**Problem**: `sam-utils/src/fsutils.rs` had hand-rolled `TempFile` and `TempDirectory` structs using UUID-generated names and manual `Drop` cleanup.
 
-The `tempfile` crate is **already a workspace dependency** and provides `TempDir` and `NamedTempFile` with the same semantics plus better error handling and cross-platform support.
-
-**Fix**: Replace `TempFile`/`TempDirectory` usages (3 in sam-persistence) with `tempfile::NamedTempFile` / `tempfile::TempDir`, then delete the custom implementations.
+**Fix applied**: Deleted both structs and removed `rand`/`uuid` deps from `sam-utils`. Replaced all 4 test usages in `sam-persistence` with `tempfile::NamedTempFile` (using `.path()` instead of `.path`). Updated `sam-persistence` dev-dependency to use the workspace `tempfile = "3.8"` version.
 
 ---
 
-## 6. walk_dir Has Misleading Documentation (Medium)
+## 6. walk_dir Has Misleading Documentation ~~(Medium)~~ ✅ Done
 
 **Problem**: `sam-utils/src/fsutils.rs:54-69` — `walk_dir()` is documented as a recursive directory walker but only lists entries one level deep.
 
@@ -81,14 +64,11 @@ The `tempfile` crate is **already a workspace dependency** and provides `TempDir
 
 ---
 
-## 7. CLI Parsing Utilities Belong Closer to Their Types (Low)
+## 7. CLI Parsing Utilities Belong Closer to Their Types ~~(Low)~~ ✅ Done
 
-**Problem**: `diffviz-cli/src/commands/debug.rs` contains:
+**Problem**: `diffviz-cli/src/commands/debug.rs` had two utility methods trapped on `DebugCommand`.
 
-- `parse_git_ref(ref_str: &str) -> GitRef` — String → enum; belongs on `GitRef` as `FromStr`
-- `parse_line_range(range: &str) -> Result<(usize, usize)>` — generic enough to live in diffviz-review or diffviz-core
-
-**Fix**: Implement `FromStr` for `GitRef` in diffviz-review. Move `parse_line_range` to a shared location if ever needed beyond debug.
+**Fix applied**: Implemented `FromStr for GitRef` (with `Infallible` error) in `git_ref.rs`; call sites now use `.parse().unwrap()`. Converted `parse_line_range` from a `&self` method to a module-level free function in `debug.rs` — it's only used there so no shared location is needed yet.
 
 ---
 
