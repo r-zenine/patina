@@ -5,6 +5,7 @@ pub mod persistence;
 pub mod providers;
 pub mod review_engine_builder;
 pub mod state;
+pub mod summary;
 pub mod templates;
 
 // Re-export key types for external use
@@ -16,8 +17,11 @@ pub use entities::{
     DecisionInstructions, DecisionLineRange, DecisionLog, DecisionReviewableDiff, Instruction,
     InstructionMap, ReviewApprovals, ReviewDecisions, ReviewInstructions,
 };
+pub use persistence::{
+    PersistenceError, load_review_state, save_review_state, summarize_review_state,
+};
 pub use providers::{DiffProvider, FileStats, FileStatus};
-pub use persistence::{load_review_state, save_review_state, PersistenceError};
 pub use review_engine_builder::ReviewEngineBuilder;
 pub use state::{ReviewState, ReviewableDiff};
+pub use summary::ReviewSummary;
 pub use templates::SchemaTemplate;
