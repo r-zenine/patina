@@ -300,8 +300,6 @@ fn build_template_code(fields: &[FieldInfo]) -> syn::Result<TokenStream2> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn it_compiles() {
         assert!(true);
