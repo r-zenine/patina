@@ -72,17 +72,30 @@ Before proceeding to execution work, confirm all of these:
    - Read recent `context-handoff.md` files to understand current state
    - Identify the next logical contribution number
 
-6. **Check for reviewer instructions (review-state.json):**
+6. **Check for review feedback (review-state.json):**
    After reading existing contributions, look in the most recent contribution folder for `review-state.json`.
 
-   If present:
-   1. Read `instructions.instructions[]`
-   2. Filter for entries where `status: "active"`
-   3. Each active instruction contains: `file`, `line_range`, `content`, `query`
-   4. **Active instructions MUST be addressed in this contribution**
-   5. Use the `query` field with `git show <query>:<file>` or `git diff <query> <file>` to retrieve file content at the right git ref for context
+   **If present:**
 
-   If absent or no active instructions, proceed normally.
+   Run:
+   ```bash
+   diffviz display review <path-to-contribution-folder>
+   ```
+
+   This returns a structured summary with three sections to act on:
+
+   - **`approvals`** — file/line ranges the reviewer signed off. No rework needed for these.
+   - **`decision_approvals`** — decisions that were approved (`approved: true`) or rejected (`approved: false`). Rejected decisions must be revisited.
+   - **`instructions`** — reviewer directives. Filter for entries where `status: "active"`. Each active instruction contains `file`, `line_range`, `content`, and `query`. Use the `query` field with `git show <query>:<file>` to retrieve file content at the right git ref for context.
+
+   **If the review summary contains rejected decisions or active instructions:**
+   - **Do not proceed to the next roadmap phase**
+   - Create a new contribution folder (next sequential number) to address the feedback
+   - The folder name should reflect what was done: `NNN-phase-X-review-response-[specialty]-[agent]`
+   - Address every active instruction and revisit every rejected decision in that contribution
+   - Follow all standard Outcome 2 and Outcome 3 requirements for this new contribution
+
+   **If absent, or if all decisions are approved and there are no active instructions**, proceed normally to the next incomplete phase.
 
 #### Identify Your Phase (Phase Scoping)
 
@@ -272,6 +285,34 @@ Then fill in the decisions you made during this contribution:
 - Why was this approach chosen over alternatives?
 - What code impacts resulted from this decision?
 
+#### Identifying Code Impacts
+
+`code_impacts` is a high-signal field — **only document critical impacts, omit everything else.** If an entry is present, it means a reviewer should pay attention to it.
+
+**How to identify what qualifies:**
+
+Scan your changes and check each one against these two categories. Use your knowledge of the codebase to judge criticality — do not count callers or dependents mechanically.
+
+**Behavioral impacts (critical tier):**
+- Invariant mutations — removing guards, changing validation, altering preconditions
+- Error path changes — silencing errors, changing propagation, swallowing panics
+- Control flow at boundaries — early returns, condition flips near data mutations
+- Concurrency surface — anything touching locks, channels, async boundaries
+
+**Structural impacts (critical tier):**
+- Public API signature changes — function/method signatures, trait implementations, exported types
+- Dependency direction violations — an inner layer suddenly depending on an outer one
+- Core entity shape changes — struct fields added/removed/retyped in domain models
+- Interface contract changes — trait/interface modifications that silently break implementors
+
+**How to label each impact:**
+
+Prefix the `reasoning` field with the impact category:
+- `[Behavioral - Invariant mutation] Removed the guard that ensured...`
+- `[Structural - Public API] Changed signature of X, all callers must now...`
+
+If a change does not fall into either critical tier, omit it from `code_impacts` entirely.
+
 The template will look like this:
 ```yaml
 commit: "<git-hash>"  # Git hash from Step 4.5
@@ -282,7 +323,7 @@ decisions:
     rationale: "[Why...]"
     code_impacts:
       - file: "path/to/file.rs"
-        reasoning: "[Why affected]"
+        reasoning: "[Behavioral - Error path change] Changed how errors propagate from X, callers now receive Y instead of Z"
         line_ranges:
           - start: 10
             end: 50

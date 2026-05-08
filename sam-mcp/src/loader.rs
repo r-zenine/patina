@@ -1,6 +1,6 @@
 use sam_config::AppSettings;
-use sam_core::entities::discover::generate_discover_aliases;
 use sam_core::engines::VarsDefaultValuesSetter;
+use sam_core::entities::discover::generate_discover_aliases;
 use sam_persistence::repositories::{AliasesRepository, ErrorsAliasesRepository, VarsRepository};
 use sam_persistence::{CacheError, NoopVarsCache, RustBreakCache, VarsCache};
 use sam_readers::{read_aliases_from_path, read_vars_repository, ErrorsAliasRead, ErrorsVarRead};
@@ -58,10 +58,7 @@ fn build_context(config: AppSettings) -> Result<SamContext, LoadError> {
     }
 
     // Generate and add discover aliases for vars with discover: true
-    let discover_aliases: std::collections::HashSet<_> = vars
-        .vars_iter()
-        .cloned()
-        .collect();
+    let discover_aliases: std::collections::HashSet<_> = vars.vars_iter().cloned().collect();
     aliases_vec.extend(generate_discover_aliases(&discover_aliases));
 
     let aliases = AliasesRepository::new(aliases_vec.into_iter())?;
