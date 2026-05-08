@@ -106,13 +106,13 @@ where
 
 #[cfg(test)]
 mod tests {
-    use sam_utils::fsutils::TempFile;
+    use tempfile::NamedTempFile;
 
     use super::{ModResult, SequentialState, Value};
 
     fn make_temp_state<V: Value>() -> SequentialState<V> {
-        let f = TempFile::new().expect("failed to created a temporary file");
-        SequentialState::new(f.path, None).expect("failed to create a new db")
+        let f = NamedTempFile::new().expect("failed to created a temporary file");
+        SequentialState::new(f.path(), None).expect("failed to create a new db")
     }
 
     fn insert_values<V: Value>(state: &SequentialState<V>, values: &[V]) -> ModResult<()> {

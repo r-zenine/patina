@@ -74,14 +74,14 @@ mod tests {
         engines::SamHistory,
         entities::{aliases::ResolvedAlias, choices::Choice, identifiers::Identifier},
     };
-    use sam_utils::fsutils;
+    use tempfile::NamedTempFile;
 
     use super::AliasHistory;
 
     #[test]
     fn test_history_put() {
-        let f = fsutils::TempFile::new().expect("can't create temp file for test");
-        let mut hist = AliasHistory::new(f.path, None).expect("can't create history file");
+        let f = NamedTempFile::new().expect("can't create temp file for test");
+        let mut hist = AliasHistory::new(f.path(), None).expect("can't create history file");
         let test = ResolvedAlias::new(
             Identifier::with_namespace("alias", Some("ns")),
             String::from("desc"),

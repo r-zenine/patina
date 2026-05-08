@@ -104,14 +104,14 @@ pub enum CacheError {
 #[cfg(test)]
 mod tests {
     use crate::vars_cache::{RustBreakCache, VarsCache};
-    use sam_utils::fsutils::TempFile;
     use std::time::Duration;
+    use tempfile::NamedTempFile;
 
     #[test]
     pub fn test_rustbreak_cache() {
-        let tmp_dir = TempFile::new().expect("can't create a temporary file");
+        let tmp_dir = NamedTempFile::new().expect("can't create a temporary file");
         let ttl = Duration::from_secs(90);
-        let cache = RustBreakCache::with_ttl(&tmp_dir.path, &ttl).expect("Can't open cache");
+        let cache = RustBreakCache::with_ttl(tmp_dir.path(), &ttl).expect("Can't open cache");
         cache
             .put(
                 &String::from("name"),
@@ -120,14 +120,14 @@ mod tests {
             )
             .expect("can't write in rustbreak cache");
 
-        let cache2 = RustBreakCache::with_ttl(&tmp_dir.path, &ttl).expect("Can't open cache");
+        let cache2 = RustBreakCache::with_ttl(tmp_dir.path(), &ttl).expect("Can't open cache");
         let value = cache2
             .get(&String::from("command"))
             .expect("can't read from rustbreak cache")
             .expect("can't retrieve the value from rustbreak cache");
         assert_eq!(value, "output");
 
-        let cache = RustBreakCache::with_ttl(&tmp_dir.path, &ttl).expect("Can't open cache");
+        let cache = RustBreakCache::with_ttl(tmp_dir.path(), &ttl).expect("Can't open cache");
         cache
             .put(
                 &String::from("name"),
