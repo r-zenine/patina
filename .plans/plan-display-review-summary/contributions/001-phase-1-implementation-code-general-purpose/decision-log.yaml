@@ -1,0 +1,41 @@
+commit: 9c4523e
+decisions:
+  - number: 1
+    title: Add ReviewSummary domain struct and summarize_review_state() to diffviz-review
+    rationale: Cross-referencing decision-log.yaml against review-state.json is domain logic, not CLI logic. Putting it in diffviz-review keeps diffviz-cli as a thin I/O layer and makes the function unit-testable in isolation.
+    code_impacts:
+      - reasoning: New file — ReviewSummary struct and sub-structs with serde Serialize, plus to_yaml() method
+        file: diffviz-review/src/summary.rs
+        line_ranges:
+          - start: 1
+            end: 60
+      - reasoning: Added summarize_review_state(folder) — reads decision-log.yaml and review-state.json, cross-references decision approvals, splits instructions by status
+        file: diffviz-review/src/persistence.rs
+        line_ranges:
+          - start: 90
+            end: 216
+      - reasoning: Added pub mod summary, re-exported ReviewSummary and summarize_review_state, added Parse/MissingFile variants to PersistenceError
+        file: diffviz-review/src/lib.rs
+        line_ranges:
+          - start: 9
+            end: 27
+
+  - number: 2
+    title: Add diffviz display review subcommand to diffviz-cli
+    rationale: The command is pure file processing (no git repo needed), so it follows the same no-Environment pattern as Templates and Validate — handled via early return before EnvironmentBuilder is constructed.
+    code_impacts:
+      - reasoning: New file — DisplayReviewCommand calls summarize_review_state and prints YAML to stdout
+        file: diffviz-cli/src/commands/display.rs
+        line_ranges:
+          - start: 1
+            end: 22
+      - reasoning: Added pub mod display
+        file: diffviz-cli/src/commands/mod.rs
+        line_ranges:
+          - start: 6
+            end: 7
+      - reasoning: Added Commands::Display + DisplayCommands::Review, early-return dispatch before EnvironmentBuilder, unreachable! arm updated
+        file: diffviz-cli/src/main.rs
+        line_ranges:
+          - start: 97
+            end: 190
