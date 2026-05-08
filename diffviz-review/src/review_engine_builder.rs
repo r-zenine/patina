@@ -106,7 +106,7 @@ impl ReviewEngineBuilder {
                     });
 
                     // Call decision-based diff creation (returns one or more diffs)
-                    let core_diffs = create_reviewable_diff_from_range(
+                    let core_diffs = match create_reviewable_diff_from_range(
                         file_path,
                         range.start,
                         range.end,
@@ -114,16 +114,30 @@ impl ReviewEngineBuilder {
                         new_provider.as_ref(),
                         language,
                         parser.as_ref(),
-                    )
-                    .map_err(|e| {
-                        crate::errors::DiffVizError::ProcessingFailed(format!(
-                            "Failed to create diff for {} (decision {}): {}",
-                            file_path, decision.number, e
-                        ))
-                    })?;
+                    ) {
+                        Ok(diffs) => diffs,
+                        Err(
+                            diffviz_core::decision_based_diff::DecisionDiffError::NoUnitsInRange {
+                                ..
+                            },
+                        ) => {
+                            eprintln!(
+                                "Skipping range {}:{}-{} in decision {}: no semantic units found",
+                                file_path, range.start, range.end, decision.number
+                            );
+                            continue;
+                        }
+                        Err(e) => {
+                            return Err(crate::errors::DiffVizError::ProcessingFailed(format!(
+                                "Failed to create diff for {} (decision {}): {}",
+                                file_path, decision.number, e
+                            )));
+                        }
+                    };
 
                     let new_source_provider = SourceCode::new(new_source_str);
-                    let old_source_provider = old_source_str.as_ref().map(|s| SourceCode::new(s.clone()));
+                    let old_source_provider =
+                        old_source_str.as_ref().map(|s| SourceCode::new(s.clone()));
 
                     for core_diff in core_diffs {
                         let line_range = extract_line_range_from_core_diff(
