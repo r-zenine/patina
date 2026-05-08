@@ -1,0 +1,27 @@
+commit: null  # planning phase — no code yet
+
+decisions:
+  - number: 1
+    title: "Use thiserror for ReviewTuiError, not anyhow, at the ELMApp dispatch boundary"
+    rationale: "anyhow::Error intentionally does not implement std::error::Error, making it incompatible with ELMApp::Error's trait bound. thiserror produces typed errors that satisfy the bound. The existing DispatchError hack (formatting errors to strings) loses the error chain; a boxed thiserror variant preserves it."
+    code_impacts: []
+
+  - number: 2
+    title: "Keep anyhow for diffviz-review-tui internal functions — only the ELMApp boundary changes"
+    rationale: "process_key_event_impl, handle_ui_event_impl, and handle_business_event_impl are private and return anyhow::Result. Migrating them to concrete types is unnecessary scope (YAGNI) and would require enumerating all ReviewEngine error variants. The dispatch_key boundary is the only public contract — that is what changes."
+    code_impacts: []
+
+  - number: 3
+    title: "Remove the public anyhow::Result alias from diffviz-review-tui/src/lib.rs"
+    rationale: "Exporting anyhow::Result as the crate's public Result type leaks the anyhow dependency as a public API contract. Internal modules can import anyhow directly. The public surface of the crate should expose ReviewTuiError and tui_harness::TuiError, not an opaque anyhow alias."
+    code_impacts: []
+
+  - number: 4
+    title: "Delete sam-tui/src/error.rs and wire tui_harness::TuiError as ELMApp::Error for ModalView"
+    rationale: "SamTuiError is a strict subset of TuiError (only Terminal variant). No information is lost by switching. This removes duplication and makes sam-tui a clean consumer of the canonical harness error type."
+    code_impacts: []
+
+  - number: 5
+    title: "Preserve error chain in ReviewTuiError by boxing anyhow::Error, not formatting to string"
+    rationale: "The current DispatchError(format!('{e:#}')) permanently loses the error chain. anyhow::Error implements Into<Box<dyn Error + Send + Sync + 'static>>, so .into() on an anyhow error produces a boxed dyn Error that preserves the chain. This matches the pattern already used by TuiError::App."
+    code_impacts: []
