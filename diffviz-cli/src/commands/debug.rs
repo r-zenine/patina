@@ -157,8 +157,13 @@ impl CommandExecutor for DebugCommand {
         let total_diff_count = all_diffs.len();
 
         // Filter by line range if provided
-        let filtered_diffs = if let Some(ref line_range_str) = self.line_range {
-            let (start, end) = self.parse_line_range(line_range_str)?;
+        let parsed_line_range = self
+            .line_range
+            .as_deref()
+            .map(|s| self.parse_line_range(s))
+            .transpose()?;
+
+        let filtered_diffs = if let Some((start, end)) = parsed_line_range {
             all_diffs
                 .iter()
                 .filter(|(id, _)| {
@@ -176,55 +181,38 @@ impl CommandExecutor for DebugCommand {
 
         // Serialize phases
         let p = self.phase;
+        macro_rules! phase {
+            ($n:literal, $expr:expr) => {
+                if matches!(p, None | Some($n)) {
+                    $expr
+                } else {
+                    None
+                }
+            };
+        }
         let phases = Phases {
-            phase_1_semantic_tree: if matches!(p, None | Some(1)) {
-                self.serialize_phase_1()
-            } else {
-                None
-            },
-            phase_2_semantic_pairs: if matches!(p, None | Some(2)) {
-                self.serialize_phase_2(&review_state)
-            } else {
-                None
-            },
-            phase_3_reviewable_diffs: if matches!(p, None | Some(3)) {
-                self.serialize_phase_3(&filtered_diffs)
-            } else {
-                None
-            },
-            phase_4_diff_node_hierarchy: if matches!(p, None | Some(4)) {
-                self.serialize_phase_4(&filtered_diffs)
-            } else {
-                None
-            },
-            phase_5_renderable_diffs: if matches!(p, None | Some(5)) {
+            phase_1_semantic_tree: phase!(1, self.serialize_phase_1()),
+            phase_2_semantic_pairs: phase!(2, self.serialize_phase_2(&review_state)),
+            phase_3_reviewable_diffs: phase!(3, self.serialize_phase_3(&filtered_diffs)),
+            phase_4_diff_node_hierarchy: phase!(4, self.serialize_phase_4(&filtered_diffs)),
+            phase_5_renderable_diffs: phase!(
+                5,
                 self.serialize_phase_5(&mut engine, &filtered_diffs)
-            } else {
-                None
-            },
-            phase_6_code_impact: if matches!(p, None | Some(6)) {
-                self.serialize_phase_6(&filtered_diffs)
-            } else {
-                None
-            },
-            phase_7_final_output: if matches!(p, None | Some(7)) {
-                self.serialize_phase_7(&filtered_diffs)
-            } else {
-                None
-            },
+            ),
+            phase_6_code_impact: phase!(6, self.serialize_phase_6(&filtered_diffs)),
+            phase_7_final_output: phase!(7, self.serialize_phase_7(&filtered_diffs)),
         };
 
         // Create output
-        let line_range_filter = if self.line_range.is_some() && total_diff_count > 0 {
-            Some(LineRangeFilter {
-                start: self.parse_line_range(self.line_range.as_ref().unwrap())?.0,
-                end: self.parse_line_range(self.line_range.as_ref().unwrap())?.1,
-                filtered_diff_count,
-                total_diff_count,
-            })
-        } else {
-            None
-        };
+        let line_range_filter =
+            parsed_line_range
+                .filter(|_| total_diff_count > 0)
+                .map(|(start, end)| LineRangeFilter {
+                    start,
+                    end,
+                    filtered_diff_count,
+                    total_diff_count,
+                });
 
         let output = DebugOutput {
             file_path: self.file_path.clone(),
@@ -309,18 +297,13 @@ impl DebugCommand {
 
     /// Parse line range from "start-end" format
     fn parse_line_range(&self, range: &str) -> Result<(usize, usize)> {
-        let parts: Vec<&str> = range.split('-').collect();
-        if parts.len() != 2 {
-            return Err(anyhow::anyhow!(
-                "Line range must be in 'start-end' format, got: {range}"
-            ));
-        }
+        let (start_str, end_str) = range.split_once('-').ok_or_else(|| {
+            anyhow::anyhow!("Line range must be in 'start-end' format, got: {range}")
+        })?;
 
-        let start_str = parts[0];
         let start = start_str
             .parse::<usize>()
             .map_err(|_| anyhow::anyhow!("Invalid start line: {start_str}"))?;
-        let end_str = parts[1];
         let end = end_str
             .parse::<usize>()
             .map_err(|_| anyhow::anyhow!("Invalid end line: {end_str}"))?;

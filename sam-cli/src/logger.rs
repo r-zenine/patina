@@ -39,7 +39,7 @@ impl SamLogger for FileLogger {
     }
 
     fn choice(&self, var: &dyn Display, choice: &dyn Display) {
-        info!("[SAM][ var = '{}' ] Choice was: '{}'", var, choice)
+        info!("[SAM][ var = '{var}' ] Choice was: '{choice}'")
     }
     fn alias(&self, alias: &Alias) {
         info!(
