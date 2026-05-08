@@ -1,0 +1,48 @@
+commit: "3a4670b"
+
+decisions:
+  - number: 1
+    title: "Add thiserror to diffviz-review-tui dependencies"
+    rationale: "The crate previously had no typed error infrastructure — anyhow covered everything internally and DispatchError was handwritten. thiserror is already a workspace dependency used by diffviz-review and others, so adding it here is zero net cost and aligns with the project-wide error design pattern."
+    code_impacts:
+      - file: "diffviz-review-tui/Cargo.toml"
+        reasoning: "Added thiserror = { workspace = true } to [dependencies]"
+        line_ranges:
+          - start: 12
+            end: 12
+
+  - number: 2
+    title: "Create ReviewTuiError with boxed dyn Error variants, not string wrappers"
+    rationale: "The replaced DispatchError formatted errors to strings with format!('{e:#}'), permanently losing the error chain. anyhow::Error implements Into<Box<dyn Error + Send + Sync + 'static>>, so calling .into() on an anyhow error boxes it while preserving the full chain. This matches the TuiError::App pattern already established in tui-harness."
+    code_impacts:
+      - file: "diffviz-review-tui/src/error.rs"
+        reasoning: "New file — defines ReviewTuiError with KeyDispatch and CommandExecution variants, each wrapping Box<dyn Error + Send + Sync + 'static>. Includes compile-time bound assertion."
+        line_ranges:
+          - start: 1
+            end: 16
+
+  - number: 3
+    title: "Demote the public anyhow::Result alias to pub(crate)"
+    rationale: "The public Result alias leaked anyhow as a public API contract. Internal modules import anyhow directly; the crate's public surface should expose ReviewTuiError, not an opaque alias. Making it pub(crate) removes the leaked dependency without touching any internal call sites."
+    code_impacts:
+      - file: "diffviz-review-tui/src/lib.rs"
+        reasoning: "Changed pub type Result<T> = anyhow::Result<T> to pub(crate) type Result<T> = anyhow::Result<T>; added pub mod error and pub use error::ReviewTuiError"
+        line_ranges:
+          - start: 11
+            end: 11
+          - start: 25
+            end: 25
+          - start: 33
+            end: 33
+
+  - number: 4
+    title: "Delete DispatchError from app.rs, wire ReviewTuiError at ELMApp boundary"
+    rationale: "DispatchError was a local hack that pre-dates ReviewTuiError. With ReviewTuiError now available, both map_err call sites in dispatch_key are updated to use .into() — which boxes the anyhow error and preserves the chain. The internal functions (process_key_event_impl, handle_ui_event_impl, handle_business_event_impl) remain anyhow::Result unchanged per decision 2 from the planning log (YAGNI — only the public ELMApp boundary changes)."
+    code_impacts:
+      - file: "diffviz-review-tui/src/app.rs"
+        reasoning: "Removed DispatchError struct and impls; imported crate::error::ReviewTuiError; changed ELMApp::Error = ReviewTuiError; updated dispatch_key signature and two map_err calls"
+        line_ranges:
+          - start: 12
+            end: 19
+          - start: 72
+            end: 84
