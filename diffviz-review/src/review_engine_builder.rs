@@ -12,13 +12,11 @@ use crate::entities::reviewable_diff_id::{LineRange, ReviewableDiffId};
 use crate::providers::DiffProvider;
 use crate::state::ReviewableDiff;
 
-use diffviz_core::parsers::{CParser, CppParser, JavaParser, JavaScriptParser, TypeScriptParser};
-// Import diffviz-core for semantic analysis
 use diffviz_core::{
     ast_diff::SourceCode,
-    common::{LanguageParser, ProgrammingLanguage},
+    common::ProgrammingLanguage,
     decision_based_diff::create_reviewable_diff_from_range,
-    parsers::{GoParser, PythonParser, RustParser},
+    parsers::parser_for_language,
     reviewable_diff::ReviewableDiff as CoreReviewableDiff,
 };
 
@@ -67,17 +65,17 @@ impl ReviewEngineBuilder {
             for code_impact in &decision.code_impacts {
                 let file_path = &code_impact.file;
 
-                // Skip unsupported files
-                if !is_supported_file(file_path) {
-                    warn!(
-                        "Skipping unsupported file in decision {}: {}",
-                        decision.number, file_path
-                    );
-                    continue;
-                }
-
-                // Get language parser for this file
-                let (parser, language) = get_language_parser_for_file(file_path)?;
+                let language = ProgrammingLanguage::from_file_path(file_path);
+                let parser = match parser_for_language(language) {
+                    Some(p) => p,
+                    None => {
+                        warn!(
+                            "Skipping unsupported file in decision {}: {}",
+                            decision.number, file_path
+                        );
+                        continue;
+                    }
+                };
 
                 // Process each line range in the code impact
                 let new_source_str = self
@@ -214,53 +212,6 @@ fn extract_line_range_from_core_diff(
     }
 }
 
-/// Check if a file is supported for semantic analysis based on its extension
-/// Only includes languages that are fully implemented with semantic tree building
-fn is_supported_file(file_path: &str) -> bool {
-    matches!(
-        file_path.split('.').next_back().unwrap_or(""),
-        "rs" | "py"
-            | "go"
-            | "java"
-            | "ts"
-            | "tsx"
-            | "js"
-            | "jsx"
-            | "c"
-            | "h"
-            | "cxx"
-            | "cpp"
-            | "hpp"
-            | "hxx"
-    )
-}
-
 #[cfg(test)]
 #[path = "review_engine_builder_tests.rs"]
 mod tests;
-
-/// Get the appropriate language parser for a file based on its extension
-/// Only supports languages that are fully implemented with semantic tree building
-fn get_language_parser_for_file(
-    file_path: &str,
-) -> Result<(Box<dyn LanguageParser>, ProgrammingLanguage), crate::errors::DiffVizError> {
-    match file_path.split('.').next_back().unwrap_or("") {
-        "rs" => Ok((Box::new(RustParser::new()), ProgrammingLanguage::Rust)),
-        "py" => Ok((Box::new(PythonParser::new()), ProgrammingLanguage::Python)),
-        "go" => Ok((Box::new(GoParser::new()), ProgrammingLanguage::Go)),
-        "java" => Ok((Box::new(JavaParser::new()), ProgrammingLanguage::Java)),
-        "c" | "h" => Ok((Box::new(CParser::new()), ProgrammingLanguage::C)),
-        "cxx" | "cpp" | "hpp" | "hxx" => Ok((Box::new(CppParser::new()), ProgrammingLanguage::Cpp)),
-        "ts" | "tsx" => Ok((
-            Box::new(TypeScriptParser::new()),
-            ProgrammingLanguage::TypeScript,
-        )),
-        "js" | "jsx" => Ok((
-            Box::new(JavaScriptParser::new()),
-            ProgrammingLanguage::JavaScript,
-        )),
-        ext => Err(crate::errors::DiffVizError::ProcessingFailed(format!(
-            "Unsupported file extension: {ext}"
-        ))),
-    }
-}
