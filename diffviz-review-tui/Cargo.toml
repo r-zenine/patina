@@ -9,6 +9,7 @@ ratatui = "0.28"
 crossterm = "0.28"
 tui-harness = { path = "../tui-harness" }
 anyhow = { workspace = true }
+thiserror = { workspace = true }
 diffviz-review = { path = "../diffviz-review" }
 diffviz-core = { path = "../diffviz-core" }
 diffviz-git = { path = "../diffviz-git" }

@@ -12,26 +12,12 @@ use tui_harness::ELMApp;
 use crate::{
     Result,
     command::{Command, execute_command},
+    error::ReviewTuiError,
     events::{BusinessEvent, UiEvent, handle_key_event, ui_event_to_business_event},
     state::UiState,
     state_snapshot::StateSnapshot,
     ui,
 };
-
-/// Opaque error type that wraps an anyhow error as a std::error::Error.
-///
-/// anyhow::Error intentionally does not implement std::error::Error to
-/// avoid blanket-impl conflicts, so we need this wrapper for ELMApp::Error.
-#[derive(Debug)]
-pub struct DispatchError(String);
-
-impl std::fmt::Display for DispatchError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
-impl std::error::Error for DispatchError {}
 
 /// Main TUI application that coordinates ReviewEngine and UI
 pub struct ReviewTuiApp {
@@ -87,13 +73,13 @@ impl ReviewTuiApp {
 
 impl ELMApp for ReviewTuiApp {
     type Snapshot = StateSnapshot;
-    type Error = DispatchError;
+    type Error = ReviewTuiError;
 
-    fn dispatch_key(&mut self, key: KeyEvent) -> std::result::Result<(), DispatchError> {
+    fn dispatch_key(&mut self, key: KeyEvent) -> std::result::Result<(), ReviewTuiError> {
         let command = self
             .process_key_event(key)
-            .map_err(|e| DispatchError(format!("{e:#}")))?;
-        execute_command(command).map_err(|e| DispatchError(format!("{e:#}")))?;
+            .map_err(|e| ReviewTuiError::KeyDispatch(e.into()))?;
+        execute_command(command).map_err(|e| ReviewTuiError::CommandExecution(e.into()))?;
         Ok(())
     }
 
