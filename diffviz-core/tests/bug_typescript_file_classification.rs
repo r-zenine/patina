@@ -8,7 +8,6 @@
 #[cfg(test)]
 mod typescript_file_classification_bug_tests {
     use diffviz_core::common::LanguageParser;
-    use diffviz_core::common::ProgrammingLanguage;
     use diffviz_core::parsers::TypeScriptParser;
 
     #[test]
