@@ -177,13 +177,41 @@ impl CommandExecutor for DebugCommand {
         // Serialize phases
         let p = self.phase;
         let phases = Phases {
-            phase_1_semantic_tree: if matches!(p, None | Some(1)) { self.serialize_phase_1() } else { None },
-            phase_2_semantic_pairs: if matches!(p, None | Some(2)) { self.serialize_phase_2(&review_state) } else { None },
-            phase_3_reviewable_diffs: if matches!(p, None | Some(3)) { self.serialize_phase_3(&filtered_diffs) } else { None },
-            phase_4_diff_node_hierarchy: if matches!(p, None | Some(4)) { self.serialize_phase_4(&filtered_diffs) } else { None },
-            phase_5_renderable_diffs: if matches!(p, None | Some(5)) { self.serialize_phase_5(&mut engine, &filtered_diffs) } else { None },
-            phase_6_code_impact: if matches!(p, None | Some(6)) { self.serialize_phase_6(&filtered_diffs) } else { None },
-            phase_7_final_output: if matches!(p, None | Some(7)) { self.serialize_phase_7(&filtered_diffs) } else { None },
+            phase_1_semantic_tree: if matches!(p, None | Some(1)) {
+                self.serialize_phase_1()
+            } else {
+                None
+            },
+            phase_2_semantic_pairs: if matches!(p, None | Some(2)) {
+                self.serialize_phase_2(&review_state)
+            } else {
+                None
+            },
+            phase_3_reviewable_diffs: if matches!(p, None | Some(3)) {
+                self.serialize_phase_3(&filtered_diffs)
+            } else {
+                None
+            },
+            phase_4_diff_node_hierarchy: if matches!(p, None | Some(4)) {
+                self.serialize_phase_4(&filtered_diffs)
+            } else {
+                None
+            },
+            phase_5_renderable_diffs: if matches!(p, None | Some(5)) {
+                self.serialize_phase_5(&mut engine, &filtered_diffs)
+            } else {
+                None
+            },
+            phase_6_code_impact: if matches!(p, None | Some(6)) {
+                self.serialize_phase_6(&filtered_diffs)
+            } else {
+                None
+            },
+            phase_7_final_output: if matches!(p, None | Some(7)) {
+                self.serialize_phase_7(&filtered_diffs)
+            } else {
+                None
+            },
         };
 
         // Create output

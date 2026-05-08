@@ -21,7 +21,11 @@ pub fn generate_discover_aliases(vars: &HashSet<Var>) -> Vec<Alias> {
 
             let cmd = if !var.choices().is_empty() {
                 // Static var: generate printf command
-                let values: Vec<String> = var.choices().iter().map(|c| c.value().to_string()).collect();
+                let values: Vec<String> = var
+                    .choices()
+                    .iter()
+                    .map(|c| c.value().to_string())
+                    .collect();
                 format!("printf '%s\\n' {}", values.join(" "))
             } else if var.is_command() {
                 // Dynamic var: reuse from_command
@@ -46,11 +50,7 @@ mod tests {
     use crate::entities::choices::Choice;
 
     // Test helper: create a discover-enabled var (simulating deserialization with discover: true)
-    fn create_discoverable_static_var(
-        name: &str,
-        desc: &str,
-        choices: Vec<Choice>,
-    ) -> Var {
+    fn create_discoverable_static_var(name: &str, desc: &str, choices: Vec<Choice>) -> Var {
         // Create through serde roundtrip to properly set discover field
         let yaml = format!(
             "name: {}\ndesc: {}\ndiscover: true\nchoices:\n{}",

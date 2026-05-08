@@ -265,9 +265,11 @@ mod tests {
         assert!(seq.is_ok());
         let seq = execution_sequence_for_dependencies(&repo, VAR_USE_LISTING.clone());
         assert!(seq.is_ok());
-        let expected = [VAR_DIRECTORY_NAME.clone(),
+        let expected = [
+            VAR_DIRECTORY_NAME.clone(),
             VAR_PATTERN_NAME.clone(),
-            VAR_LISTING_NAME.clone()];
+            VAR_LISTING_NAME.clone(),
+        ];
         assert_eq!(expected.iter().as_slice(), seq.unwrap().as_ref());
     }
     #[test]

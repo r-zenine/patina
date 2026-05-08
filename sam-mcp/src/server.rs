@@ -199,7 +199,9 @@ list_aliases(keyword=\"dkr run\") → fuzzy-matches name and description."
             .collect();
 
         tracing::info!(count = result.len(), "list_aliases ok");
-        Ok(CallToolResult::success(vec![Content::text(serialize(&result)?)]))
+        Ok(CallToolResult::success(vec![Content::text(serialize(
+            &result,
+        )?)]))
     }
 
     #[tool(description = "Resolve a SAM alias to a runnable shell command. \
