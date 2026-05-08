@@ -3,7 +3,7 @@
 //! This module defines the ReviewableDiffId type which serves as the universal
 //! identifier for review items, replacing the legacy ChunkId system.
 
-use crate::entities::git_ref::{DiffQuery, GitRef};
+use crate::entities::git_ref::DiffQuery;
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::fmt;
@@ -68,12 +68,10 @@ impl ReviewableDiffId {
 
 impl fmt::Display for ReviewableDiffId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let query_str = format_diff_query(&self.query);
-
         write!(
             f,
             "{}:{}:L{}-{}",
-            query_str, self.file_path, self.line_range.start_line, self.line_range.end_line
+            self.query, self.file_path, self.line_range.start_line, self.line_range.end_line
         )
     }
 }
@@ -114,7 +112,7 @@ impl Ord for ReviewableDiffId {
         }
 
         // Then by query (this ensures same-query items group together)
-        match compare_queries(&self.query, &other.query) {
+        match self.query.cmp(&other.query) {
             Ordering::Equal => {}
             ord => return ord,
         }
@@ -127,87 +125,6 @@ impl Ord for ReviewableDiffId {
     }
 }
 
-/// Helper enum describing the semantic category of a diff query
-#[derive(Debug, PartialEq, Eq)]
-enum QueryCategory<'a> {
-    WorkingDirectory,
-    CommitToHead { from: &'a str },
-    HeadToCommit { to: &'a str },
-    CommitComparison { from: &'a str, to: &'a str },
-    Other,
-}
-
-fn categorize_query(query: &DiffQuery) -> QueryCategory<'_> {
-    use GitRef::*;
-    match (&query.from, &query.to) {
-        (Head, Unstaged) | (Staged, Unstaged) => QueryCategory::WorkingDirectory,
-        (Commit(from), Head) => QueryCategory::CommitToHead { from },
-        (Head, Commit(to)) => QueryCategory::HeadToCommit { to },
-        (Commit(from), Commit(to)) => QueryCategory::CommitComparison { from, to },
-        _ => QueryCategory::Other,
-    }
-}
-
-fn compare_queries(a: &DiffQuery, b: &DiffQuery) -> Ordering {
-    let priority = |category: &QueryCategory<'_>| match category {
-        QueryCategory::WorkingDirectory => 0,
-        QueryCategory::CommitToHead { .. } => 1,
-        QueryCategory::HeadToCommit { .. } => 2,
-        QueryCategory::CommitComparison { .. } => 3,
-        QueryCategory::Other => 4,
-    };
-
-    let cat_a = categorize_query(a);
-    let cat_b = categorize_query(b);
-
-    match priority(&cat_a).cmp(&priority(&cat_b)) {
-        Ordering::Equal => match (cat_a, cat_b) {
-            (
-                QueryCategory::CommitToHead { from: f1 },
-                QueryCategory::CommitToHead { from: f2 },
-            ) => f1.cmp(f2),
-            (QueryCategory::HeadToCommit { to: t1 }, QueryCategory::HeadToCommit { to: t2 }) => {
-                t1.cmp(t2)
-            }
-            (
-                QueryCategory::CommitComparison { from: f1, to: t1 },
-                QueryCategory::CommitComparison { from: f2, to: t2 },
-            ) => match f1.cmp(f2) {
-                Ordering::Equal => t1.cmp(t2),
-                ord => ord,
-            },
-            _ => Ordering::Equal,
-        },
-        ord => ord,
-    }
-}
-
-fn format_diff_query(query: &DiffQuery) -> String {
-    match categorize_query(query) {
-        QueryCategory::WorkingDirectory => "working".to_string(),
-        QueryCategory::CommitToHead { from } => format!("{}..HEAD", shorten_ref(from)),
-        QueryCategory::HeadToCommit { to } => format!("HEAD..{}", shorten_ref(to)),
-        QueryCategory::CommitComparison { from, to } => {
-            format!("{}..{}", shorten_ref(from), shorten_ref(to))
-        }
-        QueryCategory::Other => format!("{}->{:?}", format_git_ref(&query.from), &query.to),
-    }
-}
-
-fn shorten_ref(reference: &str) -> String {
-    let len = reference.len();
-    let end = len.min(7);
-    reference[..end].to_string()
-}
-
-fn format_git_ref(git_ref: &GitRef) -> String {
-    match git_ref {
-        GitRef::Commit(hash) => shorten_ref(hash),
-        GitRef::Head => "HEAD".to_string(),
-        GitRef::Staged => "STAGED".to_string(),
-        GitRef::Unstaged => "UNSTAGED".to_string(),
-    }
-}
 
 #[cfg(test)]
 mod tests {
