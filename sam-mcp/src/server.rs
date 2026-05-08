@@ -22,6 +22,7 @@ pub struct SamMcpServer {
     ctx: Arc<tokio::sync::RwLock<SamContext>>,
     #[allow(dead_code)]
     config_path: Option<std::path::PathBuf>,
+    #[allow(dead_code)]
     tool_router: ToolRouter<Self>,
 }
 

@@ -3,6 +3,8 @@
 //! This module provides the ReviewEngineBuilder that orchestrates between the git,
 //! core, and review layers to create fully populated ReviewEngine instances.
 
+use log::warn;
+
 use crate::engines::ReviewEngine;
 use crate::entities::decision::{Decision, ReviewDecisions};
 use crate::entities::git_ref::DiffQuery;
@@ -67,7 +69,7 @@ impl ReviewEngineBuilder {
 
                 // Skip unsupported files
                 if !is_supported_file(file_path) {
-                    eprintln!(
+                    warn!(
                         "Skipping unsupported file in decision {}: {}",
                         decision.number, file_path
                     );
@@ -121,7 +123,7 @@ impl ReviewEngineBuilder {
                                 ..
                             },
                         ) => {
-                            eprintln!(
+                            warn!(
                                 "Skipping range {}:{}-{} in decision {}: no semantic units found",
                                 file_path, range.start, range.end, decision.number
                             );

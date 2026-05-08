@@ -68,7 +68,7 @@ impl SamExecutor for TmuxExecutor {
                 let shcmd =
                     ShellCommand::new(cmd.clone()).replace_env_vars_in_command(env_variables)?;
                 let command = shcmd.value();
-                debug!("execute_resolved_alias: running command {:?}", cmd);
+                debug!("execute_resolved_alias: running command {cmd:?}");
                 t.run_command_in_new_pane(&window_name, command, directory.to_str().unwrap_or("."))
                     .map_err(|err| ErrorSamEngine::ExecutorFailure(Box::new(err)))?;
                 t.set_layout(sam_terminals::tmux::WindowLayout::Tiled, &window_name)
