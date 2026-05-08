@@ -11,6 +11,7 @@ use std::time::Instant;
 
 use super::CommandExecutor;
 use crate::environment::Environment;
+use diffviz_core::common::ProgrammingLanguage;
 use diffviz_review::entities::decision::{CodeImpact, Decision, DecisionLineRange};
 use diffviz_review::entities::git_ref::{DiffQuery, GitRef};
 use diffviz_review::review_engine_builder::ReviewEngineBuilder;
@@ -106,12 +107,10 @@ impl CommandExecutor for DebugCommand {
 
         let start_time = Instant::now();
 
-        // Detect language
-        let language = self.detect_language(&self.file_path)?;
+        let language = ProgrammingLanguage::from_file_path(&self.file_path);
 
-        // Convert string refs to GitRef enums
-        let from_ref = self.parse_git_ref(self.from.as_deref().unwrap_or("HEAD"));
-        let to_ref = self.parse_git_ref(self.to.as_deref().unwrap_or("working_tree"));
+        let from_ref: GitRef = self.from.as_deref().unwrap_or("HEAD").parse().unwrap();
+        let to_ref: GitRef = self.to.as_deref().unwrap_or("working_tree").parse().unwrap();
 
         // Build diff query
         let query = DiffQuery {
@@ -160,7 +159,7 @@ impl CommandExecutor for DebugCommand {
         let parsed_line_range = self
             .line_range
             .as_deref()
-            .map(|s| self.parse_line_range(s))
+            .map(parse_line_range)
             .transpose()?;
 
         let filtered_diffs = if let Some((start, end)) = parsed_line_range {
@@ -216,7 +215,7 @@ impl CommandExecutor for DebugCommand {
 
         let output = DebugOutput {
             file_path: self.file_path.clone(),
-            language: language.clone(),
+            language: language.to_string(),
             query: DiffQueryOutput {
                 from: format!("{from_ref:?}"),
                 to: format!("{to_ref:?}"),
@@ -242,6 +241,27 @@ impl CommandExecutor for DebugCommand {
     }
 }
 
+fn parse_line_range(range: &str) -> Result<(usize, usize)> {
+    let (start_str, end_str) = range.split_once('-').ok_or_else(|| {
+        anyhow::anyhow!("Line range must be in 'start-end' format, got: {range}")
+    })?;
+
+    let start = start_str
+        .parse::<usize>()
+        .map_err(|_| anyhow::anyhow!("Invalid start line: {start_str}"))?;
+    let end = end_str
+        .parse::<usize>()
+        .map_err(|_| anyhow::anyhow!("Invalid end line: {end_str}"))?;
+
+    if start > end {
+        return Err(anyhow::anyhow!(
+            "Start line must be <= end line, got {start}-{end}"
+        ));
+    }
+
+    Ok((start, end))
+}
+
 impl DebugCommand {
     /// Validate command inputs
     fn validate_inputs(&self) -> Result<()> {
@@ -250,8 +270,10 @@ impl DebugCommand {
             return Err(anyhow::anyhow!("File not found: {}", self.file_path));
         }
 
-        // Check if language is supported
-        self.detect_language(&self.file_path)?;
+        if ProgrammingLanguage::from_file_path(&self.file_path) == ProgrammingLanguage::Unknown {
+            let ext = self.file_path.split('.').next_back().unwrap_or("");
+            return Err(anyhow::anyhow!("Unsupported file extension: {ext}"));
+        }
 
         // Validate phase number if provided
         if let Some(phase) = self.phase {
@@ -264,59 +286,13 @@ impl DebugCommand {
 
         // Validate line range format if provided
         if let Some(ref range) = self.line_range {
-            self.parse_line_range(range)?;
+            parse_line_range(range)?;
         }
 
         Ok(())
     }
 
-    /// Detect programming language from file extension
-    fn detect_language(&self, file_path: &str) -> Result<String> {
-        match file_path.split('.').next_back().unwrap_or("") {
-            "rs" => Ok("Rust".to_string()),
-            "py" => Ok("Python".to_string()),
-            "go" => Ok("Go".to_string()),
-            "java" => Ok("Java".to_string()),
-            "c" | "h" => Ok("C".to_string()),
-            "cxx" | "cpp" | "hpp" | "hxx" => Ok("C++".to_string()),
-            "ts" | "tsx" => Ok("TypeScript".to_string()),
-            "js" | "jsx" => Ok("JavaScript".to_string()),
-            ext => Err(anyhow::anyhow!("Unsupported file extension: {ext}")),
-        }
-    }
-
-    /// Convert string git ref to GitRef enum
-    fn parse_git_ref(&self, ref_str: &str) -> GitRef {
-        match ref_str {
-            "HEAD" => GitRef::Head,
-            "staged" => GitRef::Staged,
-            "unstaged" | "working_tree" => GitRef::Unstaged,
-            other => GitRef::Commit(other.to_string()),
-        }
-    }
-
     /// Parse line range from "start-end" format
-    fn parse_line_range(&self, range: &str) -> Result<(usize, usize)> {
-        let (start_str, end_str) = range.split_once('-').ok_or_else(|| {
-            anyhow::anyhow!("Line range must be in 'start-end' format, got: {range}")
-        })?;
-
-        let start = start_str
-            .parse::<usize>()
-            .map_err(|_| anyhow::anyhow!("Invalid start line: {start_str}"))?;
-        let end = end_str
-            .parse::<usize>()
-            .map_err(|_| anyhow::anyhow!("Invalid end line: {end_str}"))?;
-
-        if start > end {
-            return Err(anyhow::anyhow!(
-                "Start line must be <= end line, got {start}-{end}"
-            ));
-        }
-
-        Ok((start, end))
-    }
-
     /// Output in human-readable format with ANSI colors and metadata
     fn output_human(&self, output: &DebugOutput) -> Result<()> {
         // ANSI color codes for readability
