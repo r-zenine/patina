@@ -8,6 +8,7 @@
 pub mod app;
 pub mod command;
 pub mod decision_navigation;
+pub mod error;
 pub mod events;
 pub mod formatting;
 pub mod state;
@@ -21,11 +22,11 @@ pub mod test_harness;
 // Re-export main types for easy access
 pub use app::ReviewTuiApp;
 pub use decision_navigation::DecisionNavigationTree;
+pub use error::ReviewTuiError;
 pub use state::{FocusPanel, InputMode, UiState};
 pub use state_snapshot::StateSnapshot;
 
 #[cfg(feature = "test-harness")]
 pub use test_harness::InputTestHarness;
 
-/// Result type used throughout the TUI
-pub type Result<T> = anyhow::Result<T>;
+pub(crate) type Result<T> = anyhow::Result<T>;
