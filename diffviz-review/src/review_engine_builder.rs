@@ -78,21 +78,24 @@ impl ReviewEngineBuilder {
                 let (parser, language) = get_language_parser_for_file(file_path)?;
 
                 // Process each line range in the code impact
-                for range in &code_impact.line_ranges {
-                    // Get source code for old and new versions
-                    let new_source_str = self
-                        .diff_provider
-                        .get_source_code(file_path, &query.to)
-                        .map_err(|e| {
-                        crate::errors::DiffVizError::Git(format!(
-                            "Failed to get new source for {file_path}: {e}"
-                        ))
-                    })?;
+                let new_source_str = self
+                    .diff_provider
+                    .get_source_code(file_path, &query.to)
+                    .ok();
+                let old_source_str = self
+                    .diff_provider
+                    .get_source_code(file_path, &query.from)
+                    .ok();
 
-                    let old_source_str = self
-                        .diff_provider
-                        .get_source_code(file_path, &query.from)
-                        .ok();
+                if new_source_str.is_none() && old_source_str.is_none() {
+                    continue;
+                }
+
+                for range in &code_impact.line_ranges {
+                    let new_source_str = match &new_source_str {
+                        Some(s) => s.clone(),
+                        None => continue, // file deleted — skip this range
+                    };
 
                     // Create providers for the sources
                     let new_provider = Box::new(SourceCode::new(new_source_str.clone()))
@@ -120,7 +123,7 @@ impl ReviewEngineBuilder {
                     })?;
 
                     let new_source_provider = SourceCode::new(new_source_str);
-                    let old_source_provider = old_source_str.map(SourceCode::new);
+                    let old_source_provider = old_source_str.as_ref().map(|s| SourceCode::new(s.clone()));
 
                     for core_diff in core_diffs {
                         let line_range = extract_line_range_from_core_diff(

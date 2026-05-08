@@ -10,25 +10,6 @@ decisions:
         line_ranges:
           - start: 1
             end: 7
-      - file: "sam-tui/src/lib.rs"
-        reasoning: "Removed pub mod error; declaration"
-        line_ranges:
-          - start: 1
-            end: 1
-      - file: "sam-tui/src/modal_view/view.rs"
-        reasoning: "Replaced use crate::error::SamTuiError with use tui_harness::TuiError; updated type Error = TuiError"
-        line_ranges:
-          - start: 5
-            end: 5
-          - start: 85
-            end: 85
-      - file: "sam-tui/src/modal_view/headless.rs"
-        reasoning: "Same substitution as view.rs"
-        line_ranges:
-          - start: 6
-            end: 6
-          - start: 53
-            end: 53
       - file: "sam-tui/tests/harness_tests.rs"
         reasoning: "Added compile-time type assertion confirming ModalView::Error = tui_harness::TuiError"
         line_ranges:
