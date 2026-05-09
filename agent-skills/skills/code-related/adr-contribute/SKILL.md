@@ -1,6 +1,6 @@
 ---
 name: adr-contribute
-description: Wraps up a dev-strategy plan by harvesting decisions from all contributions, proposing ADR candidates through a human-in-the-loop selection, and writing lean Architecture Decision Records to docs/adr/. Use when a plan is done — whether fully implemented or deliberately stopped early. Works with .plans/plan-[FEATURE-NAME]/ directories only.
+description: Harvests architectural decisions and writes lean Architecture Decision Records to docs/adr/. Works in two modes — from a dev-strategy plan (reads decision-log.yaml files) or from a raw codebase (mines git history, comments, and docs). Use when a plan is done or when you want to capture past decisions from any codebase.
 skills-depend-on:
   - contribution-system
   - design-principles
@@ -12,21 +12,23 @@ Wrap up a dev-strategy plan by surfacing the decisions that deserve to be rememb
 
 ## What This Skill Does
 
-Reads every `decision-log.yaml` across a plan's contributions (design and implementation) and applies a three-gate filter to identify which decisions are ADR-worthy:
+Harvests architectural decisions from wherever they live — structured `decision-log.yaml` files in a dev-strategy plan, or git history, comments, and docs in a raw codebase — then applies a three-gate filter to identify which decisions are ADR-worthy:
 
 1. **Hard to reverse** — changing your mind later would be costly
 2. **Surprising without context** — a future reader would wonder "why did they do it this way?"
 3. **Real trade-off** — genuine alternatives existed; one was chosen for specific reasons
 
-The skill proposes candidates but the human selects which ones get written. It also captures plan completion status — which phases were implemented, which were intentionally skipped and why.
+The skill proposes candidates but the human selects which ones get written. When wrapping a plan, it also captures completion status — which phases were implemented, which were intentionally skipped and why.
 
-**Works with**: Plans created by `dev-strategy` skill in `.plans/plan-[FEATURE-NAME]/`
+**Works with**: Plans created by `dev-strategy` skill in `.plans/plan-[FEATURE-NAME]/`, or any codebase directly (no plan required)
 
 ## Context & Philosophy
 
-### This Skill Signals Plan Completion
+### When Used on a Plan, This Skill Signals Completion
 
-Invoking this skill means the plan is done. Not necessarily fully implemented — a deliberate early stop is a valid outcome. The skill handles partial completion gracefully: it captures what was built, what was skipped, and why.
+Invoking this skill on a dev-strategy plan means the plan is done. Not necessarily fully implemented — a deliberate early stop is a valid outcome. The skill handles partial completion gracefully: it captures what was built, what was skipped, and why.
+
+When used on a raw codebase (no plan), there is no completion signal — the skill simply captures past decisions.
 
 ### Offer ADRs Sparingly
 
@@ -43,7 +45,7 @@ The skill proposes; the human decides. This matters because the three-gate filte
 To wrap a plan with durable ADRs, three outcomes must be achieved:
 
 **Outcome 1 (HARVEST)**: Candidate list is ready for human review
-- All decision-log.yaml files have been read (root plan + all contributions)
+- Context detected and appropriate harvest strategy applied (plan-based or codebase)
 - Each decision has been assessed against the three gates
 - A ranked candidate list has been presented to the user with one-line justifications
 
@@ -86,4 +88,8 @@ Before using this skill, read [`contribution-system` skill](../contribution-syst
 - Directory structure (contributions/ folder required)
 - Progressive disclosure reading strategy
 
-**STOP if**: No `.plans/plan-[FEATURE-NAME]/` folder exists or no `contributions/` directory exists. This skill requires at least one completed contribution to have anything to harvest.
+**Context detection**: The skill selects a harvest strategy based on the invocation prompt:
+- Plan name or path provided → **plan-based harvest** (structured decision-log.yaml files)
+- No plan specified → **codebase harvest** (git history, comments, docs) — default
+
+See [references/tactics.md](references/tactics.md) for the detection logic and links to each strategy.
