@@ -107,7 +107,7 @@ fn get_display_node(change_status: &NodeChangeStatus) -> Option<&crate::ast_diff
 }
 
 /// Split source into lines preserving byte positions
-fn split_into_lines_with_positions(source: &str) -> Vec<LineInfo> {
+fn split_into_lines_with_positions(source: &str) -> Vec<LineInfo<'_>> {
     let mut lines = Vec::new();
     let mut byte_offset = 0;
 

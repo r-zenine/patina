@@ -59,10 +59,10 @@ pub trait LanguageDescriptor: Send + Sync {
     fn extract_visibility<'a>(&self, node: Node<'a>, source: &str) -> String {
         let mut cursor = node.walk();
         for child in node.children(&mut cursor) {
-            if child.kind() == "visibility_modifier" {
-                if let Ok(text) = child.utf8_text(source.as_bytes()) {
-                    return text.to_string();
-                }
+            if child.kind() == "visibility_modifier"
+                && let Ok(text) = child.utf8_text(source.as_bytes())
+            {
+                return text.to_string();
             }
         }
         "private".to_string()

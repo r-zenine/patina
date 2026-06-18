@@ -56,13 +56,13 @@ fn extract_struct_anchor(line: &str, reviewable: &ReviewableDiff) -> Option<Sema
     let trimmed = line.trim();
 
     // Check if this is a struct declaration
-    if trimmed.starts_with("struct ") {
-        if let Some(name) = extract_struct_name_from_declaration(trimmed) {
-            return Some(SemanticAnchor {
-                anchor_type: SemanticAnchorType::StructDeclaration,
-                identifier: name,
-            });
-        }
+    if trimmed.starts_with("struct ")
+        && let Some(name) = extract_struct_name_from_declaration(trimmed)
+    {
+        return Some(SemanticAnchor {
+            anchor_type: SemanticAnchorType::StructDeclaration,
+            identifier: name,
+        });
     }
 
     // Otherwise try generic patterns
@@ -74,13 +74,13 @@ fn extract_enum_anchor(line: &str, reviewable: &ReviewableDiff) -> Option<Semant
     let trimmed = line.trim();
 
     // Check if this is an enum declaration
-    if trimmed.starts_with("enum ") {
-        if let Some(name) = extract_enum_name_from_declaration(trimmed) {
-            return Some(SemanticAnchor {
-                anchor_type: SemanticAnchorType::EnumDeclaration,
-                identifier: name,
-            });
-        }
+    if trimmed.starts_with("enum ")
+        && let Some(name) = extract_enum_name_from_declaration(trimmed)
+    {
+        return Some(SemanticAnchor {
+            anchor_type: SemanticAnchorType::EnumDeclaration,
+            identifier: name,
+        });
     }
 
     // Otherwise try generic patterns
@@ -241,18 +241,18 @@ fn extract_assignment_target(line: &str, language: ProgrammingLanguage) -> Optio
             // let var_name =
             // let mut var_name =
             // const VAR_NAME: Type =
-            if line.starts_with("let ") || line.starts_with("const ") {
-                if let Some(eq_pos) = line.find(" = ") {
-                    let between = if line.starts_with("let ") {
-                        &line[4..eq_pos]
-                    } else {
-                        &line[6..eq_pos]
-                    };
-                    // Remove mut keyword and type annotation
-                    let name = between.trim_start_matches("mut ").split(':').next()?.trim();
-                    if !name.is_empty() {
-                        return Some(name.to_string());
-                    }
+            if (line.starts_with("let ") || line.starts_with("const "))
+                && let Some(eq_pos) = line.find(" = ")
+            {
+                let between = if line.starts_with("let ") {
+                    &line[4..eq_pos]
+                } else {
+                    &line[6..eq_pos]
+                };
+                // Remove mut keyword and type annotation
+                let name = between.trim_start_matches("mut ").split(':').next()?.trim();
+                if !name.is_empty() {
+                    return Some(name.to_string());
                 }
             }
         }
@@ -264,13 +264,13 @@ fn extract_assignment_target(line: &str, language: ProgrammingLanguage) -> Optio
                 if !name.is_empty() && !name.contains(' ') {
                     return Some(name.to_string());
                 }
-            } else if line.starts_with("var ") {
-                if let Some(eq_pos) = line.find(" = ") {
-                    let between = &line[4..eq_pos];
-                    let name = between.split_whitespace().next()?.trim();
-                    if !name.is_empty() {
-                        return Some(name.to_string());
-                    }
+            } else if line.starts_with("var ")
+                && let Some(eq_pos) = line.find(" = ")
+            {
+                let between = &line[4..eq_pos];
+                let name = between.split_whitespace().next()?.trim();
+                if !name.is_empty() {
+                    return Some(name.to_string());
                 }
             }
         }
@@ -287,15 +287,15 @@ fn extract_assignment_target(line: &str, language: ProgrammingLanguage) -> Optio
             // const var_name =
             // let var_name =
             // var var_name =
-            if line.starts_with("const ") || line.starts_with("let ") || line.starts_with("var ") {
-                if let Some(eq_pos) = line.find(" = ") {
-                    let start = line.find(' ').unwrap() + 1;
-                    let between = &line[start..eq_pos];
-                    // Remove type annotation
-                    let name = between.split(':').next()?.trim();
-                    if !name.is_empty() {
-                        return Some(name.to_string());
-                    }
+            if (line.starts_with("const ") || line.starts_with("let ") || line.starts_with("var "))
+                && let Some(eq_pos) = line.find(" = ")
+            {
+                let start = line.find(' ').unwrap() + 1;
+                let between = &line[start..eq_pos];
+                // Remove type annotation
+                let name = between.split(':').next()?.trim();
+                if !name.is_empty() {
+                    return Some(name.to_string());
                 }
             }
         }
@@ -363,12 +363,11 @@ fn extract_import(line: &str, language: ProgrammingLanguage) -> Option<String> {
                 return Some(line.trim().to_string());
             }
         }
-        ProgrammingLanguage::TypeScript | ProgrammingLanguage::JavaScript => {
+        ProgrammingLanguage::TypeScript | ProgrammingLanguage::JavaScript
             // import something from 'module'
-            if line.starts_with("import ") {
+            if line.starts_with("import ") => {
                 return Some(line.trim().to_string());
             }
-        }
         _ => {}
     }
     None

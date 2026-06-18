@@ -125,7 +125,6 @@ impl Ord for ReviewableDiffId {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

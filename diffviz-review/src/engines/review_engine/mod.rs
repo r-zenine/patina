@@ -153,7 +153,7 @@ impl ReviewEngine {
     pub fn get_renderable_diff_object(
         &self,
         reviewable_id: &ReviewableDiffId,
-    ) -> Option<RenderableDiff> {
+    ) -> Option<RenderableDiff<'_>> {
         self.state
             .get_reviewable_diff(reviewable_id)
             .map(|reviewable_diff| {

@@ -110,7 +110,12 @@ impl CommandExecutor for DebugCommand {
         let language = ProgrammingLanguage::from_file_path(&self.file_path);
 
         let from_ref: GitRef = self.from.as_deref().unwrap_or("HEAD").parse().unwrap();
-        let to_ref: GitRef = self.to.as_deref().unwrap_or("working_tree").parse().unwrap();
+        let to_ref: GitRef = self
+            .to
+            .as_deref()
+            .unwrap_or("working_tree")
+            .parse()
+            .unwrap();
 
         // Build diff query
         let query = DiffQuery {
@@ -242,9 +247,9 @@ impl CommandExecutor for DebugCommand {
 }
 
 fn parse_line_range(range: &str) -> Result<(usize, usize)> {
-    let (start_str, end_str) = range.split_once('-').ok_or_else(|| {
-        anyhow::anyhow!("Line range must be in 'start-end' format, got: {range}")
-    })?;
+    let (start_str, end_str) = range
+        .split_once('-')
+        .ok_or_else(|| anyhow::anyhow!("Line range must be in 'start-end' format, got: {range}"))?;
 
     let start = start_str
         .parse::<usize>()
@@ -276,12 +281,12 @@ impl DebugCommand {
         }
 
         // Validate phase number if provided
-        if let Some(phase) = self.phase {
-            if !(1..=7).contains(&phase) {
-                return Err(anyhow::anyhow!(
-                    "Phase must be between 1 and 7, got {phase}"
-                ));
-            }
+        if let Some(phase) = self.phase
+            && !(1..=7).contains(&phase)
+        {
+            return Err(anyhow::anyhow!(
+                "Phase must be between 1 and 7, got {phase}"
+            ));
         }
 
         // Validate line range format if provided
@@ -458,12 +463,11 @@ impl DebugCommand {
                 });
 
                 // Add explanation if --explain-folding flag is set
-                if self.explain_folding {
-                    if let Some(obj) = node_obj.as_object_mut() {
+                if self.explain_folding
+                    && let Some(obj) = node_obj.as_object_mut() {
                         let explanation = self.generate_node_explanation(&diff.core_diff.boundary);
                         obj.insert("explanation".to_string(), serde_json::Value::String(explanation));
                     }
-                }
 
                 node_obj
             })
@@ -550,14 +554,14 @@ impl DebugCommand {
                     "relevance_score": diff.core_diff.boundary.relevance,
                 });
 
-                if self.explain_folding {
-                    if let Some(obj) = impact_obj.as_object_mut() {
-                        let explanation = self.generate_node_explanation(&diff.core_diff.boundary);
-                        obj.insert(
-                            "explanation".to_string(),
-                            serde_json::Value::String(explanation),
-                        );
-                    }
+                if self.explain_folding
+                    && let Some(obj) = impact_obj.as_object_mut()
+                {
+                    let explanation = self.generate_node_explanation(&diff.core_diff.boundary);
+                    obj.insert(
+                        "explanation".to_string(),
+                        serde_json::Value::String(explanation),
+                    );
                 }
 
                 impact_obj

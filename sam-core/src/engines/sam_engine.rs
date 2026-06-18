@@ -413,43 +413,17 @@ mod mocks {
     use crate::algorithms::mocks::VarsDefaultValuesMock;
     use crate::engines::AliasCollection;
     use crate::entities::aliases::Alias;
-    use crate::entities::aliases::ResolvedAlias;
     use crate::entities::choices::Choice;
     use crate::entities::identifiers::Identifier;
-    use std::cell::RefCell;
     use std::collections::HashMap;
-    use std::collections::VecDeque;
 
-    use super::{SamHistory, VarsDefaultValuesSetter};
+    use super::VarsDefaultValuesSetter;
 
     impl VarsDefaultValuesSetter for VarsDefaultValuesMock {
         fn set_defaults(&mut self, defaults: &HashMap<Identifier, Vec<Choice>>) {
             for (key, value) in defaults {
                 self.0.insert(key.clone(), value.clone());
             }
-        }
-    }
-
-    #[derive(Default)]
-    pub struct InMemoryHistory {
-        pub aliases: RefCell<VecDeque<ResolvedAlias>>,
-    }
-
-    impl SamHistory for InMemoryHistory {
-        fn put(&mut self, alias: ResolvedAlias) -> super::Result<()> {
-            let mut queue = self.aliases.borrow_mut();
-            queue.push_front(alias);
-            Ok(())
-        }
-
-        fn get_last_n(&self, n: usize) -> super::Result<Vec<ResolvedAlias>> {
-            Ok(self
-                .aliases
-                .borrow()
-                .iter()
-                .take(n)
-                .map(ToOwned::to_owned)
-                .collect())
         }
     }
 

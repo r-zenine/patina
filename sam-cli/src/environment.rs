@@ -119,7 +119,11 @@ pub fn from_settings(mut config: AppSettings) -> Result<Environment> {
     load_and_merge_session_defaults(&mut config)?;
 
     let cache: Box<dyn VarsCache> = if !config.no_cache {
-        Box::new(RustBreakCache::with_ttl(config.cache_dir(), &config.ttl(), config.min_cache_duration())?)
+        Box::new(RustBreakCache::with_ttl(
+            config.cache_dir(),
+            &config.ttl(),
+            config.min_cache_duration(),
+        )?)
     } else {
         Box::new(NoopVarsCache {})
     };

@@ -6,7 +6,6 @@ use cache_engine::ErrorCacheEngine;
 use cli::SubCommand;
 use flexi_logger::{FileSpec, Logger, LoggerHandle, WriteMode};
 use history_engine::ErrorHistoryEngine;
-use log::error;
 use sam_core::engines::ErrorSamEngine;
 use std::collections::HashMap;
 use thiserror::Error;
