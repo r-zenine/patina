@@ -20,9 +20,33 @@ fn default_min_cache_duration_secs() -> u64 {
     2
 }
 
+fn default_ttl_secs() -> u64 {
+    3600
+}
+
+/// Always-on root directories, included only when they exist on disk:
+/// `./.sam` (cwd-relative) and `~/.config/sam` (home-based). Doubles as the
+/// serde default when `root_dir` is absent from the configuration file.
+fn default_root_dir() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    let sam = PathBuf::from(".sam");
+    if sam.is_dir() {
+        dirs.push(sam);
+    }
+    if let Some(home) = dirs::home_dir() {
+        let cfg = home.join(".config").join("sam");
+        if cfg.is_dir() {
+            dirs.push(cfg);
+        }
+    }
+    dirs
+}
+
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct AppSettings {
+    #[serde(default = "default_root_dir")]
     root_dir: Vec<PathBuf>,
+    #[serde(default = "default_ttl_secs")]
     ttl: u64,
     #[serde(default = "default_min_cache_duration_secs")]
     min_cache_duration_secs: u64,
@@ -66,6 +90,7 @@ impl AppSettings {
         Self::read_config(path)
             .and_then(AppSettings::validate)
             .map(|mut e| {
+                e.resolve_root_dirs();
                 e.cache_dir = cache_dir;
                 e.history_file = history_file;
                 e
@@ -91,6 +116,7 @@ impl AppSettings {
             .or(config_home_dir)
             .and_then(AppSettings::validate)
             .map(|mut e| {
+                e.resolve_root_dirs();
                 e.cache_dir = cache_dir;
                 e.history_file = history_file;
                 e
@@ -117,6 +143,25 @@ impl AppSettings {
 
     pub fn history_file(&self) -> &'_ Path {
         self.history_file.as_ref()
+    }
+
+    /// Expands `~`/`$HOME` in every configured `root_dir` entry, then ensures
+    /// the always-on directories (`default_root_dir`) are present without
+    /// introducing duplicates.
+    fn resolve_root_dirs(&mut self) {
+        self.root_dir = Self::merge_root_dirs(&self.root_dir, default_root_dir());
+    }
+
+    /// Pure merge step: expands `~`/`$HOME` in `configured` entries, then
+    /// appends each of `extras` that is not already present.
+    fn merge_root_dirs(configured: &[PathBuf], extras: Vec<PathBuf>) -> Vec<PathBuf> {
+        let mut result: Vec<PathBuf> = configured.iter().map(|p| fsutils::expand_home(p)).collect();
+        for candidate in extras {
+            if !result.contains(&candidate) {
+                result.push(candidate);
+            }
+        }
+        result
     }
 
     fn validate(orig: AppSettings) -> Result<AppSettings> {
@@ -202,4 +247,33 @@ pub enum ErrorsSettings {
         "we were unable to locate the history directory for the current user, make sure {0} exists"
     )]
     CantFindHistoryDirectory(String),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn merge_expands_configured_entries() {
+        let home = dirs::home_dir().expect("home directory required for this test");
+        let configured = vec![PathBuf::from("~/work")];
+        let merged = AppSettings::merge_root_dirs(&configured, Vec::new());
+        assert_eq!(merged, vec![home.join("work")]);
+    }
+
+    #[test]
+    fn merge_appends_existing_extras() {
+        let tmp = std::env::temp_dir();
+        let configured = vec![PathBuf::from("/some/configured")];
+        let merged = AppSettings::merge_root_dirs(&configured, vec![tmp.clone()]);
+        assert_eq!(merged, vec![PathBuf::from("/some/configured"), tmp]);
+    }
+
+    #[test]
+    fn merge_does_not_duplicate_extras() {
+        let shared = PathBuf::from("/shared/dir");
+        let configured = vec![shared.clone()];
+        let merged = AppSettings::merge_root_dirs(&configured, vec![shared.clone()]);
+        assert_eq!(merged, vec![shared]);
+    }
 }

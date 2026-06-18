@@ -25,14 +25,31 @@ pub fn walk_dir(path: &Path) -> Result<Vec<PathBuf>> {
     Ok(deque)
 }
 
-pub fn replace_home_variable(path: String) -> String {
-    let home_dir_o = dirs::home_dir().and_then(|e| e.into_os_string().into_string().ok());
-    if let Some(home_dir) = home_dir_o {
-        if path.contains("$HOME") {
-            return path.replace("$HOME", &home_dir);
+/// Expands a leading `~` / `~/` and any `$HOME` token to the user's home
+/// directory. Returns the path unchanged if the home directory can't be
+/// determined.
+pub fn expand_home(path: &Path) -> PathBuf {
+    let Some(home_dir) = dirs::home_dir() else {
+        return path.to_path_buf();
+    };
+
+    // Handle a leading `~` / `~/...` component.
+    let mut components = path.components();
+    if let Some(std::path::Component::Normal(first)) = components.clone().next() {
+        if first == "~" {
+            let remainder = components.by_ref().skip(1).collect::<PathBuf>();
+            return home_dir.join(remainder);
         }
     }
-    path
+
+    // Handle a `$HOME` token anywhere in the path.
+    if let (Some(path_str), Some(home_str)) = (path.to_str(), home_dir.to_str()) {
+        if path_str.contains("$HOME") {
+            return PathBuf::from(path_str.replace("$HOME", home_str));
+        }
+    }
+
+    path.to_path_buf()
 }
 
 pub fn ensure_exists(path: PathBuf) -> Result<PathBuf> {
@@ -77,4 +94,34 @@ pub enum ErrorsFS {
     PathInsufficientPermission(PathBuf),
     #[error("got an unexpected error {0}")]
     UnexpectedIOError(#[from] std::io::Error),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn expand_home_replaces_leading_tilde() {
+        let home = dirs::home_dir().expect("home directory required for this test");
+        assert_eq!(expand_home(Path::new("~")), home);
+        assert_eq!(
+            expand_home(Path::new("~/foo/bar")),
+            home.join("foo").join("bar")
+        );
+    }
+
+    #[test]
+    fn expand_home_replaces_home_token() {
+        let home = dirs::home_dir().expect("home directory required for this test");
+        assert_eq!(expand_home(Path::new("$HOME/foo")), home.join("foo"));
+    }
+
+    #[test]
+    fn expand_home_leaves_other_paths_unchanged() {
+        assert_eq!(
+            expand_home(Path::new("relative/path")),
+            PathBuf::from("relative/path")
+        );
+        assert_eq!(expand_home(Path::new("/etc")), PathBuf::from("/etc"));
+    }
 }
