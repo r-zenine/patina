@@ -6,6 +6,7 @@ use sam_persistence::VarsCache;
 use sam_readers::read_choices;
 use sam_terminals::processes::ShellCommand;
 use std::collections::HashMap;
+use std::time::Instant;
 
 /// MCP-aware resolver: runs dynamic commands (with caching) and returns all
 /// available choices. For input vars it signals `NoInputWasProvided` so the
@@ -46,15 +47,18 @@ impl Resolver for McpResolver<'_> {
             let mut to_run = ShellCommand::make_command(sh_cmd);
             to_run.envs(self.env_variables);
             to_run.current_dir(self.working_dir);
+            let start = Instant::now();
             let output = to_run
                 .output()
                 .map_err(|e| ErrorsResolver::DynamicResolveFailure(var.name(), Box::new(e)))?;
+            let elapsed = start.elapsed();
             if output.status.code() == Some(0) && output.stderr.is_empty() {
                 self.cache
                     .put(
                         &var.name().to_string(),
                         cmd_key.value(),
                         &String::from_utf8_lossy(&output.stdout),
+                        elapsed,
                     )
                     .map_err(|e| ErrorsResolver::DynamicResolveFailure(var.name(), Box::new(e)))?;
             }

@@ -16,10 +16,16 @@ const CONFIG_FILE_NAME: &str = ".sam_rc.toml";
 const HISTORY_DIR: &str = ".local/share/sam/";
 const CACHE_DIR: &str = ".cache/";
 
+fn default_min_cache_duration_secs() -> u64 {
+    2
+}
+
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct AppSettings {
     root_dir: Vec<PathBuf>,
     ttl: u64,
+    #[serde(default = "default_min_cache_duration_secs")]
+    min_cache_duration_secs: u64,
     #[serde(flatten)]
     pub env_variables: HashMap<String, String>,
     #[serde(skip)]
@@ -99,6 +105,10 @@ impl AppSettings {
 
     pub const fn ttl(&self) -> Duration {
         Duration::from_secs(self.ttl)
+    }
+
+    pub const fn min_cache_duration(&self) -> Duration {
+        Duration::from_secs(self.min_cache_duration_secs)
     }
 
     pub fn cache_dir(&self) -> &'_ Path {

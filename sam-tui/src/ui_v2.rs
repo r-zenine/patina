@@ -14,6 +14,7 @@ use std::collections::{HashMap, HashSet};
 use thiserror::Error;
 
 use sam_persistence::VarsCache;
+use std::time::Instant;
 
 use crate::modal_view::{ModalView, Value};
 
@@ -96,15 +97,18 @@ impl Resolver for UserInterfaceV2 {
         } else {
             let mut to_run = ShellCommand::make_command(sh_cmd);
             to_run.envs(&self.env_variables);
+            let start = Instant::now();
             let output = to_run
                 .output()
                 .map_err(|e| ErrorsResolver::DynamicResolveFailure(var.name(), e.into()))?;
+            let elapsed = start.elapsed();
             if output.status.code() == Some(0) && output.stderr.is_empty() {
                 self.cache
                     .put(
                         &var.name().to_string(),
                         cmd_key.value(),
                         &String::from_utf8_lossy(output.stdout.as_slice()).into_owned(),
+                        elapsed,
                     )
                     .map_err(|e| ErrorsResolver::DynamicResolveFailure(var.name(), Box::new(e)))?;
             }
