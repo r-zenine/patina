@@ -14,6 +14,7 @@ pub trait VarsCache {
         name: &dyn AsRef<str>,
         command: &dyn AsRef<str>,
         output: &dyn AsRef<str>,
+        duration: Duration,
     ) -> Result<(), CacheError>;
     fn get(&self, command: &dyn AsRef<str>) -> Result<Option<String>, CacheError>;
 }
@@ -21,6 +22,7 @@ pub trait VarsCache {
 #[derive(Debug)]
 pub struct RustBreakCache {
     state: AssociativeStateWithTTL<CacheEntry>,
+    min_cache_duration: Duration,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
@@ -31,9 +33,10 @@ pub struct CacheEntry {
 }
 
 impl RustBreakCache {
-    pub fn with_ttl(p: impl AsRef<Path>, ttl: &Duration) -> Result<Self, CacheError> {
+    pub fn with_ttl(p: impl AsRef<Path>, ttl: &Duration, min_cache_duration: Duration) -> Result<Self, CacheError> {
         Ok(RustBreakCache {
             state: AssociativeStateWithTTL::<CacheEntry>::with_ttl(p, ttl)?,
+            min_cache_duration,
         })
     }
 
@@ -59,7 +62,11 @@ impl VarsCache for RustBreakCache {
         name: &dyn AsRef<str>,
         command: &dyn AsRef<str>,
         output: &dyn AsRef<str>,
+        duration: Duration,
     ) -> Result<(), CacheError> {
+        if duration < self.min_cache_duration {
+            return Ok(());
+        }
         let key = command.as_ref().to_string();
         let entry = CacheEntry {
             name: name.as_ref().to_string(),
@@ -83,6 +90,7 @@ impl VarsCache for NoopVarsCache {
         _name: &dyn AsRef<str>,
         _command: &dyn AsRef<str>,
         _output: &dyn AsRef<str>,
+        _duration: Duration,
     ) -> Result<(), CacheError> {
         Ok(())
     }
@@ -111,28 +119,31 @@ mod tests {
     pub fn test_rustbreak_cache() {
         let tmp_dir = NamedTempFile::new().expect("can't create a temporary file");
         let ttl = Duration::from_secs(90);
-        let cache = RustBreakCache::with_ttl(tmp_dir.path(), &ttl).expect("Can't open cache");
+        let min_duration = Duration::ZERO;
+        let cache = RustBreakCache::with_ttl(tmp_dir.path(), &ttl, min_duration).expect("Can't open cache");
         cache
             .put(
                 &String::from("name"),
                 &String::from("command"),
                 &String::from("output"),
+                Duration::from_secs(5),
             )
             .expect("can't write in rustbreak cache");
 
-        let cache2 = RustBreakCache::with_ttl(tmp_dir.path(), &ttl).expect("Can't open cache");
+        let cache2 = RustBreakCache::with_ttl(tmp_dir.path(), &ttl, min_duration).expect("Can't open cache");
         let value = cache2
             .get(&String::from("command"))
             .expect("can't read from rustbreak cache")
             .expect("can't retrieve the value from rustbreak cache");
         assert_eq!(value, "output");
 
-        let cache = RustBreakCache::with_ttl(tmp_dir.path(), &ttl).expect("Can't open cache");
+        let cache = RustBreakCache::with_ttl(tmp_dir.path(), &ttl, min_duration).expect("Can't open cache");
         cache
             .put(
                 &String::from("name"),
                 &String::from("command2"),
                 &String::from("output"),
+                Duration::from_secs(5),
             )
             .expect("can't write in rustbreak cache");
 
@@ -141,5 +152,27 @@ mod tests {
             .expect("can't read from rustbreak cache")
             .expect("can't retrieve the value from rustbreak cache");
         assert_eq!(value, "output");
+    }
+
+    #[test]
+    pub fn test_rustbreak_cache_admission_threshold() {
+        let tmp_dir = NamedTempFile::new().expect("can't create a temporary file");
+        let ttl = Duration::from_secs(90);
+        let min_duration = Duration::from_secs(2);
+        let cache = RustBreakCache::with_ttl(tmp_dir.path(), &ttl, min_duration).expect("Can't open cache");
+
+        // Fast command: below threshold, should not be stored
+        cache
+            .put(&String::from("name"), &String::from("fast_cmd"), &String::from("output"), Duration::from_millis(500))
+            .expect("can't write in rustbreak cache");
+        let value = cache.get(&String::from("fast_cmd")).expect("can't read from rustbreak cache");
+        assert!(value.is_none(), "fast command should not be cached");
+
+        // Slow command: at or above threshold, should be stored
+        cache
+            .put(&String::from("name"), &String::from("slow_cmd"), &String::from("output"), Duration::from_secs(3))
+            .expect("can't write in rustbreak cache");
+        let value = cache.get(&String::from("slow_cmd")).expect("can't read from rustbreak cache");
+        assert!(value.is_some(), "slow command should be cached");
     }
 }

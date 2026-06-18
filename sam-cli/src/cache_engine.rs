@@ -26,7 +26,7 @@ impl CacheEngine {
     }
 
     fn print_keys(self) -> Result<i32> {
-        let cache = RustBreakCache::with_ttl(self.cache_dir, &self.ttl)?;
+        let cache = RustBreakCache::with_ttl(self.cache_dir, &self.ttl, Duration::ZERO)?;
         println!(
             "{}{}Keys present in cache{}\n",
             termion::style::Bold,
@@ -46,7 +46,7 @@ impl CacheEngine {
     }
 
     fn delete_entries(self) -> Result<i32> {
-        let cache = RustBreakCache::with_ttl(self.cache_dir, &self.ttl)?;
+        let cache = RustBreakCache::with_ttl(self.cache_dir, &self.ttl, Duration::ZERO)?;
         let values: Vec<CacheEntryWrapper> = cache.entries()?.map(CacheEntryWrapper).collect();
         if !values.is_empty() {
             let controller = ModalView::new(values, vec![], true);
@@ -63,7 +63,7 @@ impl CacheEngine {
     }
 
     fn cache_clear(self) -> Result<i32> {
-        Ok(RustBreakCache::with_ttl(self.cache_dir, &self.ttl)?
+        Ok(RustBreakCache::with_ttl(self.cache_dir, &self.ttl, Duration::ZERO)?
             .clear_cache()
             .map(|_| 0)?)
     }
