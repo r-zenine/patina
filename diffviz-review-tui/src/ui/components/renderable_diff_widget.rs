@@ -256,25 +256,23 @@ fn line_to_spans(
     };
     spans.push(Span::styled(line.content.to_string(), content_style));
 
-    if highlight_semantics {
-        if let Some(anchor) = &line.semantic_anchor {
-            let anchor_style = if is_context_line {
-                Style::default()
-                    .fg(Color::DarkGray)
-                    .bg(Color::Reset)
-                    .add_modifier(Modifier::ITALIC)
-            } else {
-                Style::default()
-                    .fg(Color::Cyan)
-                    .bg(Color::Reset)
-                    .add_modifier(Modifier::ITALIC)
-            };
-            spans.push(Span::raw(" "));
-            spans.push(Span::styled(
-                format!("⟶ {}", anchor.identifier),
-                anchor_style,
-            ));
-        }
+    if highlight_semantics && let Some(anchor) = &line.semantic_anchor {
+        let anchor_style = if is_context_line {
+            Style::default()
+                .fg(Color::DarkGray)
+                .bg(Color::Reset)
+                .add_modifier(Modifier::ITALIC)
+        } else {
+            Style::default()
+                .fg(Color::Cyan)
+                .bg(Color::Reset)
+                .add_modifier(Modifier::ITALIC)
+        };
+        spans.push(Span::raw(" "));
+        spans.push(Span::styled(
+            format!("⟶ {}", anchor.identifier),
+            anchor_style,
+        ));
     }
 
     let mut rendered = Line::from(spans);

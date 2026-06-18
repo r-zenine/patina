@@ -13,10 +13,8 @@ use crate::providers::DiffProvider;
 use crate::state::ReviewableDiff;
 
 use diffviz_core::{
-    ast_diff::SourceCode,
-    common::ProgrammingLanguage,
-    decision_based_diff::create_reviewable_diff_from_range,
-    parsers::parser_for_language,
+    ast_diff::SourceCode, common::ProgrammingLanguage,
+    decision_based_diff::create_reviewable_diff_from_range, parsers::parser_for_language,
     reviewable_diff::ReviewableDiff as CoreReviewableDiff,
 };
 

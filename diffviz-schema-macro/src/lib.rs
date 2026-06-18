@@ -155,33 +155,31 @@ fn extract_field_info(field: &syn::Field) -> syn::Result<FieldInfo> {
 }
 
 fn is_option_type(ty: &Type) -> bool {
-    if let Type::Path(TypePath { path, .. }) = ty {
-        if let Some(segment) = path.segments.last() {
-            return segment.ident == "Option";
-        }
+    if let Type::Path(TypePath { path, .. }) = ty
+        && let Some(segment) = path.segments.last()
+    {
+        return segment.ident == "Option";
     }
     false
 }
 
 fn is_vec_type(ty: &Type) -> bool {
-    if let Type::Path(TypePath { path, .. }) = ty {
-        if let Some(segment) = path.segments.last() {
-            return segment.ident == "Vec";
-        }
+    if let Type::Path(TypePath { path, .. }) = ty
+        && let Some(segment) = path.segments.last()
+    {
+        return segment.ident == "Vec";
     }
     false
 }
 
 fn extract_vec_inner_type(ty: &Type) -> Option<TokenStream2> {
-    if let Type::Path(TypePath { path, .. }) = ty {
-        if let Some(segment) = path.segments.last() {
-            if let PathArguments::AngleBracketed(args) = &segment.arguments {
-                if let Some(GenericArgument::Type(inner)) = args.args.first() {
-                    let tokens = quote!(#inner);
-                    return Some(tokens);
-                }
-            }
-        }
+    if let Type::Path(TypePath { path, .. }) = ty
+        && let Some(segment) = path.segments.last()
+        && let PathArguments::AngleBracketed(args) = &segment.arguments
+        && let Some(GenericArgument::Type(inner)) = args.args.first()
+    {
+        let tokens = quote!(#inner);
+        return Some(tokens);
     }
     None
 }
@@ -301,7 +299,5 @@ fn build_template_code(fields: &[FieldInfo]) -> syn::Result<TokenStream2> {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn it_compiles() {
-        assert!(true);
-    }
+    fn it_compiles() {}
 }

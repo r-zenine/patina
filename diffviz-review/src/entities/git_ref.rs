@@ -152,7 +152,12 @@ impl std::fmt::Display for DiffQuery {
                 write!(f, "HEAD..{}", &to[..to.len().min(7)])
             }
             QueryCategory::CommitComparison { from, to } => {
-                write!(f, "{}..{}", &from[..from.len().min(7)], &to[..to.len().min(7)])
+                write!(
+                    f,
+                    "{}..{}",
+                    &from[..from.len().min(7)],
+                    &to[..to.len().min(7)]
+                )
             }
             QueryCategory::Other => write!(f, "{}..{}", self.from, self.to),
         }

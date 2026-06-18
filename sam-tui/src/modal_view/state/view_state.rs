@@ -5,9 +5,10 @@ use crate::modal_view::state::Event;
 use crate::modal_view::state::Value;
 use std::collections::HashSet;
 
-#[derive(PartialEq, Debug)]
+#[derive(PartialEq, Debug, Default)]
 pub enum ViewMode {
     OptionsMode,
+    #[default]
     InsertMode,
 }
 
@@ -18,12 +19,6 @@ impl ViewMode {
         } else {
             Self::InsertMode
         }
-    }
-}
-
-impl Default for ViewMode {
-    fn default() -> Self {
-        Self::InsertMode
     }
 }
 

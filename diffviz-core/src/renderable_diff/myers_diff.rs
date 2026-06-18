@@ -257,16 +257,16 @@ fn merge_identical_add_delete_pairs(mut operations: Vec<DiffOp>) -> Vec<DiffOp> 
                     }
                 }
                 // Case 2: Add followed by Delete of identical content (less common)
-                (DiffOp::Add { line: add_line }, DiffOp::Delete { line: delete_line }) => {
-                    if add_line == delete_line {
-                        // Replace add+delete pair with keep operation
-                        operations[i] = DiffOp::Keep {
-                            line: add_line.clone(),
-                        };
-                        operations.remove(i + 1);
-                        // Don't increment i, check the next operation at the same position
-                        continue;
-                    }
+                (DiffOp::Add { line: add_line }, DiffOp::Delete { line: delete_line })
+                    if add_line == delete_line =>
+                {
+                    // Replace add+delete pair with keep operation
+                    operations[i] = DiffOp::Keep {
+                        line: add_line.clone(),
+                    };
+                    operations.remove(i + 1);
+                    // Don't increment i, check the next operation at the same position
+                    continue;
                 }
                 _ => {}
             }

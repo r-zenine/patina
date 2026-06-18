@@ -175,6 +175,7 @@ where
     }
 }
 
+#[cfg(test)]
 pub mod mocks {
     use std::collections::HashMap;
 

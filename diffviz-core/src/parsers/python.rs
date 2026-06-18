@@ -152,16 +152,16 @@ impl LanguageDescriptor for PythonDescriptor {
     /// - `_name` → "private"
     /// - `name` → "public"
     fn extract_visibility<'a>(&self, node: Node<'a>, source: &str) -> String {
-        if let Some(name_node) = node.child_by_field_name("name") {
-            if let Ok(name) = name_node.utf8_text(source.as_bytes()) {
-                return if name.starts_with("__") && name.ends_with("__") {
-                    "magic".to_string()
-                } else if name.starts_with('_') {
-                    "private".to_string()
-                } else {
-                    "public".to_string()
-                };
-            }
+        if let Some(name_node) = node.child_by_field_name("name")
+            && let Ok(name) = name_node.utf8_text(source.as_bytes())
+        {
+            return if name.starts_with("__") && name.ends_with("__") {
+                "magic".to_string()
+            } else if name.starts_with('_') {
+                "private".to_string()
+            } else {
+                "public".to_string()
+            };
         }
         "public".to_string()
     }

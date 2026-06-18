@@ -63,9 +63,11 @@ impl CacheEngine {
     }
 
     fn cache_clear(self) -> Result<i32> {
-        Ok(RustBreakCache::with_ttl(self.cache_dir, &self.ttl, Duration::ZERO)?
-            .clear_cache()
-            .map(|_| 0)?)
+        Ok(
+            RustBreakCache::with_ttl(self.cache_dir, &self.ttl, Duration::ZERO)?
+                .clear_cache()
+                .map(|_| 0)?,
+        )
     }
 }
 

@@ -94,11 +94,11 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
             }
 
             // Metadata / annotation nodes → Unknown child for byte coverage.
-            if let Some(meta_kind) = self.descriptor.metadata_kind() {
-                if kind == meta_kind {
-                    children.push(self.make_unknown(child));
-                    continue;
-                }
+            if let Some(meta_kind) = self.descriptor.metadata_kind()
+                && kind == meta_kind
+            {
+                children.push(self.make_unknown(child));
+                continue;
             }
 
             if let Some(node) = self.build_node(child, source, Some(container), parent_context) {

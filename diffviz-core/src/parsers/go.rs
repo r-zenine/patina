@@ -147,14 +147,14 @@ impl LanguageDescriptor for GoDescriptor {
 
     /// Go visibility is determined by naming convention: capitalised = exported (public).
     fn extract_visibility<'a>(&self, node: Node<'a>, source: &str) -> String {
-        if let Some(name_node) = node.child_by_field_name("name") {
-            if let Ok(name) = name_node.utf8_text(source.as_bytes()) {
-                return if name.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
-                    "public".to_string()
-                } else {
-                    "private".to_string()
-                };
-            }
+        if let Some(name_node) = node.child_by_field_name("name")
+            && let Ok(name) = name_node.utf8_text(source.as_bytes())
+        {
+            return if name.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
+                "public".to_string()
+            } else {
+                "private".to_string()
+            };
         }
         "private".to_string()
     }

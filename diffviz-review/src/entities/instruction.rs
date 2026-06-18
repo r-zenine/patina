@@ -11,17 +11,13 @@ use std::hash::Hash;
 /// Status of an instruction indicating its validity after code changes
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[derive(Default)]
 pub enum InstructionStatus {
     /// Instruction points to correct code
+    #[default]
     Active,
     /// User marked instruction as handled/completed
     Addressed,
-}
-
-impl Default for InstructionStatus {
-    fn default() -> Self {
-        Self::Active
-    }
 }
 
 /// An instruction for changes on a reviewable diff

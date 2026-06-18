@@ -42,11 +42,11 @@ fn event_loop<M: ELMApp>(
         app.on_tick();
         terminal.draw(|f| app.draw(f))?;
 
-        if event::poll(frame_duration)? {
-            if let Event::Key(key) = event::read()? {
-                app.dispatch_key(key)
-                    .map_err(|e| TuiError::App(Box::new(e)))?;
-            }
+        if event::poll(frame_duration)?
+            && let Event::Key(key) = event::read()?
+        {
+            app.dispatch_key(key)
+                .map_err(|e| TuiError::App(Box::new(e)))?;
         }
 
         if app.should_quit() {

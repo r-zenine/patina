@@ -114,7 +114,7 @@ impl GitRepository {
         &self,
         from_commit: &str,
         to_commit: &str,
-    ) -> Result<(git2::Tree, git2::Tree)> {
+    ) -> Result<(git2::Tree<'_>, git2::Tree<'_>)> {
         let from_obj =
             self.repo
                 .revparse_single(from_commit)
@@ -173,7 +173,11 @@ impl GitRepository {
     /// # Returns
     ///
     /// Returns a git2::Diff object ready for processing.
-    fn create_git_diff(&self, from_tree: &git2::Tree, to_tree: &git2::Tree) -> Result<git2::Diff> {
+    fn create_git_diff(
+        &self,
+        from_tree: &git2::Tree,
+        to_tree: &git2::Tree,
+    ) -> Result<git2::Diff<'_>> {
         let mut diff_options = DiffOptions::new();
         diff_options.context_lines(3);
 
@@ -183,7 +187,7 @@ impl GitRepository {
     }
 
     /// Gets the HEAD tree for diff comparisons
-    fn get_head_tree(&self) -> Result<git2::Tree> {
+    fn get_head_tree(&self) -> Result<git2::Tree<'_>> {
         let head = self.repo.head().map_err(GitError::Git)?;
         let head_commit = head.peel_to_commit().map_err(GitError::Git)?;
         head_commit.tree().map_err(GitError::Git)

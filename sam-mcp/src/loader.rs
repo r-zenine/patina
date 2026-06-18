@@ -39,7 +39,11 @@ pub fn load() -> Result<SamContext, LoadError> {
 
 fn build_context(config: AppSettings) -> Result<SamContext, LoadError> {
     let cache: Box<dyn VarsCache + Send + Sync> = if !config.no_cache {
-        Box::new(RustBreakCache::with_ttl(config.cache_dir(), &config.ttl(), config.min_cache_duration())?)
+        Box::new(RustBreakCache::with_ttl(
+            config.cache_dir(),
+            &config.ttl(),
+            config.min_cache_duration(),
+        )?)
     } else {
         Box::new(NoopVarsCache {})
     };

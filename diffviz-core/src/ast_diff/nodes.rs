@@ -15,7 +15,7 @@ pub trait NodeLike {
     fn kind(&self) -> &str;
 
     /// Check if this is a TreeSitter node (for position info)
-    fn as_tree_sitter_node(&self) -> Option<&Node>;
+    fn as_tree_sitter_node(&self) -> Option<&Node<'_>>;
 }
 
 /// Owned node data extracted from TreeSitter Node - fully self-contained
@@ -60,7 +60,7 @@ impl NodeLike for OwnedNodeData {
         &self.kind
     }
 
-    fn as_tree_sitter_node(&self) -> Option<&Node> {
+    fn as_tree_sitter_node(&self) -> Option<&Node<'_>> {
         None // OwnedNodeData doesn't have a TreeSitter node
     }
 }
@@ -78,7 +78,7 @@ impl NodeLike for Node<'_> {
         self.kind()
     }
 
-    fn as_tree_sitter_node(&self) -> Option<&Node> {
+    fn as_tree_sitter_node(&self) -> Option<&Node<'_>> {
         Some(self)
     }
 }

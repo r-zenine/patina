@@ -223,10 +223,10 @@ impl DecisionNavigationTree {
         let path = &self.selected_path;
 
         // Only decisions can be expanded/collapsed now
-        if path.chunk_index.is_none() {
-            if let Some(decision) = self.nodes.get_mut(path.decision_index) {
-                decision.expanded = !decision.expanded;
-            }
+        if path.chunk_index.is_none()
+            && let Some(decision) = self.nodes.get_mut(path.decision_index)
+        {
+            decision.expanded = !decision.expanded;
         }
     }
 
@@ -235,10 +235,10 @@ impl DecisionNavigationTree {
         let path = &self.selected_path;
 
         // Only decisions can be expanded
-        if path.chunk_index.is_none() {
-            if let Some(decision) = self.nodes.get_mut(path.decision_index) {
-                decision.expanded = true;
-            }
+        if path.chunk_index.is_none()
+            && let Some(decision) = self.nodes.get_mut(path.decision_index)
+        {
+            decision.expanded = true;
         }
     }
 

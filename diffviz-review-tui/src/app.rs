@@ -415,10 +415,10 @@ fn handle_business_event_impl(engine: &mut ReviewEngine, event: BusinessEvent) -
 }
 
 fn get_total_lines_impl(engine: &ReviewEngine, ui_state: &UiState) -> usize {
-    if let Some(reviewable_id) = ui_state.current_reviewable_id() {
-        if let Some(diff) = engine.get_renderable_diff_object(&reviewable_id) {
-            return diff.lines.len();
-        }
+    if let Some(reviewable_id) = ui_state.current_reviewable_id()
+        && let Some(diff) = engine.get_renderable_diff_object(&reviewable_id)
+    {
+        return diff.lines.len();
     }
     0
 }
