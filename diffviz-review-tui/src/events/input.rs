@@ -94,7 +94,9 @@ pub fn handle_key_event(
                 handle_navigation_keys(key)
             }
         }
-        InputMode::Instruction { .. } => handle_input_mode_keys(key),
+        InputMode::Instruction { .. } | InputMode::DecisionInstruction { .. } => {
+            handle_input_mode_keys(key)
+        }
     }
 }
 

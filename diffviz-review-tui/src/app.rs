@@ -257,6 +257,8 @@ fn handle_ui_event_impl(
         UiEvent::EnterInstructionMode => {
             if let Some(reviewable_id) = ui_state.current_reviewable_id() {
                 ui_state.start_instruction_input(reviewable_id);
+            } else if let Some(decision_number) = ui_state.current_decision_number() {
+                ui_state.start_decision_instruction_input(decision_number);
             }
             ui_state.deactivate_leader();
         }
@@ -383,6 +385,16 @@ fn handle_business_event_impl(engine: &mut ReviewEngine, event: BusinessEvent) -
         } => {
             if !content.trim().is_empty() {
                 engine.add_instruction(reviewable_id, content, author)?;
+            }
+            Ok(Command::None)
+        }
+
+        BusinessEvent::AddDecisionInstruction {
+            decision_number,
+            content,
+        } => {
+            if !content.trim().is_empty() {
+                engine.add_decision_instruction(decision_number, content, author)?;
             }
             Ok(Command::None)
         }

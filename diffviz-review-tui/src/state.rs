@@ -28,6 +28,7 @@ pub enum FocusPanel {
 pub enum InputMode {
     Navigation,
     Instruction { reviewable_id: ReviewableDiffId },
+    DecisionInstruction { decision_number: u32 },
 }
 
 impl InputMode {
@@ -151,9 +152,16 @@ impl UiState {
         };
     }
 
-    /// Enter instruction input mode
+    /// Enter instruction input mode for a chunk
     pub fn start_instruction_input(&mut self, reviewable_id: ReviewableDiffId) {
         self.input_mode = InputMode::Instruction { reviewable_id };
+        self.input_buffer.clear();
+        self.input_cursor = 0;
+    }
+
+    /// Enter instruction input mode for a decision
+    pub fn start_decision_instruction_input(&mut self, decision_number: u32) {
+        self.input_mode = InputMode::DecisionInstruction { decision_number };
         self.input_buffer.clear();
         self.input_cursor = 0;
     }

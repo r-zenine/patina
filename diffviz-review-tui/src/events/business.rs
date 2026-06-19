@@ -25,6 +25,12 @@ pub enum BusinessEvent {
         content: String,
     },
 
+    /// Add an instruction to a Decision
+    AddDecisionInstruction {
+        decision_number: u32,
+        content: String,
+    },
+
     /// Export all instructions to JSON file
     ExportInstructions,
 
@@ -61,6 +67,13 @@ pub fn ui_event_to_business_event(ui_event: &UiEvent, ui_state: &UiState) -> Opt
                 reviewable_id: reviewable_id.clone(),
                 content: ui_state.input_buffer.clone(),
             }),
+
+            InputMode::DecisionInstruction { decision_number } => {
+                Some(BusinessEvent::AddDecisionInstruction {
+                    decision_number: *decision_number,
+                    content: ui_state.input_buffer.clone(),
+                })
+            }
 
             InputMode::Navigation => None,
         },

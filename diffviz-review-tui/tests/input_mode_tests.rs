@@ -632,3 +632,81 @@ fn submit_instruction_via_build_from_decisions_returns_to_navigation() {
         "Should return to Navigation mode after submitting instruction"
     );
 }
+
+// ============================================================================
+// Decision-level instruction mode
+// ============================================================================
+
+#[test]
+fn test_enter_decision_instruction_mode_at_depth_0() {
+    let engine = create_test_engine();
+    let mut harness = InputTestHarness::new(engine);
+
+    // At depth 0 (decision level), Space+i+i should enter DecisionInstruction mode
+    let state = harness
+        .run_sequence_final_state("<Space>ii")
+        .expect("Entering decision instruction mode failed");
+
+    assert_eq!(
+        state.input_mode, "DecisionInstruction",
+        "Should be in DecisionInstruction mode at depth 0"
+    );
+    assert_eq!(state.input_buffer, "");
+    assert_eq!(state.input_cursor, 0);
+    assert!(!state.leader_active);
+}
+
+#[test]
+fn test_decision_instruction_mode_accepts_text() {
+    let engine = create_test_engine();
+    let mut harness = InputTestHarness::new(engine);
+
+    let state = harness
+        .run_sequence_final_state("<Space>iicheck error handling")
+        .expect("Typing in decision instruction mode failed");
+
+    assert_eq!(state.input_mode, "DecisionInstruction");
+    assert_eq!(state.input_buffer, "check error handling");
+}
+
+#[test]
+fn test_decision_instruction_mode_submit_exits_to_navigation() {
+    let engine = create_test_engine();
+    let mut harness = InputTestHarness::new(engine);
+
+    let state = harness
+        .run_sequence_final_state("<Space>iimy instruction<Enter>")
+        .expect("Submitting decision instruction failed");
+
+    assert_eq!(state.input_mode, "Navigation");
+    assert_eq!(state.input_buffer, "");
+}
+
+#[test]
+fn test_decision_instruction_mode_cancel_exits_to_navigation() {
+    let engine = create_test_engine();
+    let mut harness = InputTestHarness::new(engine);
+
+    let state = harness
+        .run_sequence_final_state("<Space>iimy instruction<Esc>")
+        .expect("Cancelling decision instruction failed");
+
+    assert_eq!(state.input_mode, "Navigation");
+    assert_eq!(state.input_buffer, "");
+}
+
+#[test]
+fn test_chunk_level_still_enters_regular_instruction_mode() {
+    let engine = create_test_engine();
+    let mut harness = InputTestHarness::new(engine);
+
+    // At depth 1 (chunk level), Space+i+i should still use regular Instruction mode
+    let state = harness
+        .run_sequence_final_state("<Tab>j<Space>ii")
+        .expect("Entering instruction mode at chunk level failed");
+
+    assert_eq!(
+        state.input_mode, "Instruction",
+        "Should use regular Instruction mode at chunk level (depth 1)"
+    );
+}

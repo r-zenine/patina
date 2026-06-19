@@ -70,6 +70,11 @@ fn get_modal_content(input_mode: &InputMode) -> (String, &'static str, &'static 
             "Enter your instruction for this diff:",
             "Type your instruction here...",
         ),
+        InputMode::DecisionInstruction { decision_number } => (
+            format!("Add Instruction - Decision #{decision_number}"),
+            "Enter your instruction for this decision:",
+            "Type your instruction here...",
+        ),
         InputMode::Navigation => ("".to_string(), "", ""), // Should not happen
     }
 }

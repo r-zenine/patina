@@ -21,6 +21,12 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &Rev
         InputMode::Instruction { .. } => {
             render_input_status(f, area, "Instruction", "Enter to submit, Esc to cancel")
         }
+        InputMode::DecisionInstruction { .. } => render_input_status(
+            f,
+            area,
+            "Decision Instruction",
+            "Enter to submit, Esc to cancel",
+        ),
     }
 }
 
