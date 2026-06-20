@@ -5,6 +5,7 @@
 //! synchronization issues with flat indices into dynamically rebuilt structures.
 
 use diffviz_review::{ReviewableDiffId, engines::ReviewEngine, entities::DecisionReviewableDiff};
+use std::path::Path;
 
 /// Navigation tree that models the decision hierarchy
 #[derive(Debug, Clone)]
@@ -289,7 +290,10 @@ fn format_chunk_display_name(
     chunk_id: &ReviewableDiffId,
     file_chunk_count: usize,
 ) -> String {
-    let basename = file_path.split('/').next_back().unwrap_or(file_path);
+    let basename = Path::new(file_path)
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or(file_path);
 
     if file_chunk_count == 1 {
         basename.to_string()

@@ -152,25 +152,25 @@ impl UiState {
         };
     }
 
-    /// Enter instruction input mode for a chunk
-    pub fn start_instruction_input(&mut self, reviewable_id: ReviewableDiffId) {
-        self.input_mode = InputMode::Instruction { reviewable_id };
+    fn enter_input_mode(&mut self, mode: InputMode) {
+        self.input_mode = mode;
         self.input_buffer.clear();
         self.input_cursor = 0;
+    }
+
+    /// Enter instruction input mode for a chunk
+    pub fn start_instruction_input(&mut self, reviewable_id: ReviewableDiffId) {
+        self.enter_input_mode(InputMode::Instruction { reviewable_id });
     }
 
     /// Enter instruction input mode for a decision
     pub fn start_decision_instruction_input(&mut self, decision_number: u32) {
-        self.input_mode = InputMode::DecisionInstruction { decision_number };
-        self.input_buffer.clear();
-        self.input_cursor = 0;
+        self.enter_input_mode(InputMode::DecisionInstruction { decision_number });
     }
 
     /// Exit input mode and return to navigation
     pub fn exit_input_mode(&mut self) {
-        self.input_mode = InputMode::Navigation;
-        self.input_buffer.clear();
-        self.input_cursor = 0;
+        self.enter_input_mode(InputMode::Navigation);
     }
 
     /// Check if currently in any input mode
@@ -385,7 +385,7 @@ impl UiState {
     /// Get remaining timeout duration for display
     pub fn leader_timeout_remaining(&self) -> Option<Duration> {
         if let Some(pressed_at) = self.leader_pressed_at {
-            let timeout = Duration::from_secs(2);
+            let timeout = LEADER_TIMEOUT;
             let elapsed = pressed_at.elapsed();
             if elapsed < timeout {
                 Some(timeout - elapsed)

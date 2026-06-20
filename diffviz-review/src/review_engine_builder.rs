@@ -153,12 +153,17 @@ impl ReviewEngineBuilder {
                         let reviewable_id =
                             ReviewableDiffId::new(query.clone(), file_path.to_string(), line_range);
 
-                        // Populate decision_index directly — no post-hoc overlap detection needed
-                        review_decisions
+                        // Populate decision_index directly — no post-hoc overlap detection needed.
+                        // Guard against duplicates: two ranges in the same CodeImpact can expand
+                        // to the same semantic unit (same ReviewableDiffId), so only record each
+                        // (id, decision_number) pair once.
+                        let decision_numbers = review_decisions
                             .decision_index
                             .entry(reviewable_id.clone())
-                            .or_default()
-                            .push(decision.number);
+                            .or_default();
+                        if !decision_numbers.contains(&decision.number) {
+                            decision_numbers.push(decision.number);
+                        }
 
                         let reviewable_diff =
                             ReviewableDiff::new(reviewable_id, core_diff, file_path.to_string());

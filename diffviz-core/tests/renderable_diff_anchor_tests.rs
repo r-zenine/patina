@@ -124,13 +124,18 @@ fn rust_enum_decl() {
 
 // ── Rust: variable bindings inside a function body ──────────────────────────
 
-const RUST_BINDINGS_SOURCE: &str =
-    "fn bindings() {\n    let config = Config::new();\n    let mut counter = 0;\n    const MAX: usize = 100;\n}\n";
+const RUST_BINDINGS_SOURCE: &str = "fn bindings() {\n    let config = Config::new();\n    let mut counter = 0;\n    const MAX: usize = 100;\n}\n";
 
 #[test]
 fn rust_let_binding() {
     let parser = RustParser::new();
-    let lines = anchors_for_range(RUST_BINDINGS_SOURCE, 1, 5, ProgrammingLanguage::Rust, &parser);
+    let lines = anchors_for_range(
+        RUST_BINDINGS_SOURCE,
+        1,
+        5,
+        ProgrammingLanguage::Rust,
+        &parser,
+    );
     assert_eq!(
         anchor_at(&lines, 2),
         Some(SemanticAnchor {
@@ -143,7 +148,13 @@ fn rust_let_binding() {
 #[test]
 fn rust_let_mut_binding() {
     let parser = RustParser::new();
-    let lines = anchors_for_range(RUST_BINDINGS_SOURCE, 1, 5, ProgrammingLanguage::Rust, &parser);
+    let lines = anchors_for_range(
+        RUST_BINDINGS_SOURCE,
+        1,
+        5,
+        ProgrammingLanguage::Rust,
+        &parser,
+    );
     assert_eq!(
         anchor_at(&lines, 3),
         Some(SemanticAnchor {
@@ -156,7 +167,13 @@ fn rust_let_mut_binding() {
 #[test]
 fn rust_const_item() {
     let parser = RustParser::new();
-    let lines = anchors_for_range(RUST_BINDINGS_SOURCE, 1, 5, ProgrammingLanguage::Rust, &parser);
+    let lines = anchors_for_range(
+        RUST_BINDINGS_SOURCE,
+        1,
+        5,
+        ProgrammingLanguage::Rust,
+        &parser,
+    );
     assert_eq!(
         anchor_at(&lines, 4),
         Some(SemanticAnchor {
@@ -237,12 +254,24 @@ fn empty_no_anchor() {
 // the SemanticNode → OwnedNodeData → DiffNode pipeline. They inspect the
 // boundary DiffNode directly rather than going through RenderableDiff.
 
-fn boundary_identifier(source: &str, start_line: usize, end_line: usize,
-    language: ProgrammingLanguage, parser: &dyn LanguageParser) -> Option<String> {
+fn boundary_identifier(
+    source: &str,
+    start_line: usize,
+    end_line: usize,
+    language: ProgrammingLanguage,
+    parser: &dyn LanguageParser,
+) -> Option<String> {
     let new_source = SourceCode::new(source.to_string());
     let mut diffs = create_reviewable_diff_from_range(
-        "test_file", start_line, end_line, None, &new_source, language, parser,
-    ).expect("create_reviewable_diff_from_range failed");
+        "test_file",
+        start_line,
+        end_line,
+        None,
+        &new_source,
+        language,
+        parser,
+    )
+    .expect("create_reviewable_diff_from_range failed");
     assert!(!diffs.is_empty());
     let diff = diffs.remove(0);
     match &diff.boundary.change_status {
@@ -258,8 +287,13 @@ fn boundary_identifier(source: &str, start_line: usize, end_line: usize,
 fn phase1_rust_fn_identifier() {
     let parser = RustParser::new();
     assert_eq!(
-        boundary_identifier("fn calculate(x: i32) -> i32 {\n    x + 1\n}\n", 1, 3,
-            ProgrammingLanguage::Rust, &parser),
+        boundary_identifier(
+            "fn calculate(x: i32) -> i32 {\n    x + 1\n}\n",
+            1,
+            3,
+            ProgrammingLanguage::Rust,
+            &parser
+        ),
         Some("calculate".to_string())
     );
 }
@@ -268,8 +302,13 @@ fn phase1_rust_fn_identifier() {
 fn phase1_rust_struct_identifier() {
     let parser = RustParser::new();
     assert_eq!(
-        boundary_identifier("struct Config {\n    value: i32,\n}\n", 1, 3,
-            ProgrammingLanguage::Rust, &parser),
+        boundary_identifier(
+            "struct Config {\n    value: i32,\n}\n",
+            1,
+            3,
+            ProgrammingLanguage::Rust,
+            &parser
+        ),
         Some("Config".to_string())
     );
 }
@@ -289,8 +328,13 @@ fn phase1_rust_let_identifier() {
 fn phase1_rust_const_identifier() {
     let parser = RustParser::new();
     assert_eq!(
-        boundary_identifier("const MAX: usize = 100;\n", 1, 1,
-            ProgrammingLanguage::Rust, &parser),
+        boundary_identifier(
+            "const MAX: usize = 100;\n",
+            1,
+            1,
+            ProgrammingLanguage::Rust,
+            &parser
+        ),
         Some("MAX".to_string())
     );
 }

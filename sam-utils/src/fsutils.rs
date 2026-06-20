@@ -17,8 +17,7 @@ pub fn walk_dir(path: &Path) -> Result<Vec<PathBuf>> {
             let cur_dir = std::fs::read_dir(content.as_path())?;
             let paths = cur_dir.flat_map(|e| e.map(|e| e.path()));
             deque.extend(paths);
-        }
-        if content.is_file() {
+        } else if content.is_file() {
             deque.push(content);
         }
     }

@@ -223,7 +223,10 @@ impl LanguageDescriptor for RustDescriptor {
             "let_declaration" => {
                 let pattern = node.child_by_field_name("pattern")?;
                 match pattern.kind() {
-                    "identifier" => pattern.utf8_text(source.as_bytes()).ok().map(str::to_string),
+                    "identifier" => pattern
+                        .utf8_text(source.as_bytes())
+                        .ok()
+                        .map(str::to_string),
                     "mut_pattern" => {
                         // mut_pattern has no named fields — walk children for the identifier
                         let mut cursor = pattern.walk();

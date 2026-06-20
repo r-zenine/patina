@@ -290,10 +290,7 @@ fn create_addition_diff(
         node_type: get_unit_type_name(&unit.unit_type).to_string(),
         semantic_kind,
         change_status: NodeChangeStatus::Added {
-            node: OwnedNodeData::with_identifier(
-                &unit.tree_sitter_node,
-                unit.identifier.clone(),
-            ),
+            node: OwnedNodeData::with_identifier(&unit.tree_sitter_node, unit.identifier.clone()),
         },
         relevance: calculate_relevance(&unit.unit_type),
         children: build_child_nodes_with_context(&unit.tree_sitter_node, parser),
@@ -324,10 +321,7 @@ fn create_deletion_diff(
         node_type: get_unit_type_name(&unit.unit_type).to_string(),
         semantic_kind,
         change_status: NodeChangeStatus::Deleted {
-            node: OwnedNodeData::with_identifier(
-                &unit.tree_sitter_node,
-                unit.identifier.clone(),
-            ),
+            node: OwnedNodeData::with_identifier(&unit.tree_sitter_node, unit.identifier.clone()),
         },
         relevance: calculate_relevance(&unit.unit_type),
         children: build_child_nodes_with_context(&unit.tree_sitter_node, parser),

@@ -7,6 +7,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::Paragraph,
 };
+use std::path::Path;
 
 use crate::{
     state::{FocusPanel, InputMode, UiState},
@@ -81,7 +82,10 @@ fn create_state_info(ui_state: &UiState, review_engine: &ReviewEngine) -> Line<'
 
     // Current file info
     if let Some(file_path) = ui_state.current_file_path() {
-        let file_name = file_path.split('/').next_back().unwrap_or(&file_path);
+        let file_name = Path::new(&file_path)
+            .file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or(&file_path);
         spans.push(Span::styled(
             format!("📄 {file_name}"),
             Style::default().fg(Colors::BLUE),
