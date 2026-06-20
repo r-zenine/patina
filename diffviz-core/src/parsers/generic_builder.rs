@@ -208,7 +208,8 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
             .map(|p| self.descriptor.collect_metadata(node, p))
             .unwrap_or_default();
 
-        SemanticNode::new(
+        let identifier = self.descriptor.extract_identifier(node, source);
+        let mut semantic_node = SemanticNode::new(
             node,
             name_node,
             SemanticUnitType::Callable {
@@ -221,7 +222,9 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
                 signature_node: parameters_node,
             },
             metadata_nodes,
-        )
+        );
+        semantic_node.identifier = identifier;
+        semantic_node
     }
 
     fn build_data_structure<'a>(
@@ -246,7 +249,8 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
                 .count()
         });
 
-        SemanticNode::new(
+        let identifier = self.descriptor.extract_identifier(node, source);
+        let mut semantic_node = SemanticNode::new(
             node,
             name_node,
             SemanticUnitType::DataStructure {
@@ -257,7 +261,9 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
                 metadata: HashMap::new(),
             },
             metadata_nodes,
-        )
+        );
+        semantic_node.identifier = identifier;
+        semantic_node
     }
 
     /// Build an impl block as a `Module { Namespace }` container.
@@ -343,7 +349,8 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
             .and_then(|n| n.utf8_text(source.as_bytes()).ok())
             .map(|s| s.to_string());
 
-        SemanticNode::new(
+        let identifier = self.descriptor.extract_identifier(node, source);
+        let mut semantic_node = SemanticNode::new(
             node,
             name_node,
             SemanticUnitType::Variable {
@@ -354,7 +361,9 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
                 metadata: HashMap::new(),
             },
             Vec::new(),
-        )
+        );
+        semantic_node.identifier = identifier;
+        semantic_node
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────

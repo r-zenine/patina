@@ -290,7 +290,10 @@ fn create_addition_diff(
         node_type: get_unit_type_name(&unit.unit_type).to_string(),
         semantic_kind,
         change_status: NodeChangeStatus::Added {
-            node: OwnedNodeData::from_tree_sitter_node(&unit.tree_sitter_node),
+            node: OwnedNodeData::with_identifier(
+                &unit.tree_sitter_node,
+                unit.identifier.clone(),
+            ),
         },
         relevance: calculate_relevance(&unit.unit_type),
         children: build_child_nodes_with_context(&unit.tree_sitter_node, parser),
@@ -321,7 +324,10 @@ fn create_deletion_diff(
         node_type: get_unit_type_name(&unit.unit_type).to_string(),
         semantic_kind,
         change_status: NodeChangeStatus::Deleted {
-            node: OwnedNodeData::from_tree_sitter_node(&unit.tree_sitter_node),
+            node: OwnedNodeData::with_identifier(
+                &unit.tree_sitter_node,
+                unit.identifier.clone(),
+            ),
         },
         relevance: calculate_relevance(&unit.unit_type),
         children: build_child_nodes_with_context(&unit.tree_sitter_node, parser),
@@ -355,7 +361,10 @@ fn create_modification_diff_with_data(
         semantic_kind,
         change_status: NodeChangeStatus::Modified {
             old_node,
-            new_node: OwnedNodeData::from_tree_sitter_node(&new_unit.tree_sitter_node),
+            new_node: OwnedNodeData::with_identifier(
+                &new_unit.tree_sitter_node,
+                new_unit.identifier.clone(),
+            ),
             change_type,
         },
         relevance: calculate_relevance(&new_unit.unit_type),
@@ -583,7 +592,10 @@ pub fn create_reviewable_diff_from_range(
                         &unit.unit_type,
                     )
                     .map(|old_unit| {
-                        OwnedNodeData::from_tree_sitter_node(&old_unit.tree_sitter_node)
+                        OwnedNodeData::with_identifier(
+                            &old_unit.tree_sitter_node,
+                            old_unit.identifier.clone(),
+                        )
                     })
                 })
                 .collect()
@@ -638,7 +650,7 @@ pub fn create_reviewable_diff_from_range(
             &get_unit_name(new_unit, new_source_str.as_bytes()).unwrap_or_default(),
             &new_unit.unit_type,
         )
-        .map(|unit| OwnedNodeData::from_tree_sitter_node(&unit.tree_sitter_node))
+        .map(|unit| OwnedNodeData::with_identifier(&unit.tree_sitter_node, unit.identifier.clone()))
     } else {
         None
     };

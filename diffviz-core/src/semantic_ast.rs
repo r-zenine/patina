@@ -67,6 +67,10 @@ pub struct SemanticNode<'a> {
 
     /// The type of semantic unit with associated metadata
     pub unit_type: SemanticUnitType<'a>,
+
+    /// Identifier/name text extracted during parsing (populated for the 4 core languages).
+    /// Used by `OwnedNodeData` to carry identifier information after the live tree is dropped.
+    pub identifier: Option<String>,
 }
 
 /// Universal semantic unit types that work across programming languages
@@ -336,6 +340,7 @@ impl<'a> SemanticNode<'a> {
             children: Vec::new(),
             name_node,
             unit_type,
+            identifier: None,
         }
     }
 

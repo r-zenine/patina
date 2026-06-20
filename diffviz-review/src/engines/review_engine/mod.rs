@@ -322,6 +322,7 @@ pub mod test_helpers {
                         start_byte: 0,
                         end_byte: placeholder_content.len(),
                         kind: "test".to_string(),
+                        identifier: None,
                     },
                 },
                 relevance: 0,

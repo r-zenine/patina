@@ -145,6 +145,33 @@ impl LanguageDescriptor for GoDescriptor {
         None
     }
 
+    fn extract_identifier<'a>(&self, node: Node<'a>, source: &str) -> Option<String> {
+        match node.kind() {
+            "short_var_declaration" => {
+                // := left side is expression_list — take first identifier child
+                let left = node.child_by_field_name("left")?;
+                let mut cursor = left.walk();
+                left.children(&mut cursor)
+                    .find(|c| c.kind() == "identifier")
+                    .and_then(|n| n.utf8_text(source.as_bytes()).ok())
+                    .map(str::to_string)
+            }
+            "var_declaration" | "const_declaration" | "type_declaration" => {
+                // Container nodes: no "name" field — drill into first named child (spec)
+                let mut cursor = node.walk();
+                node.named_children(&mut cursor)
+                    .next()
+                    .and_then(|spec| spec.child_by_field_name("name"))
+                    .and_then(|n| n.utf8_text(source.as_bytes()).ok())
+                    .map(str::to_string)
+            }
+            _ => node
+                .child_by_field_name("name")
+                .and_then(|n| n.utf8_text(source.as_bytes()).ok())
+                .map(str::to_string),
+        }
+    }
+
     /// Go visibility is determined by naming convention: capitalised = exported (public).
     fn extract_visibility<'a>(&self, node: Node<'a>, source: &str) -> String {
         if let Some(name_node) = node.child_by_field_name("name")

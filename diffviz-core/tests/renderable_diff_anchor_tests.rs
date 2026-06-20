@@ -9,6 +9,7 @@ use diffviz_core::common::{LanguageParser, ProgrammingLanguage};
 use diffviz_core::create_reviewable_diff_from_range;
 use diffviz_core::parsers::{GoParser, PythonParser, RustParser};
 use diffviz_core::renderable_diff::{RenderableDiff, SemanticAnchor, SemanticAnchorType};
+use diffviz_core::reviewable_diff::NodeChangeStatus;
 
 /// Build `(line_number, semantic_anchor)` pairs for the first ReviewableDiff in the range.
 ///
@@ -228,4 +229,88 @@ fn empty_no_anchor() {
     let source = "fn with_empty() {\n\n    let x = 1;\n}\n";
     let lines = anchors_for_range(source, 1, 4, ProgrammingLanguage::Rust, &parser);
     assert_eq!(anchor_at(&lines, 2), None);
+}
+
+// ── Phase 1 gate: OwnedNodeData.identifier is populated ──────────────────────
+//
+// These tests verify that the identifier extracted during tree building survives
+// the SemanticNode → OwnedNodeData → DiffNode pipeline. They inspect the
+// boundary DiffNode directly rather than going through RenderableDiff.
+
+fn boundary_identifier(source: &str, start_line: usize, end_line: usize,
+    language: ProgrammingLanguage, parser: &dyn LanguageParser) -> Option<String> {
+    let new_source = SourceCode::new(source.to_string());
+    let mut diffs = create_reviewable_diff_from_range(
+        "test_file", start_line, end_line, None, &new_source, language, parser,
+    ).expect("create_reviewable_diff_from_range failed");
+    assert!(!diffs.is_empty());
+    let diff = diffs.remove(0);
+    match &diff.boundary.change_status {
+        NodeChangeStatus::Added { node } | NodeChangeStatus::Unchanged { node } => {
+            node.identifier.clone()
+        }
+        NodeChangeStatus::Modified { new_node, .. } => new_node.identifier.clone(),
+        NodeChangeStatus::Deleted { node } => node.identifier.clone(),
+    }
+}
+
+#[test]
+fn phase1_rust_fn_identifier() {
+    let parser = RustParser::new();
+    assert_eq!(
+        boundary_identifier("fn calculate(x: i32) -> i32 {\n    x + 1\n}\n", 1, 3,
+            ProgrammingLanguage::Rust, &parser),
+        Some("calculate".to_string())
+    );
+}
+
+#[test]
+fn phase1_rust_struct_identifier() {
+    let parser = RustParser::new();
+    assert_eq!(
+        boundary_identifier("struct Config {\n    value: i32,\n}\n", 1, 3,
+            ProgrammingLanguage::Rust, &parser),
+        Some("Config".to_string())
+    );
+}
+
+#[test]
+fn phase1_rust_let_identifier() {
+    let parser = RustParser::new();
+    // let_declaration must carry the binding name via RustDescriptor::extract_identifier
+    let source = "fn f() {\n    let config = 42;\n}\n";
+    assert_eq!(
+        boundary_identifier(source, 1, 3, ProgrammingLanguage::Rust, &parser),
+        Some("f".to_string()) // boundary is the function; identifier is the fn name
+    );
+}
+
+#[test]
+fn phase1_rust_const_identifier() {
+    let parser = RustParser::new();
+    assert_eq!(
+        boundary_identifier("const MAX: usize = 100;\n", 1, 1,
+            ProgrammingLanguage::Rust, &parser),
+        Some("MAX".to_string())
+    );
+}
+
+#[test]
+fn phase1_go_func_identifier() {
+    let parser = GoParser::new();
+    let source = "package main\n\nfunc handleRequest() {\n}\n";
+    assert_eq!(
+        boundary_identifier(source, 3, 4, ProgrammingLanguage::Go, &parser),
+        Some("handleRequest".to_string())
+    );
+}
+
+#[test]
+fn phase1_python_def_identifier() {
+    let parser = PythonParser::new();
+    let source = "def process(items):\n    pass\n";
+    assert_eq!(
+        boundary_identifier(source, 1, 2, ProgrammingLanguage::Python, &parser),
+        Some("process".to_string())
+    );
 }

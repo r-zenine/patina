@@ -52,6 +52,21 @@ pub trait LanguageDescriptor: Send + Sync {
 
     // ── Targeted overrides (with sensible defaults) ───────────────────────
 
+    /// Extract the identifier/name for a node using grammar-specific field names.
+    ///
+    /// Default: try `child_by_field_name("name")` — covers function_item, struct_item,
+    /// enum_item, const_item, static_item (Rust); function_declaration (Go);
+    /// function_definition, class_definition (Python);
+    /// function_declaration, interface_declaration (TypeScript).
+    ///
+    /// Override for nodes whose identifier lives under a different field or requires
+    /// walking binding patterns (e.g. Rust let_declaration, Go short_var_declaration).
+    fn extract_identifier<'a>(&self, node: Node<'a>, source: &str) -> Option<String> {
+        node.child_by_field_name("name")
+            .and_then(|n| n.utf8_text(source.as_bytes()).ok())
+            .map(|s| s.to_string())
+    }
+
     /// Extract the visibility modifier text from a node.
     ///
     /// Default: look for a `"visibility_modifier"` child and return its text,

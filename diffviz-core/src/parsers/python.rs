@@ -147,6 +147,24 @@ impl LanguageDescriptor for PythonDescriptor {
         Some("decorator")
     }
 
+    fn extract_identifier<'a>(&self, node: Node<'a>, source: &str) -> Option<String> {
+        match node.kind() {
+            "assignment" | "augmented_assignment" => {
+                // x = 42: left field is a pattern; only handle simple identifier
+                let left = node.child_by_field_name("left")?;
+                if left.kind() == "identifier" {
+                    left.utf8_text(source.as_bytes()).ok().map(str::to_string)
+                } else {
+                    None // tuple/attribute assignments: skip
+                }
+            }
+            _ => node
+                .child_by_field_name("name")
+                .and_then(|n| n.utf8_text(source.as_bytes()).ok())
+                .map(str::to_string),
+        }
+    }
+
     /// Python visibility is determined by naming convention:
     /// - `__name__` → "magic"
     /// - `_name` → "private"

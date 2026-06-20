@@ -7,7 +7,7 @@ use crate::common::{LanguageParser, ProgrammingLanguage, Result, SemanticNodeKin
 use crate::parsers::descriptor::LanguageDescriptor;
 use crate::parsers::generic_builder::GenericSemanticTreeBuilder;
 use crate::semantic_ast::{SemanticError, SemanticTree};
-use tree_sitter::{Language, Tree};
+use tree_sitter::{Language, Node, Tree};
 
 // ── TypeScriptDescriptor ──────────────────────────────────────────────────────
 
@@ -152,6 +152,24 @@ impl LanguageDescriptor for TypeScriptDescriptor {
 
     fn metadata_kind(&self) -> Option<&'static str> {
         Some("decorator")
+    }
+
+    fn extract_identifier<'a>(&self, node: Node<'a>, source: &str) -> Option<String> {
+        match node.kind() {
+            "variable_declaration" | "lexical_declaration" => {
+                // const/let/var: container has no "name"; find first variable_declarator → "name"
+                let mut cursor = node.walk();
+                node.named_children(&mut cursor)
+                    .find(|c| c.kind() == "variable_declarator")
+                    .and_then(|d| d.child_by_field_name("name"))
+                    .and_then(|n| n.utf8_text(source.as_bytes()).ok())
+                    .map(str::to_string)
+            }
+            _ => node
+                .child_by_field_name("name")
+                .and_then(|n| n.utf8_text(source.as_bytes()).ok())
+                .map(str::to_string),
+        }
     }
 }
 

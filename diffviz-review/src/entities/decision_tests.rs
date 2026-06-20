@@ -98,6 +98,7 @@ fn create_test_reviewable_diff(
                     start_byte: 0,
                     end_byte: placeholder_content.len(),
                     kind: "test".to_string(),
+                    identifier: None,
                 },
             },
             relevance: 0,

@@ -24,6 +24,8 @@ pub struct OwnedNodeData {
     pub start_byte: usize,
     pub end_byte: usize,
     pub kind: String,
+    /// Identifier/name for the node, populated for semantic boundary nodes in the 4 core languages.
+    pub identifier: Option<String>,
 }
 
 impl fmt::Debug for OwnedNodeData {
@@ -37,12 +39,24 @@ impl fmt::Debug for OwnedNodeData {
 }
 
 impl OwnedNodeData {
-    /// Extract owned data from a TreeSitter Node
+    /// Extract owned data from a TreeSitter Node. Identifier is `None`; use
+    /// `with_identifier` at semantic boundary sites where the identifier is known.
     pub fn from_tree_sitter_node(node: &Node) -> Self {
         Self {
             start_byte: node.start_byte(),
             end_byte: node.end_byte(),
             kind: node.kind().to_string(),
+            identifier: None,
+        }
+    }
+
+    /// Like `from_tree_sitter_node` but carries a pre-extracted identifier.
+    pub fn with_identifier(node: &Node, identifier: Option<String>) -> Self {
+        Self {
+            start_byte: node.start_byte(),
+            end_byte: node.end_byte(),
+            kind: node.kind().to_string(),
+            identifier,
         }
     }
 }

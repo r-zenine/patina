@@ -217,6 +217,31 @@ impl LanguageDescriptor for RustDescriptor {
 
     // `collect_metadata` uses the default: scan backwards through `parent.children`
     // collecting `"attribute_item"` siblings immediately preceding the node.
+
+    fn extract_identifier<'a>(&self, node: Node<'a>, source: &str) -> Option<String> {
+        match node.kind() {
+            "let_declaration" => {
+                let pattern = node.child_by_field_name("pattern")?;
+                match pattern.kind() {
+                    "identifier" => pattern.utf8_text(source.as_bytes()).ok().map(str::to_string),
+                    "mut_pattern" => {
+                        // mut_pattern has no named fields — walk children for the identifier
+                        let mut cursor = pattern.walk();
+                        pattern
+                            .children(&mut cursor)
+                            .find(|c| c.kind() == "identifier")
+                            .and_then(|n| n.utf8_text(source.as_bytes()).ok())
+                            .map(str::to_string)
+                    }
+                    _ => None, // tuple/struct patterns: multiple names, skip
+                }
+            }
+            _ => node
+                .child_by_field_name("name")
+                .and_then(|n| n.utf8_text(source.as_bytes()).ok())
+                .map(str::to_string),
+        }
+    }
 }
 
 // ── RustParser (newtype wrapper) ──────────────────────────────────────────────
