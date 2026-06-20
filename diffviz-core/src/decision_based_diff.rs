@@ -600,7 +600,23 @@ pub fn create_reviewable_diff_from_range(
         let diffs = contained
             .into_iter()
             .zip(old_nodes)
-            .map(|(unit, old_node_data)| {
+            .filter_map(|(unit, old_node_data)| {
+                // Skip units whose old and new content are byte-for-byte identical.
+                // They classify as Modification but Myers diff produces only Keep ops,
+                // yielding an empty RenderableDiff that pollutes the TUI.
+                if let Some(ref old_node) = old_node_data {
+                    if let Some(old_src) = old_source {
+                        let old_bytes = old_src.full_source().as_bytes();
+                        let new_range = unit.tree_sitter_node.byte_range();
+                        if old_bytes.get(old_node.start_byte..old_node.end_byte)
+                            == new_source_str
+                                .as_bytes()
+                                .get(new_range.start..new_range.end)
+                        {
+                            return None;
+                        }
+                    }
+                }
                 let classification = if old_node_data.is_some() {
                     ChangeClassification::Modification
                 } else {
@@ -613,14 +629,14 @@ pub fn create_reviewable_diff_from_range(
                     parser,
                     start_time,
                 };
-                build_reviewable_diff_from_unit_with_data(
+                Some(build_reviewable_diff_from_unit_with_data(
                     context,
                     language,
                     old_source
                         .map(|p| p.clone_box())
                         .unwrap_or_else(|| new_source.clone_box()),
                     new_source.clone_box(),
-                )
+                ))
             })
             .collect();
 

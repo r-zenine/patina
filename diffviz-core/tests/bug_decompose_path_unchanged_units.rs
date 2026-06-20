@@ -43,7 +43,6 @@ mod bug_decompose_path_unchanged_units {
     const NEW_SOURCE: &str =
         "fn changed_fn() -> i32 {\n    100\n}\n\nfn stable_fn() -> i32 {\n    42\n}\n\n";
 
-    #[ignore]
     #[test]
     fn test_decompose_path_does_not_produce_empty_diffs_for_unchanged_units() {
         let old_provider = SourceCode::new(OLD_SOURCE.to_string());
@@ -86,7 +85,6 @@ mod bug_decompose_path_unchanged_units {
         }
     }
 
-    #[ignore]
     #[test]
     fn test_decompose_path_returns_only_changed_unit_not_unchanged_sibling() {
         let old_provider = SourceCode::new(OLD_SOURCE.to_string());
