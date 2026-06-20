@@ -1,0 +1,19 @@
+commit: c2c55ab  # Commit containing the Phase 0 behavioral anchor tests
+decisions:
+  - number: 1
+    title: Accept rust_enum_decl as #[ignore] — enum bug is pre-existing, out of scope for Phase 0
+    rationale: >
+      The enum anchor test fails because GenericSemanticTreeBuilder classifies enums as
+      DataStructure (same as structs), causing unit_type_to_semantic_kind to emit
+      SemanticNodeKind::Struct for enum boundaries. This is a pre-existing bug in the
+      classification layer, not the string-scanner. Phase 0's goal is behavioral coverage
+      of what the string-scanner currently produces correctly — it does not produce
+      EnumDeclaration anchors today. The test is filed via the filing-bugs convention
+      (#[ignore] with a clear comment) and is tracked. Phase 2's kind_to_anchor_type
+      implementation should revisit this once the enum SemanticNodeKind is fixed upstream.
+    code_impacts:
+      - reasoning: The #[ignore] test documents the pre-existing enum classification bug
+        file: diffviz-core/tests/renderable_diff_anchor_tests.rs
+        line_ranges:
+          - start: 89
+            end: 113

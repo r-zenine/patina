@@ -1,0 +1,70 @@
+commit: 600528e
+decisions:
+  - number: 1
+    title: Store identifier in SemanticNode rather than deriving it at OwnedNodeData construction time
+    rationale: >
+      OwnedNodeData construction sites in decision_based_diff.rs do not have access to
+      the source text string, so extract_identifier cannot be called there. Storing
+      identifier as Option<String> on SemanticNode during tree building (when source is
+      available) is the minimal change that threads it through without redesigning the
+      module boundary. SemanticNode::new() initialises it to None; the generic_builder
+      sets it immediately after construction, keeping the new() signature stable.
+    code_impacts:
+      - reasoning: Added identifier field to SemanticNode; new() initialises it to None
+        file: diffviz-core/src/semantic_ast.rs
+        line_ranges:
+          - start: 65
+            end: 75
+      - reasoning: build_callable, build_data_structure, build_variable call extract_identifier and set identifier
+        file: diffviz-core/src/parsers/generic_builder.rs
+        line_ranges:
+          - start: 210
+            end: 235
+          - start: 249
+            end: 275
+          - start: 355
+            end: 380
+
+  - number: 2
+    title: Add with_identifier constructor to OwnedNodeData; keep from_tree_sitter_node for grammar-level child nodes
+    rationale: >
+      The DiffNode tree has two node categories: semantic boundary nodes (from SemanticNode,
+      need the identifier) and grammar-level child nodes (from build_child_nodes_recursive,
+      identifier not needed). Adding with_identifier as a second constructor preserves
+      existing call sites for child nodes while allowing boundary sites to pass the
+      identifier. from_tree_sitter_node is not deprecated — it is the correct choice for
+      grammar-level nodes.
+    code_impacts:
+      - reasoning: Added identifier field and with_identifier constructor to OwnedNodeData
+        file: diffviz-core/src/ast_diff/nodes.rs
+        line_ranges:
+          - start: 23
+            end: 75
+      - reasoning: Semantic boundary construction sites updated to use with_identifier
+        file: diffviz-core/src/decision_based_diff.rs
+        line_ranges:
+          - start: 290
+            end: 305
+          - start: 322
+            end: 335
+          - start: 355
+            end: 368
+          - start: 593
+            end: 603
+          - start: 651
+            end: 656
+
+  - number: 3
+    title: Scope extract_identifier calls to Callable, DataStructure, and Variable; defer Import/Module
+    rationale: >
+      Only the anchor types FunctionSignature, StructDeclaration, EnumDeclaration, and
+      VariableAssignment need identifiers for Phase 2. Import and Module containers are
+      not anchor-producing node types. Calling extract_identifier in build_import,
+      build_impl_container, etc. would be premature — Phase 2 will clarify if any of
+      these need identifiers.
+    code_impacts:
+      - reasoning: extract_identifier called only in build_callable, build_data_structure, build_variable
+        file: diffviz-core/src/parsers/generic_builder.rs
+        line_ranges:
+          - start: 184
+            end: 380
