@@ -4,6 +4,7 @@
 //! core, and review layers to create fully populated ReviewEngine instances.
 
 use log::warn;
+use std::collections::BTreeMap;
 
 use crate::engines::ReviewEngine;
 use crate::entities::decision::{Decision, ReviewDecisions};
@@ -53,7 +54,9 @@ impl ReviewEngineBuilder {
         decisions: Vec<Decision>,
         query: DiffQuery,
     ) -> Result<ReviewEngine, crate::errors::DiffVizError> {
-        let mut all_reviewable_diffs = Vec::new();
+        // Keyed by ReviewableDiffId to merge cited_ranges when multiple decision-log ranges
+        // expand to the same semantic unit (e.g., two ranges inside the same function).
+        let mut reviewable_diffs_map: BTreeMap<ReviewableDiffId, ReviewableDiff> = BTreeMap::new();
         let mut review_decisions = ReviewDecisions::new();
 
         // Process each decision to create ReviewableDiffs
@@ -153,10 +156,9 @@ impl ReviewEngineBuilder {
                         let reviewable_id =
                             ReviewableDiffId::new(query.clone(), file_path.to_string(), line_range);
 
-                        // Populate decision_index directly — no post-hoc overlap detection needed.
-                        // Guard against duplicates: two ranges in the same CodeImpact can expand
-                        // to the same semantic unit (same ReviewableDiffId), so only record each
-                        // (id, decision_number) pair once.
+                        // Guard against duplicates in decision_index: two ranges in the same
+                        // CodeImpact can expand to the same semantic unit (same ReviewableDiffId),
+                        // so only record each (id, decision_number) pair once.
                         let decision_numbers = review_decisions
                             .decision_index
                             .entry(reviewable_id.clone())
@@ -165,15 +167,33 @@ impl ReviewEngineBuilder {
                             decision_numbers.push(decision.number);
                         }
 
-                        let reviewable_diff =
-                            ReviewableDiff::new(reviewable_id, core_diff, file_path.to_string());
-                        all_reviewable_diffs.push(reviewable_diff);
+                        // Merge into reviewable_diffs_map: first occurrence creates the entry;
+                        // subsequent collisions (same semantic unit, different cited range) only
+                        // append the range so the diff view can annotate all cited sites.
+                        match reviewable_diffs_map.entry(reviewable_id.clone()) {
+                            std::collections::btree_map::Entry::Vacant(vac) => {
+                                let mut diff = ReviewableDiff::new(
+                                    reviewable_id,
+                                    core_diff,
+                                    file_path.to_string(),
+                                );
+                                diff.add_cited_range(range.start, range.end);
+                                vac.insert(diff);
+                            }
+                            std::collections::btree_map::Entry::Occupied(mut occ) => {
+                                // Same semantic unit already registered — just record the range.
+                                occ.get_mut().add_cited_range(range.start, range.end);
+                                // core_diff is dropped: identical content to the existing entry.
+                            }
+                        }
                     }
                 }
             }
         }
 
-        // Create engine with ReviewableDiffs
+        // Create engine with deduplicated ReviewableDiffs (one entry per semantic unit)
+        let all_reviewable_diffs: Vec<ReviewableDiff> =
+            reviewable_diffs_map.into_values().collect();
         let mut engine = ReviewEngine::new(all_reviewable_diffs, self.author);
 
         // Set decisions directly — index was already populated during construction

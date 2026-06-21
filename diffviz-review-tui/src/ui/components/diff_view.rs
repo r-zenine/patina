@@ -99,8 +99,23 @@ fn render_diff_content(
             None
         };
 
-        // Build combined title with semantic info
-        let combined_title = format!("{} ({})", title, renderable_diff.metadata.boundary_name);
+        // Build combined title with semantic info and cited-range annotation when multiple
+        // decision-log ranges collapsed to this same semantic unit.
+        let cited_annotation = if reviewable_diff.cited_ranges.len() > 1 {
+            let ranges = reviewable_diff
+                .cited_ranges
+                .iter()
+                .map(|(s, e)| format!("L{s}-{e}"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!(" [impacts: {ranges}]")
+        } else {
+            String::new()
+        };
+        let combined_title = format!(
+            "{} ({}){}",
+            title, renderable_diff.metadata.boundary_name, cited_annotation
+        );
 
         // Build instruction gutter map for bracket visualization
         let instruction_map = build_instruction_gutter_map(reviewable_diff, review_engine);

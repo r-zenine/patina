@@ -35,7 +35,10 @@ use diffviz_core::reviewable_diff::ReviewableDiff as CoreReviewableDiff;
 pub struct ReviewableDiff {
     pub id: ReviewableDiffId,
     pub core_diff: CoreReviewableDiff,
-    pub file_path: String, // Added for review layer convenience
+    pub file_path: String,
+    /// Original code-impact line ranges from the decision log that collapsed to this semantic unit.
+    /// Multiple ranges are present when two or more cited ranges expand to the same function/struct.
+    pub cited_ranges: Vec<(usize, usize)>,
 }
 
 impl ReviewableDiff {
@@ -45,6 +48,14 @@ impl ReviewableDiff {
             id,
             core_diff,
             file_path,
+            cited_ranges: Vec::new(),
+        }
+    }
+
+    /// Record a cited range, skipping duplicates.
+    pub fn add_cited_range(&mut self, start: usize, end: usize) {
+        if !self.cited_ranges.iter().any(|&(s, e)| s == start && e == end) {
+            self.cited_ranges.push((start, end));
         }
     }
 
@@ -335,11 +346,7 @@ mod tests {
             },
         };
 
-        ReviewableDiff {
-            id: reviewable_id,
-            core_diff,
-            file_path: "test.rs".to_string(),
-        }
+        ReviewableDiff::new(reviewable_id, core_diff, "test.rs".to_string())
     }
 
     #[test]
@@ -415,11 +422,7 @@ mod tests {
             },
         };
 
-        ReviewableDiff {
-            id: reviewable_id,
-            core_diff,
-            file_path: file_path.to_string(),
-        }
+        ReviewableDiff::new(reviewable_id, core_diff, file_path.to_string())
     }
 
     #[test]

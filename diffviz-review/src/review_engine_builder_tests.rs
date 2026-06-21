@@ -65,6 +65,28 @@ fn test_two_ranges_in_same_function_do_not_produce_duplicate_diffs() {
          (got {}) — duplicates cause the TUI to render the diff twice",
         diffs.len()
     );
+
+    // Both original cited ranges must be recorded on the single merged entry.
+    let reviewable = engine
+        .get_reviewable_diff(&diffs[0].chunk_id)
+        .expect("ReviewableDiff must exist for the returned chunk_id");
+    assert_eq!(
+        reviewable.cited_ranges.len(),
+        2,
+        "Both original code-impact ranges must be collected on the merged ReviewableDiff, \
+         got: {:?}",
+        reviewable.cited_ranges
+    );
+    assert!(
+        reviewable.cited_ranges.contains(&(2, 3)),
+        "cited_ranges must include the first range (2-3), got: {:?}",
+        reviewable.cited_ranges
+    );
+    assert!(
+        reviewable.cited_ranges.contains(&(5, 6)),
+        "cited_ranges must include the second range (5-6), got: {:?}",
+        reviewable.cited_ranges
+    );
 }
 
 // Bug: build_from_decisions crashes when a decision's code_impacts references a

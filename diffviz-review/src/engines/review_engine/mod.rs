@@ -338,11 +338,7 @@ pub mod test_helpers {
             },
         };
 
-        ReviewableDiff {
-            id: reviewable_id,
-            core_diff,
-            file_path: file_path.to_string(),
-        }
+        ReviewableDiff::new(reviewable_id, core_diff, file_path.to_string())
     }
 }
 

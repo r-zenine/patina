@@ -604,17 +604,15 @@ pub fn create_reviewable_diff_from_range(
                 // Skip units whose old and new content are byte-for-byte identical.
                 // They classify as Modification but Myers diff produces only Keep ops,
                 // yielding an empty RenderableDiff that pollutes the TUI.
-                if let Some(ref old_node) = old_node_data {
-                    if let Some(old_src) = old_source {
-                        let old_bytes = old_src.full_source().as_bytes();
-                        let new_range = unit.tree_sitter_node.byte_range();
-                        if old_bytes.get(old_node.start_byte..old_node.end_byte)
-                            == new_source_str
-                                .as_bytes()
-                                .get(new_range.start..new_range.end)
-                        {
-                            return None;
-                        }
+                if let (Some(old_node), Some(old_src)) = (old_node_data.as_ref(), old_source) {
+                    let old_bytes = old_src.full_source().as_bytes();
+                    let new_range = unit.tree_sitter_node.byte_range();
+                    if old_bytes.get(old_node.start_byte..old_node.end_byte)
+                        == new_source_str
+                            .as_bytes()
+                            .get(new_range.start..new_range.end)
+                    {
+                        return None;
                     }
                 }
                 let classification = if old_node_data.is_some() {
