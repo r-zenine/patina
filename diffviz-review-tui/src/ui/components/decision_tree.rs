@@ -91,6 +91,16 @@ fn build_decision_item<'a>(
     let impact_count = decision.code_impacts.len();
     let count_str = format!("[{impact_count}]");
 
+    // Instruction count badge
+    let instruction_count = review_engine
+        .get_decision_instructions(decision_num)
+        .map_or(0, |v| v.len());
+    let instruction_badge = if instruction_count > 0 {
+        format!(" {} {}", Icons::INSTRUCTION_MODE, instruction_count)
+    } else {
+        String::new()
+    };
+
     let line_content = if is_selected {
         // Highlight selected decision with inverted colors
         let approval_color = if is_approved {
@@ -153,6 +163,13 @@ fn build_decision_item<'a>(
                     .fg(Color::Cyan)
                     .add_modifier(Modifier::DIM),
             ),
+            Span::styled(
+                instruction_badge,
+                Style::default()
+                    .bg(Color::DarkGray)
+                    .fg(Color::Yellow)
+                    .add_modifier(Modifier::BOLD),
+            ),
         ]
     } else {
         vec![
@@ -174,6 +191,7 @@ fn build_decision_item<'a>(
                 format!(" {count_str}"),
                 Style::default().fg(Color::DarkGray),
             ),
+            Span::styled(instruction_badge, Style::default().fg(Color::Yellow)),
         ]
     };
 

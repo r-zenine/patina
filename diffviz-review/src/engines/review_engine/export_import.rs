@@ -33,12 +33,25 @@ pub struct ExportMetadata {
     pub description: String,
 }
 
+/// JSON representation of a decision-level instruction for export/import
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExportedDecisionInstruction {
+    pub decision_number: u32,
+    pub content: String,
+    pub author: String,
+    pub timestamp: String,
+    #[serde(default)]
+    pub status: InstructionStatus,
+}
+
 /// Container for exported instructions
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExportedInstructions {
     #[serde(rename = "_meta")]
     pub meta: ExportMetadata,
     pub instructions: Vec<ExportedInstruction>,
+    #[serde(default)]
+    pub decision_instructions: Vec<ExportedDecisionInstruction>,
 }
 
 /// Summary of import operation results
@@ -93,14 +106,32 @@ impl ReviewEngine {
             })
             .collect();
 
+        // Collect decision-level instructions
+        let exported_decision_instructions: Vec<ExportedDecisionInstruction> = self
+            .state
+            .decision_instructions
+            .instructions
+            .iter()
+            .flat_map(|(decision_number, instructions)| {
+                instructions.iter().map(move |inst| ExportedDecisionInstruction {
+                    decision_number: *decision_number,
+                    content: inst.content.clone(),
+                    author: inst.author.clone(),
+                    timestamp: inst.timestamp.clone(),
+                    status: inst.status.clone(),
+                })
+            })
+            .collect();
+
         let meta = ExportMetadata {
-            format_version: "1.2".to_string(),
+            format_version: "1.3".to_string(),
             description: "DiffViz instruction export for coding agents".to_string(),
         };
 
         let export = ExportedInstructions {
             meta,
             instructions: exported_instructions,
+            decision_instructions: exported_decision_instructions,
         };
 
         // Serialize to JSON with pretty printing
@@ -177,6 +208,32 @@ impl ReviewEngine {
             summary.active_count += 1;
         }
 
+        // Import decision-level instructions directly (no validation against decisions map
+        // because decisions may not be populated yet at load time)
+        for exported_inst in exported.decision_instructions {
+            if exported_inst.content.is_empty() {
+                summary
+                    .errors
+                    .push("Skipping decision instruction with missing content".to_string());
+                continue;
+            }
+
+            let instruction = Instruction {
+                id: uuid::Uuid::new_v4().to_string(),
+                author: exported_inst.author,
+                timestamp: exported_inst.timestamp,
+                content: exported_inst.content,
+                status: exported_inst.status,
+            };
+
+            self.state
+                .decision_instructions
+                .add_instruction(exported_inst.decision_number, instruction);
+
+            summary.total_imported += 1;
+            summary.active_count += 1;
+        }
+
         Ok(summary)
     }
 
@@ -233,7 +290,7 @@ mod tests {
         let json = engine.export_instructions_json().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
         assert!(parsed["_meta"].is_object());
-        assert_eq!(parsed["_meta"]["format_version"], "1.2");
+        assert_eq!(parsed["_meta"]["format_version"], "1.3");
         assert_eq!(parsed["instructions"].as_array().unwrap().len(), 2);
     }
 
@@ -266,7 +323,7 @@ mod tests {
         let json = engine.export_instructions_json().unwrap();
         let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
 
-        assert_eq!(parsed["_meta"]["format_version"], "1.2");
+        assert_eq!(parsed["_meta"]["format_version"], "1.3");
         assert!(parsed["_meta"]["description"].is_string());
 
         let inst = &parsed["instructions"][0];
