@@ -144,8 +144,9 @@ pub fn render(
         )]));
     }
 
-    // Decision-level instructions section
-    if let Some(instructions) = review_engine.get_decision_instructions(decision_number)
+    // Decision-level instructions section (only when toggled visible via Space+i+t)
+    if ui_state.show_instructions
+        && let Some(instructions) = review_engine.get_decision_instructions(decision_number)
         && !instructions.is_empty()
     {
             lines.push(Line::from("")); // Spacer
