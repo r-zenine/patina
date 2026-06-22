@@ -89,6 +89,13 @@ For all applicable principles (YAGNI, Sufficient Implementation, KISS, Last Resp
 - In documentation artifacts, explain concepts through clear descriptions
 - Avoid code examples in documentation unless absolutely necessary
 
+## When to use the advisor 
+
+Use the advisor with caution, you'll find it usefull to request the help if the advisor in a couple of specific cases : 
+
+- For a final review of the work before commiting the code, dont ask for a full review mostly request review on load bearing and structural elements 
+- When trying to pick the best data structure/algorithm for a task or modeling for a domain problem, advisor could help review the choice before we write the code
+
 ## Testing Guidelines
 
 Follow Test Pyramid principles: many unit tests, some integration tests, few end-to-end tests.
