@@ -125,7 +125,7 @@ static JAVASCRIPT_TRIVIAL_KINDS: &[&str] = &[
 
 impl LanguageDescriptor for JavaScriptDescriptor {
     fn ts_language(&self) -> Language {
-        tree_sitter_javascript::language()
+        tree_sitter_javascript::LANGUAGE.into()
     }
 
     fn programming_language(&self) -> ProgrammingLanguage {

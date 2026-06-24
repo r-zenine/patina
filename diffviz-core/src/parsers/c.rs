@@ -149,7 +149,7 @@ static C_TRIVIAL_KINDS: &[&str] = &[
 
 impl LanguageDescriptor for CDescriptor {
     fn ts_language(&self) -> Language {
-        tree_sitter_c::language()
+        tree_sitter_c::LANGUAGE.into()
     }
 
     fn programming_language(&self) -> ProgrammingLanguage {

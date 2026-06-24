@@ -199,7 +199,7 @@ static JAVA_TRIVIAL_KINDS: &[&str] = &[
 
 impl LanguageDescriptor for JavaDescriptor {
     fn ts_language(&self) -> Language {
-        tree_sitter_java::language()
+        tree_sitter_java::LANGUAGE.into()
     }
 
     fn programming_language(&self) -> ProgrammingLanguage {

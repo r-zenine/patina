@@ -184,7 +184,7 @@ static RUST_TRIVIAL_KINDS: &[&str] = &[
 
 impl LanguageDescriptor for RustDescriptor {
     fn ts_language(&self) -> Language {
-        tree_sitter_rust::language()
+        tree_sitter_rust::LANGUAGE.into()
     }
 
     fn programming_language(&self) -> ProgrammingLanguage {

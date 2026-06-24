@@ -183,7 +183,7 @@ static CPP_TRIVIAL_KINDS: &[&str] = &[
 
 impl LanguageDescriptor for CppDescriptor {
     fn ts_language(&self) -> Language {
-        tree_sitter_cpp::language()
+        tree_sitter_cpp::LANGUAGE.into()
     }
 
     fn programming_language(&self) -> ProgrammingLanguage {

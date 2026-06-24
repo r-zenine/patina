@@ -665,7 +665,7 @@ mod tests {
 
         let parser_impl = RustParser::new();
         let mut ts_parser = Parser::new();
-        ts_parser.set_language(parser_impl.get_language()).unwrap();
+        ts_parser.set_language(&parser_impl.get_language()).unwrap();
 
         let code = "fn test() {}";
         let tree = ts_parser.parse(code, None).unwrap();
@@ -696,7 +696,7 @@ mod tests {
 
         let parser_impl = RustParser::new();
         let mut ts_parser = Parser::new();
-        ts_parser.set_language(parser_impl.get_language()).unwrap();
+        ts_parser.set_language(&parser_impl.get_language()).unwrap();
 
         let code = r#"fn test() {
     let x = 1;
@@ -748,7 +748,7 @@ mod tests {
 
         let parser_impl = RustParser::new();
         let mut ts_parser = Parser::new();
-        ts_parser.set_language(parser_impl.get_language()).unwrap();
+        ts_parser.set_language(&parser_impl.get_language()).unwrap();
 
         let code = "fn test() { let x = 1; }";
         let tree = ts_parser.parse(code, None).unwrap();
@@ -784,7 +784,7 @@ mod tests {
         // Create a semantic node with Unknown type
         let parser_impl = RustParser::new();
         let mut ts_parser = Parser::new();
-        ts_parser.set_language(parser_impl.get_language()).unwrap();
+        ts_parser.set_language(&parser_impl.get_language()).unwrap();
 
         // Parse some valid code but we'll create an Unknown node manually
         let tree = ts_parser.parse("fn test() {}", None).unwrap();

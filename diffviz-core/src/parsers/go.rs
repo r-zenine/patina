@@ -122,7 +122,7 @@ static GO_TRIVIAL_KINDS: &[&str] = &[
 
 impl LanguageDescriptor for GoDescriptor {
     fn ts_language(&self) -> Language {
-        tree_sitter_go::language()
+        tree_sitter_go::LANGUAGE.into()
     }
 
     fn programming_language(&self) -> ProgrammingLanguage {

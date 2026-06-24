@@ -131,7 +131,7 @@ static TYPESCRIPT_TRIVIAL_KINDS: &[&str] = &[
 
 impl LanguageDescriptor for TypeScriptDescriptor {
     fn ts_language(&self) -> Language {
-        tree_sitter_typescript::language_typescript()
+        tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into()
     }
 
     fn programming_language(&self) -> ProgrammingLanguage {

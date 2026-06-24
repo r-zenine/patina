@@ -51,7 +51,7 @@ impl GenericTrait<i32> for GenericStruct<i32> {
     let rust_parser = RustParser::new();
     let mut ts_parser = Parser::new();
     ts_parser
-        .set_language(rust_parser.get_language())
+        .set_language(&rust_parser.get_language())
         .expect("Failed to set language");
 
     let tree = ts_parser.parse(code, None).expect("Failed to parse code");
@@ -150,7 +150,7 @@ fn signature_components_classified_as_important() {
     let rust_parser = RustParser::new();
     let mut ts_parser = Parser::new();
     ts_parser
-        .set_language(rust_parser.get_language())
+        .set_language(&rust_parser.get_language())
         .expect("Failed to set language");
 
     let tree = ts_parser.parse(code, None).expect("Failed to parse code");

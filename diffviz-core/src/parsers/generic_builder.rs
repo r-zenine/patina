@@ -438,7 +438,7 @@ impl<D: LanguageDescriptor> LanguageParser for GenericSemanticTreeBuilder<D> {
     fn try_parse(&self, content: &str) -> Result<Tree> {
         let mut parser = Parser::new();
         parser
-            .set_language(self.descriptor.ts_language())
+            .set_language(&self.descriptor.ts_language())
             .map_err(|e| ASTError::TreeSitterError {
                 error: format!("Failed to set language: {e}"),
             })?;
