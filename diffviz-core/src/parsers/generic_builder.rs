@@ -87,6 +87,9 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
         let mut cursor = container.walk();
 
         for child in container.children(&mut cursor) {
+            if !child.is_named() {
+                continue;
+            }
             let kind = child.kind();
 
             if self.trivial_set.contains(kind) {
@@ -118,6 +121,9 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
         parent: Option<Node<'a>>,
         parent_context: Option<&str>,
     ) -> Option<SemanticNode<'a>> {
+        if !node.is_named() {
+            return None;
+        }
         let kind = node.kind();
 
         if self.trivial_set.contains(kind) {
