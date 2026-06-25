@@ -1,0 +1,34 @@
+commit: 5eb7448
+decisions:
+  - number: 1
+    title: Wire show_reasoning as a fourth toggle following the established UiState pattern
+    rationale: Three existing toggles (show_all_context, highlight_semantics, show_instructions) all share the same 4-step pattern. Reusing it keeps the codebase consistent and makes the change trivially reviewable.
+    code_impacts:
+      - reasoning: Added show_reasoning bool field (default false) and toggle_reasoning() method
+        file: diffviz-review-tui/src/state.rs
+        line_ranges:
+          - start: 77
+            end: 82
+          - start: 108
+            end: 108
+          - start: 315
+            end: 319
+      - reasoning: Added show_reasoning field to StateSnapshot struct and from_ui_state() mapping so test harness can assert on the toggle state
+        file: diffviz-review-tui/src/state_snapshot.rs
+        line_ranges:
+          - start: 49
+            end: 51
+          - start: 84
+            end: 84
+      - reasoning: Added ToggleReasoning variant to UiEvent and wired (Some('t'), KeyCode::Char('r')) in handle_leader_keys() toggles submenu
+        file: diffviz-review-tui/src/events/input.rs
+        line_ranges:
+          - start: 65
+            end: 67
+          - start: 291
+            end: 291
+      - reasoning: Added ToggleReasoning match arm in handle_ui_event_impl() calling ui_state.toggle_reasoning() and deactivate_leader()
+        file: diffviz-review-tui/src/app.rs
+        line_ranges:
+          - start: 330
+            end: 334
