@@ -9,6 +9,17 @@ use ratatui::{
 };
 use std::collections::HashMap;
 
+/// An inline reasoning annotation to inject before a specific diff line
+pub struct ReasoningAnnotation {
+    /// 1-based line number within the rendered diff (relative, not absolute file position).
+    /// Use `absolute_line.saturating_sub(diff_start_line).saturating_add(1)` to convert.
+    pub trigger_line: usize,
+    /// Decision label displayed in the gutter, e.g. "D1"
+    pub label: String,
+    /// Reasoning text from `CodeImpact.reasoning`
+    pub reasoning: String,
+}
+
 /// Position of a line within an instruction range for gutter bracket rendering
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum GutterPosition {
@@ -36,6 +47,7 @@ pub struct RenderableDiffWidget<'a> {
     cursor_line: Option<usize>,
     pub border_style: Style,
     instruction_indicators: Option<&'a GutterBracketMap>,
+    reasoning_annotations: &'a [ReasoningAnnotation],
 }
 
 impl<'a> RenderableDiffWidget<'a> {
@@ -51,6 +63,7 @@ impl<'a> RenderableDiffWidget<'a> {
             cursor_line: None,
             border_style: Style::default().fg(Color::Gray),
             instruction_indicators: None,
+            reasoning_annotations: &[],
         }
     }
 
@@ -101,6 +114,12 @@ impl<'a> RenderableDiffWidget<'a> {
         self.instruction_indicators = Some(indicators);
         self
     }
+
+    /// Attach reasoning annotations to inject inline before their trigger lines.
+    pub fn with_reasoning_annotations(mut self, annotations: &'a [ReasoningAnnotation]) -> Self {
+        self.reasoning_annotations = annotations;
+        self
+    }
 }
 
 impl<'a> Widget for RenderableDiffWidget<'a> {
@@ -115,6 +134,7 @@ impl<'a> Widget for RenderableDiffWidget<'a> {
             cursor_line,
             border_style,
             instruction_indicators,
+            reasoning_annotations,
         } = self;
 
         let ctx = LineRenderContext {
@@ -124,10 +144,19 @@ impl<'a> Widget for RenderableDiffWidget<'a> {
             instruction_indicators,
         };
 
+        // Build O(1) lookup: trigger_line → annotation
+        let annotation_map: HashMap<usize, &ReasoningAnnotation> = reasoning_annotations
+            .iter()
+            .map(|a| (a.trigger_line, a))
+            .collect();
+
         let mut lines: Vec<Line> = Vec::new();
 
         if show_all_context {
             for render_line in &diff.lines {
+                if let Some(ann) = annotation_map.get(&render_line.line_number) {
+                    lines.push(annotation_line(ann));
+                }
                 append_line(&mut lines, render_line, &ctx);
             }
         } else {
@@ -152,6 +181,9 @@ impl<'a> Widget for RenderableDiffWidget<'a> {
                     }
                 }
 
+                if let Some(ann) = annotation_map.get(&line.line_number) {
+                    lines.push(annotation_line(ann));
+                }
                 append_line(&mut lines, line, &ctx);
                 idx += 1;
             }
@@ -172,6 +204,30 @@ fn hidden_indicator(count: usize) -> Option<Line<'static>> {
             .fg(Color::DarkGray)
             .add_modifier(Modifier::ITALIC),
     )]))
+}
+
+fn annotation_line(ann: &ReasoningAnnotation) -> Line<'static> {
+    Line::from(vec![
+        Span::styled(
+            "  ◆ ",
+            Style::default()
+                .fg(Colors::TEXT_MUTED)
+                .add_modifier(Modifier::DIM),
+        ),
+        Span::styled(
+            ann.label.clone(),
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD | Modifier::DIM),
+        ),
+        Span::styled("  ", Style::default()),
+        Span::styled(
+            ann.reasoning.clone(),
+            Style::default()
+                .fg(Colors::TEXT_MUTED)
+                .add_modifier(Modifier::ITALIC),
+        ),
+    ])
 }
 
 fn should_hide_line(line: &RenderableLine<'_>) -> bool {

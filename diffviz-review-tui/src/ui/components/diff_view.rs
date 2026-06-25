@@ -13,7 +13,9 @@ use crate::{
     theme::{Colors, Icons, Styles},
     ui::components::{
         decision_details_panel,
-        renderable_diff_widget::{GutterBracketMap, GutterPosition, RenderableDiffWidget},
+        renderable_diff_widget::{
+            GutterBracketMap, GutterPosition, ReasoningAnnotation, RenderableDiffWidget,
+        },
     },
 };
 use diffviz_review::{engines::ReviewEngine, state::ReviewableDiff};
@@ -112,10 +114,61 @@ fn render_diff_content(
         } else {
             String::new()
         };
+
+        // Fetch decisions mapped to this diff for badge and annotation data
+        let decisions = review_engine.get_decisions_for_diff(&reviewable_diff.id);
+
+        // Append decision badge to title when reasoning is off and decisions exist
+        let decision_badge = if !ui_state.show_reasoning && !decisions.is_empty() {
+            let labels = decisions
+                .iter()
+                .map(|d| format!("D{}", d.number))
+                .collect::<Vec<_>>()
+                .join(",");
+            format!("  ◆ {labels}")
+        } else {
+            String::new()
+        };
+
         let combined_title = format!(
-            "{} ({}){}",
-            title, renderable_diff.metadata.boundary_name, cited_annotation
+            "{} ({}){}{}",
+            title, renderable_diff.metadata.boundary_name, cited_annotation, decision_badge
         );
+
+        // Build annotation vec when reasoning is on
+        let diff_start = renderable_diff.metadata.overall_line_range.start_line;
+        let annotations: Vec<ReasoningAnnotation> = if ui_state.show_reasoning {
+            decisions
+                .iter()
+                .flat_map(|decision| {
+                    decision
+                        .code_impacts
+                        .iter()
+                        .filter(|impact| impact.file == reviewable_diff.file_path)
+                        .map(|impact| {
+                            let abs_trigger = impact
+                                .line_ranges
+                                .iter()
+                                .map(|r| r.start)
+                                .min()
+                                .unwrap_or(reviewable_diff.id.line_range.start_line)
+                                .max(reviewable_diff.id.line_range.start_line);
+                            // Convert absolute file line to 1-based relative position within the
+                            // rendered diff (see doc/backlog/renderable-line-number-relative-vs-absolute.md)
+                            let trigger_line =
+                                abs_trigger.saturating_sub(diff_start).saturating_add(1);
+                            ReasoningAnnotation {
+                                trigger_line,
+                                label: format!("D{}", decision.number),
+                                reasoning: impact.reasoning.clone(),
+                            }
+                        })
+                        .collect::<Vec<_>>()
+                })
+                .collect()
+        } else {
+            vec![]
+        };
 
         // Build instruction gutter map for bracket visualization
         let instruction_map = build_instruction_gutter_map(reviewable_diff, review_engine);
@@ -133,7 +186,8 @@ fn render_diff_content(
             } else {
                 Styles::border()
             })
-            .with_instruction_indicators(&instruction_map);
+            .with_instruction_indicators(&instruction_map)
+            .with_reasoning_annotations(&annotations);
 
         // Render the RenderableDiffWidget directly (it has its own border)
         f.render_widget(widget, area);

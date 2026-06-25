@@ -129,7 +129,10 @@ fn space_tr_toggles_reasoning_off_again() {
 #[test]
 fn title_badge_shown_when_reasoning_off_and_decisions_exist() {
     let engine = create_test_engine_with_decisions();
-    let mut harness = CombinedTestHarness::new(engine);
+    // Use 160×40 so the full title (file + boundary name + badge) is not truncated.
+    // At 80×24 the diff panel is only ~58 chars wide — too narrow for the long
+    // boundary name AND the badge to both fit in the title bar.
+    let mut harness = CombinedTestHarness::with_render_size(engine, 160, 40);
 
     // Navigate to depth 1: expand Decision 1 (<Tab>), move to its first chunk (j)
     let results = harness
@@ -157,10 +160,13 @@ fn title_badge_hidden_when_reasoning_on() {
         .expect("Navigate to chunk and enable reasoning");
     let visual = results.last().expect("Should have results").visual.clone();
 
-    // show_reasoning is true → badge should be hidden (annotations shown instead)
+    // Check only the first visual row (the title/border line) — annotation body
+    // lines also contain "◆ D1", so checking the full visual would be a false
+    // negative once annotations are rendered in the diff body.
+    let title_line = visual.lines().next().unwrap_or("");
     assert!(
-        !visual.contains("◆ D"),
-        "Title badge '◆ D' should be hidden when show_reasoning=true.\nVisual output:\n{visual}"
+        !title_line.contains("◆ D"),
+        "Title badge '◆ D' should be hidden in title when show_reasoning=true.\nTitle line:\n{title_line}"
     );
 }
 
@@ -176,7 +182,9 @@ fn title_badge_hidden_when_reasoning_on() {
 #[test]
 fn annotation_lines_appear_when_reasoning_on() {
     let engine = create_test_engine_with_decisions();
-    let mut harness = CombinedTestHarness::new(engine);
+    // Use 120×40 so the 79-char DECISION_REASONING fits without wrapping
+    // (at default 80×24 the diff panel inner area is ~58 chars — too narrow)
+    let mut harness = CombinedTestHarness::with_render_size(engine, 120, 40);
 
     // Navigate to depth 1 then toggle reasoning on
     let results = harness
@@ -217,7 +225,8 @@ fn annotation_lines_absent_when_reasoning_off() {
 #[test]
 fn annotation_appears_at_correct_position() {
     let engine = create_test_engine_with_decisions();
-    let mut harness = CombinedTestHarness::new(engine);
+    // Use 120×40 so the 79-char DECISION_REASONING fits without wrapping
+    let mut harness = CombinedTestHarness::with_render_size(engine, 120, 40);
 
     let results = harness
         .run_sequence_with_renders("<Tab>j<Space>tr")
