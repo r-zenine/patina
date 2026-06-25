@@ -208,23 +208,18 @@ fn hidden_indicator(count: usize) -> Option<Line<'static>> {
 
 fn annotation_line(ann: &ReasoningAnnotation) -> Line<'static> {
     Line::from(vec![
-        Span::styled(
-            "  ◆ ",
-            Style::default()
-                .fg(Colors::TEXT_MUTED)
-                .add_modifier(Modifier::DIM),
-        ),
+        Span::styled("  \u{25c6} ", Style::default().fg(Colors::ACCENT_1)),
         Span::styled(
             ann.label.clone(),
             Style::default()
-                .fg(Color::Cyan)
-                .add_modifier(Modifier::BOLD | Modifier::DIM),
+                .fg(Colors::ACCENT_1)
+                .add_modifier(Modifier::BOLD),
         ),
         Span::styled("  ", Style::default()),
         Span::styled(
             ann.reasoning.clone(),
             Style::default()
-                .fg(Colors::TEXT_MUTED)
+                .fg(Colors::TEXT_SECONDARY)
                 .add_modifier(Modifier::ITALIC),
         ),
     ])
