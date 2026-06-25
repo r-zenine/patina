@@ -1,0 +1,67 @@
+commit: f19686c
+decisions:
+  - number: 1
+    title: TUI-side coordinate conversion — no domain changes to diffviz-core
+    rationale: |
+      RenderableLine.line_number is relative (1-based from the boundary start), while
+      CodeImpact.line_ranges use absolute file line numbers. Option A (fix in diffviz-core)
+      was deferred to keep zero domain changes in this feature plan. The TUI layer applies
+      the offset formula: relative = absolute.saturating_sub(diff_start).saturating_add(1)
+      where diff_start = renderable_diff.metadata.overall_line_range.start_line.
+    code_impacts:
+      - reasoning: Builds Vec<ReasoningAnnotation> with offset-converted trigger_line values
+        file: diffviz-review-tui/src/ui/components/diff_view.rs
+        line_ranges:
+          - start: 139
+            end: 171
+
+  - number: 2
+    title: Annotation struct and widget builder kept in renderable_diff_widget.rs (not diff_view.rs)
+    rationale: |
+      ReasoningAnnotation and with_reasoning_annotations() live in the widget module so the
+      widget is self-contained and reusable. The TUI coordinate conversion stays in diff_view.rs
+      which owns the domain data needed for it (ReviewEngine, RenderableDiff metadata).
+    code_impacts:
+      - reasoning: ReasoningAnnotation struct, widget field, builder method, render loop injection, annotation_line() helper
+        file: diffviz-review-tui/src/ui/components/renderable_diff_widget.rs
+        line_ranges:
+          - start: 13
+            end: 21
+          - start: 118
+            end: 122
+          - start: 147
+            end: 193
+          - start: 209
+            end: 234
+
+  - number: 3
+    title: O(1) HashMap lookup for annotation injection — not linear scan
+    rationale: |
+      Each line render checks for an annotation via a HashMap keyed by trigger_line,
+      avoiding O(n*m) complexity for diffs with many lines and decisions. Built once
+      before the render loop and shared across both show_all_context paths.
+    code_impacts:
+      - reasoning: annotation_map built once, used in both render branches
+        file: diffviz-review-tui/src/ui/components/renderable_diff_widget.rs
+        line_ranges:
+          - start: 147
+            end: 193
+
+  - number: 4
+    title: Tests widened to 120×40 / 160×40 where default 80×24 truncates title or wraps annotation
+    rationale: |
+      At 80×24 the diff panel inner area is ~58 chars. The DECISION_REASONING string is
+      79 chars so it wraps across rows and cannot be found by visual.contains(). The title
+      badge also gets truncated when the boundary name is long. Using with_render_size() in
+      those specific tests is the correct fix — it matches what a real terminal wide enough
+      for the feature would show, without changing the feature contract.
+    code_impacts:
+      - reasoning: Four visual tests now use with_render_size instead of new()
+        file: diffviz-review-tui/tests/reasoning_annotation_tests.rs
+        line_ranges:
+          - start: 132
+            end: 145
+          - start: 177
+            end: 191
+          - start: 219
+            end: 224
