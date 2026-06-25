@@ -327,6 +327,11 @@ fn handle_ui_event_impl(
             ui_state.deactivate_leader();
         }
 
+        UiEvent::ToggleReasoning => {
+            ui_state.toggle_reasoning();
+            ui_state.deactivate_leader();
+        }
+
         UiEvent::ActivateLeader => {
             ui_state.activate_leader();
         }

@@ -76,6 +76,9 @@ pub struct UiState {
     /// Whether to show instructions overlay
     pub show_instructions: bool,
 
+    /// Whether to show inline reasoning annotations in the diff view
+    pub show_reasoning: bool,
+
     /// Leader key state tracking
     pub leader_active: bool,
     pub leader_pressed_at: Option<Instant>,
@@ -103,6 +106,7 @@ impl Default for UiState {
             selection_anchor: None,
             selection_range: None,
             show_instructions: false,
+            show_reasoning: false,
             leader_active: false,
             leader_pressed_at: None,
             leader_submenu: None,
@@ -312,6 +316,11 @@ impl UiState {
     /// Toggle instructions visibility
     pub fn toggle_instructions(&mut self) {
         self.show_instructions = !self.show_instructions;
+    }
+
+    /// Toggle inline reasoning annotations visibility
+    pub fn toggle_reasoning(&mut self) {
+        self.show_reasoning = !self.show_reasoning;
     }
 
     /// Toggle range selection - cycles through states (vim-like visual select)

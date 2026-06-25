@@ -63,6 +63,9 @@ pub enum UiEvent {
     // Instructions visibility
     ToggleInstructions,
 
+    // Inline reasoning annotations visibility
+    ToggleReasoning,
+
     // Decision tree expansion
     ToggleDecisionExpansion,
 
@@ -287,6 +290,7 @@ fn handle_leader_keys(key: KeyEvent, submenu: Option<char>) -> Option<UiEvent> {
         // Toggles submenu (Space + t + ?)
         (Some('t'), KeyCode::Char('s')) => Some(UiEvent::ToggleSemanticHighlight),
         (Some('t'), KeyCode::Char('c')) => Some(UiEvent::ToggleContextDisplay),
+        (Some('t'), KeyCode::Char('r')) => Some(UiEvent::ToggleReasoning),
 
         // Cancel leader mode
         (_, KeyCode::Esc) => Some(UiEvent::DeactivateLeader),

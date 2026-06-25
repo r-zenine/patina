@@ -48,6 +48,9 @@ pub struct StateSnapshot {
     /// Whether to show instructions
     pub show_instructions: bool,
 
+    /// Whether to show inline reasoning annotations
+    pub show_reasoning: bool,
+
     /// Selection anchor (if active)
     pub selection_anchor: Option<usize>,
 
@@ -82,6 +85,7 @@ impl StateSnapshot {
             leader_submenu: ui_state.leader_submenu,
             show_help: ui_state.show_help,
             show_instructions: ui_state.show_instructions,
+            show_reasoning: ui_state.show_reasoning,
             selection_anchor: ui_state.selection_anchor,
             selection_range: ui_state.selection_range,
             decision_tree_path: (
@@ -122,6 +126,7 @@ mod tests {
             leader_submenu: None,
             show_help: false,
             show_instructions: false,
+            show_reasoning: false,
             selection_anchor: None,
             selection_range: None,
             decision_tree_path: (0, None),

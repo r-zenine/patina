@@ -16,7 +16,9 @@
 #![cfg(feature = "test-harness")]
 
 use diffviz_review::providers::mock_provider::MockDiffProvider;
-use diffviz_review::{CodeImpact, Decision, DecisionLineRange, DiffQuery, GitRef, ReviewEngineBuilder};
+use diffviz_review::{
+    CodeImpact, Decision, DecisionLineRange, DiffQuery, GitRef, ReviewEngineBuilder,
+};
 use diffviz_review_tui::test_harness::{CombinedTestHarness, InputTestHarness};
 
 /// Reasoning text that is unique and cannot appear in the fixture source code
@@ -73,9 +75,7 @@ fn show_reasoning_defaults_to_false() {
     let engine = create_test_engine_with_decisions();
     let mut harness = InputTestHarness::new(engine);
 
-    let state = harness
-        .run_sequence_final_state("")
-        .expect("Initial state");
+    let state = harness.run_sequence_final_state("").expect("Initial state");
 
     assert!(
         !state.show_reasoning,
