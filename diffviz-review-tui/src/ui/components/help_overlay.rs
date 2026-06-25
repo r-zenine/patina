@@ -73,6 +73,7 @@ fn create_help_content() -> Vec<Line<'static>> {
         Line::from(""),
         create_help_line("Space t s", "Toggle semantic highlighting"),
         create_help_line("Space t c", "Toggle context folding"),
+        create_help_line("Space t r", "Toggle reasoning annotations"),
         Line::from(""),
         create_help_line("Space e a", "Export all"),
         Line::from(""),

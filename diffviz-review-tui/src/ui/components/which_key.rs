@@ -114,6 +114,7 @@ fn create_toggles_submenu() -> Vec<Line<'static>> {
         create_compact_line(vec![
             ("s", "Semantic highlighting"),
             ("c", "Context folding"),
+            ("r", "Reasoning annotations"),
         ]),
         Line::from(""),
         Line::from(vec![
