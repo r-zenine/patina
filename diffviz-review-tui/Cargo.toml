@@ -5,8 +5,8 @@ edition = "2024"
 description = "Clean TUI for code review built on ReviewEngine architecture"
 
 [dependencies]
-ratatui = "0.28"
-crossterm = "0.28"
+ratatui = { workspace = true }
+crossterm = { workspace = true }
 tui-harness = { path = "../tui-harness" }
 anyhow = { workspace = true }
 thiserror = { workspace = true }

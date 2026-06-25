@@ -113,13 +113,15 @@ impl ReviewEngine {
             .instructions
             .iter()
             .flat_map(|(decision_number, instructions)| {
-                instructions.iter().map(move |inst| ExportedDecisionInstruction {
-                    decision_number: *decision_number,
-                    content: inst.content.clone(),
-                    author: inst.author.clone(),
-                    timestamp: inst.timestamp.clone(),
-                    status: inst.status.clone(),
-                })
+                instructions
+                    .iter()
+                    .map(move |inst| ExportedDecisionInstruction {
+                        decision_number: *decision_number,
+                        content: inst.content.clone(),
+                        author: inst.author.clone(),
+                        timestamp: inst.timestamp.clone(),
+                        status: inst.status.clone(),
+                    })
             })
             .collect();
 

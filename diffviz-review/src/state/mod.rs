@@ -54,7 +54,11 @@ impl ReviewableDiff {
 
     /// Record a cited range, skipping duplicates.
     pub fn add_cited_range(&mut self, start: usize, end: usize) {
-        if !self.cited_ranges.iter().any(|&(s, e)| s == start && e == end) {
+        if !self
+            .cited_ranges
+            .iter()
+            .any(|&(s, e)| s == start && e == end)
+        {
             self.cited_ranges.push((start, end));
         }
     }

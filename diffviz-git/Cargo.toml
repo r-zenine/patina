@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 diffviz-review = { path = "../diffviz-review" }
 diffviz-core = { path = "../diffviz-core" }
-git2 = "0.18"
+git2 = "0.20"
 thiserror = { workspace = true }
 serde = { workspace = true }
 log = { workspace = true }

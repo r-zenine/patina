@@ -149,12 +149,12 @@ pub fn render(
         && let Some(instructions) = review_engine.get_decision_instructions(decision_number)
         && !instructions.is_empty()
     {
-            lines.push(Line::from("")); // Spacer
-            lines.push(Line::from(vec![Span::styled(
-                format!("Instructions ({}):", instructions.len()),
-                Styles::warning().add_modifier(Modifier::BOLD),
-            )]));
-            lines.push(Line::from("")); // Spacer
+        lines.push(Line::from("")); // Spacer
+        lines.push(Line::from(vec![Span::styled(
+            format!("Instructions ({}):", instructions.len()),
+            Styles::warning().add_modifier(Modifier::BOLD),
+        )]));
+        lines.push(Line::from("")); // Spacer
 
         for instruction in &instructions {
             lines.push(Line::from(vec![
