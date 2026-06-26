@@ -3,12 +3,12 @@
 //! This module is inspired by the formatter in diffviz-core/examples/formatter.rs
 //! but adapted for ratatui display instead of terminal ANSI output.
 
-use crate::theme::Styles;
 use diffviz_core::{renderable_diff::RenderableDiff, reviewable_diff::ReviewableDiff};
 use ratatui::{
     style::Style,
     text::{Line, Span},
 };
+use tui_design::{Theme, stylesheet};
 
 /// Formatted diff ready for TUI display
 #[derive(Debug, Clone)]
@@ -121,19 +121,22 @@ impl TuiDiffFormatter {
             diff.metadata.total_changes
         );
 
-        Line::from(vec![Span::styled(content, Styles::info())])
+        let theme = Theme::mocha();
+        Line::from(vec![Span::styled(content, stylesheet::info(&theme))])
     }
 
     /// Create separator line
     fn create_separator_line(&self) -> Line<'static> {
         let separator = "─".repeat(60);
-        Line::from(vec![Span::styled(separator, Styles::border())])
+        let theme = Theme::mocha();
+        Line::from(vec![Span::styled(separator, stylesheet::border(&theme))])
     }
 
     /// Create indicator for hidden lines
     fn create_hidden_lines_indicator(&self, count: usize) -> Line<'static> {
         let content = format!("  ... {count} lines hidden ...");
-        Line::from(vec![Span::styled(content, Styles::muted())])
+        let theme = Theme::mocha();
+        Line::from(vec![Span::styled(content, stylesheet::muted(&theme))])
     }
 
     /// Format a single diff line

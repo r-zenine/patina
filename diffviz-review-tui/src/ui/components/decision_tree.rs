@@ -6,19 +6,19 @@
 use ratatui::{
     Frame,
     layout::Rect,
-    style::{Color, Modifier, Style},
+    style::Modifier,
     text::{Line, Span},
     widgets::{Block, Borders, List, ListItem},
 };
+use tui_design::{Icons, Theme, stylesheet};
 
 use crate::decision_navigation::FlattenedNodeKind;
 use crate::state::UiState;
-use crate::theme::Icons;
 use diffviz_review::engines::ReviewEngine;
 
 /// Render the decision tree as the primary navigation view
 pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &ReviewEngine) {
-    // Flatten the tree for rendering
+    let theme = Theme::mocha();
     let flattened = ui_state.decision_tree.flatten();
 
     if flattened.is_empty() {
@@ -27,50 +27,44 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &Rev
         return;
     }
 
-    // Build list items from flattened nodes
     let mut items = Vec::new();
     for node in &flattened {
         let is_selected = node.path == ui_state.decision_tree.selected_path;
 
         let item_line = match &node.kind {
             FlattenedNodeKind::Decision { number, expanded } => {
-                build_decision_item(*number, *expanded, is_selected, review_engine, area.width)
+                build_decision_item(*number, *expanded, is_selected, review_engine, area.width, &theme)
             }
             FlattenedNodeKind::Chunk {
                 decision_num: _,
                 chunk_id,
                 display_name,
-            } => build_chunk_item(chunk_id, display_name, is_selected, review_engine),
+            } => build_chunk_item(chunk_id, display_name, is_selected, review_engine, &theme),
         };
 
         items.push(ListItem::new(item_line));
     }
 
-    // Create the list widget
     let list = List::new(items)
         .block(Block::default().title(" Decisions ").borders(Borders::ALL))
-        .style(Style::default().fg(Color::White));
+        .style(stylesheet::body(&theme));
 
     f.render_widget(list, area);
 }
 
-/// Build a line for a decision tree node
 fn build_decision_item<'a>(
     decision_num: u32,
     expanded: bool,
     is_selected: bool,
     review_engine: &'a ReviewEngine,
     area_width: u16,
+    theme: &Theme,
 ) -> Line<'a> {
     let decision = review_engine.get_decision(decision_num).unwrap();
 
-    // Expansion indicator
     let expand_indicator = if expanded { "▼" } else { "▶" };
-
-    // Decision indicator (► for selected, space for unselected)
     let selection_indicator = if is_selected { "►" } else { " " };
 
-    // Approval status
     let is_approved = review_engine.is_decision_approved(decision_num);
     let approval_icon = if is_approved {
         Icons::APPROVED
@@ -78,20 +72,16 @@ fn build_decision_item<'a>(
         Icons::NOT_APPROVED
     };
 
-    // Decision number and title
     let number_and_title = format!("{}. {}", decision.number, decision.title);
 
-    // Progress indicator: approved/total chunks
     let (approved_count, total_count) = review_engine
         .state()
         .decision_approval_progress(decision_num);
     let progress_str = format!("({approved_count}/{total_count})");
 
-    // Code impact count
     let impact_count = decision.code_impacts.len();
     let count_str = format!("[{impact_count}]");
 
-    // Instruction count badge
     let instruction_count = review_engine
         .get_decision_instructions(decision_num)
         .map_or(0, |v| v.len());
@@ -102,38 +92,31 @@ fn build_decision_item<'a>(
     };
 
     let line_content = if is_selected {
-        // Highlight selected decision with inverted colors
-        let approval_color = if is_approved {
-            Color::Green
+        let approval_style = if is_approved {
+            stylesheet::success(theme)
         } else {
-            Color::DarkGray
+            stylesheet::muted(theme)
         };
+        let sel_bg = theme.surface[2];
         vec![
             Span::styled(
                 selection_indicator,
-                Style::default()
-                    .fg(Color::Cyan)
-                    .add_modifier(Modifier::BOLD),
+                stylesheet::keybind_key(theme).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 format!(" {expand_indicator} "),
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .fg(Color::Yellow)
+                stylesheet::warning(theme)
+                    .bg(sel_bg)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 format!("{approval_icon} "),
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .fg(approval_color)
-                    .add_modifier(Modifier::BOLD),
+                approval_style.bg(sel_bg).add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 number_and_title.clone(),
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .fg(Color::White)
+                stylesheet::body(theme)
+                    .bg(sel_bg)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
@@ -147,27 +130,24 @@ fn build_decision_item<'a>(
                         + count_str.len()
                         + 2,
                 )),
-                Style::default().bg(Color::DarkGray),
+                stylesheet::body(theme).bg(sel_bg),
             ),
             Span::styled(
                 format!("{progress_str} "),
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .fg(Color::Magenta)
+                stylesheet::muted(theme)
+                    .bg(sel_bg)
                     .add_modifier(Modifier::DIM),
             ),
             Span::styled(
                 count_str,
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .fg(Color::Cyan)
+                stylesheet::info(theme)
+                    .bg(sel_bg)
                     .add_modifier(Modifier::DIM),
             ),
             Span::styled(
                 instruction_badge,
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .fg(Color::Yellow)
+                stylesheet::warning(theme)
+                    .bg(sel_bg)
                     .add_modifier(Modifier::BOLD),
             ),
         ]
@@ -176,39 +156,38 @@ fn build_decision_item<'a>(
             Span::raw(format!("{selection_indicator} {expand_indicator} ")),
             Span::styled(
                 format!("{approval_icon} "),
-                Style::default().fg(if is_approved {
-                    Color::Green
+                if is_approved {
+                    stylesheet::success(theme)
                 } else {
-                    Color::DarkGray
-                }),
+                    stylesheet::muted(theme)
+                },
             ),
             Span::raw(number_and_title),
             Span::styled(
                 format!(" {progress_str} "),
-                Style::default().fg(Color::DarkGray),
+                stylesheet::muted(theme),
             ),
             Span::styled(
                 format!(" {count_str}"),
-                Style::default().fg(Color::DarkGray),
+                stylesheet::muted(theme),
             ),
-            Span::styled(instruction_badge, Style::default().fg(Color::Yellow)),
+            Span::styled(instruction_badge, stylesheet::warning(theme)),
         ]
     };
 
     Line::from(line_content)
 }
 
-/// Build a line for a chunk tree node
 fn build_chunk_item(
     chunk_id: &diffviz_review::ReviewableDiffId,
     display_name: &str,
     is_selected: bool,
     review_engine: &ReviewEngine,
+    theme: &Theme,
 ) -> Line<'static> {
     let selection_indicator = if is_selected { "►" } else { " " };
     let indent = "  ";
 
-    // Approval status
     let is_approved = review_engine.state().is_approved(chunk_id);
     let approval_icon = if is_approved {
         Icons::APPROVED
@@ -216,7 +195,6 @@ fn build_chunk_item(
         Icons::NOT_APPROVED
     };
 
-    // Instruction count indicator
     let instruction_count = review_engine
         .state()
         .get_instructions(chunk_id)
@@ -228,37 +206,34 @@ fn build_chunk_item(
     };
 
     let line_content = if is_selected {
+        let sel_bg = theme.surface[2];
         vec![
             Span::styled(
                 format!("{selection_indicator}{indent}"),
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .fg(Color::White)
+                stylesheet::body(theme)
+                    .bg(sel_bg)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 format!("{approval_icon} "),
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .fg(if is_approved {
-                        Color::Green
-                    } else {
-                        Color::DarkGray
-                    })
-                    .add_modifier(Modifier::BOLD),
+                if is_approved {
+                    stylesheet::success(theme)
+                } else {
+                    stylesheet::muted(theme)
+                }
+                .bg(sel_bg)
+                .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 display_name.to_string(),
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .fg(Color::White)
+                stylesheet::body(theme)
+                    .bg(sel_bg)
                     .add_modifier(Modifier::BOLD),
             ),
             Span::styled(
                 instruction_badge,
-                Style::default()
-                    .bg(Color::DarkGray)
-                    .fg(Color::Yellow)
+                stylesheet::warning(theme)
+                    .bg(sel_bg)
                     .add_modifier(Modifier::BOLD),
             ),
         ]
@@ -267,14 +242,14 @@ fn build_chunk_item(
             Span::raw(format!("{selection_indicator}{indent}")),
             Span::styled(
                 format!("{approval_icon} "),
-                Style::default().fg(if is_approved {
-                    Color::Green
+                if is_approved {
+                    stylesheet::success(theme)
                 } else {
-                    Color::DarkGray
-                }),
+                    stylesheet::muted(theme)
+                },
             ),
             Span::raw(display_name.to_string()),
-            Span::styled(instruction_badge, Style::default().fg(Color::Yellow)),
+            Span::styled(instruction_badge, stylesheet::warning(theme)),
         ]
     };
 

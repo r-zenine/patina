@@ -5,28 +5,30 @@
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Modifier, Style},
+    style::Modifier,
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph, Wrap},
 };
+use tui_design::{Theme, stylesheet};
 
-use crate::{state::UiState, theme::Colors};
+use crate::state::UiState;
 
 pub fn render(f: &mut Frame, ui_state: &UiState) {
     if !ui_state.show_help {
         return;
     }
 
+    let theme = Theme::mocha();
     let area = centered_popup(f.area(), 80, 80);
 
     f.render_widget(Clear, area);
 
-    let content = create_help_content();
+    let content = create_help_content(&theme);
 
     let block = Block::default()
         .borders(Borders::ALL)
         .title("Keybindings Help (? to close)")
-        .border_style(Style::default().fg(Colors::CYAN));
+        .border_style(stylesheet::border_focused(&theme));
 
     let paragraph = Paragraph::new(content)
         .block(block)
@@ -35,70 +37,68 @@ pub fn render(f: &mut Frame, ui_state: &UiState) {
     f.render_widget(paragraph, area);
 }
 
-fn create_help_content() -> Vec<Line<'static>> {
+fn create_help_content(theme: &Theme) -> Vec<Line<'static>> {
     vec![
         Line::from(""),
-        create_section_header("DECISION TREE NAVIGATION"),
-        create_help_line("j/k or ↓/↑", "Navigate decisions in tree"),
-        create_help_line("Tab", "Expand/collapse selected decision"),
-        create_help_line("Enter", "Expand decision or drill into files"),
+        create_section_header("DECISION TREE NAVIGATION", theme),
+        create_help_line("j/k or ↓/↑", "Navigate decisions in tree", theme),
+        create_help_line("Tab", "Expand/collapse selected decision", theme),
+        create_help_line("Enter", "Expand decision or drill into files", theme),
         Line::from(""),
-        create_section_header("PANE NAVIGATION"),
-        create_help_line("← (left)", "Focus left pane (decision tree)"),
-        create_help_line("→ (right)", "Focus right pane (code view)"),
-        create_help_line("h/l", "Same as arrow keys (vim-style)"),
+        create_section_header("PANE NAVIGATION", theme),
+        create_help_line("← (left)", "Focus left pane (decision tree)", theme),
+        create_help_line("→ (right)", "Focus right pane (code view)", theme),
+        create_help_line("h/l", "Same as arrow keys (vim-style)", theme),
         Line::from(""),
-        create_section_header("SCROLLING & NAVIGATION"),
-        create_help_line("g/G", "Jump to top/bottom of list"),
-        create_help_line("Ctrl+u/Ctrl+d", "Page up/down"),
-        create_help_line("PageUp/PageDown", "Page up/down"),
-        create_help_line("Ctrl+j/k", "Scroll inactive panel"),
+        create_section_header("SCROLLING & NAVIGATION", theme),
+        create_help_line("g/G", "Jump to top/bottom of list", theme),
+        create_help_line("Ctrl+u/Ctrl+d", "Page up/down", theme),
+        create_help_line("PageUp/PageDown", "Page up/down", theme),
+        create_help_line("Ctrl+j/k", "Scroll inactive panel", theme),
         Line::from(""),
-        create_section_header("VISUAL & SELECTION"),
-        create_help_line("v", "Toggle visual selection mode"),
+        create_section_header("VISUAL & SELECTION", theme),
+        create_help_line("v", "Toggle visual selection mode", theme),
         Line::from(""),
-        create_section_header("DECISION CONTEXT"),
-        create_help_line("Space d", "Show decision modal"),
+        create_section_header("DECISION CONTEXT", theme),
+        create_help_line("Space d", "Show decision modal", theme),
         Line::from(""),
-        create_section_header("REVIEW ACTIONS (Space + key)"),
-        create_help_line("Space a a", "Toggle approve current diff"),
-        create_help_line("Space a f", "Approve all diffs in file"),
+        create_section_header("REVIEW ACTIONS (Space + key)", theme),
+        create_help_line("Space a a", "Toggle approve current diff", theme),
+        create_help_line("Space a f", "Approve all diffs in file", theme),
         Line::from(""),
-        create_help_line("Space c c", "Add comment"),
-        create_help_line("Space c t", "Toggle comments overlay"),
+        create_help_line("Space c c", "Add comment", theme),
+        create_help_line("Space c t", "Toggle comments overlay", theme),
         Line::from(""),
-        create_help_line("Space i i", "Add instruction"),
-        create_help_line("Space i t", "Toggle instructions overlay"),
-        create_help_line("Space i e", "Edit instruction"),
+        create_help_line("Space i i", "Add instruction", theme),
+        create_help_line("Space i t", "Toggle instructions overlay", theme),
+        create_help_line("Space i e", "Edit instruction", theme),
         Line::from(""),
-        create_help_line("Space t s", "Toggle semantic highlighting"),
-        create_help_line("Space t c", "Toggle context folding"),
-        create_help_line("Space t r", "Toggle reasoning annotations"),
+        create_help_line("Space t s", "Toggle semantic highlighting", theme),
+        create_help_line("Space t c", "Toggle context folding", theme),
+        create_help_line("Space t r", "Toggle reasoning annotations", theme),
         Line::from(""),
-        create_help_line("Space e a", "Export all"),
+        create_help_line("Space e a", "Export all", theme),
         Line::from(""),
-        create_section_header("UTILITY"),
-        create_help_line("?", "Toggle this help overlay"),
-        create_help_line("q", "Quit application"),
-        create_help_line("Esc", "Cancel / close overlay"),
+        create_section_header("UTILITY", theme),
+        create_help_line("?", "Toggle this help overlay", theme),
+        create_help_line("q", "Quit application", theme),
+        create_help_line("Esc", "Cancel / close overlay", theme),
         Line::from(""),
     ]
 }
 
-fn create_section_header(text: &str) -> Line<'static> {
+fn create_section_header(text: &str, theme: &Theme) -> Line<'static> {
     Line::from(vec![Span::styled(
         format!("  {text}"),
-        Style::default()
-            .fg(Colors::CYAN)
-            .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        stylesheet::keybind_key(theme).add_modifier(Modifier::UNDERLINED),
     )])
 }
 
-fn create_help_line(keys: &str, description: &str) -> Line<'static> {
+fn create_help_line(keys: &str, description: &str, theme: &Theme) -> Line<'static> {
     Line::from(vec![
-        Span::styled("    ", Style::default()),
-        Span::styled(format!("{keys:<20}"), Style::default().fg(Colors::YELLOW)),
-        Span::styled(description.to_string(), Style::default().fg(Colors::WHITE)),
+        Span::raw("    "),
+        Span::styled(format!("{keys:<20}"), stylesheet::warning(theme)),
+        Span::styled(description.to_string(), stylesheet::body(theme)),
     ])
 }
 

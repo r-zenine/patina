@@ -1,4 +1,3 @@
-use crate::theme::Colors;
 use diffviz_core::renderable_diff::{ChangeType, RenderableDiff, RenderableLine};
 use ratatui::{
     layout::Rect,
@@ -8,6 +7,7 @@ use ratatui::{
     widgets::{Block, Borders, Paragraph, Widget, Wrap},
 };
 use std::collections::HashMap;
+use tui_design::{Theme, stylesheet};
 
 /// An inline reasoning annotation to inject before a specific diff line
 pub struct ReasoningAnnotation {
@@ -53,6 +53,7 @@ pub struct RenderableDiffWidget<'a> {
 impl<'a> RenderableDiffWidget<'a> {
     /// Create a new widget bound to the provided renderable diff.
     pub fn new(diff: &'a RenderableDiff<'a>) -> Self {
+        let theme = Theme::mocha();
         Self {
             diff,
             show_all_context: true,
@@ -61,61 +62,52 @@ impl<'a> RenderableDiffWidget<'a> {
             scroll_offset: 0,
             selection_range: None,
             cursor_line: None,
-            border_style: Style::default().fg(Color::Gray),
+            border_style: stylesheet::border(&theme),
             instruction_indicators: None,
             reasoning_annotations: &[],
         }
     }
 
-    /// Set the border style for the widget.
     pub fn with_border_style(mut self, style: Style) -> Self {
         self.border_style = style;
         self
     }
 
-    /// Toggle whether background context lines are shown or folded.
     pub fn with_context(mut self, show_all: bool) -> Self {
         self.show_all_context = show_all;
         self
     }
 
-    /// Toggle whether semantic anchors should be rendered next to the content.
     pub fn highlight_semantics(mut self, highlight: bool) -> Self {
         self.highlight_semantics = highlight;
         self
     }
 
-    /// Override the block title.
     pub fn with_title(mut self, title: impl Into<String>) -> Self {
         self.title = Some(title.into());
         self
     }
 
-    /// Set the scroll offset (number of rows to skip from the top).
     pub fn with_scroll_offset(mut self, offset: usize) -> Self {
         self.scroll_offset = offset;
         self
     }
 
-    /// Provide a selected line range highlighted in the view.
     pub fn with_selection(mut self, range: Option<(usize, usize)>) -> Self {
         self.selection_range = range;
         self
     }
 
-    /// Provide the current cursor line (1-based) to emphasize.
     pub fn with_cursor_line(mut self, cursor_line: Option<usize>) -> Self {
         self.cursor_line = cursor_line;
         self
     }
 
-    /// Attach instruction indicators for rendering gutter brackets.
     pub fn with_instruction_indicators(mut self, indicators: &'a GutterBracketMap) -> Self {
         self.instruction_indicators = Some(indicators);
         self
     }
 
-    /// Attach reasoning annotations to inject inline before their trigger lines.
     pub fn with_reasoning_annotations(mut self, annotations: &'a [ReasoningAnnotation]) -> Self {
         self.reasoning_annotations = annotations;
         self
@@ -137,6 +129,8 @@ impl<'a> Widget for RenderableDiffWidget<'a> {
             reasoning_annotations,
         } = self;
 
+        let theme = Theme::mocha();
+
         let ctx = LineRenderContext {
             highlight_semantics,
             selection_range,
@@ -144,7 +138,6 @@ impl<'a> Widget for RenderableDiffWidget<'a> {
             instruction_indicators,
         };
 
-        // Build O(1) lookup: trigger_line → annotation
         let annotation_map: HashMap<usize, &ReasoningAnnotation> = reasoning_annotations
             .iter()
             .map(|a| (a.trigger_line, a))
@@ -155,9 +148,9 @@ impl<'a> Widget for RenderableDiffWidget<'a> {
         if show_all_context {
             for render_line in &diff.lines {
                 if let Some(ann) = annotation_map.get(&render_line.line_number) {
-                    lines.push(annotation_line(ann));
+                    lines.push(annotation_line(ann, &theme));
                 }
-                append_line(&mut lines, render_line, &ctx);
+                append_line(&mut lines, render_line, &ctx, &theme);
             }
         } else {
             let mut idx = 0;
@@ -182,9 +175,9 @@ impl<'a> Widget for RenderableDiffWidget<'a> {
                 }
 
                 if let Some(ann) = annotation_map.get(&line.line_number) {
-                    lines.push(annotation_line(ann));
+                    lines.push(annotation_line(ann, &theme));
                 }
-                append_line(&mut lines, line, &ctx);
+                append_line(&mut lines, line, &ctx, &theme);
                 idx += 1;
             }
         }
@@ -206,39 +199,31 @@ fn hidden_indicator(count: usize) -> Option<Line<'static>> {
     )]))
 }
 
-fn annotation_line(ann: &ReasoningAnnotation) -> Line<'static> {
+fn annotation_line(ann: &ReasoningAnnotation, theme: &Theme) -> Line<'static> {
     Line::from(vec![
-        Span::styled("  \u{25c6} ", Style::default().fg(Colors::ACCENT_1)),
+        Span::styled("  \u{25c6} ", Style::default().fg(theme.accents.mauve)),
         Span::styled(
             ann.label.clone(),
             Style::default()
-                .fg(Colors::ACCENT_1)
+                .fg(theme.accents.mauve)
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled("  ", Style::default()),
         Span::styled(
             ann.reasoning.clone(),
-            Style::default()
-                .fg(Colors::TEXT_SECONDARY)
-                .add_modifier(Modifier::ITALIC),
+            stylesheet::metadata(theme),
         ),
     ])
 }
 
 fn should_hide_line(line: &RenderableLine<'_>) -> bool {
-    if line.should_fold() {
-        return true;
-    }
-
-    false
+    line.should_fold()
 }
 
-/// Renders the gutter bracket based on the instruction position
 fn render_gutter_bracket(_position: GutterPosition) -> &'static str {
     "  "
 }
 
-/// Context for rendering a single line
 struct LineRenderContext<'a> {
     highlight_semantics: bool,
     selection_range: Option<(usize, usize)>,
@@ -252,6 +237,7 @@ fn line_to_spans(
     selection_range: Option<(usize, usize)>,
     cursor_line: Option<usize>,
     instruction_indicators: Option<&GutterBracketMap>,
+    theme: &Theme,
 ) -> Line<'static> {
     let change = line.primary_change_type().cloned();
     let is_context_line = should_hide_line(line);
@@ -260,7 +246,6 @@ fn line_to_spans(
         .map(|(start, end)| line.line_number >= start && line.line_number <= end)
         .unwrap_or(false);
 
-    // Get gutter position for instruction brackets
     let gutter_position = instruction_indicators
         .and_then(|map| map.get(&line.line_number).copied())
         .unwrap_or(GutterPosition::None);
@@ -274,36 +259,31 @@ fn line_to_spans(
     };
     let mut spans = Vec::with_capacity(8);
 
-    // Gutter bracket (2 chars)
     let bracket_text = render_gutter_bracket(gutter_position);
-    let bracket_style = Style::default().fg(Color::Cyan).bg(Color::Reset);
-    spans.push(Span::styled(bracket_text, bracket_style));
+    spans.push(Span::styled(
+        bracket_text,
+        Style::default().fg(theme.accents.sky).bg(Color::Reset),
+    ));
 
-    // Line numbers disabled due to alignment issues in Myers diff
-    // TODO: Re-enable once RenderableDiff line numbering is fixed
-
-    // Change indicator (1 char)
     let indicator_style = if is_cursor {
-        Style::default()
-            .fg(Colors::TEXT_PRIMARY)
+        stylesheet::body(theme)
             .bg(Color::Reset)
             .add_modifier(Modifier::BOLD)
     } else if is_context_line {
         Style::default().fg(Color::DarkGray).bg(Color::Reset)
     } else {
-        style_for_change(change.as_ref())
+        style_for_change(change.as_ref(), theme)
             .bg(Color::Reset)
             .add_modifier(Modifier::BOLD)
     };
     spans.push(Span::styled(indicator, indicator_style));
 
-    // Space before content (1 char)
     spans.push(Span::raw(" "));
 
     let content_style = if is_context_line {
         Style::default().fg(Color::DarkGray).bg(Color::Reset)
     } else {
-        style_for_change(change.as_ref()).bg(Color::Reset)
+        style_for_change(change.as_ref(), theme).bg(Color::Reset)
     };
     spans.push(Span::styled(line.content.to_string(), content_style));
 
@@ -314,8 +294,7 @@ fn line_to_spans(
                 .bg(Color::Reset)
                 .add_modifier(Modifier::ITALIC)
         } else {
-            Style::default()
-                .fg(Color::Cyan)
+            stylesheet::info(theme)
                 .bg(Color::Reset)
                 .add_modifier(Modifier::ITALIC)
         };
@@ -328,12 +307,15 @@ fn line_to_spans(
 
     let mut rendered = Line::from(spans);
     if is_selected {
-        rendered = rendered.style(Style::default().fg(Colors::ACCENT_1).bg(Color::Reset));
+        rendered = rendered.style(
+            Style::default()
+                .fg(theme.accents.mauve)
+                .bg(Color::Reset),
+        );
     }
     if is_cursor {
         rendered = rendered.style(
-            Style::default()
-                .fg(Colors::SUCCESS)
+            stylesheet::success(theme)
                 .bg(Color::Reset)
                 .add_modifier(Modifier::BOLD),
         );
@@ -346,6 +328,7 @@ fn append_line(
     lines: &mut Vec<Line<'static>>,
     line: &RenderableLine<'_>,
     ctx: &LineRenderContext<'_>,
+    theme: &Theme,
 ) {
     let rendered = line_to_spans(
         line,
@@ -353,6 +336,7 @@ fn append_line(
         ctx.selection_range,
         ctx.cursor_line,
         ctx.instruction_indicators,
+        theme,
     );
     lines.push(rendered);
 }
@@ -391,11 +375,11 @@ fn change_indicator(change: Option<&ChangeType>) -> String {
     }
 }
 
-fn style_for_change(change: Option<&ChangeType>) -> Style {
+fn style_for_change(change: Option<&ChangeType>, theme: &Theme) -> Style {
     match change {
-        Some(ChangeType::Added) => Style::default().fg(Colors::DIFF_ADDED),
-        Some(ChangeType::Deleted) => Style::default().fg(Colors::DIFF_REMOVED),
-        Some(ChangeType::Modified) => Style::default().fg(Colors::WARNING),
+        Some(ChangeType::Added) => stylesheet::diff_added(theme),
+        Some(ChangeType::Deleted) => stylesheet::diff_removed(theme),
+        Some(ChangeType::Modified) => stylesheet::diff_modified(theme),
         None => Style::default().fg(Color::Gray),
     }
 }

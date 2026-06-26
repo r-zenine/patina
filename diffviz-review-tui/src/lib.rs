@@ -13,7 +13,7 @@ pub mod events;
 pub mod formatting;
 pub mod state;
 pub mod state_snapshot;
-pub mod theme;
+pub mod theme_ext;
 pub mod ui;
 
 #[cfg(feature = "test-harness")]

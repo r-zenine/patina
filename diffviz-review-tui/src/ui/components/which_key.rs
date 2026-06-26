@@ -5,15 +5,13 @@
 use ratatui::{
     Frame,
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Modifier, Style},
+    style::Modifier,
     text::{Line, Span},
     widgets::{Block, Borders, Clear, Paragraph},
 };
+use tui_design::{Theme, stylesheet};
 
-use crate::{
-    state::UiState,
-    theme::{Colors, Styles},
-};
+use crate::state::UiState;
 
 /// Render the which-key overlay when leader is active (Spacemacs-style bottom panel)
 pub fn render(f: &mut Frame, ui_state: &UiState) {
@@ -21,17 +19,17 @@ pub fn render(f: &mut Frame, ui_state: &UiState) {
         return;
     }
 
+    let theme = Theme::mocha();
     let area = bottom_panel(f.area());
 
-    // Clear the area
     f.render_widget(Clear, area);
 
     let content = match ui_state.leader_submenu {
-        None => create_root_menu(ui_state),
-        Some('a') => create_actions_submenu(ui_state),
-        Some('i') => create_instructions_submenu(),
-        Some('t') => create_toggles_submenu(),
-        _ => create_root_menu(ui_state),
+        None => create_root_menu(ui_state, &theme),
+        Some('a') => create_actions_submenu(ui_state, &theme),
+        Some('i') => create_instructions_submenu(&theme),
+        Some('t') => create_toggles_submenu(&theme),
+        _ => create_root_menu(ui_state, &theme),
     };
 
     let title = match ui_state.leader_submenu {
@@ -42,7 +40,6 @@ pub fn render(f: &mut Frame, ui_state: &UiState) {
         _ => " Leader Menu",
     };
 
-    // Add timeout indicator
     let timeout_text = if let Some(remaining) = ui_state.leader_timeout_remaining() {
         format!(" [{}s] ", remaining.as_secs())
     } else {
@@ -52,117 +49,109 @@ pub fn render(f: &mut Frame, ui_state: &UiState) {
     let block = Block::default()
         .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
         .title(format!("{title}{timeout_text}"))
-        .border_style(Style::default().fg(Colors::CYAN));
+        .border_style(stylesheet::border_focused(&theme));
 
     let paragraph = Paragraph::new(content).block(block);
     f.render_widget(paragraph, area);
 }
 
-fn create_root_menu(_ui_state: &UiState) -> Vec<Line<'static>> {
+fn create_root_menu(_ui_state: &UiState, theme: &Theme) -> Vec<Line<'static>> {
     vec![
         Line::from(""),
         create_compact_line(vec![
             ("a", "Actions"),
             ("i", "Instructions"),
             ("t", "Toggles"),
-        ]),
+        ], theme),
         Line::from(""),
         Line::from(vec![
-            Span::styled("  ", Style::default()),
-            Span::styled("Esc", Style::default().fg(Colors::CYAN)),
-            Span::styled(" cancel", Styles::muted()),
+            Span::raw("  "),
+            Span::styled("Esc", stylesheet::keybind_key(theme)),
+            Span::styled(" cancel", stylesheet::muted(theme)),
         ]),
     ]
 }
 
-fn create_actions_submenu(ui_state: &UiState) -> Vec<Line<'static>> {
+fn create_actions_submenu(ui_state: &UiState, theme: &Theme) -> Vec<Line<'static>> {
     let mut items = vec![("a", "Approve diff"), ("f", "Approve file")];
 
-    // Add decision approval option if at depth 0
     if ui_state.decision_tree.selected_path.depth() == 0 {
         items.push(("d", "Approve decision"));
     }
 
     vec![
         Line::from(""),
-        create_compact_line(items),
+        create_compact_line(items, theme),
         Line::from(""),
         Line::from(vec![
-            Span::styled("  ", Style::default()),
-            Span::styled("Esc", Style::default().fg(Colors::CYAN)),
-            Span::styled(" back", Styles::muted()),
+            Span::raw("  "),
+            Span::styled("Esc", stylesheet::keybind_key(theme)),
+            Span::styled(" back", stylesheet::muted(theme)),
         ]),
     ]
 }
 
-fn create_instructions_submenu() -> Vec<Line<'static>> {
+fn create_instructions_submenu(theme: &Theme) -> Vec<Line<'static>> {
     vec![
         Line::from(""),
-        create_compact_line(vec![("i", "Add instruction"), ("t", "Toggle view")]),
+        create_compact_line(vec![("i", "Add instruction"), ("t", "Toggle view")], theme),
         Line::from(""),
         Line::from(vec![
-            Span::styled("  ", Style::default()),
-            Span::styled("Esc", Style::default().fg(Colors::CYAN)),
-            Span::styled(" back", Styles::muted()),
+            Span::raw("  "),
+            Span::styled("Esc", stylesheet::keybind_key(theme)),
+            Span::styled(" back", stylesheet::muted(theme)),
         ]),
     ]
 }
 
-fn create_toggles_submenu() -> Vec<Line<'static>> {
+fn create_toggles_submenu(theme: &Theme) -> Vec<Line<'static>> {
     vec![
         Line::from(""),
         create_compact_line(vec![
             ("s", "Semantic highlighting"),
             ("c", "Context folding"),
             ("r", "Reasoning annotations"),
-        ]),
+        ], theme),
         Line::from(""),
         Line::from(vec![
-            Span::styled("  ", Style::default()),
-            Span::styled("Esc", Style::default().fg(Colors::CYAN)),
-            Span::styled(" back", Styles::muted()),
+            Span::raw("  "),
+            Span::styled("Esc", stylesheet::keybind_key(theme)),
+            Span::styled(" back", stylesheet::muted(theme)),
         ]),
     ]
 }
 
-/// Create a compact horizontal line with multiple key bindings (Spacemacs-style)
-fn create_compact_line(items: Vec<(&str, &str)>) -> Line<'static> {
-    let mut spans = vec![Span::styled("  ", Style::default())];
+fn create_compact_line(items: Vec<(&str, &str)>, theme: &Theme) -> Line<'static> {
+    let mut spans = vec![Span::raw("  ")];
 
     for (i, (key, description)) in items.iter().enumerate() {
         if i > 0 {
-            spans.push(Span::styled("    ", Style::default()));
+            spans.push(Span::raw("    "));
         }
 
-        // Key in brackets with bold cyan
         spans.push(Span::styled(
             format!("[{key}]"),
-            Style::default()
-                .fg(Colors::CYAN)
-                .add_modifier(Modifier::BOLD),
+            stylesheet::keybind_key(theme).add_modifier(Modifier::BOLD),
         ));
 
-        // Description in white
-        spans.push(Span::styled(" ", Style::default()));
+        spans.push(Span::raw(" "));
         spans.push(Span::styled(
             description.to_string(),
-            Style::default().fg(Colors::WHITE),
+            stylesheet::body(theme),
         ));
     }
 
     Line::from(spans)
 }
 
-/// Create a Spacemacs-style bottom panel that spans the full width
 fn bottom_panel(r: Rect) -> Rect {
-    // Calculate height based on content - use about 10 lines for the menu
     let height = 10;
 
     let layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Min(1),         // Top area (main content)
-            Constraint::Length(height), // Bottom panel for which-key
+            Constraint::Min(1),
+            Constraint::Length(height),
         ])
         .split(r);
 

@@ -5,6 +5,9 @@ pub enum TuiError {
     /// I/O errors from terminal and crossterm operations (crossterm uses std::io::Error).
     #[error("Terminal I/O error")]
     Terminal(#[from] std::io::Error),
+    /// Infallible errors from backends that cannot fail (e.g. TestBackend in ratatui 0.30+).
+    #[error("unreachable")]
+    Infallible(#[from] std::convert::Infallible),
 
     /// App-level error, wrapped to avoid leaking the app's error type into the harness.
     #[error("App error: {0}")]

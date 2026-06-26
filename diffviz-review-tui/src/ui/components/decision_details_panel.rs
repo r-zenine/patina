@@ -7,9 +7,9 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Wrap},
 };
+use tui_design::{Icons, Theme, stylesheet};
 
 use crate::state::UiState;
-use crate::theme::{Icons, Styles};
 use diffviz_review::engines::ReviewEngine;
 
 /// Render decision details inline in the diff view panel when a decision is selected (depth 0)
@@ -20,10 +20,12 @@ pub fn render(
     review_engine: &ReviewEngine,
     is_focused: bool,
 ) {
+    let theme = Theme::mocha();
+
     let decision_number = match ui_state.decision_tree.selected_decision_number() {
         Some(num) => num,
         None => {
-            render_no_decision_selected(f, area, is_focused);
+            render_no_decision_selected(f, area, is_focused, &theme);
             return;
         }
     };
@@ -31,15 +33,13 @@ pub fn render(
     let decision = match review_engine.get_decision(decision_number) {
         Some(d) => d,
         None => {
-            render_decision_not_found(f, area, decision_number as usize, is_focused);
+            render_decision_not_found(f, area, decision_number as usize, is_focused, &theme);
             return;
         }
     };
 
-    // Build content lines
     let mut lines = Vec::new();
 
-    // Title with decision number and approval status
     let is_approved = review_engine.is_decision_approved(decision_number);
     let approval_icon = if is_approved {
         Icons::APPROVED
@@ -56,29 +56,27 @@ pub fn render(
         Span::styled(
             approval_icon,
             if is_approved {
-                Styles::success()
+                stylesheet::success(&theme)
             } else {
-                Styles::muted()
+                stylesheet::muted(&theme)
             },
         ),
         Span::raw(" "),
         Span::styled(
             format!("Decision {}: {}", decision.number, decision.title),
-            Styles::info().add_modifier(Modifier::BOLD),
+            stylesheet::info(&theme).add_modifier(Modifier::BOLD),
         ),
         Span::raw(" "),
-        Span::styled(progress_str, Styles::muted()),
+        Span::styled(progress_str, stylesheet::muted(&theme)),
     ]));
 
-    lines.push(Line::from("")); // Spacer
+    lines.push(Line::from(""));
 
-    // Rationale (optional)
     if let Some(rationale) = &decision.rationale {
-        lines.push(Line::from(vec![Span::styled(rationale, Styles::primary())]));
-        lines.push(Line::from("")); // Spacer
+        lines.push(Line::from(vec![Span::styled(rationale, stylesheet::body(&theme))]));
+        lines.push(Line::from(""));
     }
 
-    // Code impacts summary
     let impact_count = decision.code_impacts.len();
     let file_count = decision
         .code_impacts
@@ -95,23 +93,20 @@ pub fn render(
             impact_count,
             if impact_count == 1 { "" } else { "s" }
         ),
-        Styles::muted(),
+        stylesheet::muted(&theme),
     )]));
 
-    lines.push(Line::from("")); // Spacer
+    lines.push(Line::from(""));
 
-    // Code impacts detail section
     if !decision.code_impacts.is_empty() {
         lines.push(Line::from(vec![Span::styled(
             "Code Impacts:",
-            Styles::success().add_modifier(Modifier::BOLD),
+            stylesheet::success(&theme).add_modifier(Modifier::BOLD),
         )]));
 
-        lines.push(Line::from("")); // Spacer
+        lines.push(Line::from(""));
 
-        // List each code impact
         for (idx, impact) in decision.code_impacts.iter().enumerate() {
-            // File and line ranges
             let mut range_strs = Vec::new();
             for range in &impact.line_ranges {
                 range_strs.push(format!("{}-{}", range.start, range.end));
@@ -119,20 +114,18 @@ pub fn render(
             let ranges = range_strs.join(", ");
 
             lines.push(Line::from(vec![
-                Span::styled("  ► ", Styles::info()),
-                Span::styled(&impact.file, Styles::primary()),
-                Span::styled(format!(" (lines {ranges})"), Styles::muted()),
+                Span::styled("  ► ", stylesheet::info(&theme)),
+                Span::styled(&impact.file, stylesheet::body(&theme)),
+                Span::styled(format!(" (lines {ranges})"), stylesheet::muted(&theme)),
             ]));
 
-            // Reasoning
             if !impact.reasoning.is_empty() {
                 lines.push(Line::from(vec![Span::styled(
                     format!("    {}", impact.reasoning),
-                    Styles::muted(),
+                    stylesheet::muted(&theme),
                 )]));
             }
 
-            // Add space between impacts (except after last one)
             if idx < decision.code_impacts.len() - 1 {
                 lines.push(Line::from(""));
             }
@@ -140,42 +133,40 @@ pub fn render(
     } else {
         lines.push(Line::from(vec![Span::styled(
             "  (no code impacts - architectural decision)",
-            Styles::muted(),
+            stylesheet::muted(&theme),
         )]));
     }
 
-    // Decision-level instructions section (only when toggled visible via Space+i+t)
     if ui_state.show_instructions
         && let Some(instructions) = review_engine.get_decision_instructions(decision_number)
         && !instructions.is_empty()
     {
-        lines.push(Line::from("")); // Spacer
+        lines.push(Line::from(""));
         lines.push(Line::from(vec![Span::styled(
             format!("Instructions ({}):", instructions.len()),
-            Styles::warning().add_modifier(Modifier::BOLD),
+            stylesheet::warning(&theme).add_modifier(Modifier::BOLD),
         )]));
-        lines.push(Line::from("")); // Spacer
+        lines.push(Line::from(""));
 
         for instruction in &instructions {
             lines.push(Line::from(vec![
-                Span::styled("  Author: ", Styles::muted()),
-                Span::styled(&instruction.author, Styles::primary()),
-                Span::styled(" | ", Styles::muted()),
-                Span::styled(&instruction.timestamp, Styles::muted()),
+                Span::styled("  Author: ", stylesheet::muted(&theme)),
+                Span::styled(&instruction.author, stylesheet::body(&theme)),
+                Span::styled(" | ", stylesheet::muted(&theme)),
+                Span::styled(&instruction.timestamp, stylesheet::muted(&theme)),
             ]));
             lines.push(Line::from(vec![
                 Span::raw("  "),
-                Span::styled(&instruction.content, Styles::primary()),
+                Span::styled(&instruction.content, stylesheet::body(&theme)),
             ]));
             lines.push(Line::from(""));
         }
     }
 
-    // Create paragraph with appropriate border style
     let border_style = if is_focused {
-        Styles::border_focused()
+        stylesheet::border_focused(&theme)
     } else {
-        Styles::border()
+        stylesheet::border(&theme)
     };
 
     let paragraph = Paragraph::new(lines)
@@ -186,26 +177,25 @@ pub fn render(
                 .border_style(border_style),
         )
         .wrap(Wrap { trim: true })
-        .style(Styles::primary());
+        .style(stylesheet::body(&theme));
 
     f.render_widget(paragraph, area);
 }
 
-/// Render placeholder when no decision is selected
-fn render_no_decision_selected(f: &mut Frame, area: Rect, is_focused: bool) {
+fn render_no_decision_selected(f: &mut Frame, area: Rect, is_focused: bool, theme: &Theme) {
     let border_style = if is_focused {
-        Styles::border_focused()
+        stylesheet::border_focused(theme)
     } else {
-        Styles::border()
+        stylesheet::border(theme)
     };
 
     let lines = vec![
         Line::from(""),
-        Line::from(vec![Span::styled("No decision selected", Styles::muted())]),
+        Line::from(vec![Span::styled("No decision selected", stylesheet::muted(theme))]),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Navigate to a decision in the tree to view details",
-            Styles::muted(),
+            stylesheet::muted(theme),
         )]),
     ];
 
@@ -216,29 +206,34 @@ fn render_no_decision_selected(f: &mut Frame, area: Rect, is_focused: bool) {
                 .title("Decision Details")
                 .border_style(border_style),
         )
-        .style(Styles::primary());
+        .style(stylesheet::body(theme));
 
     f.render_widget(paragraph, area);
 }
 
-/// Render error state when decision is not found
-fn render_decision_not_found(f: &mut Frame, area: Rect, decision_number: usize, is_focused: bool) {
+fn render_decision_not_found(
+    f: &mut Frame,
+    area: Rect,
+    decision_number: usize,
+    is_focused: bool,
+    theme: &Theme,
+) {
     let border_style = if is_focused {
-        Styles::border_focused()
+        stylesheet::border_focused(theme)
     } else {
-        Styles::border()
+        stylesheet::border(theme)
     };
 
     let lines = vec![
         Line::from(""),
         Line::from(vec![Span::styled(
             format!("Decision {decision_number} not found"),
-            Styles::error(),
+            stylesheet::error(theme),
         )]),
         Line::from(""),
         Line::from(vec![Span::styled(
             "The selected decision may have been removed",
-            Styles::muted(),
+            stylesheet::muted(theme),
         )]),
     ];
 
@@ -249,7 +244,7 @@ fn render_decision_not_found(f: &mut Frame, area: Rect, decision_number: usize, 
                 .title("Decision Details")
                 .border_style(border_style),
         )
-        .style(Styles::primary());
+        .style(stylesheet::body(theme));
 
     f.render_widget(paragraph, area);
 }

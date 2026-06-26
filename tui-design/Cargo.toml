@@ -1,0 +1,9 @@
+[package]
+name = "tui-design"
+version = "0.1.0"
+edition = "2024"
+description = "Shared design system for diffviz TUIs — Catppuccin palette, token layer, stylesheet"
+
+[dependencies]
+ratatui = { workspace = true }
+catppuccin = { workspace = true }

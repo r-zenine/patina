@@ -5,8 +5,8 @@ edition = "2024"
 description = "Generic ELM TUI runtime and headless test harnesses"
 
 [dependencies]
-ratatui = "0.28"
-crossterm = "0.28"
+ratatui = { workspace = true }
+crossterm = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
