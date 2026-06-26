@@ -2,7 +2,7 @@ use diffviz_core::renderable_diff::{ChangeType, RenderableDiff, RenderableLine};
 use ratatui::{
     layout::Rect,
     prelude::Buffer,
-    style::{Color, Modifier, Style},
+    style::{Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph, Widget, Wrap},
 };
@@ -166,7 +166,7 @@ impl<'a> Widget for RenderableDiffWidget<'a> {
                     }
 
                     if run_len > 1 {
-                        if let Some(indicator) = hidden_indicator(run_len) {
+                        if let Some(indicator) = hidden_indicator(run_len, &theme) {
                             lines.push(indicator);
                         }
                         idx += run_len;
@@ -186,16 +186,14 @@ impl<'a> Widget for RenderableDiffWidget<'a> {
     }
 }
 
-fn hidden_indicator(count: usize) -> Option<Line<'static>> {
+fn hidden_indicator(count: usize, theme: &Theme) -> Option<Line<'static>> {
     if count <= 1 {
         return None;
     }
 
     Some(Line::from(vec![Span::styled(
         format!("  … {count} hidden context lines …"),
-        Style::default()
-            .fg(Color::DarkGray)
-            .add_modifier(Modifier::ITALIC),
+        stylesheet::muted(theme).add_modifier(Modifier::ITALIC),
     )]))
 }
 
@@ -262,41 +260,33 @@ fn line_to_spans(
     let bracket_text = render_gutter_bracket(gutter_position);
     spans.push(Span::styled(
         bracket_text,
-        Style::default().fg(theme.accents.sky).bg(Color::Reset),
+        Style::default().fg(theme.accents.sky),
     ));
 
+    let context_style = Style::default().fg(theme.surface[3]);
     let indicator_style = if is_cursor {
-        stylesheet::body(theme)
-            .bg(Color::Reset)
-            .add_modifier(Modifier::BOLD)
+        stylesheet::body(theme).add_modifier(Modifier::BOLD)
     } else if is_context_line {
-        Style::default().fg(Color::DarkGray).bg(Color::Reset)
+        context_style
     } else {
-        style_for_change(change.as_ref(), theme)
-            .bg(Color::Reset)
-            .add_modifier(Modifier::BOLD)
+        style_for_change(change.as_ref(), theme).add_modifier(Modifier::BOLD)
     };
     spans.push(Span::styled(indicator, indicator_style));
 
     spans.push(Span::raw(" "));
 
     let content_style = if is_context_line {
-        Style::default().fg(Color::DarkGray).bg(Color::Reset)
+        context_style
     } else {
-        style_for_change(change.as_ref(), theme).bg(Color::Reset)
+        style_for_change(change.as_ref(), theme)
     };
     spans.push(Span::styled(line.content.to_string(), content_style));
 
     if highlight_semantics && let Some(anchor) = &line.semantic_anchor {
         let anchor_style = if is_context_line {
-            Style::default()
-                .fg(Color::DarkGray)
-                .bg(Color::Reset)
-                .add_modifier(Modifier::ITALIC)
+            stylesheet::muted(theme).add_modifier(Modifier::ITALIC)
         } else {
-            stylesheet::info(theme)
-                .bg(Color::Reset)
-                .add_modifier(Modifier::ITALIC)
+            stylesheet::info(theme).add_modifier(Modifier::ITALIC)
         };
         spans.push(Span::raw(" "));
         spans.push(Span::styled(
@@ -307,18 +297,10 @@ fn line_to_spans(
 
     let mut rendered = Line::from(spans);
     if is_selected {
-        rendered = rendered.style(
-            Style::default()
-                .fg(theme.accents.mauve)
-                .bg(Color::Reset),
-        );
+        rendered = rendered.style(stylesheet::selection(theme));
     }
     if is_cursor {
-        rendered = rendered.style(
-            stylesheet::success(theme)
-                .bg(Color::Reset)
-                .add_modifier(Modifier::BOLD),
-        );
+        rendered = rendered.style(stylesheet::success(theme).add_modifier(Modifier::BOLD));
     }
 
     rendered
@@ -380,6 +362,6 @@ fn style_for_change(change: Option<&ChangeType>, theme: &Theme) -> Style {
         Some(ChangeType::Added) => stylesheet::diff_added(theme),
         Some(ChangeType::Deleted) => stylesheet::diff_removed(theme),
         Some(ChangeType::Modified) => stylesheet::diff_modified(theme),
-        None => Style::default().fg(Color::Gray),
+        None => stylesheet::diff_context(theme),
     }
 }
