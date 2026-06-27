@@ -246,6 +246,35 @@ fn mock_data() -> DecisionLog {
     }
 }
 
+// ── Navigation events (V5: KeyCode → NavEvent → state) ───────────────────────
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum NavEvent {
+    Quit,
+    NavigateUp,
+    NavigateDown,
+    NavigateLeft,
+    NavigateRight,
+    DrillIn,
+    Back,
+    ToggleExpansion,
+}
+
+/// Pure key → event mapping; context-free so it stays testable.
+fn handle_key_event(code: KeyCode) -> Option<NavEvent> {
+    match code {
+        KeyCode::Char('q') => Some(NavEvent::Quit),
+        KeyCode::Char('j') | KeyCode::Down => Some(NavEvent::NavigateDown),
+        KeyCode::Char('k') | KeyCode::Up => Some(NavEvent::NavigateUp),
+        KeyCode::Char('h') | KeyCode::Left => Some(NavEvent::NavigateLeft),
+        KeyCode::Char('l') | KeyCode::Right => Some(NavEvent::NavigateRight),
+        KeyCode::Enter => Some(NavEvent::DrillIn),
+        KeyCode::Esc => Some(NavEvent::Back),
+        KeyCode::Tab => Some(NavEvent::ToggleExpansion),
+        _ => None,
+    }
+}
+
 // ── Navigation state ──────────────────────────────────────────────────────────
 
 struct L2State<'a> {
@@ -286,83 +315,111 @@ impl App {
         }
     }
 
-    fn handle_key(&mut self, code: KeyCode) {
-        if matches!(code, KeyCode::Char('q')) {
-            self.quit = true;
-            return;
+    /// Dispatch a navigation event to the appropriate state mutation (V5).
+    fn handle_nav_event(&mut self, event: NavEvent) {
+        match event {
+            NavEvent::Quit => self.quit(),
+            NavEvent::NavigateUp => self.navigate_up(),
+            NavEvent::NavigateDown => self.navigate_down(),
+            NavEvent::NavigateLeft => self.navigate_left(),
+            NavEvent::NavigateRight => self.navigate_right(),
+            NavEvent::DrillIn => self.drill_in(),
+            NavEvent::Back => self.back(),
+            NavEvent::ToggleExpansion => self.toggle_expansion(),
         }
-        match &mut self.nav {
-            NavLevel::L1 { selected } => match code {
-                KeyCode::Char('j') | KeyCode::Down => {
-                    if *selected + 1 < self.log.decisions.len() {
-                        *selected += 1;
-                    }
-                }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    if *selected > 0 {
-                        *selected -= 1;
-                    }
-                }
-                KeyCode::Enter => {
-                    let idx = *selected;
-                    // Pre-expand chunk 0's instruction so all three cases (expanded / folded / none)
-                    // are visible immediately on entry.
-                    self.nav = NavLevel::L2 {
-                        decision_idx: idx,
-                        impact_idx: 0,
-                        focused_chunk: 0,
-                        expanded_chunks: HashSet::new(),
-                        expanded_instructions: HashSet::from([0]),
-                    };
-                }
-                _ => {}
-            },
+    }
 
-            NavLevel::L2 {
-                decision_idx,
-                impact_idx,
-                focused_chunk,
-                expanded_chunks,
-                expanded_instructions,
-            } => match code {
-                KeyCode::Char('j') | KeyCode::Down => {
-                    let n = self.log.decisions[*decision_idx].code_impacts[*impact_idx]
-                        .line_ranges
-                        .len();
-                    if *focused_chunk + 1 < n {
-                        *focused_chunk += 1;
-                    }
+    // ── State mutation methods (V4: encapsulate all nav-level field access) ──
+
+    fn quit(&mut self) {
+        self.quit = true;
+    }
+
+    fn navigate_up(&mut self) {
+        match &mut self.nav {
+            NavLevel::L1 { selected } => {
+                if *selected > 0 {
+                    *selected -= 1;
                 }
-                KeyCode::Char('k') | KeyCode::Up => {
-                    if *focused_chunk > 0 {
-                        *focused_chunk -= 1;
-                    }
+            }
+            NavLevel::L2 { focused_chunk, .. } => {
+                if *focused_chunk > 0 {
+                    *focused_chunk -= 1;
                 }
-                KeyCode::Char('l') | KeyCode::Right => {
-                    let n = self.log.decisions[*decision_idx].code_impacts.len();
-                    *impact_idx = (*impact_idx + 1) % n;
-                    *focused_chunk = 0;
-                    expanded_chunks.clear();
-                    expanded_instructions.clear();
+            }
+        }
+    }
+
+    fn navigate_down(&mut self) {
+        match &mut self.nav {
+            NavLevel::L1 { selected } => {
+                if *selected + 1 < self.log.decisions.len() {
+                    *selected += 1;
                 }
-                KeyCode::Char('h') | KeyCode::Left => {
-                    let n = self.log.decisions[*decision_idx].code_impacts.len();
-                    *impact_idx = impact_idx.checked_sub(1).unwrap_or(n - 1);
-                    *focused_chunk = 0;
-                    expanded_chunks.clear();
-                    expanded_instructions.clear();
+            }
+            NavLevel::L2 { decision_idx, impact_idx, focused_chunk, .. } => {
+                let n = self.log.decisions[*decision_idx].code_impacts[*impact_idx]
+                    .line_ranges
+                    .len();
+                if *focused_chunk + 1 < n {
+                    *focused_chunk += 1;
                 }
-                KeyCode::Tab => {
-                    if !expanded_chunks.remove(focused_chunk) {
-                        expanded_chunks.insert(*focused_chunk);
-                    }
-                }
-                KeyCode::Esc => {
-                    let d = *decision_idx;
-                    self.nav = NavLevel::L1 { selected: d };
-                }
-                _ => {}
-            },
+            }
+        }
+    }
+
+    fn navigate_left(&mut self) {
+        if let NavLevel::L2 { decision_idx, impact_idx, focused_chunk, expanded_chunks, expanded_instructions } =
+            &mut self.nav
+        {
+            let n = self.log.decisions[*decision_idx].code_impacts.len();
+            *impact_idx = impact_idx.checked_sub(1).unwrap_or(n - 1);
+            *focused_chunk = 0;
+            expanded_chunks.clear();
+            expanded_instructions.clear();
+        }
+    }
+
+    fn navigate_right(&mut self) {
+        if let NavLevel::L2 { decision_idx, impact_idx, focused_chunk, expanded_chunks, expanded_instructions } =
+            &mut self.nav
+        {
+            let n = self.log.decisions[*decision_idx].code_impacts.len();
+            *impact_idx = (*impact_idx + 1) % n;
+            *focused_chunk = 0;
+            expanded_chunks.clear();
+            expanded_instructions.clear();
+        }
+    }
+
+    fn drill_in(&mut self) {
+        if let NavLevel::L1 { selected } = &self.nav {
+            let idx = *selected;
+            // Pre-expand chunk 0's instruction so all three cases (expanded / folded / none)
+            // are visible immediately on entry.
+            self.nav = NavLevel::L2 {
+                decision_idx: idx,
+                impact_idx: 0,
+                focused_chunk: 0,
+                expanded_chunks: HashSet::new(),
+                expanded_instructions: HashSet::from([0]),
+            };
+        }
+    }
+
+    fn back(&mut self) {
+        if let NavLevel::L2 { decision_idx, .. } = &self.nav {
+            let d = *decision_idx;
+            self.nav = NavLevel::L1 { selected: d };
+        }
+    }
+
+    fn toggle_expansion(&mut self) {
+        if let NavLevel::L2 { focused_chunk, expanded_chunks, .. } = &mut self.nav {
+            let chunk = *focused_chunk;
+            if !expanded_chunks.remove(&chunk) {
+                expanded_chunks.insert(chunk);
+            }
         }
     }
 }
@@ -405,7 +462,7 @@ fn wrap_text(text: &str, max_cols: usize) -> Vec<String> {
     result
 }
 
-// ── Rendering ─────────────────────────────────────────────────────────────────
+// ── Rendering (V1: all view functions accept &App — never &mut) ───────────────
 
 fn render(frame: &mut Frame, app: &App) {
     let theme = &app.theme;
@@ -710,7 +767,9 @@ fn main() -> Result<()> {
             && let Event::Key(key) = event::read()?
             && key.kind == KeyEventKind::Press
         {
-            app.handle_key(key.code);
+            if let Some(event) = handle_key_event(key.code) {
+                app.handle_nav_event(event);
+            }
         }
 
         if app.quit {
