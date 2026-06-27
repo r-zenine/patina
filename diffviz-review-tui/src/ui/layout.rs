@@ -22,14 +22,15 @@ pub fn create_main_layout(area: Rect) -> MainLayout {
     let content_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(25), // File list
-            Constraint::Percentage(75), // Diff view
+            Constraint::Percentage(25), // Rail panel
+            Constraint::Length(1),      // Gap — exposes base bg, creates elevation contrast
+            Constraint::Min(0),         // Diff view — takes all remaining width
         ])
         .split(main_chunks[0]);
 
     MainLayout {
         file_list: content_chunks[0],
-        diff_view: content_chunks[1],
+        diff_view: content_chunks[2],
         status_bar: main_chunks[1],
     }
 }

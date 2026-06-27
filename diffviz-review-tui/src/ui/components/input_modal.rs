@@ -4,7 +4,7 @@ use ratatui::{
     Frame,
     layout::Rect,
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph, Wrap},
+    widgets::{Block, Clear, Padding, Paragraph, Wrap},
 };
 use tui_design::{Theme, stylesheet};
 
@@ -32,18 +32,18 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState) {
     let modal = Paragraph::new(input_content)
         .block(
             Block::default()
-                .borders(Borders::ALL)
-                .title(title)
-                .border_style(stylesheet::border_focused(&theme)),
+                .title(format!("  {title}"))
+                .padding(Padding::new(2, 2, 1, 1))
+                .style(stylesheet::layer_elevated(&theme)),
         )
         .wrap(Wrap { trim: false });
 
     f.render_widget(modal, popup_area);
 
     let help_area = Rect {
-        x: popup_area.x,
+        x: popup_area.x + 2,
         y: popup_area.y + popup_area.height - 3,
-        width: popup_area.width,
+        width: popup_area.width.saturating_sub(2),
         height: 1,
     };
 

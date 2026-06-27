@@ -5,36 +5,36 @@ use crate::tokens::Theme;
 // --- Borders ---
 
 pub fn border(theme: &Theme) -> Style {
-    Style::default().fg(theme.surface[3])
+    Style::default().fg(theme.surface.overlay0())
 }
 
 pub fn border_focused(theme: &Theme) -> Style {
-    Style::default().fg(theme.surface[4])
+    Style::default().fg(theme.surface.overlay2())
 }
 
 // --- Text hierarchy (fg + modifier only, no bg) ---
 
 pub fn title_active(theme: &Theme) -> Style {
     Style::default()
-        .fg(theme.surface[7])
+        .fg(theme.surface.text())
         .add_modifier(Modifier::BOLD)
 }
 
 pub fn title_inactive(theme: &Theme) -> Style {
-    Style::default().fg(theme.surface[6])
+    Style::default().fg(theme.surface.subtext1())
 }
 
 pub fn body(theme: &Theme) -> Style {
-    Style::default().fg(theme.surface[7])
+    Style::default().fg(theme.surface.text())
 }
 
 pub fn muted(theme: &Theme) -> Style {
-    Style::default().fg(theme.surface[5])
+    Style::default().fg(theme.surface.subtext0())
 }
 
 pub fn metadata(theme: &Theme) -> Style {
     Style::default()
-        .fg(theme.surface[5])
+        .fg(theme.surface.subtext0())
         .add_modifier(Modifier::ITALIC)
 }
 
@@ -47,27 +47,43 @@ pub fn keybind_key(theme: &Theme) -> Style {
 }
 
 pub fn keybind_desc(theme: &Theme) -> Style {
-    Style::default().fg(theme.surface[5])
+    Style::default().fg(theme.surface.subtext0())
+}
+
+// --- Surface layers (bg-based elevation, dark theme: lighter = higher) ---
+// Terminal background should be set to mantle (#181825) — the true floor.
+// Panels rise from there: base → surface0 → surface1
+
+pub fn layer_base(theme: &Theme) -> Style {
+    Style::default().bg(theme.surface.base())
+}
+
+pub fn layer_raised(theme: &Theme) -> Style {
+    Style::default().bg(theme.surface.surface0())
+}
+
+pub fn layer_elevated(theme: &Theme) -> Style {
+    Style::default().bg(theme.surface.surface1())
 }
 
 // --- State (the only two bg exceptions) ---
 
 pub fn selection(theme: &Theme) -> Style {
     Style::default()
-        .fg(theme.surface[7])
-        .bg(theme.surface[2])
+        .fg(theme.surface.text())
+        .bg(theme.surface.surface0())
 }
 
 pub fn cursor(theme: &Theme) -> Style {
     Style::default()
-        .fg(theme.surface[0])
-        .bg(theme.surface[7])
+        .fg(theme.surface.base())
+        .bg(theme.surface.text())
 }
 
 // --- Status bar ---
 
 pub fn status_bar(theme: &Theme) -> Style {
-    Style::default().fg(theme.surface[6])
+    Style::default().fg(theme.surface.subtext1())
 }
 
 // --- Diff ---
@@ -85,7 +101,7 @@ pub fn diff_modified(theme: &Theme) -> Style {
 }
 
 pub fn diff_context(theme: &Theme) -> Style {
-    Style::default().fg(theme.surface[5])
+    Style::default().fg(theme.surface.subtext0())
 }
 
 // --- File status ---

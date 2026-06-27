@@ -28,7 +28,8 @@ pub fn render(f: &mut Frame, ui_state: &UiState) {
     let block = Block::default()
         .borders(Borders::ALL)
         .title("Keybindings Help (? to close)")
-        .border_style(stylesheet::border_focused(&theme));
+        .border_style(stylesheet::border_focused(&theme))
+        .style(stylesheet::layer_elevated(&theme));
 
     let paragraph = Paragraph::new(content)
         .block(block)

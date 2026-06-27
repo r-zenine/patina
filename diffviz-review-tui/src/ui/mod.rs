@@ -11,8 +11,10 @@ use ratatui::Frame;
 pub fn draw(f: &mut Frame, ui_state: &UiState, review_engine: &ReviewEngine) {
     let chunks = layout::create_main_layout(f.area());
 
+    let tree_focused = matches!(ui_state.focused_panel, crate::state::FocusPanel::FileList);
+
     // Render main components - tree explorer is now primary view for all decision levels
-    components::decision_tree::render(f, chunks.file_list, ui_state, review_engine);
+    components::decision_tree::render(f, chunks.file_list, ui_state, review_engine, tree_focused);
 
     components::diff_view::render(f, chunks.diff_view, ui_state, review_engine);
     components::status_bar::render(f, chunks.status_bar, ui_state, review_engine);

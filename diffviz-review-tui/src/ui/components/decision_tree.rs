@@ -8,7 +8,7 @@ use ratatui::{
     layout::Rect,
     style::Modifier,
     text::{Line, Span},
-    widgets::{Block, Borders, List, ListItem},
+    widgets::{Block, List, ListItem},
 };
 use tui_design::{Icons, Theme, stylesheet};
 
@@ -17,12 +17,21 @@ use crate::state::UiState;
 use diffviz_review::engines::ReviewEngine;
 
 /// Render the decision tree as the primary navigation view
-pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &ReviewEngine) {
+pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &ReviewEngine, is_focused: bool) {
     let theme = Theme::mocha();
     let flattened = ui_state.decision_tree.flatten();
 
+    let title_style = if is_focused {
+        stylesheet::title_active(&theme)
+    } else {
+        stylesheet::title_inactive(&theme)
+    };
+
+    let block = Block::default()
+        .title(ratatui::text::Span::styled(" Decisions ", title_style))
+        .style(stylesheet::layer_base(&theme));
+
     if flattened.is_empty() {
-        let block = Block::default().title(" Decisions ").borders(Borders::ALL);
         f.render_widget(block, area);
         return;
     }
@@ -46,7 +55,7 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &Rev
     }
 
     let list = List::new(items)
-        .block(Block::default().title(" Decisions ").borders(Borders::ALL))
+        .block(block)
         .style(stylesheet::body(&theme));
 
     f.render_widget(list, area);
@@ -97,7 +106,7 @@ fn build_decision_item<'a>(
         } else {
             stylesheet::muted(theme)
         };
-        let sel_bg = theme.surface[2];
+        let sel_bg = theme.surface.surface0();
         vec![
             Span::styled(
                 selection_indicator,
@@ -206,7 +215,7 @@ fn build_chunk_item(
     };
 
     let line_content = if is_selected {
-        let sel_bg = theme.surface[2];
+        let sel_bg = theme.surface.surface0();
         vec![
             Span::styled(
                 format!("{selection_indicator}{indent}"),

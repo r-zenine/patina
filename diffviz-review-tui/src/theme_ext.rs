@@ -11,18 +11,18 @@ pub trait DiffvizSurface {
 
 impl DiffvizSurface for SurfaceRamp {
     fn panel_bg(&self) -> Color {
-        self[0]
+        self.base()
     }
     fn diff_gutter_bg(&self) -> Color {
-        self[2]
+        self.surface0()
     }
     fn annotation_text(&self) -> Color {
-        self[6]
+        self.subtext1()
     }
     fn inactive_border(&self) -> Color {
-        self[3]
+        self.overlay0()
     }
     fn focused_border(&self) -> Color {
-        self[4]
+        self.overlay2()
     }
 }

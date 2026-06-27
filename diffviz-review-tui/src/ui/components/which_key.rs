@@ -7,7 +7,7 @@ use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::Modifier,
     text::{Line, Span},
-    widgets::{Block, Borders, Clear, Paragraph},
+    widgets::{Block, Clear, Paragraph},
 };
 use tui_design::{Theme, stylesheet};
 
@@ -47,9 +47,9 @@ pub fn render(f: &mut Frame, ui_state: &UiState) {
     };
 
     let block = Block::default()
-        .borders(Borders::TOP | Borders::LEFT | Borders::RIGHT)
         .title(format!("{title}{timeout_text}"))
-        .border_style(stylesheet::border_focused(&theme));
+        .title_style(stylesheet::border_focused(&theme))
+        .style(stylesheet::layer_elevated(&theme));
 
     let paragraph = Paragraph::new(content).block(block);
     f.render_widget(paragraph, area);

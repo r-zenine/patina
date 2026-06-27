@@ -4,7 +4,7 @@ use ratatui::{
     prelude::Buffer,
     style::{Modifier, Style},
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Widget, Wrap},
+    widgets::{Block, Paragraph, Widget, Wrap},
 };
 use std::collections::HashMap;
 use tui_design::{Theme, stylesheet};
@@ -45,7 +45,7 @@ pub struct RenderableDiffWidget<'a> {
     pub scroll_offset: usize,
     selection_range: Option<(usize, usize)>,
     cursor_line: Option<usize>,
-    pub border_style: Style,
+    pub focused: bool,
     instruction_indicators: Option<&'a GutterBracketMap>,
     reasoning_annotations: &'a [ReasoningAnnotation],
 }
@@ -53,7 +53,6 @@ pub struct RenderableDiffWidget<'a> {
 impl<'a> RenderableDiffWidget<'a> {
     /// Create a new widget bound to the provided renderable diff.
     pub fn new(diff: &'a RenderableDiff<'a>) -> Self {
-        let theme = Theme::mocha();
         Self {
             diff,
             show_all_context: true,
@@ -62,14 +61,14 @@ impl<'a> RenderableDiffWidget<'a> {
             scroll_offset: 0,
             selection_range: None,
             cursor_line: None,
-            border_style: stylesheet::border(&theme),
+            focused: false,
             instruction_indicators: None,
             reasoning_annotations: &[],
         }
     }
 
-    pub fn with_border_style(mut self, style: Style) -> Self {
-        self.border_style = style;
+    pub fn with_focus(mut self, focused: bool) -> Self {
+        self.focused = focused;
         self
     }
 
@@ -124,7 +123,7 @@ impl<'a> Widget for RenderableDiffWidget<'a> {
             scroll_offset,
             selection_range,
             cursor_line,
-            border_style,
+            focused,
             instruction_indicators,
             reasoning_annotations,
         } = self;
@@ -182,7 +181,19 @@ impl<'a> Widget for RenderableDiffWidget<'a> {
             }
         }
 
-        render_lines(diff, lines, title, area, buf, scroll_offset, border_style);
+        let title = title.unwrap_or_else(|| {
+            format!("📦 {} ({:?})", diff.metadata.boundary_name, diff.language)
+        });
+        let title_style = if focused { stylesheet::title_active(&theme) } else { stylesheet::title_inactive(&theme) };
+        let paragraph = Paragraph::new(lines)
+            .block(
+                Block::default()
+                    .title(ratatui::text::Span::styled(title, title_style))
+                    .style(stylesheet::layer_raised(&theme)),
+            )
+            .wrap(Wrap { trim: false })
+            .scroll((scroll_offset as u16, 0));
+        paragraph.render(area, buf);
     }
 }
 
@@ -193,13 +204,15 @@ fn hidden_indicator(count: usize, theme: &Theme) -> Option<Line<'static>> {
 
     Some(Line::from(vec![Span::styled(
         format!("  … {count} hidden context lines …"),
-        stylesheet::muted(theme).add_modifier(Modifier::ITALIC),
+        stylesheet::muted(theme),
     )]))
 }
 
 fn annotation_line(ann: &ReasoningAnnotation, theme: &Theme) -> Line<'static> {
+    let border = Style::default().fg(theme.accents.mauve);
     Line::from(vec![
-        Span::styled("  \u{25c6} ", Style::default().fg(theme.accents.mauve)),
+        Span::styled("│ ", border),
+        Span::styled("\u{25c6} ", border),
         Span::styled(
             ann.label.clone(),
             Style::default()
@@ -207,10 +220,7 @@ fn annotation_line(ann: &ReasoningAnnotation, theme: &Theme) -> Line<'static> {
                 .add_modifier(Modifier::BOLD),
         ),
         Span::styled("  ", Style::default()),
-        Span::styled(
-            ann.reasoning.clone(),
-            stylesheet::metadata(theme),
-        ),
+        Span::styled(ann.reasoning.clone(), stylesheet::body(theme)),
     ])
 }
 
@@ -263,7 +273,7 @@ fn line_to_spans(
         Style::default().fg(theme.accents.sky),
     ));
 
-    let context_style = Style::default().fg(theme.surface[3]);
+    let context_style = Style::default().fg(theme.surface.surface0());
     let indicator_style = if is_cursor {
         stylesheet::body(theme).add_modifier(Modifier::BOLD)
     } else if is_context_line {
@@ -282,11 +292,27 @@ fn line_to_spans(
     };
     spans.push(Span::styled(line.content.to_string(), content_style));
 
+    // Apply selection/cursor styling per-span on content spans BEFORE pushing anchor spans.
+    // This avoids line-level style inheritance: if we set Line::style() later, the anchor
+    // span would inherit the selection bg. Patching content spans individually keeps the
+    // anchor bg-free regardless of selection state.
+    if is_cursor {
+        let cursor_style = stylesheet::success(theme).add_modifier(Modifier::BOLD);
+        for span in &mut spans {
+            span.style = span.style.patch(cursor_style);
+        }
+    } else if is_selected {
+        let sel_style = stylesheet::selection(theme);
+        for span in &mut spans {
+            span.style = span.style.patch(sel_style);
+        }
+    }
+
     if highlight_semantics && let Some(anchor) = &line.semantic_anchor {
         let anchor_style = if is_context_line {
-            stylesheet::muted(theme).add_modifier(Modifier::ITALIC)
+            stylesheet::muted(theme)
         } else {
-            stylesheet::info(theme).add_modifier(Modifier::ITALIC)
+            stylesheet::info(theme)
         };
         spans.push(Span::raw(" "));
         spans.push(Span::styled(
@@ -295,15 +321,7 @@ fn line_to_spans(
         ));
     }
 
-    let mut rendered = Line::from(spans);
-    if is_selected {
-        rendered = rendered.style(stylesheet::selection(theme));
-    }
-    if is_cursor {
-        rendered = rendered.style(stylesheet::success(theme).add_modifier(Modifier::BOLD));
-    }
-
-    rendered
+    Line::from(spans)
 }
 
 fn append_line(
@@ -321,31 +339,6 @@ fn append_line(
         theme,
     );
     lines.push(rendered);
-}
-
-fn render_lines(
-    diff: &RenderableDiff<'_>,
-    lines: Vec<Line<'static>>,
-    title: Option<String>,
-    area: Rect,
-    buf: &mut Buffer,
-    scroll_offset: usize,
-    border_style: Style,
-) {
-    let title = title
-        .unwrap_or_else(|| format!("📦 {} ({:?})", diff.metadata.boundary_name, diff.language));
-
-    let paragraph = Paragraph::new(lines)
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(title)
-                .border_style(border_style),
-        )
-        .wrap(Wrap { trim: false })
-        .scroll((scroll_offset as u16, 0));
-
-    paragraph.render(area, buf);
 }
 
 fn change_indicator(change: Option<&ChangeType>) -> String {

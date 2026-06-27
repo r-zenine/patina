@@ -5,7 +5,7 @@ use ratatui::{
     layout::Rect,
     style::Modifier,
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Wrap},
+    widgets::{Block, Clear, Paragraph, Wrap},
 };
 use tui_design::{Icons, Theme, stylesheet};
 
@@ -22,6 +22,7 @@ use diffviz_review::{engines::ReviewEngine, state::ReviewableDiff};
 
 /// Render the diff view panel
 pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &ReviewEngine) {
+    let area = Rect { height: area.height.saturating_sub(1), ..area };
     let is_focused = matches!(ui_state.focused_panel, FocusPanel::DiffView);
 
     match ui_state.decision_tree.selected_path.depth() {
@@ -70,8 +71,6 @@ fn render_diff_content(
     reviewable_diff: &ReviewableDiff,
     is_focused: bool,
 ) {
-    let theme = Theme::mocha();
-
     let approval_icon = if review_engine.state().is_approved(&reviewable_diff.id) {
         Icons::APPROVED
     } else {
@@ -164,11 +163,7 @@ fn render_diff_content(
             .with_selection(ui_state.selection_range)
             .with_cursor_line(cursor_line_num)
             .with_title(combined_title)
-            .with_border_style(if is_focused {
-                stylesheet::border_focused(&theme)
-            } else {
-                stylesheet::border(&theme)
-            })
+            .with_focus(is_focused)
             .with_instruction_indicators(&instruction_map)
             .with_reasoning_annotations(&annotations);
 
@@ -194,16 +189,12 @@ fn render_no_diff_available(f: &mut Frame, area: Rect, is_focused: bool, title: 
         )]),
     ];
 
+    let title_style = if is_focused { stylesheet::title_active(&theme) } else { stylesheet::title_inactive(&theme) };
     let paragraph = Paragraph::new(message)
         .block(
             Block::default()
-                .borders(Borders::ALL)
-                .title(title)
-                .border_style(if is_focused {
-                    stylesheet::border_focused(&theme)
-                } else {
-                    stylesheet::border(&theme)
-                }),
+                .title(ratatui::text::Span::styled(title, title_style))
+                .style(stylesheet::layer_raised(&theme)),
         )
         .wrap(Wrap { trim: false });
 
@@ -220,16 +211,12 @@ fn render_no_diff_selected(f: &mut Frame, area: Rect, is_focused: bool) {
         )]),
     ];
 
+    let title_style = if is_focused { stylesheet::title_active(&theme) } else { stylesheet::title_inactive(&theme) };
     let paragraph = Paragraph::new(message)
         .block(
             Block::default()
-                .borders(Borders::ALL)
-                .title("Diff View")
-                .border_style(if is_focused {
-                    stylesheet::border_focused(&theme)
-                } else {
-                    stylesheet::border(&theme)
-                }),
+                .title(ratatui::text::Span::styled("Diff View", title_style))
+                .style(stylesheet::layer_raised(&theme)),
         )
         .wrap(Wrap { trim: false });
 
@@ -310,12 +297,12 @@ fn render_instructions_overlay(
         let paragraph = Paragraph::new(lines)
             .block(
                 Block::default()
-                    .borders(Borders::ALL)
-                    .title("Instructions (I to toggle)")
-                    .border_style(stylesheet::warning(&theme)),
+                    .title(ratatui::text::Span::styled("Instructions (I to toggle)", stylesheet::warning(&theme)))
+                    .style(stylesheet::layer_elevated(&theme)),
             )
             .wrap(Wrap { trim: false });
 
+        f.render_widget(Clear, overlay_area);
         f.render_widget(paragraph, overlay_area);
     }
 }

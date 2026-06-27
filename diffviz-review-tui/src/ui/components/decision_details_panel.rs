@@ -5,7 +5,7 @@ use ratatui::{
     layout::Rect,
     style::Modifier,
     text::{Line, Span},
-    widgets::{Block, Borders, Paragraph, Wrap},
+    widgets::{Block, Paragraph, Wrap},
 };
 use tui_design::{Icons, Theme, stylesheet};
 
@@ -163,18 +163,12 @@ pub fn render(
         }
     }
 
-    let border_style = if is_focused {
-        stylesheet::border_focused(&theme)
-    } else {
-        stylesheet::border(&theme)
-    };
-
+    let title_style = if is_focused { stylesheet::title_active(&theme) } else { stylesheet::title_inactive(&theme) };
     let paragraph = Paragraph::new(lines)
         .block(
             Block::default()
-                .borders(Borders::ALL)
-                .title("Decision Details")
-                .border_style(border_style),
+                .title(ratatui::text::Span::styled("Decision Details", title_style))
+                .style(stylesheet::layer_raised(&theme)),
         )
         .wrap(Wrap { trim: true })
         .style(stylesheet::body(&theme));
@@ -183,12 +177,6 @@ pub fn render(
 }
 
 fn render_no_decision_selected(f: &mut Frame, area: Rect, is_focused: bool, theme: &Theme) {
-    let border_style = if is_focused {
-        stylesheet::border_focused(theme)
-    } else {
-        stylesheet::border(theme)
-    };
-
     let lines = vec![
         Line::from(""),
         Line::from(vec![Span::styled("No decision selected", stylesheet::muted(theme))]),
@@ -199,12 +187,12 @@ fn render_no_decision_selected(f: &mut Frame, area: Rect, is_focused: bool, them
         )]),
     ];
 
+    let title_style = if is_focused { stylesheet::title_active(theme) } else { stylesheet::title_inactive(theme) };
     let paragraph = Paragraph::new(lines)
         .block(
             Block::default()
-                .borders(Borders::ALL)
-                .title("Decision Details")
-                .border_style(border_style),
+                .title(ratatui::text::Span::styled("Decision Details", title_style))
+                .style(stylesheet::layer_raised(theme)),
         )
         .style(stylesheet::body(theme));
 
@@ -218,12 +206,6 @@ fn render_decision_not_found(
     is_focused: bool,
     theme: &Theme,
 ) {
-    let border_style = if is_focused {
-        stylesheet::border_focused(theme)
-    } else {
-        stylesheet::border(theme)
-    };
-
     let lines = vec![
         Line::from(""),
         Line::from(vec![Span::styled(
@@ -237,12 +219,12 @@ fn render_decision_not_found(
         )]),
     ];
 
+    let title_style = if is_focused { stylesheet::title_active(theme) } else { stylesheet::title_inactive(theme) };
     let paragraph = Paragraph::new(lines)
         .block(
             Block::default()
-                .borders(Borders::ALL)
-                .title("Decision Details")
-                .border_style(border_style),
+                .title(ratatui::text::Span::styled("Decision Details", title_style))
+                .style(stylesheet::layer_raised(theme)),
         )
         .style(stylesheet::body(theme));
 
