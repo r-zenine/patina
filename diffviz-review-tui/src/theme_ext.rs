@@ -11,7 +11,7 @@ pub trait DiffvizSurface {
 
 impl DiffvizSurface for SurfaceRamp {
     fn panel_bg(&self) -> Color {
-        self.base()
+        self.crust()
     }
     fn diff_gutter_bg(&self) -> Color {
         self.surface0()

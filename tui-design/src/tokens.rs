@@ -4,13 +4,13 @@ use ratatui::style::Color;
 
 use crate::palette;
 
-/// Nine-step luminance ramp from darkest (0) to brightest (8).
+/// Ten-step luminance ramp from darkest (0) to brightest (9).
 ///
 /// Index → Catppuccin Mocha name:
-///   0 = base, 1 = mantle, 2 = surface0, 3 = surface1,
-///   4 = overlay0, 5 = overlay2, 6 = subtext0, 7 = subtext1, 8 = text
+///   0 = crust, 1 = mantle, 2 = base, 3 = surface0, 4 = surface1,
+///   5 = overlay0, 6 = overlay2, 7 = subtext0, 8 = subtext1, 9 = text
 #[derive(Clone, Copy)]
-pub struct SurfaceRamp(pub [Color; 9]);
+pub struct SurfaceRamp(pub [Color; 10]);
 
 impl Index<usize> for SurfaceRamp {
     type Output = Color;
@@ -20,15 +20,16 @@ impl Index<usize> for SurfaceRamp {
 }
 
 impl SurfaceRamp {
-    pub fn base(&self) -> Color { self.0[0] }
+    pub fn crust(&self) -> Color { self.0[0] }
     pub fn mantle(&self) -> Color { self.0[1] }
-    pub fn surface0(&self) -> Color { self.0[2] }
-    pub fn surface1(&self) -> Color { self.0[3] }
-    pub fn overlay0(&self) -> Color { self.0[4] }
-    pub fn overlay2(&self) -> Color { self.0[5] }
-    pub fn subtext0(&self) -> Color { self.0[6] }
-    pub fn subtext1(&self) -> Color { self.0[7] }
-    pub fn text(&self) -> Color { self.0[8] }
+    pub fn base(&self) -> Color { self.0[2] }
+    pub fn surface0(&self) -> Color { self.0[3] }
+    pub fn surface1(&self) -> Color { self.0[4] }
+    pub fn overlay0(&self) -> Color { self.0[5] }
+    pub fn overlay2(&self) -> Color { self.0[6] }
+    pub fn subtext0(&self) -> Color { self.0[7] }
+    pub fn subtext1(&self) -> Color { self.0[8] }
+    pub fn text(&self) -> Color { self.0[9] }
 }
 
 /// All 14 Catppuccin accent colors by their catppuccin names.
@@ -63,8 +64,9 @@ impl Theme {
         let c = &palette::mocha().colors;
         Self {
             surface: SurfaceRamp([
-                c.base.into(),
+                c.crust.into(),
                 c.mantle.into(),
+                c.base.into(),
                 c.surface0.into(),
                 c.surface1.into(),
                 c.overlay0.into(),

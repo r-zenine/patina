@@ -55,7 +55,7 @@ pub fn keybind_desc(theme: &Theme) -> Style {
 // Panels rise from there: base → surface0 → surface1
 
 pub fn layer_base(theme: &Theme) -> Style {
-    Style::default().bg(theme.surface.base())
+    Style::default().bg(theme.surface.crust())
 }
 
 pub fn layer_raised(theme: &Theme) -> Style {
@@ -76,7 +76,7 @@ pub fn selection(theme: &Theme) -> Style {
 
 pub fn cursor(theme: &Theme) -> Style {
     Style::default()
-        .fg(theme.surface.base())
+        .fg(theme.surface.crust())
         .bg(theme.surface.text())
 }
 

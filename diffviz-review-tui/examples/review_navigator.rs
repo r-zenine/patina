@@ -1,14 +1,14 @@
 //! Review Navigator — three-level hierarchical navigation prototype.
 //!
 //! L1  j/k navigate decisions  | Enter drill in | q quit
-//! L2  j/k navigate impacts    | Enter enter code-scroll mode | i toggle instructions | Esc back
-//! L2* j/k scroll code         | i toggle instructions | Esc exit code-scroll | q quit
+//! L2  j/k navigate chunks     | h/l cycle files (wraps) | Esc back | q quit
 //!
 //! Surface ramp (dark theme, lighter = higher elevation):
-//!   rationale    → layer_elevated (surface1)
-//!   instructions → layer_raised   (surface0)
-//!   code lines   → layer_base     (base)
-//!   skip marker  → no bg          (terminal mantle floor)
+//!   rationale    → surface1   (highest widget elevation)
+//!   instructions → surface0
+//!   code lines   → base
+//!   pinned header container → mantle
+//!   separator    → mantle     (widget floor — never touches crust/terminal)
 //!
 //! Layout: content capped at 120 columns, centered; surface bg fills full column width.
 
@@ -22,7 +22,7 @@ use crossterm::{
 };
 use ratatui::prelude::*;
 use ratatui::widgets::Paragraph;
-use tui_design::{Icons, Theme, stylesheet};
+use tui_design::{HierarchicalCard, Icons, Theme, separator_line, stylesheet};
 
 // ── Mock data (mirrors the decision-log YAML template) ────────────────────────
 
@@ -163,12 +163,10 @@ enum NavLevel {
     L1 {
         selected: usize,
     },
-    // code_scroll: None  = impact-navigate mode
-    // code_scroll: Some  = code-scroll mode (was a separate L3 variant)
     L2 {
         decision_idx: usize,
-        focused_impact: usize,
-        code_scroll: Option<u16>,
+        impact_idx: usize,
+        focused_chunk: usize,
     },
 }
 
@@ -210,8 +208,8 @@ impl App {
                     let idx = *selected;
                     self.nav = NavLevel::L2 {
                         decision_idx: idx,
-                        focused_impact: 0,
-                        code_scroll: None,
+                        impact_idx: 0,
+                        focused_chunk: 0,
                     };
                 }
                 _ => {}
@@ -219,38 +217,35 @@ impl App {
 
             NavLevel::L2 {
                 decision_idx,
-                focused_impact,
-                code_scroll,
+                impact_idx,
+                focused_chunk,
             } => match code {
                 KeyCode::Char('j') | KeyCode::Down => {
-                    if let Some(s) = code_scroll.as_mut() {
-                        *s = s.saturating_add(1);
-                    } else {
-                        let n = self.log.decisions[*decision_idx].code_impacts.len();
-                        if *focused_impact + 1 < n {
-                            *focused_impact += 1;
-                        }
+                    let n = self.log.decisions[*decision_idx].code_impacts[*impact_idx]
+                        .line_ranges
+                        .len();
+                    if *focused_chunk + 1 < n {
+                        *focused_chunk += 1;
                     }
                 }
                 KeyCode::Char('k') | KeyCode::Up => {
-                    if let Some(s) = code_scroll.as_mut() {
-                        *s = s.saturating_sub(1);
-                    } else if *focused_impact > 0 {
-                        *focused_impact -= 1;
+                    if *focused_chunk > 0 {
+                        *focused_chunk -= 1;
                     }
                 }
-                KeyCode::Enter => {
-                    if code_scroll.is_none() {
-                        *code_scroll = Some(0);
-                    }
+                KeyCode::Char('l') | KeyCode::Right => {
+                    let n = self.log.decisions[*decision_idx].code_impacts.len();
+                    *impact_idx = (*impact_idx + 1) % n;
+                    *focused_chunk = 0;
+                }
+                KeyCode::Char('h') | KeyCode::Left => {
+                    let n = self.log.decisions[*decision_idx].code_impacts.len();
+                    *impact_idx = impact_idx.checked_sub(1).unwrap_or(n - 1);
+                    *focused_chunk = 0;
                 }
                 KeyCode::Esc => {
-                    if code_scroll.is_some() {
-                        *code_scroll = None;
-                    } else {
-                        let d = *decision_idx;
-                        self.nav = NavLevel::L1 { selected: d };
-                    }
+                    let d = *decision_idx;
+                    self.nav = NavLevel::L1 { selected: d };
                 }
                 _ => {}
             },
@@ -261,13 +256,6 @@ impl App {
 // ── Layout helpers ────────────────────────────────────────────────────────────
 
 const CONTENT_WIDTH: u16 = 120;
-const INDENT: usize = 2;
-
-// Lines emitted by render_l2 before the impact loop (title + rationale lines + blank).
-// Updated dynamically; this constant covers the fixed title + blank.
-const L2_FIXED_HEADER_LINES: u16 = 2;
-// Lines in the between-impact separator (two blank lines).
-const IMPACT_SEPARATOR_LINES: u16 = 2;
 
 fn content_rect(area: Rect) -> Rect {
     let w = CONTENT_WIDTH.min(area.width);
@@ -277,30 +265,6 @@ fn content_rect(area: Rect) -> Rect {
         width: w,
         ..area
     }
-}
-
-// Line indented by INDENT with bg painted on every cell up to col_width.
-// `accent` draws a 1-char ▌ bar in the first column (focused indicator); None = blank.
-// Explicit trailing span required — Line::style alone does not fill remaining cells.
-fn padded_line<'a>(
-    col_width: u16,
-    spans: Vec<Span<'a>>,
-    bg: Color,
-    accent: Option<Color>,
-) -> Line<'a> {
-    let content_len: usize = spans.iter().map(|s| s.content.chars().count()).sum();
-    let used = INDENT + content_len;
-    let trailing = (col_width as usize).saturating_sub(used);
-    let bar = match accent {
-        Some(c) => Span::styled("▌ ", Style::default().fg(c).bg(bg)),
-        None => Span::styled("  ", Style::default().bg(bg)),
-    };
-    let mut all = vec![bar];
-    for s in spans {
-        all.push(Span::styled(s.content, s.style.bg(bg)));
-    }
-    all.push(Span::styled(" ".repeat(trailing), Style::default().bg(bg)));
-    Line::from(all)
 }
 
 fn plural_s(n: usize) -> &'static str {
@@ -327,23 +291,6 @@ fn wrap_text(text: &str, max_cols: usize) -> Vec<String> {
     result
 }
 
-fn skip_marker(col_width: u16, fg: Color, bg: Color, accent: Option<Color>) -> Line<'static> {
-    let bar = match accent {
-        Some(c) => Span::styled("▌ ", Style::default().fg(c).bg(bg)),
-        None => Span::styled("  ", Style::default().bg(bg)),
-    };
-    // Center "···" in the full col_width (matching Alignment::Center), then subtract the 2-char bar.
-    let left_pad = (col_width as usize).saturating_sub(3) / 2;
-    let pad = left_pad.saturating_sub(2);
-    let trailing = (col_width as usize).saturating_sub(2 + pad + 3);
-    Line::from(vec![
-        bar,
-        Span::styled(" ".repeat(pad), Style::default().bg(bg)),
-        Span::styled("···", Style::default().fg(fg).bg(bg)),
-        Span::styled(" ".repeat(trailing), Style::default().bg(bg)),
-    ])
-}
-
 // ── Rendering ─────────────────────────────────────────────────────────────────
 
 fn render(frame: &mut Frame, app: &App) {
@@ -351,7 +298,7 @@ fn render(frame: &mut Frame, app: &App) {
     let area = frame.area();
 
     frame.render_widget(
-        Paragraph::new("").style(Style::default().bg(theme.surface.mantle())),
+        Paragraph::new("").style(Style::default().bg(theme.surface.crust())),
         area,
     );
 
@@ -371,38 +318,31 @@ fn render(frame: &mut Frame, app: &App) {
         }
         NavLevel::L2 {
             decision_idx,
-            focused_impact,
-            code_scroll: None,
+            impact_idx,
+            focused_chunk,
         } => {
-            render_l2(frame, content_area, app, *decision_idx, *focused_impact);
-        }
-        NavLevel::L2 {
-            decision_idx,
-            focused_impact,
-            code_scroll: Some(scroll),
-        } => {
-            render_l3(
-                frame,
-                content_area,
-                app,
-                *decision_idx,
-                *focused_impact,
-                *scroll,
-            );
+            render_l2(frame, content_area, app, *decision_idx, *impact_idx, *focused_chunk);
         }
     }
 
-    let nav_hint = match &app.nav {
-        NavLevel::L1 { .. } => " j/k navigate    Enter drill in    q quit",
+    let status = match &app.nav {
+        NavLevel::L1 { .. } => {
+            format!("commit {}   j/k navigate    Enter drill in    q quit", app.log.commit)
+        }
         NavLevel::L2 {
-            code_scroll: None, ..
-        } => " j/k navigate impacts    Enter scroll code    Esc back    q quit",
-        NavLevel::L2 {
-            code_scroll: Some(_),
+            decision_idx,
+            impact_idx,
             ..
-        } => " j/k scroll code    Esc exit scroll    q quit",
+        } => {
+            let total = app.log.decisions[*decision_idx].code_impacts.len();
+            format!(
+                "commit {}   file {}/{}    h/l files    j/k chunks    Esc back    q quit",
+                app.log.commit,
+                impact_idx + 1,
+                total,
+            )
+        }
     };
-    let status = format!("commit {}  {}", app.log.commit, nav_hint);
     frame.render_widget(
         Paragraph::new(status).style(stylesheet::status_bar(theme)),
         status_area,
@@ -414,201 +354,108 @@ fn render(frame: &mut Frame, app: &App) {
 fn render_l1(frame: &mut Frame, area: Rect, app: &App, selected: usize) {
     let theme = &app.theme;
     let cr = content_rect(area);
-    let text_width = cr.width as usize - INDENT * 2;
+    let text_width = cr.width as usize - 4; // 2 bar + 2 inner indent
     let mut lines: Vec<Line<'static>> = Vec::new();
 
-    lines.push(padded_line(cr.width, vec![], theme.surface.mantle(), None));
+    lines.push(separator_line(cr.width, theme.surface.mantle()));
 
     for (i, decision) in app.log.decisions.iter().enumerate() {
         let focused = i == selected;
-        let bar = if focused {
-            Some(theme.accents.lavender)
-        } else {
-            None
-        };
-        let header_bg = theme.surface.surface1();
-        let header_fg = theme.surface.text();
+        let card = make_card(cr.width, focused, theme.accents.lavender);
         let n_files = decision.code_impacts.len();
 
-        lines.push(padded_line(
-            cr.width,
+        lines.push(card.line(
             vec![
                 Span::styled(
                     format!("#{} {}", decision.number, decision.title),
-                    Style::default().fg(header_fg).add_modifier(Modifier::BOLD),
+                    Style::default().fg(theme.surface.text()).add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
                     format!("  {} file{}", n_files, plural_s(n_files)),
                     Style::default().fg(theme.surface.overlay0()),
                 ),
             ],
-            header_bg,
-            bar,
+            theme.surface.surface1(),
         ));
 
         if let Some(rationale) = decision.rationale {
-            let rationale_bg = theme.surface.surface1();
             for text_line in wrap_text(rationale, text_width) {
-                lines.push(padded_line(
-                    cr.width,
+                lines.push(card.line(
                     vec![Span::styled(
                         format!("· {}", text_line),
                         Style::default().fg(theme.surface.subtext1()),
                     )],
-                    rationale_bg,
-                    bar,
+                    theme.surface.surface1(),
                 ));
             }
         }
 
         for impact in &decision.code_impacts {
-            lines.push(padded_line(
-                cr.width,
+            lines.push(card.line(
                 vec![Span::styled(
                     format!("{} {}", Icons::FILE_MODIFIED, impact.file),
                     Style::default().fg(theme.surface.text()),
                 )],
                 theme.surface.surface0(),
-                bar,
             ));
         }
 
-        lines.push(padded_line(cr.width, vec![], theme.surface.mantle(), None));
+        lines.push(separator_line(cr.width, theme.surface.mantle()));
     }
 
     frame.render_widget(Paragraph::new(lines), cr);
 }
 
-// L2 — all impacts shown at full detail; focused one uses elevated surfaces.
+// L2 — pinned file header + scrollable chunk cards; h/l cycles files, j/k navigates chunks.
 
-fn render_l2(frame: &mut Frame, area: Rect, app: &App, decision_idx: usize, focused_impact: usize) {
-    let theme = &app.theme;
-    let cr = content_rect(area);
-    let text_width = cr.width as usize - INDENT * 2;
-    let decision = &app.log.decisions[decision_idx];
-    let mut lines: Vec<Line<'static>> = Vec::new();
-
-    lines.push(padded_line(
-        cr.width,
-        vec![Span::styled(
-            format!("#{} {}", decision.number, decision.title),
-            Style::default()
-                .fg(theme.surface.text())
-                .add_modifier(Modifier::BOLD),
-        )],
-        theme.surface.subtext0(),
-        None,
-    ));
-    lines.push(padded_line(
-        cr.width,
-        vec![],
-        theme.surface.surface0(),
-        None,
-    ));
-
-    for (i, impact) in decision.code_impacts.iter().enumerate() {
-        let focused = i == focused_impact;
-        push_impact_detail(&mut lines, cr.width, theme, impact, text_width, focused);
-
-        if i + 1 < decision.code_impacts.len() {
-            lines.push(padded_line(cr.width, vec![], theme.surface.mantle(), None));
-            lines.push(padded_line(cr.width, vec![], theme.surface.mantle(), None));
-        }
-    }
-
-    let scroll = l2_focused_offset(decision, focused_impact, text_width);
-    frame.render_widget(Paragraph::new(lines).scroll((scroll, 0)), cr);
-}
-
-// Exact line count for one impact block (must mirror push_impact_detail).
-fn impact_line_count(impact: &CodeImpact, text_width: usize) -> u16 {
-    let mut h = 1u16; // file header
-    h += 1; // reasoning label
-    h += wrap_text(impact.reasoning, text_width).len() as u16;
-    h += 1; // blank after reasoning
-    for (idx, range) in impact.line_ranges.iter().enumerate() {
-        h += range.lines.len() as u16;
-        if idx + 1 < impact.line_ranges.len() {
-            h += 1;
-        } // intra-range skip marker
-    }
-    h
-}
-
-fn l2_focused_offset(decision: &Decision, focused_impact: usize, text_width: usize) -> u16 {
-    let mut offset = L2_FIXED_HEADER_LINES;
-    for i in 0..focused_impact {
-        offset += impact_line_count(&decision.code_impacts[i], text_width);
-        offset += IMPACT_SEPARATOR_LINES;
-    }
-    offset
-}
-
-// L2* (code-scroll mode) — focused impact fullscreen, j/k scrolls
-
-fn render_l3(
+fn render_l2(
     frame: &mut Frame,
     area: Rect,
     app: &App,
     decision_idx: usize,
     impact_idx: usize,
-    code_scroll: u16,
+    focused_chunk: usize,
 ) {
     let theme = &app.theme;
     let cr = content_rect(area);
-    let text_width = cr.width as usize - INDENT * 2;
+    let text_width = cr.width as usize - 4;
     let impact = &app.log.decisions[decision_idx].code_impacts[impact_idx];
-    let mut lines: Vec<Line<'static>> = Vec::new();
 
-    push_impact_detail(&mut lines, cr.width, theme, impact, text_width, true);
+    let reasoning_lines = wrap_text(impact.reasoning, text_width);
+    // mantle fill + file line + reasoning lines + mantle separator
+    let header_height = 1 + 1 + reasoning_lines.len() as u16 + 1;
 
-    frame.render_widget(Paragraph::new(lines).scroll((code_scroll, 0)), cr);
-}
+    let [header_area, chunks_area] =
+        Layout::vertical([Constraint::Length(header_height), Constraint::Fill(1)]).areas(cr);
 
-// File header + reasoning + line ranges.
-// `focused` draws a lavender accent bar spanning every line of this block.
-fn push_impact_detail(
-    lines: &mut Vec<Line<'static>>,
-    col_width: u16,
-    theme: &Theme,
-    impact: &CodeImpact,
-    text_width: usize,
-    focused: bool,
-) {
-    let bar = if focused {
-        Some(theme.accents.lavender)
-    } else {
-        None
-    };
-    let reasoning_bg = theme.surface.surface1();
-
-    lines.push(padded_line(
-        col_width,
+    // Pinned header — mantle container bg with surface1 card content.
+    let header_card = HierarchicalCard::new(cr.width);
+    let mut header_lines: Vec<Line<'static>> = Vec::new();
+    header_lines.push(separator_line(cr.width, theme.surface.mantle()));
+    header_lines.push(header_card.line(
         vec![Span::styled(
             format!("{} {}", Icons::FILE_MODIFIED, impact.file),
-            Style::default()
-                .fg(theme.surface.text())
-                .add_modifier(Modifier::BOLD),
+            Style::default().fg(theme.surface.text()).add_modifier(Modifier::BOLD),
         )],
-        reasoning_bg,
-        bar,
+        theme.surface.surface1(),
     ));
-
-    for text_line in wrap_text(impact.reasoning, text_width) {
-        lines.push(padded_line(
-            col_width,
-            vec![Span::styled(
-                text_line,
-                Style::default().fg(theme.surface.subtext1()),
-            )],
-            reasoning_bg,
-            bar,
+    for text_line in reasoning_lines {
+        header_lines.push(header_card.line(
+            vec![Span::styled(text_line, Style::default().fg(theme.surface.subtext1()))],
+            theme.surface.surface1(),
         ));
     }
-    lines.push(padded_line(col_width, vec![], reasoning_bg, bar));
+    header_lines.push(separator_line(cr.width, theme.surface.mantle()));
+    frame.render_widget(
+        Paragraph::new("").style(Style::default().bg(theme.surface.mantle())),
+        header_area,
+    );
+    frame.render_widget(Paragraph::new(header_lines), header_area);
 
-    let code_bg = theme.surface.surface0();
-    for (range_idx, range) in impact.line_ranges.iter().enumerate() {
+    // Chunk cards — each LineRange is a card; focused one gets the accent bar.
+    let mut chunk_lines: Vec<Line<'static>> = Vec::new();
+    for (i, range) in impact.line_ranges.iter().enumerate() {
+        let card = make_card(cr.width, i == focused_chunk, theme.accents.lavender);
         for (offset, (kind, content)) in range.lines.iter().enumerate() {
             let line_no = range.start + offset as u32;
             let (fg, sigil) = match kind {
@@ -616,8 +463,7 @@ fn push_impact_detail(
                 LineKind::Removed => (theme.accents.red, "-"),
                 LineKind::Context => (theme.surface.subtext0(), " "),
             };
-            lines.push(padded_line(
-                col_width,
+            chunk_lines.push(card.line(
                 vec![
                     Span::styled(
                         format!("{:>4} ", line_no),
@@ -626,18 +472,45 @@ fn push_impact_detail(
                     Span::styled(sigil, Style::default().fg(fg).add_modifier(Modifier::BOLD)),
                     Span::styled(format!(" {}", content), Style::default().fg(fg)),
                 ],
-                code_bg,
-                bar,
-            ));
-        }
-        if range_idx + 1 < impact.line_ranges.len() {
-            lines.push(skip_marker(
-                col_width,
-                theme.surface.overlay0(),
                 theme.surface.base(),
-                bar,
             ));
         }
+        if i + 1 < impact.line_ranges.len() {
+            // Freestanding skip-marker between chunk cards — not owned by either card.
+            chunk_lines.push(Line::styled(
+                format!("{:>6}", "···"),
+                Style::default()
+                    .fg(theme.surface.overlay0())
+                    .bg(theme.surface.mantle()),
+            ));
+        }
+    }
+    let scroll = chunks_scroll_offset(impact, focused_chunk, chunks_area.height);
+    frame.render_widget(Paragraph::new(chunk_lines).scroll((scroll, 0)), chunks_area);
+}
+
+fn chunks_scroll_offset(impact: &CodeImpact, focused_chunk: usize, viewport: u16) -> u16 {
+    // Compute start line of the focused chunk.
+    let mut chunk_start = 0u16;
+    for i in 0..focused_chunk {
+        chunk_start += impact.line_ranges[i].lines.len() as u16;
+        chunk_start += 1; // skip-marker between chunks
+    }
+    let chunk_height = impact.line_ranges[focused_chunk].lines.len() as u16;
+
+    // If the focused chunk is visible from scroll=0, don't scroll.
+    if chunk_start + chunk_height <= viewport {
+        return 0;
+    }
+    // Otherwise scroll so the focused chunk starts at the top.
+    chunk_start
+}
+
+fn make_card(col_width: u16, focused: bool, accent_color: Color) -> HierarchicalCard {
+    if focused {
+        HierarchicalCard::new(col_width).focused(accent_color)
+    } else {
+        HierarchicalCard::new(col_width)
     }
 }
 
@@ -653,12 +526,11 @@ fn main() -> Result<()> {
     loop {
         terminal.draw(|f| render(f, &app))?;
 
-        if event::poll(std::time::Duration::from_millis(50))? {
-            if let Event::Key(key) = event::read()? {
-                if key.kind == KeyEventKind::Press {
-                    app.handle_key(key.code);
-                }
-            }
+        if event::poll(std::time::Duration::from_millis(50))?
+            && let Event::Key(key) = event::read()?
+            && key.kind == KeyEventKind::Press
+        {
+            app.handle_key(key.code);
         }
 
         if app.quit {
