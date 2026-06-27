@@ -45,11 +45,17 @@ struct CodeImpact {
     line_ranges: Vec<LineRange>,
 }
 
+struct MockInstruction {
+    author: &'static str,
+    content: &'static str,
+}
+
 struct LineRange {
     start: u32,
     #[allow(dead_code)] // present to match the YAML template schema; used by real deserializer
     end: u32,
     lines: Vec<(LineKind, &'static str)>,
+    instruction: Option<MockInstruction>,
 }
 
 #[derive(Clone, Copy)]
@@ -96,6 +102,12 @@ fn mock_data() -> DecisionLog {
                                     (LineKind::Context, "    Ok(raw.into_claims())"),
                                     (LineKind::Context, "}"),
                                 ],
+                                // Case: instruction expanded — visible above the code block
+                                instruction: Some(MockInstruction {
+                                    author: "alice",
+                                    content: "Make sure TokenValidator is object-safe before merging — \
+                                        we'll need Arc<dyn TokenValidator> in the Middleware struct below.",
+                                }),
                             },
                             LineRange {
                                 start: 38,
@@ -119,6 +131,12 @@ fn mock_data() -> DecisionLog {
                                     (LineKind::Added,   "    }"),
                                     (LineKind::Context, "}"),
                                 ],
+                                // Case: instruction folded — only the gutter icon is shown
+                                instruction: Some(MockInstruction {
+                                    author: "bob",
+                                    content: "DefaultValidator::new() is not yet implemented — \
+                                        this will panic at runtime if the default impl is exercised.",
+                                }),
                             },
                         ],
                     },
@@ -155,6 +173,8 @@ fn mock_data() -> DecisionLog {
                                 (LineKind::Context, "    }"),
                                 (LineKind::Context, "}"),
                             ],
+                            // Case: no instruction
+                            instruction: None,
                         }],
                     },
                 ],
@@ -187,6 +207,8 @@ fn mock_data() -> DecisionLog {
                                 (LineKind::Added, "    timestamps: VecDeque<Instant>,"),
                                 (LineKind::Added, "}"),
                             ],
+                            // Case: no instruction
+                            instruction: None,
                         },
                         LineRange {
                             start: 18,
@@ -210,6 +232,12 @@ fn mock_data() -> DecisionLog {
                                 (LineKind::Added, "    }"),
                                 (LineKind::Added, "}"),
                             ],
+                            // Case: instruction folded
+                            instruction: Some(MockInstruction {
+                                author: "carol",
+                                content: "Consider extracting retain + len check into a named helper — \
+                                    check_and_record is doing two distinct things.",
+                            }),
                         },
                     ],
                 }],
@@ -220,6 +248,14 @@ fn mock_data() -> DecisionLog {
 
 // ── Navigation state ──────────────────────────────────────────────────────────
 
+struct L2State<'a> {
+    decision_idx: usize,
+    impact_idx: usize,
+    focused_chunk: usize,
+    expanded_chunks: &'a HashSet<usize>,
+    expanded_instructions: &'a HashSet<usize>,
+}
+
 enum NavLevel {
     L1 {
         selected: usize,
@@ -229,6 +265,7 @@ enum NavLevel {
         impact_idx: usize,
         focused_chunk: usize,
         expanded_chunks: HashSet<usize>,
+        expanded_instructions: HashSet<usize>,
     },
 }
 
@@ -268,11 +305,14 @@ impl App {
                 }
                 KeyCode::Enter => {
                     let idx = *selected;
+                    // Pre-expand chunk 0's instruction so all three cases (expanded / folded / none)
+                    // are visible immediately on entry.
                     self.nav = NavLevel::L2 {
                         decision_idx: idx,
                         impact_idx: 0,
                         focused_chunk: 0,
                         expanded_chunks: HashSet::new(),
+                        expanded_instructions: HashSet::from([0]),
                     };
                 }
                 _ => {}
@@ -283,6 +323,7 @@ impl App {
                 impact_idx,
                 focused_chunk,
                 expanded_chunks,
+                expanded_instructions,
             } => match code {
                 KeyCode::Char('j') | KeyCode::Down => {
                     let n = self.log.decisions[*decision_idx].code_impacts[*impact_idx]
@@ -302,12 +343,14 @@ impl App {
                     *impact_idx = (*impact_idx + 1) % n;
                     *focused_chunk = 0;
                     expanded_chunks.clear();
+                    expanded_instructions.clear();
                 }
                 KeyCode::Char('h') | KeyCode::Left => {
                     let n = self.log.decisions[*decision_idx].code_impacts.len();
                     *impact_idx = impact_idx.checked_sub(1).unwrap_or(n - 1);
                     *focused_chunk = 0;
                     expanded_chunks.clear();
+                    expanded_instructions.clear();
                 }
                 KeyCode::Tab => {
                     if !expanded_chunks.remove(focused_chunk) {
@@ -392,8 +435,15 @@ fn render(frame: &mut Frame, app: &App) {
             impact_idx,
             focused_chunk,
             expanded_chunks,
+            expanded_instructions,
         } => {
-            render_l2(frame, content_area, app, *decision_idx, *impact_idx, *focused_chunk, expanded_chunks);
+            render_l2(frame, content_area, app, L2State {
+                decision_idx: *decision_idx,
+                impact_idx: *impact_idx,
+                focused_chunk: *focused_chunk,
+                expanded_chunks,
+                expanded_instructions,
+            });
         }
     }
 
@@ -406,6 +456,7 @@ fn render(frame: &mut Frame, app: &App) {
             impact_idx,
             focused_chunk,
             expanded_chunks,
+            expanded_instructions: _,
         } => {
             let total = app.log.decisions[*decision_idx].code_impacts.len();
             let ctx_label = if expanded_chunks.contains(focused_chunk) { "collapse ctx" } else { "expand ctx" };
@@ -483,15 +534,8 @@ fn render_l1(frame: &mut Frame, area: Rect, app: &App, selected: usize) {
 
 // L2 — pinned file header + scrollable chunk cards; h/l cycles files, j/k navigates chunks.
 
-fn render_l2(
-    frame: &mut Frame,
-    area: Rect,
-    app: &App,
-    decision_idx: usize,
-    impact_idx: usize,
-    focused_chunk: usize,
-    expanded_chunks: &HashSet<usize>,
-) {
+fn render_l2(frame: &mut Frame, area: Rect, app: &App, s: L2State<'_>) {
+    let L2State { decision_idx, impact_idx, focused_chunk, expanded_chunks, expanded_instructions } = s;
     let theme = &app.theme;
     let cr = content_rect(area);
     let text_width = cr.width as usize - 4;
@@ -533,6 +577,42 @@ fn render_l2(
     for (i, range) in impact.line_ranges.iter().enumerate() {
         let card = make_card(cr.width, i == focused_chunk, theme.accents.lavender);
         let chunk_expanded = expanded_chunks.contains(&i);
+        let instr_expanded = expanded_instructions.contains(&i);
+
+        // Instruction row(s) — always rendered at surface0 above the code lines.
+        // Collapsed: single truncated line with … if there is more. Expanded: full text.
+        if let Some(instr) = &range.instruction {
+            let instr_text = format!("{}: {}", instr.author, instr.content);
+            let wrap_width = text_width.saturating_sub(6);
+            let mut rows = wrap_text(&instr_text, wrap_width);
+            let has_more = rows.len() > 1;
+            if !instr_expanded {
+                let first = rows.into_iter().next().unwrap_or_default();
+                rows = vec![if has_more {
+                    format!("{}…", first.trim_end_matches(' '))
+                } else {
+                    first
+                }];
+            }
+            for (row, text_line) in rows.into_iter().enumerate() {
+                let icon_col = if row == 0 {
+                    Span::styled(Icons::HAS_INSTRUCTIONS, Style::default().fg(theme.accents.yellow))
+                } else {
+                    Span::styled("  ", Style::default())
+                };
+                chunk_lines.push(card.line(
+                    vec![
+                        icon_col,
+                        Span::styled(
+                            format!("    {}", text_line),
+                            Style::default().fg(theme.surface.subtext1()),
+                        ),
+                    ],
+                    theme.surface.surface0(),
+                ));
+            }
+        }
+
         let visible_lines: Vec<_> = range
             .lines
             .iter()
@@ -548,10 +628,8 @@ fn render_l2(
             };
             chunk_lines.push(card.line(
                 vec![
-                    Span::styled(
-                        format!("{:>4} ", line_no),
-                        Style::default().fg(theme.surface.overlay0()),
-                    ),
+                    Span::styled(" ", Style::default()),
+                    Span::styled(format!("{:>4} ", line_no), Style::default().fg(theme.surface.overlay0())),
                     Span::styled(sigil, Style::default().fg(fg).add_modifier(Modifier::BOLD)),
                     Span::styled(format!(" {}", content), Style::default().fg(fg)),
                 ],
@@ -568,26 +646,37 @@ fn render_l2(
             ));
         }
     }
-    let scroll = chunks_scroll_offset(impact, focused_chunk, chunks_area.height, expanded_chunks);
+    let scroll = chunks_scroll_offset(impact, focused_chunk, chunks_area.height, expanded_chunks, expanded_instructions, text_width);
     frame.render_widget(Paragraph::new(chunk_lines).scroll((scroll, 0)), chunks_area);
 }
 
-fn visible_line_count(range: &LineRange, expanded: bool) -> u16 {
-    if expanded {
+fn visible_line_count(range: &LineRange, expanded: bool, instr_expanded: bool, text_width: usize) -> u16 {
+    let code_lines = if expanded {
         range.lines.len() as u16
     } else {
         range.lines.iter().filter(|(k, _)| !matches!(k, LineKind::Context)).count() as u16
-    }
+    };
+    let instr_lines = if let Some(instr) = &range.instruction {
+        if instr_expanded {
+            let text = format!("{}: {}", instr.author, instr.content);
+            wrap_text(&text, text_width.saturating_sub(6)).len() as u16
+        } else {
+            1 // always one truncated line visible
+        }
+    } else {
+        0
+    };
+    code_lines + instr_lines
 }
 
-fn chunks_scroll_offset(impact: &CodeImpact, focused_chunk: usize, viewport: u16, expanded_chunks: &HashSet<usize>) -> u16 {
+fn chunks_scroll_offset(impact: &CodeImpact, focused_chunk: usize, viewport: u16, expanded_chunks: &HashSet<usize>, expanded_instructions: &HashSet<usize>, text_width: usize) -> u16 {
     // Compute start line of the focused chunk.
     let mut chunk_start = 0u16;
     for i in 0..focused_chunk {
-        chunk_start += visible_line_count(&impact.line_ranges[i], expanded_chunks.contains(&i));
+        chunk_start += visible_line_count(&impact.line_ranges[i], expanded_chunks.contains(&i), expanded_instructions.contains(&i), text_width);
         chunk_start += 1; // skip-marker between chunks
     }
-    let chunk_height = visible_line_count(&impact.line_ranges[focused_chunk], expanded_chunks.contains(&focused_chunk));
+    let chunk_height = visible_line_count(&impact.line_ranges[focused_chunk], expanded_chunks.contains(&focused_chunk), expanded_instructions.contains(&focused_chunk), text_width);
 
     // If the focused chunk is visible from scroll=0, don't scroll.
     if chunk_start + chunk_height <= viewport {
