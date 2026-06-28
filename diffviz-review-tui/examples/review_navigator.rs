@@ -400,6 +400,7 @@ fn handle_key_event(code: KeyCode) -> Option<UiEvent> {
         KeyCode::Char('k') | KeyCode::Up => Some(UiEvent::NavigateUp),
         KeyCode::Char('h') | KeyCode::Left => Some(UiEvent::NavigateLeft),
         KeyCode::Char('l') | KeyCode::Right => Some(UiEvent::NavigateRight),
+        KeyCode::Char('a') => Some(UiEvent::ToggleApprove),
         KeyCode::Enter => Some(UiEvent::SelectCurrent),
         KeyCode::Esc => Some(UiEvent::Back),
         KeyCode::Tab => Some(UiEvent::ToggleDecisionExpansion),
@@ -444,6 +445,11 @@ struct App {
     log: DecisionLog,
     display: Vec<Vec<MockImpactDisplay>>,
     nav: DrillNavState,
+    /// Approved chunks: (node_idx, sibling_idx, chunk_idx).
+    approved: HashSet<(usize, usize, usize)>,
+    /// Approved decisions: node_idx. Mirrors ReviewEngine's DecisionApprovals —
+    /// decision approval is tracked independently and cascades to chunks on toggle.
+    approved_decisions: HashSet<usize>,
     theme: Theme,
     quit: bool,
 }
@@ -455,6 +461,8 @@ impl App {
             log,
             display,
             nav: DrillNavState::Browse { cursor: 0 },
+            approved: HashSet::new(),
+            approved_decisions: HashSet::new(),
             theme: Theme::mocha(),
             quit: false,
         }
@@ -467,10 +475,46 @@ impl App {
             UiEvent::NavigateDown => self.navigate_down(),
             UiEvent::NavigateLeft => self.navigate_left(),
             UiEvent::NavigateRight => self.navigate_right(),
+            UiEvent::ToggleApprove => self.toggle_approve(),
             UiEvent::SelectCurrent => self.drill_in(),
             UiEvent::Back => self.back(),
             UiEvent::ToggleDecisionExpansion => self.toggle_expansion(),
             _ => {}
+        }
+    }
+
+    fn toggle_approve(&mut self) {
+        match &self.nav {
+            DrillNavState::Browse { cursor } => {
+                let node_idx = *cursor;
+                if self.approved_decisions.remove(&node_idx) {
+                    // Unapprove decision → cascade unapprove all its chunks.
+                    for sibling_idx in 0..self.display[node_idx].len() {
+                        for chunk_idx in 0..self.display[node_idx][sibling_idx].chunks.len() {
+                            self.approved.remove(&(node_idx, sibling_idx, chunk_idx));
+                        }
+                    }
+                } else {
+                    // Approve decision → cascade approve all its chunks.
+                    self.approved_decisions.insert(node_idx);
+                    for sibling_idx in 0..self.display[node_idx].len() {
+                        for chunk_idx in 0..self.display[node_idx][sibling_idx].chunks.len() {
+                            self.approved.insert((node_idx, sibling_idx, chunk_idx));
+                        }
+                    }
+                }
+            }
+            DrillNavState::Drill {
+                node_idx,
+                sibling_idx,
+                cursor,
+                ..
+            } => {
+                let key = (*node_idx, *sibling_idx, *cursor);
+                if !self.approved.remove(&key) {
+                    self.approved.insert(key);
+                }
+            }
         }
     }
 
@@ -619,25 +663,40 @@ fn wrap_text(text: &str, max_cols: usize) -> Vec<String> {
 
 /// Centered dot row on a mantle background — signals h/l sibling navigation.
 /// Active dot uses the accent color; inactive dots use overlay0.
-fn dot_pagination_line(col_width: u16, current: usize, total: usize, theme: &Theme) -> Line<'static> {
-    let mantle  = theme.surface.mantle();
-    let active  = theme.accents.lavender;
+fn dot_pagination_line(
+    col_width: u16,
+    current: usize,
+    total: usize,
+    theme: &Theme,
+) -> Line<'static> {
+    let mantle = theme.surface.mantle();
+    let active = theme.accents.lavender;
     let passive = theme.surface.overlay0();
 
     let dot_section = total * 2 - 1; // "● ○ ○" = n dots + (n-1) spaces
-    let left_pad    = (col_width as usize).saturating_sub(dot_section) / 2;
-    let right_fill  = (col_width as usize).saturating_sub(left_pad + dot_section);
+    let left_pad = (col_width as usize).saturating_sub(dot_section) / 2;
+    let right_fill = (col_width as usize).saturating_sub(left_pad + dot_section);
 
     let mut spans: Vec<Span<'static>> = Vec::with_capacity(total * 2 + 2);
-    spans.push(Span::styled(" ".repeat(left_pad), Style::default().bg(mantle)));
+    spans.push(Span::styled(
+        " ".repeat(left_pad),
+        Style::default().bg(mantle),
+    ));
     for i in 0..total {
         if i > 0 {
             spans.push(Span::styled(" ", Style::default().bg(mantle)));
         }
-        let (dot, color) = if i == current { ("●", active) } else { ("○", passive) };
+        let (dot, color) = if i == current {
+            ("●", active)
+        } else {
+            ("○", passive)
+        };
         spans.push(Span::styled(dot, Style::default().fg(color).bg(mantle)));
     }
-    spans.push(Span::styled(" ".repeat(right_fill), Style::default().bg(mantle)));
+    spans.push(Span::styled(
+        " ".repeat(right_fill),
+        Style::default().bg(mantle),
+    ));
     Line::from(spans)
 }
 
@@ -681,14 +740,17 @@ fn render(frame: &mut Frame, app: &App) {
                 expanded,
                 expanded_annotations,
             },
+            &app.approved,
         ),
     }
 
     let status = match &app.nav {
         DrillNavState::Browse { .. } => {
+            let approved = app.approved_decisions.len();
+            let total = app.log.decisions.len();
             format!(
-                "commit {}   j/k navigate    Enter drill in    q quit",
-                app.log.commit
+                "commit {}   j/k navigate    Enter drill in    a approve ({}/{})    q quit",
+                app.log.commit, approved, total,
             )
         }
         DrillNavState::Drill {
@@ -704,12 +766,21 @@ fn render(frame: &mut Frame, app: &App) {
             } else {
                 "expand ctx"
             };
+            let approved_count = app.display[*node_idx][*sibling_idx]
+                .chunks
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| app.approved.contains(&(*node_idx, *sibling_idx, *i)))
+                .count();
+            let total_chunks = app.display[*node_idx][*sibling_idx].chunks.len();
             format!(
-                "commit {}   file {}/{}    h/l files    j/k chunks    Tab {}    Esc back    q quit",
+                "commit {}   file {}/{}    h/l files    j/k chunks    Tab {}    a approve ({}/{})    Esc back    q quit",
                 app.log.commit,
                 sibling_idx + 1,
                 total,
                 ctx_label,
+                approved_count,
+                total_chunks,
             )
         }
     };
@@ -729,11 +800,17 @@ fn render_browse(frame: &mut Frame, area: Rect, app: &App, cursor: usize) {
 
     for (i, decision) in app.log.decisions.iter().enumerate() {
         let focused = i == cursor;
-        let card = make_card(cr.width, focused, theme.accents.lavender);
-        let n_files = decision.code_impacts.len();
+        let is_decision_approved = app.approved_decisions.contains(&i);
+            let card = make_card(cr.width, focused, theme.accents.lavender);
+            let n_files = decision.code_impacts.len();
 
         // label row — CardTier::Header (surface1)
-        lines.push(card.at(
+        let label_card = if is_decision_approved {
+            card.with_badge(Icons::APPROVED, theme.accents.green)
+        } else {
+            card
+        };
+        lines.push(label_card.at(
             CardTier::Header,
             vec![
                 Span::styled(
@@ -780,7 +857,13 @@ fn render_browse(frame: &mut Frame, area: Rect, app: &App, cursor: usize) {
     frame.render_widget(Paragraph::new(lines), cr);
 }
 
-fn render_drill(frame: &mut Frame, area: Rect, app: &App, s: DrillContext<'_>) {
+fn render_drill(
+    frame: &mut Frame,
+    area: Rect,
+    app: &App,
+    s: DrillContext<'_>,
+    approved: &HashSet<(usize, usize, usize)>,
+) {
     let DrillContext {
         node_idx,
         sibling_idx,
@@ -796,9 +879,15 @@ fn render_drill(frame: &mut Frame, area: Rect, app: &App, s: DrillContext<'_>) {
 
     // Build the anchored header: label + summary at CardTier::Header (surface1).
     // render_drill_header handles the mantle fill, separators, and layout split.
+    let is_decision_approved = app.approved_decisions.contains(&node_idx);
     let header_card = HierarchicalCard::new(cr.width);
     let mut header_lines: Vec<Line<'static>> = Vec::new();
-    header_lines.push(header_card.at(
+    let file_row_card = if is_decision_approved {
+        header_card.with_badge(Icons::APPROVED, theme.accents.green)
+    } else {
+        header_card
+    };
+    header_lines.push(file_row_card.at(
         CardTier::Header,
         vec![Span::styled(
             format!("{} {}", Icons::FILE_MODIFIED, impact.file),
@@ -817,23 +906,30 @@ fn render_drill(frame: &mut Frame, area: Rect, app: &App, s: DrillContext<'_>) {
         ));
     }
     let chunks_area = render_drill_header(frame, cr, header_lines, theme);
+    let below_header_area = chunks_area;
 
-    // Dot pagination — one mantle-level line between the pinned header and chunks.
+    // Dot pagination — one mantle-level line between the strip and chunks.
     let total_siblings = app.log.decisions[node_idx].code_impacts.len();
     let content_area = if total_siblings > 1 {
         let [dots_area, rest] =
-            Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(chunks_area);
+            Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(below_header_area);
         frame.render_widget(
-            Paragraph::new(dot_pagination_line(cr.width, sibling_idx, total_siblings, theme)),
+            Paragraph::new(dot_pagination_line(
+                cr.width,
+                sibling_idx,
+                total_siblings,
+                theme,
+            )),
             dots_area,
         );
         rest
     } else {
-        chunks_area
+        below_header_area
     };
 
     let mut chunk_lines: Vec<Line<'static>> = Vec::new();
     for (i, chunk) in display.chunks.iter().enumerate() {
+        let is_approved = approved.contains(&(node_idx, sibling_idx, i));
         let card = make_card(cr.width, i == cursor, theme.accents.lavender);
         let chunk_expanded = expanded.contains(&i);
         let annot_expanded = expanded_annotations.contains(&i);
@@ -860,12 +956,18 @@ fn render_drill(frame: &mut Frame, area: Rect, app: &App, s: DrillContext<'_>) {
                 } else {
                     Span::styled("  ", Style::default())
                 };
-                chunk_lines.push(card.at(
+                let row_card = if row == 0 && is_approved {
+                    card.with_badge(Icons::APPROVED, theme.accents.green)
+                } else {
+                    card
+                };
+                chunk_lines.push(row_card.at(
                     CardTier::Body,
                     vec![
+                        Span::styled(" ", Style::default()),
                         icon_col,
                         Span::styled(
-                            format!("    {}", text_line),
+                            format!("   {}", text_line),
                             Style::default().fg(theme.surface.subtext1()),
                         ),
                     ],
@@ -881,19 +983,24 @@ fn render_drill(frame: &mut Frame, area: Rect, app: &App, s: DrillContext<'_>) {
             .filter(|line| chunk_expanded || line_has_change(line))
             .collect();
 
-        for line in &visible_lines {
+        let has_instr = chunk.instruction.is_some();
+        for (line_idx, line) in visible_lines.iter().enumerate() {
             let ct = line_change_type(line);
             let (fg, sigil) = match &ct {
                 Some(ChangeType::Added) => (theme.accents.green, "+"),
                 Some(ChangeType::Deleted) => (theme.accents.red, "-"),
                 _ => (theme.surface.subtext0(), " "),
             };
-            chunk_lines.push(card.at(
+            let row_card = if !has_instr && line_idx == 0 && is_approved {
+                card.with_badge(Icons::APPROVED, theme.accents.green)
+            } else {
+                card
+            };
+            chunk_lines.push(row_card.at(
                 CardTier::Content,
                 vec![
-                    Span::styled(" ", Style::default()),
                     Span::styled(
-                        format!("{:>4} ", line.line_number),
+                        format!("{:>3} ", line.line_number),
                         Style::default().fg(theme.surface.overlay0()),
                     ),
                     Span::styled(sigil, Style::default().fg(fg).add_modifier(Modifier::BOLD)),
@@ -926,7 +1033,10 @@ fn render_drill(frame: &mut Frame, area: Rect, app: &App, s: DrillContext<'_>) {
         })
         .collect();
     let scroll = scroll_into_view(&heights, cursor, content_area.height);
-    frame.render_widget(Paragraph::new(chunk_lines).scroll((scroll, 0)), content_area);
+    frame.render_widget(
+        Paragraph::new(chunk_lines).scroll((scroll, 0)),
+        content_area,
+    );
 }
 
 fn line_change_type(line: &RenderableLine<'_>) -> Option<ChangeType> {

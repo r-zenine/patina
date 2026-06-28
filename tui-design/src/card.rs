@@ -34,13 +34,19 @@ impl CardTier {
 /// background to every line it produces.
 ///
 /// Call `.focused(color)` to activate the accent bar; omit for unfocused cards.
+/// Call `.with_badge(ch, color)` to place a single character in the second gutter
+/// column — use this for per-row state indicators (e.g. approval `✓`).
 /// Use `.line()` / `.blank()` / `.range_separator()` to produce lines, then
 /// push them into your `Vec<Line>` before passing to a `Paragraph`.
 ///
 /// Between-card separators (no accent, no card ownership) — use `separator_line`.
+#[derive(Clone, Copy)]
 pub struct HierarchicalCard {
     col_width: u16,
     accent: Option<Color>,
+    /// Single character placed in the second gutter column with its own fg color.
+    /// When `None` the column is a plain space. Width must be exactly 1 terminal cell.
+    badge: Option<(&'static str, Color)>,
 }
 
 impl HierarchicalCard {
@@ -48,6 +54,7 @@ impl HierarchicalCard {
         Self {
             col_width,
             accent: None,
+            badge: None,
         }
     }
 
@@ -56,19 +63,27 @@ impl HierarchicalCard {
         self
     }
 
+    /// Sets a single-character badge in the second gutter column.
+    /// Returns a copy so the caller can use the badged variant for one row
+    /// and the original for the rest.
+    pub fn with_badge(mut self, ch: &'static str, color: Color) -> Self {
+        self.badge = Some((ch, color));
+        self
+    }
+
     /// A content line: spans are given fg colors; bg and accent bar are applied here.
     pub fn line<'a>(&self, spans: Vec<Span<'a>>, bg: Color) -> Line<'a> {
-        content_line(self.col_width, spans, bg, self.accent)
+        content_line(self.col_width, spans, bg, self.accent, self.badge)
     }
 
     /// A blank line at the given elevation (no content spans).
     pub fn blank(&self, bg: Color) -> Line<'static> {
-        blank_line(self.col_width, bg, self.accent)
+        blank_line(self.col_width, bg, self.accent, self.badge)
     }
 
     /// A centered `···` line separating non-contiguous code ranges within this card.
     pub fn range_separator(&self, fg: Color, bg: Color) -> Line<'static> {
-        range_separator_line(self.col_width, fg, bg, self.accent)
+        range_separator_line(self.col_width, fg, bg, self.accent, self.badge)
     }
 
     /// Like `line`, but takes a `CardTier` instead of a raw background color.
@@ -117,16 +132,26 @@ pub fn render_drill_header<'a>(
 
 /// Blank accent-free line — used for between-card gaps, never owned by a card.
 pub fn separator_line(col_width: u16, bg: Color) -> Line<'static> {
-    blank_line(col_width, bg, None)
+    blank_line(col_width, bg, None, None)
 }
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
-fn accent_bar(accent: Option<Color>, bg: Color) -> Span<'static> {
-    match accent {
-        Some(c) => Span::styled("▌ ", Style::default().fg(c).bg(bg)),
-        None => Span::styled("  ", Style::default().bg(bg)),
-    }
+/// Produces the two gutter characters: accent glyph (col 0) and badge (col 1).
+fn accent_bar(
+    accent: Option<Color>,
+    badge: Option<(&'static str, Color)>,
+    bg: Color,
+) -> [Span<'static>; 2] {
+    let col0 = match accent {
+        Some(c) => Span::styled("▌", Style::default().fg(c).bg(bg)),
+        None => Span::styled(" ", Style::default().bg(bg)),
+    };
+    let col1 = match badge {
+        Some((ch, color)) => Span::styled(ch, Style::default().fg(color).bg(bg)),
+        None => Span::styled(" ", Style::default().bg(bg)),
+    };
+    [col0, col1]
 }
 
 fn content_line<'a>(
@@ -134,11 +159,13 @@ fn content_line<'a>(
     spans: Vec<Span<'a>>,
     bg: Color,
     accent: Option<Color>,
+    badge: Option<(&'static str, Color)>,
 ) -> Line<'a> {
     let content_len: usize = spans.iter().map(|s| s.content.chars().count()).sum();
     let used = INDENT + content_len;
     let trailing = (col_width as usize).saturating_sub(used);
-    let mut all: Vec<Span<'a>> = vec![accent_bar(accent, bg)];
+    let [g0, g1] = accent_bar(accent, badge, bg);
+    let mut all: Vec<Span<'a>> = vec![g0, g1];
     for s in spans {
         all.push(Span::styled(s.content, s.style.bg(bg)));
     }
@@ -146,10 +173,17 @@ fn content_line<'a>(
     Line::from(all)
 }
 
-fn blank_line(col_width: u16, bg: Color, accent: Option<Color>) -> Line<'static> {
+fn blank_line(
+    col_width: u16,
+    bg: Color,
+    accent: Option<Color>,
+    badge: Option<(&'static str, Color)>,
+) -> Line<'static> {
     let trailing = (col_width as usize).saturating_sub(INDENT);
+    let [g0, g1] = accent_bar(accent, badge, bg);
     Line::from(vec![
-        accent_bar(accent, bg),
+        g0,
+        g1,
         Span::styled(" ".repeat(trailing), Style::default().bg(bg)),
     ])
 }
@@ -159,12 +193,15 @@ fn range_separator_line(
     fg: Color,
     bg: Color,
     accent: Option<Color>,
+    badge: Option<(&'static str, Color)>,
 ) -> Line<'static> {
     let left_pad = (col_width as usize).saturating_sub(3) / 2;
     let pad = left_pad.saturating_sub(INDENT);
     let trailing = (col_width as usize).saturating_sub(INDENT + pad + 3);
+    let [g0, g1] = accent_bar(accent, badge, bg);
     Line::from(vec![
-        accent_bar(accent, bg),
+        g0,
+        g1,
         Span::styled(" ".repeat(pad), Style::default().bg(bg)),
         Span::styled("···", Style::default().fg(fg).bg(bg)),
         Span::styled(" ".repeat(trailing), Style::default().bg(bg)),
