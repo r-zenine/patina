@@ -73,7 +73,10 @@ pub fn render(
     lines.push(Line::from(""));
 
     if let Some(rationale) = &decision.rationale {
-        lines.push(Line::from(vec![Span::styled(rationale, stylesheet::body(&theme))]));
+        lines.push(Line::from(vec![Span::styled(
+            rationale,
+            stylesheet::body(&theme),
+        )]));
         lines.push(Line::from(""));
     }
 
@@ -163,7 +166,11 @@ pub fn render(
         }
     }
 
-    let title_style = if is_focused { stylesheet::title_active(&theme) } else { stylesheet::title_inactive(&theme) };
+    let title_style = if is_focused {
+        stylesheet::title_active(&theme)
+    } else {
+        stylesheet::title_inactive(&theme)
+    };
     let paragraph = Paragraph::new(lines)
         .block(
             Block::default()
@@ -179,7 +186,10 @@ pub fn render(
 fn render_no_decision_selected(f: &mut Frame, area: Rect, is_focused: bool, theme: &Theme) {
     let lines = vec![
         Line::from(""),
-        Line::from(vec![Span::styled("No decision selected", stylesheet::muted(theme))]),
+        Line::from(vec![Span::styled(
+            "No decision selected",
+            stylesheet::muted(theme),
+        )]),
         Line::from(""),
         Line::from(vec![Span::styled(
             "Navigate to a decision in the tree to view details",
@@ -187,7 +197,11 @@ fn render_no_decision_selected(f: &mut Frame, area: Rect, is_focused: bool, them
         )]),
     ];
 
-    let title_style = if is_focused { stylesheet::title_active(theme) } else { stylesheet::title_inactive(theme) };
+    let title_style = if is_focused {
+        stylesheet::title_active(theme)
+    } else {
+        stylesheet::title_inactive(theme)
+    };
     let paragraph = Paragraph::new(lines)
         .block(
             Block::default()
@@ -219,7 +233,11 @@ fn render_decision_not_found(
         )]),
     ];
 
-    let title_style = if is_focused { stylesheet::title_active(theme) } else { stylesheet::title_inactive(theme) };
+    let title_style = if is_focused {
+        stylesheet::title_active(theme)
+    } else {
+        stylesheet::title_inactive(theme)
+    };
     let paragraph = Paragraph::new(lines)
         .block(
             Block::default()

@@ -20,16 +20,36 @@ impl Index<usize> for SurfaceRamp {
 }
 
 impl SurfaceRamp {
-    pub fn crust(&self) -> Color { self.0[0] }
-    pub fn mantle(&self) -> Color { self.0[1] }
-    pub fn base(&self) -> Color { self.0[2] }
-    pub fn surface0(&self) -> Color { self.0[3] }
-    pub fn surface1(&self) -> Color { self.0[4] }
-    pub fn overlay0(&self) -> Color { self.0[5] }
-    pub fn overlay2(&self) -> Color { self.0[6] }
-    pub fn subtext0(&self) -> Color { self.0[7] }
-    pub fn subtext1(&self) -> Color { self.0[8] }
-    pub fn text(&self) -> Color { self.0[9] }
+    pub fn crust(&self) -> Color {
+        self.0[0]
+    }
+    pub fn mantle(&self) -> Color {
+        self.0[1]
+    }
+    pub fn base(&self) -> Color {
+        self.0[2]
+    }
+    pub fn surface0(&self) -> Color {
+        self.0[3]
+    }
+    pub fn surface1(&self) -> Color {
+        self.0[4]
+    }
+    pub fn overlay0(&self) -> Color {
+        self.0[5]
+    }
+    pub fn overlay2(&self) -> Color {
+        self.0[6]
+    }
+    pub fn subtext0(&self) -> Color {
+        self.0[7]
+    }
+    pub fn subtext1(&self) -> Color {
+        self.0[8]
+    }
+    pub fn text(&self) -> Color {
+        self.0[9]
+    }
 }
 
 /// All 14 Catppuccin accent colors by their catppuccin names.

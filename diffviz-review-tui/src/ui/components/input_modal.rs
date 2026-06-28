@@ -26,8 +26,12 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState) {
 
     let (title, _prompt, placeholder) = get_modal_content(&ui_state.input_mode);
 
-    let input_content =
-        create_input_display(&ui_state.input_buffer, ui_state.input_cursor, placeholder, &theme);
+    let input_content = create_input_display(
+        &ui_state.input_buffer,
+        ui_state.input_cursor,
+        placeholder,
+        &theme,
+    );
 
     let modal = Paragraph::new(input_content)
         .block(

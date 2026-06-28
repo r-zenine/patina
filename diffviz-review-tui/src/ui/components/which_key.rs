@@ -58,11 +58,10 @@ pub fn render(f: &mut Frame, ui_state: &UiState) {
 fn create_root_menu(_ui_state: &UiState, theme: &Theme) -> Vec<Line<'static>> {
     vec![
         Line::from(""),
-        create_compact_line(vec![
-            ("a", "Actions"),
-            ("i", "Instructions"),
-            ("t", "Toggles"),
-        ], theme),
+        create_compact_line(
+            vec![("a", "Actions"), ("i", "Instructions"), ("t", "Toggles")],
+            theme,
+        ),
         Line::from(""),
         Line::from(vec![
             Span::raw("  "),
@@ -107,11 +106,14 @@ fn create_instructions_submenu(theme: &Theme) -> Vec<Line<'static>> {
 fn create_toggles_submenu(theme: &Theme) -> Vec<Line<'static>> {
     vec![
         Line::from(""),
-        create_compact_line(vec![
-            ("s", "Semantic highlighting"),
-            ("c", "Context folding"),
-            ("r", "Reasoning annotations"),
-        ], theme),
+        create_compact_line(
+            vec![
+                ("s", "Semantic highlighting"),
+                ("c", "Context folding"),
+                ("r", "Reasoning annotations"),
+            ],
+            theme,
+        ),
         Line::from(""),
         Line::from(vec![
             Span::raw("  "),
@@ -149,10 +151,7 @@ fn bottom_panel(r: Rect) -> Rect {
 
     let layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Min(1),
-            Constraint::Length(height),
-        ])
+        .constraints([Constraint::Min(1), Constraint::Length(height)])
         .split(r);
 
     layout[1]

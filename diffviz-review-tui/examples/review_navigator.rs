@@ -1,18 +1,19 @@
 //! Review Navigator — three-level hierarchical navigation prototype.
 //!
-//! L1  j/k navigate decisions  | Enter drill in | q quit
-//! L2  j/k navigate chunks     | h/l cycle files (wraps) | Tab expand context | Esc back | q quit
+//! DrillNav pattern:
+//!   Browse  j/k navigate nodes  | Enter drill in | q quit
+//!   Drill   j/k navigate chunks | h/l cycle siblings (wraps) | Tab expand context | Esc back | q quit
 //!
 //! Surface ramp (dark theme, lighter = higher elevation):
-//!   rationale    → surface1   (highest widget elevation)
-//!   instructions → surface0
-//!   code lines   → base
+//!   rationale    → surface1   (CardTier::Header — pinnable)
+//!   instructions → surface0   (CardTier::Body)
+//!   code lines   → base       (CardTier::Content)
 //!   pinned header container → mantle
 //!   separator    → mantle     (widget floor — never touches crust/terminal)
 //!
 //! Layout: content capped at 120 columns, centered; surface bg fills full column width.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io;
 
 use anyhow::Result;
@@ -21,330 +22,468 @@ use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
+use diffviz_core::{
+    LineRange as CoreLineRange, ProgrammingLanguage, RenderableDiff, RenderableLine,
+    RenderableMetadata, SemanticNodeKind,
+    ast_diff::ESSENTIAL,
+    renderable_diff::{ChangeType, LineAnnotation},
+};
+use diffviz_review::entities::{
+    decision::{CodeImpact, Decision, DecisionLineRange, DecisionLog},
+    instruction::{Instruction, InstructionStatus},
+};
 use ratatui::prelude::*;
 use ratatui::widgets::Paragraph;
-use tui_design::{HierarchicalCard, Icons, Theme, separator_line, stylesheet};
+use tui_design::{
+    CardTier, HierarchicalCard, Icons, Theme, render_drill_header, scroll_into_view,
+    separator_line, stylesheet,
+};
 
-// ── Mock data (mirrors the decision-log YAML template) ────────────────────────
+use diffviz_review_tui::events::input::UiEvent;
 
-struct DecisionLog {
-    commit: &'static str,
-    decisions: Vec<Decision>,
+// ── Mock display data (separate from decision metadata) ───────────────────────
+//
+// The real app sources this from RenderableDiff produced by the diff engine.
+// These local types exist only to hold mock content until the example is promoted.
+
+struct MockImpactDisplay {
+    chunks: Vec<MockChunk>,
 }
 
-struct Decision {
-    number: u32,
-    title: &'static str,
-    rationale: Option<&'static str>,
-    code_impacts: Vec<CodeImpact>,
+struct MockChunk {
+    diff: RenderableDiff<'static>,
+    instruction: Option<Instruction>,
 }
 
-struct CodeImpact {
-    file: &'static str,
-    reasoning: &'static str,
-    line_ranges: Vec<LineRange>,
+// ── Mock data builder ─────────────────────────────────────────────────────────
+
+/// Constructs a `RenderableDiff<'static>` from static line data.
+/// Each row is `(content, change_type)` where `None` = context line.
+fn mock_diff(
+    start_line: usize,
+    rows: &[(&'static str, Option<ChangeType>)],
+) -> RenderableDiff<'static> {
+    let lines: Vec<RenderableLine<'static>> = rows
+        .iter()
+        .enumerate()
+        .map(|(i, (content, ct))| RenderableLine {
+            line_number: start_line + i,
+            content,
+            byte_range: (0, content.len()),
+            annotations: vec![LineAnnotation {
+                start_col: 0,
+                end_col: content.len(),
+                relevance: ESSENTIAL,
+                change_type: ct.clone(),
+                semantic_kind: SemanticNodeKind::Function,
+                node_depth: 0,
+            }],
+            semantic_anchor: None,
+        })
+        .collect();
+
+    let changed_line_numbers = rows
+        .iter()
+        .enumerate()
+        .filter(|(_, (_, ct))| ct.is_some())
+        .map(|(i, _)| start_line + i)
+        .collect();
+
+    RenderableDiff {
+        metadata: RenderableMetadata {
+            total_changes: rows.iter().filter(|(_, ct)| ct.is_some()).count(),
+            change_summary: HashMap::new(),
+            essential_line_count: rows.len(),
+            boundary_name: String::new(),
+            overall_line_range: CoreLineRange {
+                start_line,
+                end_line: start_line + rows.len(),
+                start_column: 0,
+                end_column: 0,
+            },
+            changed_line_numbers,
+        },
+        lines,
+        language: ProgrammingLanguage::Rust,
+    }
 }
 
-struct MockInstruction {
-    author: &'static str,
-    content: &'static str,
+fn instr(id: &str, author: &str, content: &str) -> Instruction {
+    Instruction {
+        id: id.to_string(),
+        author: author.to_string(),
+        timestamp: String::new(),
+        content: content.to_string(),
+        status: InstructionStatus::Active,
+    }
 }
 
-struct LineRange {
-    start: u32,
-    #[allow(dead_code)] // present to match the YAML template schema; used by real deserializer
-    end: u32,
-    lines: Vec<(LineKind, &'static str)>,
-    instruction: Option<MockInstruction>,
-}
+fn mock_data() -> (DecisionLog, Vec<Vec<MockImpactDisplay>>) {
+    use ChangeType::{Added, Deleted};
 
-#[derive(Clone, Copy)]
-enum LineKind {
-    Added,
-    Removed,
-    Context,
-}
-
-fn mock_data() -> DecisionLog {
-    DecisionLog {
-        commit: "a3f9c12",
+    let log = DecisionLog {
+        commit: "a3f9c12".to_string(),
         decisions: vec![
             Decision {
                 number: 1,
-                title: "Refactor authentication middleware",
+                title: "Refactor authentication middleware".to_string(),
                 rationale: Some(
                     "Middleware was tightly coupled to the session store, \
-                    making it impossible to swap implementations without touching call sites.",
+                    making it impossible to swap implementations without touching call sites."
+                        .to_string(),
                 ),
                 code_impacts: vec![
                     CodeImpact {
-                        file: "src/auth/middleware.rs",
+                        file: "src/auth/middleware.rs".to_string(),
                         reasoning: "Extracting the validation logic into a trait allows \
                             injecting different backends. The TokenValidator trait replaces \
-                            the concrete SessionStore parameter on validate_token.",
+                            the concrete SessionStore parameter on validate_token."
+                            .to_string(),
                         line_ranges: vec![
-                            LineRange {
-                                start: 8,
-                                end: 26,
-                                lines: vec![
-                                    (LineKind::Context, "use anyhow::Result;"),
-                                    (LineKind::Context, "use crate::claims::Claims;"),
-                                    (LineKind::Context, "use crate::jwt::decode_jwt;"),
-                                    (LineKind::Removed, "use crate::session::SessionStore;"),
-                                    (LineKind::Added,   "use crate::session::TokenValidator;"),
-                                    (LineKind::Context, ""),
-                                    (LineKind::Removed, "pub fn validate_token(token: &str, store: &SessionStore) -> Result<Claims> {"),
-                                    (LineKind::Added,   "pub fn validate_token<V: TokenValidator>(token: &str, v: &V) -> Result<Claims> {"),
-                                    (LineKind::Context, "    let raw = decode_jwt(token)?;"),
-                                    (LineKind::Context, "    let header = raw.header();"),
-                                    (LineKind::Removed, "    store.validate(&raw.claims)?;"),
-                                    (LineKind::Added,   "    v.validate(&raw.claims)?;"),
-                                    (LineKind::Context, "    Ok(raw.into_claims())"),
-                                    (LineKind::Context, "}"),
-                                ],
-                                // Case: instruction expanded — visible above the code block
-                                instruction: Some(MockInstruction {
-                                    author: "alice",
-                                    content: "Make sure TokenValidator is object-safe before merging — \
-                                        we'll need Arc<dyn TokenValidator> in the Middleware struct below.",
-                                }),
-                            },
-                            LineRange {
-                                start: 38,
-                                end: 57,
-                                lines: vec![
-                                    (LineKind::Context, "pub struct Middleware {"),
-                                    (LineKind::Removed, "    store: SessionStore,"),
-                                    (LineKind::Added,   "    validator: Arc<dyn TokenValidator>,"),
-                                    (LineKind::Context, "    timeout: Duration,"),
-                                    (LineKind::Context, "}"),
-                                    (LineKind::Context, ""),
-                                    (LineKind::Context, "impl Default for Middleware {"),
-                                    (LineKind::Removed, "    fn default() -> Self {"),
-                                    (LineKind::Removed, "        Self { store: SessionStore::new(), timeout: Duration::from_secs(30) }"),
-                                    (LineKind::Removed, "    }"),
-                                    (LineKind::Added,   "    fn default() -> Self {"),
-                                    (LineKind::Added,   "        Self {"),
-                                    (LineKind::Added,   "            validator: Arc::new(DefaultValidator::new()),"),
-                                    (LineKind::Added,   "            timeout: Duration::from_secs(30),"),
-                                    (LineKind::Added,   "        }"),
-                                    (LineKind::Added,   "    }"),
-                                    (LineKind::Context, "}"),
-                                ],
-                                // Case: instruction folded — only the gutter icon is shown
-                                instruction: Some(MockInstruction {
-                                    author: "bob",
-                                    content: "DefaultValidator::new() is not yet implemented — \
-                                        this will panic at runtime if the default impl is exercised.",
-                                }),
-                            },
+                            DecisionLineRange { start: 8, end: 26 },
+                            DecisionLineRange { start: 38, end: 57 },
                         ],
                     },
                     CodeImpact {
-                        file: "src/auth/token.rs",
+                        file: "src/auth/token.rs".to_string(),
                         reasoning: "Token type enum was missing the ApiKey variant, causing \
                             panics when API clients authenticated. Added the variant and wired \
-                            it through the validator.",
-                        line_ranges: vec![LineRange {
-                            start: 4,
-                            end: 22,
-                            lines: vec![
-                                (LineKind::Context, "/// Identifies the authentication mechanism used."),
-                                (LineKind::Context, "/// Variants must stay in sync with the claims `typ` field."),
-                                (LineKind::Context, "#[derive(Debug, Clone, PartialEq, Eq)]"),
-                                (LineKind::Context, "pub enum TokenType {"),
-                                (LineKind::Context, "    /// Browser session cookie — 30-minute sliding expiry."),
-                                (LineKind::Context, "    Session,"),
-                                (LineKind::Added,   "    /// Long-lived API key — expiry driven by key record in DB."),
-                                (LineKind::Added,   "    ApiKey,"),
-                                (LineKind::Context, "}"),
-                                (LineKind::Context, ""),
-                                (LineKind::Context, "impl TokenType {"),
-                                (LineKind::Context, "    pub fn is_session(&self) -> bool {"),
-                                (LineKind::Context, "        matches!(self, Self::Session)"),
-                                (LineKind::Context, "    }"),
-                                (LineKind::Removed, "    pub fn lifetime(&self) -> Duration {"),
-                                (LineKind::Removed, "        Duration::from_secs(1800)"),
-                                (LineKind::Added,   "    pub fn lifetime(&self) -> Duration {"),
-                                (LineKind::Added,   "        match self {"),
-                                (LineKind::Added,   "            Self::Session => Duration::from_secs(1800),"),
-                                (LineKind::Added,   "            Self::ApiKey  => Duration::from_secs(86400 * 365),"),
-                                (LineKind::Added,   "        }"),
-                                (LineKind::Context, "    }"),
-                                (LineKind::Context, "}"),
-                            ],
-                            // Case: no instruction
-                            instruction: None,
-                        }],
+                            it through the validator."
+                            .to_string(),
+                        line_ranges: vec![DecisionLineRange { start: 4, end: 22 }],
                     },
                 ],
             },
             Decision {
                 number: 2,
-                title: "Introduce rate limiting on public endpoints",
+                title: "Introduce rate limiting on public endpoints".to_string(),
                 rationale: Some(
                     "No rate limiting existed on /api/public/* routes, \
-                    exposing the service to trivial abuse before the next release.",
+                    exposing the service to trivial abuse before the next release."
+                        .to_string(),
                 ),
                 code_impacts: vec![CodeImpact {
-                    file: "src/rate_limiter.rs",
+                    file: "src/rate_limiter.rs".to_string(),
                     reasoning: "A sliding window limiter is the minimal viable fix. \
                             Redis TTL drives window expiry; the window size is configurable \
-                            per environment via the SLA document.",
+                            per environment via the SLA document."
+                        .to_string(),
                     line_ranges: vec![
-                        LineRange {
-                            start: 1,
-                            end: 16,
-                            lines: vec![
-                                (LineKind::Added, "use std::collections::VecDeque;"),
-                                (LineKind::Added, "use std::time::{Duration, Instant};"),
-                                (LineKind::Added, ""),
-                                (LineKind::Added, "/// Sliding-window rate limiter backed by an in-process ring buffer."),
-                                (LineKind::Added, "/// For multi-instance deployments, swap the inner store for Redis."),
-                                (LineKind::Added, "pub struct SlidingWindowLimiter {"),
-                                (LineKind::Added, "    window: Duration,"),
-                                (LineKind::Added, "    max_requests: u32,"),
-                                (LineKind::Added, "    timestamps: VecDeque<Instant>,"),
-                                (LineKind::Added, "}"),
-                            ],
-                            // Case: no instruction
-                            instruction: None,
-                        },
-                        LineRange {
-                            start: 18,
-                            end: 35,
-                            lines: vec![
-                                (LineKind::Added, "impl SlidingWindowLimiter {"),
-                                (LineKind::Added, "    pub fn new(window: Duration, max_requests: u32) -> Self {"),
-                                (LineKind::Added, "        Self { window, max_requests, timestamps: VecDeque::new() }"),
-                                (LineKind::Added, "    }"),
-                                (LineKind::Added, ""),
-                                (LineKind::Added, "    /// Returns `true` if the request is allowed, `false` if rate-limited."),
-                                (LineKind::Added, "    pub fn check_and_record(&mut self) -> bool {"),
-                                (LineKind::Added, "        let now = Instant::now();"),
-                                (LineKind::Added, "        let cutoff = now - self.window;"),
-                                (LineKind::Added, "        self.timestamps.retain(|&t| t > cutoff);"),
-                                (LineKind::Added, "        if self.timestamps.len() as u32 >= self.max_requests {"),
-                                (LineKind::Added, "            return false;"),
-                                (LineKind::Added, "        }"),
-                                (LineKind::Added, "        self.timestamps.push_back(now);"),
-                                (LineKind::Added, "        true"),
-                                (LineKind::Added, "    }"),
-                                (LineKind::Added, "}"),
-                            ],
-                            // Case: instruction folded
-                            instruction: Some(MockInstruction {
-                                author: "carol",
-                                content: "Consider extracting retain + len check into a named helper — \
-                                    check_and_record is doing two distinct things.",
-                            }),
-                        },
+                        DecisionLineRange { start: 1, end: 16 },
+                        DecisionLineRange { start: 18, end: 35 },
                     ],
                 }],
             },
         ],
-    }
+    };
+
+    // Display data — line content that the real app will source from the diff engine.
+    let display: Vec<Vec<MockImpactDisplay>> = vec![
+        // Decision 1
+        vec![
+            // Impact 0: src/auth/middleware.rs
+            MockImpactDisplay {
+                chunks: vec![
+                    MockChunk {
+                        diff: mock_diff(
+                            8,
+                            &[
+                                ("use anyhow::Result;", None),
+                                ("use crate::claims::Claims;", None),
+                                ("use crate::jwt::decode_jwt;", None),
+                                ("use crate::session::SessionStore;", Some(Deleted)),
+                                ("use crate::session::TokenValidator;", Some(Added)),
+                                ("", None),
+                                (
+                                    "pub fn validate_token(token: &str, store: &SessionStore) -> Result<Claims> {",
+                                    Some(Deleted),
+                                ),
+                                (
+                                    "pub fn validate_token<V: TokenValidator>(token: &str, v: &V) -> Result<Claims> {",
+                                    Some(Added),
+                                ),
+                                ("    let raw = decode_jwt(token)?;", None),
+                                ("    let header = raw.header();", None),
+                                ("    store.validate(&raw.claims)?;", Some(Deleted)),
+                                ("    v.validate(&raw.claims)?;", Some(Added)),
+                                ("    Ok(raw.into_claims())", None),
+                                ("}", None),
+                            ],
+                        ),
+                        instruction: Some(instr(
+                            "i1",
+                            "alice",
+                            "Make sure TokenValidator is object-safe before merging — \
+                            we'll need Arc<dyn TokenValidator> in the Middleware struct below.",
+                        )),
+                    },
+                    MockChunk {
+                        diff: mock_diff(
+                            38,
+                            &[
+                                ("pub struct Middleware {", None),
+                                ("    store: SessionStore,", Some(Deleted)),
+                                ("    validator: Arc<dyn TokenValidator>,", Some(Added)),
+                                ("    timeout: Duration,", None),
+                                ("}", None),
+                                ("", None),
+                                ("impl Default for Middleware {", None),
+                                ("    fn default() -> Self {", Some(Deleted)),
+                                (
+                                    "        Self { store: SessionStore::new(), timeout: Duration::from_secs(30) }",
+                                    Some(Deleted),
+                                ),
+                                ("    }", Some(Deleted)),
+                                ("    fn default() -> Self {", Some(Added)),
+                                ("        Self {", Some(Added)),
+                                (
+                                    "            validator: Arc::new(DefaultValidator::new()),",
+                                    Some(Added),
+                                ),
+                                ("            timeout: Duration::from_secs(30),", Some(Added)),
+                                ("        }", Some(Added)),
+                                ("    }", Some(Added)),
+                                ("}", None),
+                            ],
+                        ),
+                        instruction: Some(instr(
+                            "i2",
+                            "bob",
+                            "DefaultValidator::new() is not yet implemented — \
+                            this will panic at runtime if the default impl is exercised.",
+                        )),
+                    },
+                ],
+            },
+            // Impact 1: src/auth/token.rs
+            MockImpactDisplay {
+                chunks: vec![MockChunk {
+                    diff: mock_diff(
+                        4,
+                        &[
+                            ("/// Identifies the authentication mechanism used.", None),
+                            (
+                                "/// Variants must stay in sync with the claims `typ` field.",
+                                None,
+                            ),
+                            ("#[derive(Debug, Clone, PartialEq, Eq)]", None),
+                            ("pub enum TokenType {", None),
+                            (
+                                "    /// Browser session cookie — 30-minute sliding expiry.",
+                                None,
+                            ),
+                            ("    Session,", None),
+                            (
+                                "    /// Long-lived API key — expiry driven by key record in DB.",
+                                Some(Added),
+                            ),
+                            ("    ApiKey,", Some(Added)),
+                            ("}", None),
+                            ("", None),
+                            ("impl TokenType {", None),
+                            ("    pub fn is_session(&self) -> bool {", None),
+                            ("        matches!(self, Self::Session)", None),
+                            ("    }", None),
+                            ("    pub fn lifetime(&self) -> Duration {", Some(Deleted)),
+                            ("        Duration::from_secs(1800)", Some(Deleted)),
+                            ("    pub fn lifetime(&self) -> Duration {", Some(Added)),
+                            ("        match self {", Some(Added)),
+                            (
+                                "            Self::Session => Duration::from_secs(1800),",
+                                Some(Added),
+                            ),
+                            (
+                                "            Self::ApiKey  => Duration::from_secs(86400 * 365),",
+                                Some(Added),
+                            ),
+                            ("        }", Some(Added)),
+                            ("    }", None),
+                            ("}", None),
+                        ],
+                    ),
+                    instruction: None,
+                }],
+            },
+        ],
+        // Decision 2
+        vec![
+            // Impact 0: src/rate_limiter.rs
+            MockImpactDisplay {
+                chunks: vec![
+                    MockChunk {
+                        diff: mock_diff(
+                            1,
+                            &[
+                                ("use std::collections::VecDeque;", Some(Added)),
+                                ("use std::time::{Duration, Instant};", Some(Added)),
+                                ("", Some(Added)),
+                                (
+                                    "/// Sliding-window rate limiter backed by an in-process ring buffer.",
+                                    Some(Added),
+                                ),
+                                (
+                                    "/// For multi-instance deployments, swap the inner store for Redis.",
+                                    Some(Added),
+                                ),
+                                ("pub struct SlidingWindowLimiter {", Some(Added)),
+                                ("    window: Duration,", Some(Added)),
+                                ("    max_requests: u32,", Some(Added)),
+                                ("    timestamps: VecDeque<Instant>,", Some(Added)),
+                                ("}", Some(Added)),
+                            ],
+                        ),
+                        instruction: None,
+                    },
+                    MockChunk {
+                        diff: mock_diff(
+                            18,
+                            &[
+                                ("impl SlidingWindowLimiter {", Some(Added)),
+                                (
+                                    "    pub fn new(window: Duration, max_requests: u32) -> Self {",
+                                    Some(Added),
+                                ),
+                                (
+                                    "        Self { window, max_requests, timestamps: VecDeque::new() }",
+                                    Some(Added),
+                                ),
+                                ("    }", Some(Added)),
+                                ("", Some(Added)),
+                                (
+                                    "    /// Returns `true` if the request is allowed, `false` if rate-limited.",
+                                    Some(Added),
+                                ),
+                                (
+                                    "    pub fn check_and_record(&mut self) -> bool {",
+                                    Some(Added),
+                                ),
+                                ("        let now = Instant::now();", Some(Added)),
+                                ("        let cutoff = now - self.window;", Some(Added)),
+                                (
+                                    "        self.timestamps.retain(|&t| t > cutoff);",
+                                    Some(Added),
+                                ),
+                                (
+                                    "        if self.timestamps.len() as u32 >= self.max_requests {",
+                                    Some(Added),
+                                ),
+                                ("            return false;", Some(Added)),
+                                ("        }", Some(Added)),
+                                ("        self.timestamps.push_back(now);", Some(Added)),
+                                ("        true", Some(Added)),
+                                ("    }", Some(Added)),
+                                ("}", Some(Added)),
+                            ],
+                        ),
+                        instruction: Some(instr(
+                            "i3",
+                            "carol",
+                            "Consider extracting retain + len check into a named helper — \
+                            check_and_record is doing two distinct things.",
+                        )),
+                    },
+                ],
+            },
+        ],
+    ];
+
+    (log, display)
 }
 
-// ── Navigation events (V5: KeyCode → NavEvent → state) ───────────────────────
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum NavEvent {
-    Quit,
-    NavigateUp,
-    NavigateDown,
-    NavigateLeft,
-    NavigateRight,
-    DrillIn,
-    Back,
-    ToggleExpansion,
-}
+// ── Navigation events ─────────────────────────────────────────────────────────
 
 /// Pure key → event mapping; context-free so it stays testable.
-fn handle_key_event(code: KeyCode) -> Option<NavEvent> {
+fn handle_key_event(code: KeyCode) -> Option<UiEvent> {
     match code {
-        KeyCode::Char('q') => Some(NavEvent::Quit),
-        KeyCode::Char('j') | KeyCode::Down => Some(NavEvent::NavigateDown),
-        KeyCode::Char('k') | KeyCode::Up => Some(NavEvent::NavigateUp),
-        KeyCode::Char('h') | KeyCode::Left => Some(NavEvent::NavigateLeft),
-        KeyCode::Char('l') | KeyCode::Right => Some(NavEvent::NavigateRight),
-        KeyCode::Enter => Some(NavEvent::DrillIn),
-        KeyCode::Esc => Some(NavEvent::Back),
-        KeyCode::Tab => Some(NavEvent::ToggleExpansion),
+        KeyCode::Char('q') => Some(UiEvent::Quit),
+        KeyCode::Char('j') | KeyCode::Down => Some(UiEvent::NavigateDown),
+        KeyCode::Char('k') | KeyCode::Up => Some(UiEvent::NavigateUp),
+        KeyCode::Char('h') | KeyCode::Left => Some(UiEvent::NavigateLeft),
+        KeyCode::Char('l') | KeyCode::Right => Some(UiEvent::NavigateRight),
+        KeyCode::Enter => Some(UiEvent::SelectCurrent),
+        KeyCode::Esc => Some(UiEvent::Back),
+        KeyCode::Tab => Some(UiEvent::ToggleDecisionExpansion),
         _ => None,
     }
 }
 
 // ── Navigation state ──────────────────────────────────────────────────────────
 
-struct L2State<'a> {
-    decision_idx: usize,
-    impact_idx: usize,
-    focused_chunk: usize,
-    expanded_chunks: &'a HashSet<usize>,
-    expanded_instructions: &'a HashSet<usize>,
+/// Render-time snapshot passed into `render_drill`.
+struct DrillContext<'a> {
+    node_idx: usize,
+    sibling_idx: usize,
+    cursor: usize,
+    expanded: &'a HashSet<usize>,
+    expanded_annotations: &'a HashSet<usize>,
 }
 
-enum NavLevel {
-    L1 {
-        selected: usize,
+/// State machine for the DrillNav pattern.
+///
+/// `Browse` — exploring top-level nodes as cards.
+/// `Drill`  — inside a node: its label+summary is pinned, children scroll below.
+enum DrillNavState {
+    Browse {
+        cursor: usize,
     },
-    L2 {
-        decision_idx: usize,
-        impact_idx: usize,
-        focused_chunk: usize,
-        expanded_chunks: HashSet<usize>,
-        expanded_instructions: HashSet<usize>,
+    Drill {
+        /// Which top-level node we're inside (Enter drills in, Esc backs out).
+        node_idx: usize,
+        /// h/l cycling among sibling child groups (files within a decision).
+        sibling_idx: usize,
+        /// j/k cursor within the visible children list.
+        cursor: usize,
+        /// Children with expanded context (Tab toggles).
+        expanded: HashSet<usize>,
+        /// Children with expanded annotation text (Tab toggles).
+        expanded_annotations: HashSet<usize>,
     },
 }
 
 struct App {
     log: DecisionLog,
-    nav: NavLevel,
+    display: Vec<Vec<MockImpactDisplay>>,
+    nav: DrillNavState,
     theme: Theme,
     quit: bool,
 }
 
 impl App {
     fn new() -> Self {
+        let (log, display) = mock_data();
         App {
-            nav: NavLevel::L1 { selected: 0 },
-            log: mock_data(),
+            log,
+            display,
+            nav: DrillNavState::Browse { cursor: 0 },
             theme: Theme::mocha(),
             quit: false,
         }
     }
 
-    /// Dispatch a navigation event to the appropriate state mutation (V5).
-    fn handle_nav_event(&mut self, event: NavEvent) {
+    fn handle_nav_event(&mut self, event: UiEvent) {
         match event {
-            NavEvent::Quit => self.quit(),
-            NavEvent::NavigateUp => self.navigate_up(),
-            NavEvent::NavigateDown => self.navigate_down(),
-            NavEvent::NavigateLeft => self.navigate_left(),
-            NavEvent::NavigateRight => self.navigate_right(),
-            NavEvent::DrillIn => self.drill_in(),
-            NavEvent::Back => self.back(),
-            NavEvent::ToggleExpansion => self.toggle_expansion(),
+            UiEvent::Quit => self.quit = true,
+            UiEvent::NavigateUp => self.navigate_up(),
+            UiEvent::NavigateDown => self.navigate_down(),
+            UiEvent::NavigateLeft => self.navigate_left(),
+            UiEvent::NavigateRight => self.navigate_right(),
+            UiEvent::SelectCurrent => self.drill_in(),
+            UiEvent::Back => self.back(),
+            UiEvent::ToggleDecisionExpansion => self.toggle_expansion(),
+            _ => {}
         }
-    }
-
-    // ── State mutation methods (V4: encapsulate all nav-level field access) ──
-
-    fn quit(&mut self) {
-        self.quit = true;
     }
 
     fn navigate_up(&mut self) {
         match &mut self.nav {
-            NavLevel::L1 { selected } => {
-                if *selected > 0 {
-                    *selected -= 1;
+            DrillNavState::Browse { cursor } => {
+                if *cursor > 0 {
+                    *cursor -= 1;
                 }
             }
-            NavLevel::L2 { focused_chunk, .. } => {
-                if *focused_chunk > 0 {
-                    *focused_chunk -= 1;
+            DrillNavState::Drill { cursor, .. } => {
+                if *cursor > 0 {
+                    *cursor -= 1;
                 }
             }
         }
@@ -352,73 +491,87 @@ impl App {
 
     fn navigate_down(&mut self) {
         match &mut self.nav {
-            NavLevel::L1 { selected } => {
-                if *selected + 1 < self.log.decisions.len() {
-                    *selected += 1;
+            DrillNavState::Browse { cursor } => {
+                if *cursor + 1 < self.log.decisions.len() {
+                    *cursor += 1;
                 }
             }
-            NavLevel::L2 { decision_idx, impact_idx, focused_chunk, .. } => {
-                let n = self.log.decisions[*decision_idx].code_impacts[*impact_idx]
-                    .line_ranges
-                    .len();
-                if *focused_chunk + 1 < n {
-                    *focused_chunk += 1;
+            DrillNavState::Drill {
+                node_idx,
+                sibling_idx,
+                cursor,
+                ..
+            } => {
+                let n = self.display[*node_idx][*sibling_idx].chunks.len();
+                if *cursor + 1 < n {
+                    *cursor += 1;
                 }
             }
         }
     }
 
     fn navigate_left(&mut self) {
-        if let NavLevel::L2 { decision_idx, impact_idx, focused_chunk, expanded_chunks, expanded_instructions } =
-            &mut self.nav
+        if let DrillNavState::Drill {
+            node_idx,
+            sibling_idx,
+            cursor,
+            expanded,
+            expanded_annotations,
+        } = &mut self.nav
         {
-            let n = self.log.decisions[*decision_idx].code_impacts.len();
-            *impact_idx = impact_idx.checked_sub(1).unwrap_or(n - 1);
-            *focused_chunk = 0;
-            expanded_chunks.clear();
-            expanded_instructions.clear();
+            let n = self.log.decisions[*node_idx].code_impacts.len();
+            *sibling_idx = sibling_idx.checked_sub(1).unwrap_or(n - 1);
+            *cursor = 0;
+            expanded.clear();
+            expanded_annotations.clear();
         }
     }
 
     fn navigate_right(&mut self) {
-        if let NavLevel::L2 { decision_idx, impact_idx, focused_chunk, expanded_chunks, expanded_instructions } =
-            &mut self.nav
+        if let DrillNavState::Drill {
+            node_idx,
+            sibling_idx,
+            cursor,
+            expanded,
+            expanded_annotations,
+        } = &mut self.nav
         {
-            let n = self.log.decisions[*decision_idx].code_impacts.len();
-            *impact_idx = (*impact_idx + 1) % n;
-            *focused_chunk = 0;
-            expanded_chunks.clear();
-            expanded_instructions.clear();
+            let n = self.log.decisions[*node_idx].code_impacts.len();
+            *sibling_idx = (*sibling_idx + 1) % n;
+            *cursor = 0;
+            expanded.clear();
+            expanded_annotations.clear();
         }
     }
 
     fn drill_in(&mut self) {
-        if let NavLevel::L1 { selected } = &self.nav {
-            let idx = *selected;
-            // Pre-expand chunk 0's instruction so all three cases (expanded / folded / none)
-            // are visible immediately on entry.
-            self.nav = NavLevel::L2 {
-                decision_idx: idx,
-                impact_idx: 0,
-                focused_chunk: 0,
-                expanded_chunks: HashSet::new(),
-                expanded_instructions: HashSet::from([0]),
+        if let DrillNavState::Browse { cursor } = &self.nav {
+            let idx = *cursor;
+            self.nav = DrillNavState::Drill {
+                node_idx: idx,
+                sibling_idx: 0,
+                cursor: 0,
+                expanded: HashSet::new(),
+                expanded_annotations: HashSet::from([0]),
             };
         }
     }
 
     fn back(&mut self) {
-        if let NavLevel::L2 { decision_idx, .. } = &self.nav {
-            let d = *decision_idx;
-            self.nav = NavLevel::L1 { selected: d };
+        if let DrillNavState::Drill { node_idx, .. } = &self.nav {
+            let d = *node_idx;
+            self.nav = DrillNavState::Browse { cursor: d };
         }
     }
 
     fn toggle_expansion(&mut self) {
-        if let NavLevel::L2 { focused_chunk, expanded_chunks, .. } = &mut self.nav {
-            let chunk = *focused_chunk;
-            if !expanded_chunks.remove(&chunk) {
-                expanded_chunks.insert(chunk);
+        if let DrillNavState::Drill {
+            cursor, expanded, ..
+        } = &mut self.nav
+        {
+            let chunk = *cursor;
+            if !expanded.remove(&chunk) {
+                expanded.insert(chunk);
             }
         }
     }
@@ -462,7 +615,33 @@ fn wrap_text(text: &str, max_cols: usize) -> Vec<String> {
     result
 }
 
-// ── Rendering (V1: all view functions accept &App — never &mut) ───────────────
+// ── Rendering helpers ─────────────────────────────────────────────────────────
+
+/// Centered dot row on a mantle background — signals h/l sibling navigation.
+/// Active dot uses the accent color; inactive dots use overlay0.
+fn dot_pagination_line(col_width: u16, current: usize, total: usize, theme: &Theme) -> Line<'static> {
+    let mantle  = theme.surface.mantle();
+    let active  = theme.accents.lavender;
+    let passive = theme.surface.overlay0();
+
+    let dot_section = total * 2 - 1; // "● ○ ○" = n dots + (n-1) spaces
+    let left_pad    = (col_width as usize).saturating_sub(dot_section) / 2;
+    let right_fill  = (col_width as usize).saturating_sub(left_pad + dot_section);
+
+    let mut spans: Vec<Span<'static>> = Vec::with_capacity(total * 2 + 2);
+    spans.push(Span::styled(" ".repeat(left_pad), Style::default().bg(mantle)));
+    for i in 0..total {
+        if i > 0 {
+            spans.push(Span::styled(" ", Style::default().bg(mantle)));
+        }
+        let (dot, color) = if i == current { ("●", active) } else { ("○", passive) };
+        spans.push(Span::styled(dot, Style::default().fg(color).bg(mantle)));
+    }
+    spans.push(Span::styled(" ".repeat(right_fill), Style::default().bg(mantle)));
+    Line::from(spans)
+}
+
+// ── Rendering ─────────────────────────────────────────────────────────────────
 
 fn render(frame: &mut Frame, app: &App) {
     let theme = &app.theme;
@@ -484,43 +663,51 @@ fn render(frame: &mut Frame, app: &App) {
     };
 
     match &app.nav {
-        NavLevel::L1 { selected } => {
-            render_l1(frame, content_area, app, *selected);
-        }
-        NavLevel::L2 {
-            decision_idx,
-            impact_idx,
-            focused_chunk,
-            expanded_chunks,
-            expanded_instructions,
-        } => {
-            render_l2(frame, content_area, app, L2State {
-                decision_idx: *decision_idx,
-                impact_idx: *impact_idx,
-                focused_chunk: *focused_chunk,
-                expanded_chunks,
-                expanded_instructions,
-            });
-        }
+        DrillNavState::Browse { cursor } => render_browse(frame, content_area, app, *cursor),
+        DrillNavState::Drill {
+            node_idx,
+            sibling_idx,
+            cursor,
+            expanded,
+            expanded_annotations,
+        } => render_drill(
+            frame,
+            content_area,
+            app,
+            DrillContext {
+                node_idx: *node_idx,
+                sibling_idx: *sibling_idx,
+                cursor: *cursor,
+                expanded,
+                expanded_annotations,
+            },
+        ),
     }
 
     let status = match &app.nav {
-        NavLevel::L1 { .. } => {
-            format!("commit {}   j/k navigate    Enter drill in    q quit", app.log.commit)
+        DrillNavState::Browse { .. } => {
+            format!(
+                "commit {}   j/k navigate    Enter drill in    q quit",
+                app.log.commit
+            )
         }
-        NavLevel::L2 {
-            decision_idx,
-            impact_idx,
-            focused_chunk,
-            expanded_chunks,
-            expanded_instructions: _,
+        DrillNavState::Drill {
+            node_idx,
+            sibling_idx,
+            cursor,
+            expanded,
+            ..
         } => {
-            let total = app.log.decisions[*decision_idx].code_impacts.len();
-            let ctx_label = if expanded_chunks.contains(focused_chunk) { "collapse ctx" } else { "expand ctx" };
+            let total = app.log.decisions[*node_idx].code_impacts.len();
+            let ctx_label = if expanded.contains(cursor) {
+                "collapse ctx"
+            } else {
+                "expand ctx"
+            };
             format!(
                 "commit {}   file {}/{}    h/l files    j/k chunks    Tab {}    Esc back    q quit",
                 app.log.commit,
-                impact_idx + 1,
+                sibling_idx + 1,
                 total,
                 ctx_label,
             )
@@ -532,22 +719,22 @@ fn render(frame: &mut Frame, app: &App) {
     );
 }
 
-// L1 — decision list
-
-fn render_l1(frame: &mut Frame, area: Rect, app: &App, selected: usize) {
+fn render_browse(frame: &mut Frame, area: Rect, app: &App, cursor: usize) {
     let theme = &app.theme;
     let cr = content_rect(area);
-    let text_width = cr.width as usize - 4; // 2 bar + 2 inner indent
+    let text_width = cr.width as usize - 4;
     let mut lines: Vec<Line<'static>> = Vec::new();
 
     lines.push(separator_line(cr.width, theme.surface.mantle()));
 
     for (i, decision) in app.log.decisions.iter().enumerate() {
-        let focused = i == selected;
+        let focused = i == cursor;
         let card = make_card(cr.width, focused, theme.accents.lavender);
         let n_files = decision.code_impacts.len();
 
-        lines.push(card.line(
+        // label row — CardTier::Header (surface1)
+        lines.push(card.at(
+            CardTier::Header,
             vec![
                 Span::styled(
                     format!("#{} {}", decision.number, decision.title),
@@ -558,28 +745,32 @@ fn render_l1(frame: &mut Frame, area: Rect, app: &App, selected: usize) {
                     Style::default().fg(theme.surface.overlay0()),
                 ),
             ],
-            theme.surface.surface1(),
+            theme,
         ));
 
-        if let Some(rationale) = decision.rationale {
+        // summary rows — CardTier::Header (pinnable block, same elevation as label)
+        if let Some(rationale) = &decision.rationale {
             for text_line in wrap_text(rationale, text_width) {
-                lines.push(card.line(
+                lines.push(card.at(
+                    CardTier::Header,
                     vec![Span::styled(
                         format!("· {}", text_line),
                         Style::default().fg(theme.surface.subtext1()),
                     )],
-                    theme.surface.surface1(),
+                    theme,
                 ));
             }
         }
 
+        // children preview — CardTier::Body (surface0, lower elevation)
         for impact in &decision.code_impacts {
-            lines.push(card.line(
+            lines.push(card.at(
+                CardTier::Body,
                 vec![Span::styled(
                     format!("{} {}", Icons::FILE_MODIFIED, impact.file),
                     Style::default().fg(theme.surface.text()),
                 )],
-                theme.surface.surface0(),
+                theme,
             ));
         }
 
@@ -589,61 +780,70 @@ fn render_l1(frame: &mut Frame, area: Rect, app: &App, selected: usize) {
     frame.render_widget(Paragraph::new(lines), cr);
 }
 
-// L2 — pinned file header + scrollable chunk cards; h/l cycles files, j/k navigates chunks.
-
-fn render_l2(frame: &mut Frame, area: Rect, app: &App, s: L2State<'_>) {
-    let L2State { decision_idx, impact_idx, focused_chunk, expanded_chunks, expanded_instructions } = s;
+fn render_drill(frame: &mut Frame, area: Rect, app: &App, s: DrillContext<'_>) {
+    let DrillContext {
+        node_idx,
+        sibling_idx,
+        cursor,
+        expanded,
+        expanded_annotations,
+    } = s;
     let theme = &app.theme;
     let cr = content_rect(area);
     let text_width = cr.width as usize - 4;
-    let impact = &app.log.decisions[decision_idx].code_impacts[impact_idx];
+    let impact = &app.log.decisions[node_idx].code_impacts[sibling_idx];
+    let display = &app.display[node_idx][sibling_idx];
 
-    let reasoning_lines = wrap_text(impact.reasoning, text_width);
-    // mantle fill + file line + reasoning lines + mantle separator
-    let header_height = 1 + 1 + reasoning_lines.len() as u16 + 1;
-
-    let [header_area, chunks_area] =
-        Layout::vertical([Constraint::Length(header_height), Constraint::Fill(1)]).areas(cr);
-
-    // Pinned header — mantle container bg with surface1 card content.
+    // Build the anchored header: label + summary at CardTier::Header (surface1).
+    // render_drill_header handles the mantle fill, separators, and layout split.
     let header_card = HierarchicalCard::new(cr.width);
     let mut header_lines: Vec<Line<'static>> = Vec::new();
-    header_lines.push(separator_line(cr.width, theme.surface.mantle()));
-    header_lines.push(header_card.line(
+    header_lines.push(header_card.at(
+        CardTier::Header,
         vec![Span::styled(
             format!("{} {}", Icons::FILE_MODIFIED, impact.file),
             Style::default().fg(theme.surface.text()).add_modifier(Modifier::BOLD),
         )],
-        theme.surface.surface1(),
+        theme,
     ));
-    for text_line in reasoning_lines {
-        header_lines.push(header_card.line(
-            vec![Span::styled(text_line, Style::default().fg(theme.surface.subtext1()))],
-            theme.surface.surface1(),
+    for text_line in wrap_text(&impact.reasoning, text_width) {
+        header_lines.push(header_card.at(
+            CardTier::Header,
+            vec![Span::styled(
+                text_line,
+                Style::default().fg(theme.surface.subtext1()),
+            )],
+            theme,
         ));
     }
-    header_lines.push(separator_line(cr.width, theme.surface.mantle()));
-    frame.render_widget(
-        Paragraph::new("").style(Style::default().bg(theme.surface.mantle())),
-        header_area,
-    );
-    frame.render_widget(Paragraph::new(header_lines), header_area);
+    let chunks_area = render_drill_header(frame, cr, header_lines, theme);
 
-    // Chunk cards — each LineRange is a card; focused one gets the accent bar.
+    // Dot pagination — one mantle-level line between the pinned header and chunks.
+    let total_siblings = app.log.decisions[node_idx].code_impacts.len();
+    let content_area = if total_siblings > 1 {
+        let [dots_area, rest] =
+            Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(chunks_area);
+        frame.render_widget(
+            Paragraph::new(dot_pagination_line(cr.width, sibling_idx, total_siblings, theme)),
+            dots_area,
+        );
+        rest
+    } else {
+        chunks_area
+    };
+
     let mut chunk_lines: Vec<Line<'static>> = Vec::new();
-    for (i, range) in impact.line_ranges.iter().enumerate() {
-        let card = make_card(cr.width, i == focused_chunk, theme.accents.lavender);
-        let chunk_expanded = expanded_chunks.contains(&i);
-        let instr_expanded = expanded_instructions.contains(&i);
+    for (i, chunk) in display.chunks.iter().enumerate() {
+        let card = make_card(cr.width, i == cursor, theme.accents.lavender);
+        let chunk_expanded = expanded.contains(&i);
+        let annot_expanded = expanded_annotations.contains(&i);
 
-        // Instruction row(s) — always rendered at surface0 above the code lines.
-        // Collapsed: single truncated line with … if there is more. Expanded: full text.
-        if let Some(instr) = &range.instruction {
+        if let Some(instr) = &chunk.instruction {
             let instr_text = format!("{}: {}", instr.author, instr.content);
             let wrap_width = text_width.saturating_sub(6);
             let mut rows = wrap_text(&instr_text, wrap_width);
             let has_more = rows.len() > 1;
-            if !instr_expanded {
+            if !annot_expanded {
                 let first = rows.into_iter().next().unwrap_or_default();
                 rows = vec![if has_more {
                     format!("{}…", first.trim_end_matches(' '))
@@ -653,11 +853,15 @@ fn render_l2(frame: &mut Frame, area: Rect, app: &App, s: L2State<'_>) {
             }
             for (row, text_line) in rows.into_iter().enumerate() {
                 let icon_col = if row == 0 {
-                    Span::styled(Icons::HAS_INSTRUCTIONS, Style::default().fg(theme.accents.yellow))
+                    Span::styled(
+                        Icons::HAS_INSTRUCTIONS,
+                        Style::default().fg(theme.accents.yellow),
+                    )
                 } else {
                     Span::styled("  ", Style::default())
                 };
-                chunk_lines.push(card.line(
+                chunk_lines.push(card.at(
+                    CardTier::Body,
                     vec![
                         icon_col,
                         Span::styled(
@@ -665,82 +869,104 @@ fn render_l2(frame: &mut Frame, area: Rect, app: &App, s: L2State<'_>) {
                             Style::default().fg(theme.surface.subtext1()),
                         ),
                     ],
-                    theme.surface.surface0(),
+                    theme,
                 ));
             }
         }
 
-        let visible_lines: Vec<_> = range
+        let visible_lines: Vec<_> = chunk
+            .diff
             .lines
             .iter()
-            .enumerate()
-            .filter(|(_, (kind, _))| chunk_expanded || !matches!(kind, LineKind::Context))
+            .filter(|line| chunk_expanded || line_has_change(line))
             .collect();
-        for (offset, (kind, content)) in &visible_lines {
-            let line_no = range.start + *offset as u32;
-            let (fg, sigil) = match kind {
-                LineKind::Added => (theme.accents.green, "+"),
-                LineKind::Removed => (theme.accents.red, "-"),
-                LineKind::Context => (theme.surface.subtext0(), " "),
+
+        for line in &visible_lines {
+            let ct = line_change_type(line);
+            let (fg, sigil) = match &ct {
+                Some(ChangeType::Added) => (theme.accents.green, "+"),
+                Some(ChangeType::Deleted) => (theme.accents.red, "-"),
+                _ => (theme.surface.subtext0(), " "),
             };
-            chunk_lines.push(card.line(
+            chunk_lines.push(card.at(
+                CardTier::Content,
                 vec![
                     Span::styled(" ", Style::default()),
-                    Span::styled(format!("{:>4} ", line_no), Style::default().fg(theme.surface.overlay0())),
+                    Span::styled(
+                        format!("{:>4} ", line.line_number),
+                        Style::default().fg(theme.surface.overlay0()),
+                    ),
                     Span::styled(sigil, Style::default().fg(fg).add_modifier(Modifier::BOLD)),
-                    Span::styled(format!(" {}", content), Style::default().fg(fg)),
+                    Span::styled(format!(" {}", line.content), Style::default().fg(fg)),
                 ],
-                theme.surface.base(),
+                theme,
             ));
         }
-        if i + 1 < impact.line_ranges.len() {
-            // Freestanding skip-marker between chunk cards — not owned by either card.
+
+        if i + 1 < display.chunks.len() {
             chunk_lines.push(Line::styled(
-                format!("{:>6}", "···"),
+                format!("{:^width$}", "···", width = cr.width as usize),
                 Style::default()
                     .fg(theme.surface.overlay0())
                     .bg(theme.surface.mantle()),
             ));
         }
     }
-    let scroll = chunks_scroll_offset(impact, focused_chunk, chunks_area.height, expanded_chunks, expanded_instructions, text_width);
-    frame.render_widget(Paragraph::new(chunk_lines).scroll((scroll, 0)), chunks_area);
+
+    let n = display.chunks.len();
+    let heights: Vec<u16> = (0..n)
+        .map(|i| {
+            let h = visible_line_count(
+                &display.chunks[i],
+                expanded.contains(&i),
+                expanded_annotations.contains(&i),
+                text_width,
+            );
+            if i + 1 < n { h + 1 } else { h }
+        })
+        .collect();
+    let scroll = scroll_into_view(&heights, cursor, content_area.height);
+    frame.render_widget(Paragraph::new(chunk_lines).scroll((scroll, 0)), content_area);
 }
 
-fn visible_line_count(range: &LineRange, expanded: bool, instr_expanded: bool, text_width: usize) -> u16 {
+fn line_change_type(line: &RenderableLine<'_>) -> Option<ChangeType> {
+    line.annotations.first().and_then(|a| a.change_type.clone())
+}
+
+fn line_has_change(line: &RenderableLine<'_>) -> bool {
+    line.annotations
+        .first()
+        .and_then(|a| a.change_type.as_ref())
+        .is_some()
+}
+
+fn visible_line_count(
+    chunk: &MockChunk,
+    expanded: bool,
+    annot_expanded: bool,
+    text_width: usize,
+) -> u16 {
     let code_lines = if expanded {
-        range.lines.len() as u16
+        chunk.diff.lines.len() as u16
     } else {
-        range.lines.iter().filter(|(k, _)| !matches!(k, LineKind::Context)).count() as u16
+        chunk
+            .diff
+            .lines
+            .iter()
+            .filter(|l| line_has_change(l))
+            .count() as u16
     };
-    let instr_lines = if let Some(instr) = &range.instruction {
-        if instr_expanded {
+    let instr_lines = if let Some(instr) = &chunk.instruction {
+        if annot_expanded {
             let text = format!("{}: {}", instr.author, instr.content);
             wrap_text(&text, text_width.saturating_sub(6)).len() as u16
         } else {
-            1 // always one truncated line visible
+            1
         }
     } else {
         0
     };
     code_lines + instr_lines
-}
-
-fn chunks_scroll_offset(impact: &CodeImpact, focused_chunk: usize, viewport: u16, expanded_chunks: &HashSet<usize>, expanded_instructions: &HashSet<usize>, text_width: usize) -> u16 {
-    // Compute start line of the focused chunk.
-    let mut chunk_start = 0u16;
-    for i in 0..focused_chunk {
-        chunk_start += visible_line_count(&impact.line_ranges[i], expanded_chunks.contains(&i), expanded_instructions.contains(&i), text_width);
-        chunk_start += 1; // skip-marker between chunks
-    }
-    let chunk_height = visible_line_count(&impact.line_ranges[focused_chunk], expanded_chunks.contains(&focused_chunk), expanded_instructions.contains(&focused_chunk), text_width);
-
-    // If the focused chunk is visible from scroll=0, don't scroll.
-    if chunk_start + chunk_height <= viewport {
-        return 0;
-    }
-    // Otherwise scroll so the focused chunk starts at the top.
-    chunk_start
 }
 
 fn make_card(col_width: u16, focused: bool, accent_color: Color) -> HierarchicalCard {
@@ -766,10 +992,9 @@ fn main() -> Result<()> {
         if event::poll(std::time::Duration::from_millis(50))?
             && let Event::Key(key) = event::read()?
             && key.kind == KeyEventKind::Press
+            && let Some(event) = handle_key_event(key.code)
         {
-            if let Some(event) = handle_key_event(key.code) {
-                app.handle_nav_event(event);
-            }
+            app.handle_nav_event(event);
         }
 
         if app.quit {

@@ -181,10 +181,13 @@ impl<'a> Widget for RenderableDiffWidget<'a> {
             }
         }
 
-        let title = title.unwrap_or_else(|| {
-            format!("📦 {} ({:?})", diff.metadata.boundary_name, diff.language)
-        });
-        let title_style = if focused { stylesheet::title_active(&theme) } else { stylesheet::title_inactive(&theme) };
+        let title = title
+            .unwrap_or_else(|| format!("📦 {} ({:?})", diff.metadata.boundary_name, diff.language));
+        let title_style = if focused {
+            stylesheet::title_active(&theme)
+        } else {
+            stylesheet::title_inactive(&theme)
+        };
         let paragraph = Paragraph::new(lines)
             .block(
                 Block::default()

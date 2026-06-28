@@ -356,7 +356,8 @@ fn handle_ui_event_impl(
             ui_state.deactivate_leader();
         }
 
-        UiEvent::Refresh
+        UiEvent::Back
+        | UiEvent::Refresh
         | UiEvent::NavigateToFile(_)
         | UiEvent::DeleteForward
         | UiEvent::MoveCursorWordLeft

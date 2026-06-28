@@ -22,7 +22,10 @@ use diffviz_review::{engines::ReviewEngine, state::ReviewableDiff};
 
 /// Render the diff view panel
 pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &ReviewEngine) {
-    let area = Rect { height: area.height.saturating_sub(1), ..area };
+    let area = Rect {
+        height: area.height.saturating_sub(1),
+        ..area
+    };
     let is_focused = matches!(ui_state.focused_panel, FocusPanel::DiffView);
 
     match ui_state.decision_tree.selected_path.depth() {
@@ -182,14 +185,21 @@ fn render_diff_content(
 fn render_no_diff_available(f: &mut Frame, area: Rect, is_focused: bool, title: String) {
     let theme = Theme::mocha();
     let message = vec![
-        Line::from(vec![Span::styled("Unable to render diff", stylesheet::muted(&theme))]),
+        Line::from(vec![Span::styled(
+            "Unable to render diff",
+            stylesheet::muted(&theme),
+        )]),
         Line::from(vec![Span::styled(
             "RenderableDiff not available",
             stylesheet::muted(&theme),
         )]),
     ];
 
-    let title_style = if is_focused { stylesheet::title_active(&theme) } else { stylesheet::title_inactive(&theme) };
+    let title_style = if is_focused {
+        stylesheet::title_active(&theme)
+    } else {
+        stylesheet::title_inactive(&theme)
+    };
     let paragraph = Paragraph::new(message)
         .block(
             Block::default()
@@ -204,14 +214,21 @@ fn render_no_diff_available(f: &mut Frame, area: Rect, is_focused: bool, title: 
 fn render_no_diff_selected(f: &mut Frame, area: Rect, is_focused: bool) {
     let theme = Theme::mocha();
     let message = vec![
-        Line::from(vec![Span::styled("No diff selected", stylesheet::muted(&theme))]),
+        Line::from(vec![Span::styled(
+            "No diff selected",
+            stylesheet::muted(&theme),
+        )]),
         Line::from(vec![Span::styled(
             "Navigate to a file to view differences",
             stylesheet::muted(&theme),
         )]),
     ];
 
-    let title_style = if is_focused { stylesheet::title_active(&theme) } else { stylesheet::title_inactive(&theme) };
+    let title_style = if is_focused {
+        stylesheet::title_active(&theme)
+    } else {
+        stylesheet::title_inactive(&theme)
+    };
     let paragraph = Paragraph::new(message)
         .block(
             Block::default()
@@ -297,7 +314,10 @@ fn render_instructions_overlay(
         let paragraph = Paragraph::new(lines)
             .block(
                 Block::default()
-                    .title(ratatui::text::Span::styled("Instructions (I to toggle)", stylesheet::warning(&theme)))
+                    .title(ratatui::text::Span::styled(
+                        "Instructions (I to toggle)",
+                        stylesheet::warning(&theme),
+                    ))
                     .style(stylesheet::layer_elevated(&theme)),
             )
             .wrap(Wrap { trim: false });

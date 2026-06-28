@@ -10,14 +10,20 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, List, ListItem},
 };
-use tui_design::{Icons, Theme, stylesheet};
+use tui_design::{CardTier, Icons, Theme, stylesheet};
 
 use crate::decision_navigation::FlattenedNodeKind;
 use crate::state::UiState;
 use diffviz_review::engines::ReviewEngine;
 
 /// Render the decision tree as the primary navigation view
-pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &ReviewEngine, is_focused: bool) {
+pub fn render(
+    f: &mut Frame,
+    area: Rect,
+    ui_state: &UiState,
+    review_engine: &ReviewEngine,
+    is_focused: bool,
+) {
     let theme = Theme::mocha();
     let flattened = ui_state.decision_tree.flatten();
 
@@ -41,9 +47,14 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &Rev
         let is_selected = node.path == ui_state.decision_tree.selected_path;
 
         let item_line = match &node.kind {
-            FlattenedNodeKind::Decision { number, expanded } => {
-                build_decision_item(*number, *expanded, is_selected, review_engine, area.width, &theme)
-            }
+            FlattenedNodeKind::Decision { number, expanded } => build_decision_item(
+                *number,
+                *expanded,
+                is_selected,
+                review_engine,
+                area.width,
+                &theme,
+            ),
             FlattenedNodeKind::Chunk {
                 decision_num: _,
                 chunk_id,
@@ -106,7 +117,7 @@ fn build_decision_item<'a>(
         } else {
             stylesheet::muted(theme)
         };
-        let sel_bg = theme.surface.surface0();
+        let sel_bg = CardTier::Body.bg(theme);
         vec![
             Span::styled(
                 selection_indicator,
@@ -172,14 +183,8 @@ fn build_decision_item<'a>(
                 },
             ),
             Span::raw(number_and_title),
-            Span::styled(
-                format!(" {progress_str} "),
-                stylesheet::muted(theme),
-            ),
-            Span::styled(
-                format!(" {count_str}"),
-                stylesheet::muted(theme),
-            ),
+            Span::styled(format!(" {progress_str} "), stylesheet::muted(theme)),
+            Span::styled(format!(" {count_str}"), stylesheet::muted(theme)),
             Span::styled(instruction_badge, stylesheet::warning(theme)),
         ]
     };
@@ -215,7 +220,7 @@ fn build_chunk_item(
     };
 
     let line_content = if is_selected {
-        let sel_bg = theme.surface.surface0();
+        let sel_bg = CardTier::Body.bg(theme);
         vec![
             Span::styled(
                 format!("{selection_indicator}{indent}"),

@@ -14,6 +14,7 @@ pub enum UiEvent {
     Refresh,
 
     // Navigation
+    Back,
     NavigateUp,
     NavigateDown,
     NavigateLeft,
@@ -136,6 +137,13 @@ fn handle_navigation_keys(key: KeyEvent) -> Option<UiEvent> {
             modifiers: KeyModifiers::NONE,
             ..
         } => Some(UiEvent::ActivateLeader),
+
+        // Back / escape navigation level
+        KeyEvent {
+            code: KeyCode::Esc,
+            modifiers: KeyModifiers::NONE,
+            ..
+        } => Some(UiEvent::Back),
 
         // Navigation - vim-style
         KeyEvent {
