@@ -285,8 +285,8 @@ fn test_snapshot_captures_all_fields() {
     // Verify all expected fields are present and non-empty/default
     assert!(!snapshot.focused_panel.is_empty());
     assert!(!snapshot.input_mode.is_empty());
-    assert_eq!(snapshot.should_quit, false);
-    assert_eq!(snapshot.leader_active, false);
+    assert!(!snapshot.should_quit);
+    assert!(!snapshot.leader_active);
 }
 
 // =============================================================================
@@ -348,12 +348,11 @@ fn test_file_approval_event_conversion() {
     let snapshots = harness.run_sequence("<Enter>j").expect("Run sequence");
 
     // Verify we're at file level (depth 1)
-    assert_eq!(
+    assert!(
         snapshots[snapshots.len() - 1]
             .decision_tree_path
             .1
             .is_some(),
-        true,
         "Should be at chunk depth (depth 1)"
     );
 
@@ -368,8 +367,8 @@ fn test_file_approval_event_conversion() {
 
     // After Space+a+a, leader should be deactivated
     let final_state = &results_after_approval[results_after_approval.len() - 1];
-    assert_eq!(
-        final_state.leader_active, false,
+    assert!(
+        !final_state.leader_active,
         "Leader should be deactivated after approval"
     );
 }

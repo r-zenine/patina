@@ -189,7 +189,7 @@ fn test_expansion_tab_and_enter_have_same_effect() {
     let snapshots_tab = harness
         .run_sequence("<Tab>")
         .expect("Tab expansion sequence");
-    let tab_state = snapshots_tab.last().unwrap().decision_tree_path.clone();
+    let tab_state = snapshots_tab.last().unwrap().decision_tree_path;
 
     // Reset with new harness for Enter test
     let mut harness2 = InputTestHarness::new(create_test_engine());
@@ -197,7 +197,7 @@ fn test_expansion_tab_and_enter_have_same_effect() {
     let snapshots_enter = harness2
         .run_sequence("<Enter>")
         .expect("Enter expansion sequence");
-    let enter_state = snapshots_enter.last().unwrap().decision_tree_path.clone();
+    let enter_state = snapshots_enter.last().unwrap().decision_tree_path;
 
     assert_eq!(
         tab_state, enter_state,
@@ -341,8 +341,8 @@ fn test_expansion_state_persists_during_navigation() {
     // The expansion state at decision 1 should be persistent
 
     // Verify we can navigate back through expanded area without changing depth incorrectly
-    let path_before_nav = snapshots[1].decision_tree_path.clone();
-    let path_after_nav = snapshots[3].decision_tree_path.clone();
+    let path_before_nav = snapshots[1].decision_tree_path;
+    let path_after_nav = snapshots[3].decision_tree_path;
     assert_eq!(
         path_before_nav, path_after_nav,
         "After expand-navigate-return, path should be same"
