@@ -35,7 +35,7 @@ pub fn render(
 
     let block = Block::default()
         .title(ratatui::text::Span::styled(" Decisions ", title_style))
-        .style(stylesheet::layer_base(&theme));
+        .style(stylesheet::terminal_floor(&theme));
 
     if flattened.is_empty() {
         f.render_widget(block, area);

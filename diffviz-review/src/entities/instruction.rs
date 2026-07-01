@@ -21,6 +21,10 @@ pub enum InstructionStatus {
 }
 
 /// An instruction for changes on a reviewable diff
+///
+/// Each key holds a single instruction — the one shared note for that chunk
+/// or decision. "Editing" means appending to it (see [`Instruction::append`]),
+/// never creating a second instruction.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Instruction {
     pub id: String,
@@ -31,10 +35,35 @@ pub struct Instruction {
     pub status: InstructionStatus,
 }
 
+impl Instruction {
+    /// Folds a new contribution into this instruction (the single-note model).
+    ///
+    /// The new content lands on its own line, a distinct contributor is added
+    /// to the comma-separated author list, the timestamp moves to the latest
+    /// contribution, and the note reactivates — fresh guidance means it is no
+    /// longer addressed.
+    pub fn append(&mut self, content: &str, author: &str, timestamp: String) {
+        self.content.push('\n');
+        self.content.push_str(content);
+        if !self.author.split(", ").any(|a| a == author) {
+            self.author.push_str(", ");
+            self.author.push_str(author);
+        }
+        self.timestamp = timestamp;
+        self.status = InstructionStatus::Active;
+    }
+}
+
 /// Generic collection of instructions keyed by any hashable type.
 ///
 /// Used for both chunk-level instructions (`K = ReviewableDiffId`) and
 /// decision-level instructions (`K = u32`).
+///
+/// Enforces the single-note invariant on the write path: adding an
+/// instruction to a key that already has one folds the new content into the
+/// existing note via [`Instruction::append`]. The `Vec` storage remains for
+/// serialization compatibility with previously persisted states; new writes
+/// never grow it past one entry.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(bound(
     serialize = "K: Serialize + Hash + Eq + Clone",
@@ -52,7 +81,15 @@ impl<K: Hash + Eq + Clone> InstructionMap<K> {
     }
 
     pub fn add_instruction(&mut self, key: K, instruction: Instruction) {
-        self.instructions.entry(key).or_default().push(instruction);
+        let notes = self.instructions.entry(key).or_default();
+        match notes.first_mut() {
+            Some(existing) => existing.append(
+                &instruction.content,
+                &instruction.author,
+                instruction.timestamp,
+            ),
+            None => notes.push(instruction),
+        }
     }
 
     pub fn get_instructions(&self, key: &K) -> Option<&Vec<Instruction>> {
@@ -193,6 +230,50 @@ mod tests {
         assert_eq!(instruction.id, "instruction_1");
         assert_eq!(instruction.content, "Please add error handling");
         assert_eq!(instruction.author, "reviewer");
+    }
+
+    #[test]
+    fn test_adding_to_existing_key_folds_into_single_note() {
+        let mut instructions = ReviewInstructions::new();
+        let reviewable_id = create_test_reviewable_id();
+
+        instructions.add_instruction(
+            reviewable_id.clone(),
+            make_instruction("instruction_1", "Add error handling"),
+        );
+        instructions.add_instruction(
+            reviewable_id.clone(),
+            make_instruction("instruction_2", "Also cover the timeout path"),
+        );
+
+        let notes = instructions.get_instructions(&reviewable_id).unwrap();
+        assert_eq!(notes.len(), 1, "a key never holds more than one note");
+        assert_eq!(notes[0].id, "instruction_1", "the original note persists");
+        assert_eq!(
+            notes[0].content,
+            "Add error handling\nAlso cover the timeout path"
+        );
+        assert_eq!(instructions.total_instructions(), 1);
+    }
+
+    #[test]
+    fn test_append_merges_distinct_authors_and_reactivates() {
+        let mut note = make_instruction("instruction_1", "Add error handling");
+        note.status = InstructionStatus::Addressed;
+
+        note.append("Also cover the timeout path", "bob", "t2".to_string());
+
+        assert_eq!(note.author, "reviewer, bob");
+        assert_eq!(note.timestamp, "t2");
+        assert_eq!(
+            note.status,
+            InstructionStatus::Active,
+            "fresh guidance reactivates an addressed note"
+        );
+
+        // Same contributor again — no duplicate attribution.
+        note.append("One more thing", "bob", "t3".to_string());
+        assert_eq!(note.author, "reviewer, bob");
     }
 
     #[test]

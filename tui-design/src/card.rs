@@ -1,5 +1,6 @@
 use ratatui::prelude::*;
 use ratatui::widgets::Paragraph;
+use unicode_width::UnicodeWidthStr;
 
 use crate::tokens::Theme;
 
@@ -67,6 +68,11 @@ impl HierarchicalCard {
     /// Returns a copy so the caller can use the badged variant for one row
     /// and the original for the rest.
     pub fn with_badge(mut self, ch: &'static str, color: Color) -> Self {
+        debug_assert_eq!(
+            ch.width(),
+            1,
+            "badge must be exactly 1 terminal cell wide, got {ch:?}"
+        );
         self.badge = Some((ch, color));
         self
     }
@@ -161,7 +167,9 @@ fn content_line<'a>(
     accent: Option<Color>,
     badge: Option<(&'static str, Color)>,
 ) -> Line<'a> {
-    let content_len: usize = spans.iter().map(|s| s.content.chars().count()).sum();
+    // Measure in terminal cells, not chars — double-width glyphs (emoji, CJK)
+    // would otherwise skew the trailing background fill.
+    let content_len: usize = spans.iter().map(|s| s.content.width()).sum();
     let used = INDENT + content_len;
     let trailing = (col_width as usize).saturating_sub(used);
     let [g0, g1] = accent_bar(accent, badge, bg);

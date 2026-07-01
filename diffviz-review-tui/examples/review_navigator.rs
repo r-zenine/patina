@@ -1,8 +1,11 @@
 //! Review Navigator — three-level hierarchical navigation prototype.
 //!
 //! DrillNav pattern:
-//!   Browse  j/k navigate nodes  | Enter drill in | q quit
-//!   Drill   j/k navigate chunks | h/l cycle siblings (wraps) | Tab expand context | Esc back | q quit
+//!   Browse  j/k navigate decisions | a approve/unapprove decision (cascades to chunks)
+//!           Enter drill in | q quit
+//!   Drill   j/k navigate chunks | h/l cycle files (wraps, per-file state retained)
+//!           Tab expand context | i expand/collapse note | a approve chunk
+//!           Esc back | q quit
 //!
 //! Surface ramp (dark theme, lighter = higher elevation):
 //!   rationale    → surface1   (CardTier::Header — pinnable)
@@ -13,7 +16,7 @@
 //!
 //! Layout: content capped at 120 columns, centered; surface bg fills full column width.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::io;
 
 use anyhow::Result;
@@ -22,15 +25,13 @@ use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use diffviz_core::{
-    LineRange as CoreLineRange, ProgrammingLanguage, RenderableDiff, RenderableLine,
-    RenderableMetadata, SemanticNodeKind,
-    ast_diff::ESSENTIAL,
-    renderable_diff::{ChangeType, LineAnnotation},
-};
-use diffviz_review::entities::{
-    decision::{CodeImpact, Decision, DecisionLineRange, DecisionLog},
-    instruction::{Instruction, InstructionStatus},
+use diffviz_core::RenderableLine;
+use diffviz_core::renderable_diff::ChangeType;
+use diffviz_review::{
+    DecisionLog, ReviewEngine, ReviewableDiffId,
+    entities::git_ref::{DiffQuery, GitRef},
+    providers::mock_provider::MockDiffProvider,
+    review_engine_builder::ReviewEngineBuilder,
 };
 use ratatui::prelude::*;
 use ratatui::widgets::Paragraph;
@@ -41,353 +42,156 @@ use tui_design::{
 
 use diffviz_review_tui::events::input::UiEvent;
 
-// ── Mock display data (separate from decision metadata) ───────────────────────
-//
-// The real app sources this from RenderableDiff produced by the diff engine.
-// These local types exist only to hold mock content until the example is promoted.
+// ── Engine bootstrap ──────────────────────────────────────────────────────────
 
-struct MockImpactDisplay {
-    chunks: Vec<MockChunk>,
+fn build_engine() -> Result<ReviewEngine> {
+    let yaml = include_str!("resources/decision-log.yaml");
+    let decision_log = DecisionLog::parse(yaml)?;
+
+    let query = DiffQuery::head_to_unstaged();
+
+    let mut provider = MockDiffProvider::new();
+
+    provider.add_file_content(
+        "src/auth/middleware.rs",
+        &GitRef::Head,
+        include_str!("resources/auth_middleware_old.rs"),
+    );
+    provider.add_file_content(
+        "src/auth/middleware.rs",
+        &GitRef::Unstaged,
+        include_str!("resources/auth_middleware_new.rs"),
+    );
+    provider.add_file_content(
+        "src/auth/token.rs",
+        &GitRef::Head,
+        include_str!("resources/auth_token_old.rs"),
+    );
+    provider.add_file_content(
+        "src/auth/token.rs",
+        &GitRef::Unstaged,
+        include_str!("resources/auth_token_new.rs"),
+    );
+    // rate_limiter.rs is a new file — only provide new content
+    provider.add_file_content(
+        "src/rate_limiter.rs",
+        &GitRef::Unstaged,
+        include_str!("resources/rate_limiter_new.rs"),
+    );
+
+    let mut engine = ReviewEngineBuilder::new(Box::new(provider), "reviewer".into())
+        .build_from_decisions(decision_log.decisions, query)?;
+
+    seed_instructions(&mut engine)?;
+
+    Ok(engine)
 }
 
-struct MockChunk {
-    diff: RenderableDiff<'static>,
-    instruction: Option<Instruction>,
-}
+fn seed_instructions(engine: &mut ReviewEngine) -> Result<()> {
+    let pairs = engine.get_decision_reviewable_diffs();
 
-// ── Mock data builder ─────────────────────────────────────────────────────────
-
-/// Constructs a `RenderableDiff<'static>` from static line data.
-/// Each row is `(content, change_type)` where `None` = context line.
-fn mock_diff(
-    start_line: usize,
-    rows: &[(&'static str, Option<ChangeType>)],
-) -> RenderableDiff<'static> {
-    let lines: Vec<RenderableLine<'static>> = rows
-        .iter()
-        .enumerate()
-        .map(|(i, (content, ct))| RenderableLine {
-            line_number: start_line + i,
-            content,
-            byte_range: (0, content.len()),
-            annotations: vec![LineAnnotation {
-                start_col: 0,
-                end_col: content.len(),
-                relevance: ESSENTIAL,
-                change_type: ct.clone(),
-                semantic_kind: SemanticNodeKind::Function,
-                node_depth: 0,
-            }],
-            semantic_anchor: None,
-        })
-        .collect();
-
-    let changed_line_numbers = rows
-        .iter()
-        .enumerate()
-        .filter(|(_, (_, ct))| ct.is_some())
-        .map(|(i, _)| start_line + i)
-        .collect();
-
-    RenderableDiff {
-        metadata: RenderableMetadata {
-            total_changes: rows.iter().filter(|(_, ct)| ct.is_some()).count(),
-            change_summary: HashMap::new(),
-            essential_line_count: rows.len(),
-            boundary_name: String::new(),
-            overall_line_range: CoreLineRange {
-                start_line,
-                end_line: start_line + rows.len(),
-                start_column: 0,
-                end_column: 0,
-            },
-            changed_line_numbers,
-        },
-        lines,
-        language: ProgrammingLanguage::Rust,
+    // Note for the validate_token chunk in middleware.rs (decision 1).
+    // A chunk holds a single note; bob's follow-up folds into alice's note
+    // (single-note model: editing = appending, never a second instruction).
+    if let Some(d) = pairs.iter().find(|d| {
+        d.chunk_id.file_path() == "src/auth/middleware.rs"
+            && d.chunk_id.line_range().start_line <= 20
+            && d.decision_number == 1
+    }) {
+        engine.add_instruction(
+            d.chunk_id.clone(),
+            "Make sure TokenValidator is object-safe before merging — \
+             we'll need Arc<dyn TokenValidator> in the Middleware struct below."
+                .into(),
+            "alice".into(),
+        )?;
+        engine.add_instruction(
+            d.chunk_id.clone(),
+            "Object safety confirmed on my branch — also add a #[deny(missing_docs)] \
+             note for the trait."
+                .into(),
+            "bob".into(),
+        )?;
     }
-}
 
-fn instr(id: &str, author: &str, content: &str) -> Instruction {
-    Instruction {
-        id: id.to_string(),
-        author: author.to_string(),
-        timestamp: String::new(),
-        content: content.to_string(),
-        status: InstructionStatus::Active,
+    // Instruction for the Middleware struct chunk (decision 1)
+    if let Some(d) = pairs.iter().find(|d| {
+        d.chunk_id.file_path() == "src/auth/middleware.rs"
+            && d.chunk_id.line_range().start_line > 20
+            && d.decision_number == 1
+    }) {
+        engine.add_instruction(
+            d.chunk_id.clone(),
+            "DefaultValidator::new() is not yet implemented — \
+             this will panic at runtime if the default impl is exercised."
+                .into(),
+            "bob".into(),
+        )?;
     }
+
+    // Instruction for the rate limiter (decision 2)
+    if let Some(d) = pairs
+        .iter()
+        .find(|d| d.chunk_id.file_path() == "src/rate_limiter.rs" && d.decision_number == 2)
+    {
+        engine.add_instruction(
+            d.chunk_id.clone(),
+            "Consider extracting retain + len check into a named helper — \
+             check_and_record is doing two distinct things."
+                .into(),
+            "carol".into(),
+        )?;
+    }
+
+    Ok(())
 }
 
-fn mock_data() -> (DecisionLog, Vec<Vec<MockImpactDisplay>>) {
-    use ChangeType::{Added, Deleted};
+// ── Navigation helpers ────────────────────────────────────────────────────────
 
-    let log = DecisionLog {
-        commit: "a3f9c12".to_string(),
-        decisions: vec![
-            Decision {
-                number: 1,
-                title: "Refactor authentication middleware".to_string(),
-                rationale: Some(
-                    "Middleware was tightly coupled to the session store, \
-                    making it impossible to swap implementations without touching call sites."
-                        .to_string(),
-                ),
-                code_impacts: vec![
-                    CodeImpact {
-                        file: "src/auth/middleware.rs".to_string(),
-                        reasoning: "Extracting the validation logic into a trait allows \
-                            injecting different backends. The TokenValidator trait replaces \
-                            the concrete SessionStore parameter on validate_token."
-                            .to_string(),
-                        line_ranges: vec![
-                            DecisionLineRange { start: 8, end: 26 },
-                            DecisionLineRange { start: 38, end: 57 },
-                        ],
-                    },
-                    CodeImpact {
-                        file: "src/auth/token.rs".to_string(),
-                        reasoning: "Token type enum was missing the ApiKey variant, causing \
-                            panics when API clients authenticated. Added the variant and wired \
-                            it through the validator."
-                            .to_string(),
-                        line_ranges: vec![DecisionLineRange { start: 4, end: 22 }],
-                    },
-                ],
-            },
-            Decision {
-                number: 2,
-                title: "Introduce rate limiting on public endpoints".to_string(),
-                rationale: Some(
-                    "No rate limiting existed on /api/public/* routes, \
-                    exposing the service to trivial abuse before the next release."
-                        .to_string(),
-                ),
-                code_impacts: vec![CodeImpact {
-                    file: "src/rate_limiter.rs".to_string(),
-                    reasoning: "A sliding window limiter is the minimal viable fix. \
-                            Redis TTL drives window expiry; the window size is configurable \
-                            per environment via the SLA document."
-                        .to_string(),
-                    line_ranges: vec![
-                        DecisionLineRange { start: 1, end: 16 },
-                        DecisionLineRange { start: 18, end: 35 },
-                    ],
-                }],
-            },
-        ],
-    };
+/// Sorted unique file paths affected by a decision (preserves sibling_idx mapping).
+fn files_for_decision(engine: &ReviewEngine, decision_idx: usize) -> Vec<String> {
+    let decisions = engine.get_all_decisions();
+    let decision_number = decisions[decision_idx].number;
+    let mut files: Vec<String> = engine
+        .get_decision_reviewable_diffs()
+        .into_iter()
+        .filter(|d| d.decision_number == decision_number)
+        .map(|d| d.chunk_id.file_path().to_string())
+        .collect::<std::collections::HashSet<_>>()
+        .into_iter()
+        .collect();
+    files.sort();
+    files
+}
 
-    // Display data — line content that the real app will source from the diff engine.
-    let display: Vec<Vec<MockImpactDisplay>> = vec![
-        // Decision 1
-        vec![
-            // Impact 0: src/auth/middleware.rs
-            MockImpactDisplay {
-                chunks: vec![
-                    MockChunk {
-                        diff: mock_diff(
-                            8,
-                            &[
-                                ("use anyhow::Result;", None),
-                                ("use crate::claims::Claims;", None),
-                                ("use crate::jwt::decode_jwt;", None),
-                                ("use crate::session::SessionStore;", Some(Deleted)),
-                                ("use crate::session::TokenValidator;", Some(Added)),
-                                ("", None),
-                                (
-                                    "pub fn validate_token(token: &str, store: &SessionStore) -> Result<Claims> {",
-                                    Some(Deleted),
-                                ),
-                                (
-                                    "pub fn validate_token<V: TokenValidator>(token: &str, v: &V) -> Result<Claims> {",
-                                    Some(Added),
-                                ),
-                                ("    let raw = decode_jwt(token)?;", None),
-                                ("    let header = raw.header();", None),
-                                ("    store.validate(&raw.claims)?;", Some(Deleted)),
-                                ("    v.validate(&raw.claims)?;", Some(Added)),
-                                ("    Ok(raw.into_claims())", None),
-                                ("}", None),
-                            ],
-                        ),
-                        instruction: Some(instr(
-                            "i1",
-                            "alice",
-                            "Make sure TokenValidator is object-safe before merging — \
-                            we'll need Arc<dyn TokenValidator> in the Middleware struct below.",
-                        )),
-                    },
-                    MockChunk {
-                        diff: mock_diff(
-                            38,
-                            &[
-                                ("pub struct Middleware {", None),
-                                ("    store: SessionStore,", Some(Deleted)),
-                                ("    validator: Arc<dyn TokenValidator>,", Some(Added)),
-                                ("    timeout: Duration,", None),
-                                ("}", None),
-                                ("", None),
-                                ("impl Default for Middleware {", None),
-                                ("    fn default() -> Self {", Some(Deleted)),
-                                (
-                                    "        Self { store: SessionStore::new(), timeout: Duration::from_secs(30) }",
-                                    Some(Deleted),
-                                ),
-                                ("    }", Some(Deleted)),
-                                ("    fn default() -> Self {", Some(Added)),
-                                ("        Self {", Some(Added)),
-                                (
-                                    "            validator: Arc::new(DefaultValidator::new()),",
-                                    Some(Added),
-                                ),
-                                ("            timeout: Duration::from_secs(30),", Some(Added)),
-                                ("        }", Some(Added)),
-                                ("    }", Some(Added)),
-                                ("}", None),
-                            ],
-                        ),
-                        instruction: Some(instr(
-                            "i2",
-                            "bob",
-                            "DefaultValidator::new() is not yet implemented — \
-                            this will panic at runtime if the default impl is exercised.",
-                        )),
-                    },
-                ],
-            },
-            // Impact 1: src/auth/token.rs
-            MockImpactDisplay {
-                chunks: vec![MockChunk {
-                    diff: mock_diff(
-                        4,
-                        &[
-                            ("/// Identifies the authentication mechanism used.", None),
-                            (
-                                "/// Variants must stay in sync with the claims `typ` field.",
-                                None,
-                            ),
-                            ("#[derive(Debug, Clone, PartialEq, Eq)]", None),
-                            ("pub enum TokenType {", None),
-                            (
-                                "    /// Browser session cookie — 30-minute sliding expiry.",
-                                None,
-                            ),
-                            ("    Session,", None),
-                            (
-                                "    /// Long-lived API key — expiry driven by key record in DB.",
-                                Some(Added),
-                            ),
-                            ("    ApiKey,", Some(Added)),
-                            ("}", None),
-                            ("", None),
-                            ("impl TokenType {", None),
-                            ("    pub fn is_session(&self) -> bool {", None),
-                            ("        matches!(self, Self::Session)", None),
-                            ("    }", None),
-                            ("    pub fn lifetime(&self) -> Duration {", Some(Deleted)),
-                            ("        Duration::from_secs(1800)", Some(Deleted)),
-                            ("    pub fn lifetime(&self) -> Duration {", Some(Added)),
-                            ("        match self {", Some(Added)),
-                            (
-                                "            Self::Session => Duration::from_secs(1800),",
-                                Some(Added),
-                            ),
-                            (
-                                "            Self::ApiKey  => Duration::from_secs(86400 * 365),",
-                                Some(Added),
-                            ),
-                            ("        }", Some(Added)),
-                            ("    }", None),
-                            ("}", None),
-                        ],
-                    ),
-                    instruction: None,
-                }],
-            },
-        ],
-        // Decision 2
-        vec![
-            // Impact 0: src/rate_limiter.rs
-            MockImpactDisplay {
-                chunks: vec![
-                    MockChunk {
-                        diff: mock_diff(
-                            1,
-                            &[
-                                ("use std::collections::VecDeque;", Some(Added)),
-                                ("use std::time::{Duration, Instant};", Some(Added)),
-                                ("", Some(Added)),
-                                (
-                                    "/// Sliding-window rate limiter backed by an in-process ring buffer.",
-                                    Some(Added),
-                                ),
-                                (
-                                    "/// For multi-instance deployments, swap the inner store for Redis.",
-                                    Some(Added),
-                                ),
-                                ("pub struct SlidingWindowLimiter {", Some(Added)),
-                                ("    window: Duration,", Some(Added)),
-                                ("    max_requests: u32,", Some(Added)),
-                                ("    timestamps: VecDeque<Instant>,", Some(Added)),
-                                ("}", Some(Added)),
-                            ],
-                        ),
-                        instruction: None,
-                    },
-                    MockChunk {
-                        diff: mock_diff(
-                            18,
-                            &[
-                                ("impl SlidingWindowLimiter {", Some(Added)),
-                                (
-                                    "    pub fn new(window: Duration, max_requests: u32) -> Self {",
-                                    Some(Added),
-                                ),
-                                (
-                                    "        Self { window, max_requests, timestamps: VecDeque::new() }",
-                                    Some(Added),
-                                ),
-                                ("    }", Some(Added)),
-                                ("", Some(Added)),
-                                (
-                                    "    /// Returns `true` if the request is allowed, `false` if rate-limited.",
-                                    Some(Added),
-                                ),
-                                (
-                                    "    pub fn check_and_record(&mut self) -> bool {",
-                                    Some(Added),
-                                ),
-                                ("        let now = Instant::now();", Some(Added)),
-                                ("        let cutoff = now - self.window;", Some(Added)),
-                                (
-                                    "        self.timestamps.retain(|&t| t > cutoff);",
-                                    Some(Added),
-                                ),
-                                (
-                                    "        if self.timestamps.len() as u32 >= self.max_requests {",
-                                    Some(Added),
-                                ),
-                                ("            return false;", Some(Added)),
-                                ("        }", Some(Added)),
-                                ("        self.timestamps.push_back(now);", Some(Added)),
-                                ("        true", Some(Added)),
-                                ("    }", Some(Added)),
-                                ("}", Some(Added)),
-                            ],
-                        ),
-                        instruction: Some(instr(
-                            "i3",
-                            "carol",
-                            "Consider extracting retain + len check into a named helper — \
-                            check_and_record is doing two distinct things.",
-                        )),
-                    },
-                ],
-            },
-        ],
-    ];
+/// The chunk's single note. One note per chunk is a product invariant —
+/// adding an instruction to an annotated chunk appends to the existing note.
+fn note_for<'a>(
+    engine: &'a ReviewEngine,
+    chunk_id: &ReviewableDiffId,
+) -> Option<&'a diffviz_review::Instruction> {
+    engine
+        .state()
+        .get_instructions(chunk_id)
+        .and_then(|v| v.first())
+}
 
-    (log, display)
+/// Chunk IDs for a specific decision × file, ordered by start line.
+fn chunks_for_file(
+    engine: &ReviewEngine,
+    decision_idx: usize,
+    file_path: &str,
+) -> Vec<ReviewableDiffId> {
+    let decisions = engine.get_all_decisions();
+    let decision_number = decisions[decision_idx].number;
+    let mut ids: Vec<ReviewableDiffId> = engine
+        .get_decision_reviewable_diffs()
+        .into_iter()
+        .filter(|d| d.decision_number == decision_number && d.chunk_id.file_path() == file_path)
+        .map(|d| d.chunk_id)
+        .collect();
+    ids.sort_by_key(|id| id.line_range().start_line);
+    ids
 }
 
 // ── Navigation events ─────────────────────────────────────────────────────────
@@ -401,6 +205,7 @@ fn handle_key_event(code: KeyCode) -> Option<UiEvent> {
         KeyCode::Char('h') | KeyCode::Left => Some(UiEvent::NavigateLeft),
         KeyCode::Char('l') | KeyCode::Right => Some(UiEvent::NavigateRight),
         KeyCode::Char('a') => Some(UiEvent::ToggleApprove),
+        KeyCode::Char('i') => Some(UiEvent::ToggleInstructions),
         KeyCode::Enter => Some(UiEvent::SelectCurrent),
         KeyCode::Esc => Some(UiEvent::Back),
         KeyCode::Tab => Some(UiEvent::ToggleDecisionExpansion),
@@ -414,9 +219,19 @@ fn handle_key_event(code: KeyCode) -> Option<UiEvent> {
 struct DrillContext<'a> {
     node_idx: usize,
     sibling_idx: usize,
+    view: &'a FileView,
+}
+
+/// Per-file view state, retained while cycling siblings with h/l so a
+/// round-trip doesn't lose the reviewer's place.
+#[derive(Default, Clone)]
+struct FileView {
+    /// j/k cursor within the file's chunk list.
     cursor: usize,
-    expanded: &'a HashSet<usize>,
-    expanded_annotations: &'a HashSet<usize>,
+    /// Chunks with expanded context (Tab toggles).
+    expanded: HashSet<usize>,
+    /// Chunks with expanded instruction text (i toggles).
+    expanded_notes: HashSet<usize>,
 }
 
 /// State machine for the DrillNav pattern.
@@ -432,43 +247,37 @@ enum DrillNavState {
         node_idx: usize,
         /// h/l cycling among sibling child groups (files within a decision).
         sibling_idx: usize,
-        /// j/k cursor within the visible children list.
-        cursor: usize,
-        /// Children with expanded context (Tab toggles).
-        expanded: HashSet<usize>,
-        /// Children with expanded annotation text (Tab toggles).
-        expanded_annotations: HashSet<usize>,
+        /// One view state per sibling file, index-aligned with `files_for_decision`.
+        views: Vec<FileView>,
     },
 }
 
 struct App {
-    log: DecisionLog,
-    display: Vec<Vec<MockImpactDisplay>>,
+    engine: ReviewEngine,
+    commit: String,
     nav: DrillNavState,
-    /// Approved chunks: (node_idx, sibling_idx, chunk_idx).
-    approved: HashSet<(usize, usize, usize)>,
-    /// Approved decisions: node_idx. Mirrors ReviewEngine's DecisionApprovals —
-    /// decision approval is tracked independently and cascades to chunks on toggle.
-    approved_decisions: HashSet<usize>,
     theme: Theme,
     quit: bool,
+    /// One-shot error line for the status bar; cleared on the next keypress.
+    message: Option<String>,
 }
 
 impl App {
-    fn new() -> Self {
-        let (log, display) = mock_data();
-        App {
-            log,
-            display,
+    fn new() -> Result<Self> {
+        let yaml = include_str!("resources/decision-log.yaml");
+        let commit = DecisionLog::parse(yaml)?.commit;
+        Ok(App {
+            engine: build_engine()?,
+            commit,
             nav: DrillNavState::Browse { cursor: 0 },
-            approved: HashSet::new(),
-            approved_decisions: HashSet::new(),
             theme: Theme::mocha(),
             quit: false,
-        }
+            message: None,
+        })
     }
 
     fn handle_nav_event(&mut self, event: UiEvent) {
+        self.message = None;
         match event {
             UiEvent::Quit => self.quit = true,
             UiEvent::NavigateUp => self.navigate_up(),
@@ -478,125 +287,137 @@ impl App {
             UiEvent::ToggleApprove => self.toggle_approve(),
             UiEvent::SelectCurrent => self.drill_in(),
             UiEvent::Back => self.back(),
-            UiEvent::ToggleDecisionExpansion => self.toggle_expansion(),
+            UiEvent::ToggleDecisionExpansion => self.toggle_context(),
+            UiEvent::ToggleInstructions => self.toggle_note(),
             _ => {}
         }
     }
 
     fn toggle_approve(&mut self) {
-        match &self.nav {
+        // Read phase: extract values before any mutation so borrows don't overlap.
+        enum Action {
+            Decision(u32),
+            Chunk {
+                node_idx: usize,
+                sibling_idx: usize,
+                cursor: usize,
+            },
+        }
+        let action = match &self.nav {
             DrillNavState::Browse { cursor } => {
-                let node_idx = *cursor;
-                if self.approved_decisions.remove(&node_idx) {
-                    // Unapprove decision → cascade unapprove all its chunks.
-                    for sibling_idx in 0..self.display[node_idx].len() {
-                        for chunk_idx in 0..self.display[node_idx][sibling_idx].chunks.len() {
-                            self.approved.remove(&(node_idx, sibling_idx, chunk_idx));
-                        }
-                    }
-                } else {
-                    // Approve decision → cascade approve all its chunks.
-                    self.approved_decisions.insert(node_idx);
-                    for sibling_idx in 0..self.display[node_idx].len() {
-                        for chunk_idx in 0..self.display[node_idx][sibling_idx].chunks.len() {
-                            self.approved.insert((node_idx, sibling_idx, chunk_idx));
-                        }
-                    }
-                }
+                let decisions = self.engine.get_all_decisions();
+                Action::Decision(decisions[*cursor].number)
             }
             DrillNavState::Drill {
                 node_idx,
                 sibling_idx,
-                cursor,
-                ..
-            } => {
-                let key = (*node_idx, *sibling_idx, *cursor);
-                if !self.approved.remove(&key) {
-                    self.approved.insert(key);
+                views,
+            } => Action::Chunk {
+                node_idx: *node_idx,
+                sibling_idx: *sibling_idx,
+                cursor: views[*sibling_idx].cursor,
+            },
+        };
+
+        // Mutate phase
+        let result = match action {
+            Action::Decision(decision_num) => {
+                if self.engine.is_decision_approved(decision_num) {
+                    self.engine.reject_decision(decision_num).map(|_| ())
+                } else {
+                    self.engine
+                        .approve_decision(decision_num, "reviewer".into())
+                        .map(|_| ())
                 }
             }
+            Action::Chunk {
+                node_idx,
+                sibling_idx,
+                cursor,
+            } => {
+                let files = files_for_decision(&self.engine, node_idx);
+                let file_path = files[sibling_idx].clone();
+                let chunk_ids = chunks_for_file(&self.engine, node_idx, &file_path);
+                if cursor < chunk_ids.len() {
+                    let chunk_id = chunk_ids[cursor].clone();
+                    if self.engine.state().is_approved(&chunk_id) {
+                        self.engine.reject(chunk_id)
+                    } else {
+                        self.engine.approve(chunk_id, "reviewer".into())
+                    }
+                } else {
+                    Ok(())
+                }
+            }
+        };
+        if let Err(e) = result {
+            self.message = Some(format!("Approval failed: {e}"));
         }
     }
 
     fn navigate_up(&mut self) {
-        match &mut self.nav {
-            DrillNavState::Browse { cursor } => {
-                if *cursor > 0 {
-                    *cursor -= 1;
-                }
-            }
-            DrillNavState::Drill { cursor, .. } => {
-                if *cursor > 0 {
-                    *cursor -= 1;
-                }
-            }
+        let cursor = match &mut self.nav {
+            DrillNavState::Browse { cursor } => cursor,
+            DrillNavState::Drill {
+                sibling_idx, views, ..
+            } => &mut views[*sibling_idx].cursor,
+        };
+        if *cursor > 0 {
+            *cursor -= 1;
         }
     }
 
     fn navigate_down(&mut self) {
-        match &mut self.nav {
-            DrillNavState::Browse { cursor } => {
-                if *cursor + 1 < self.log.decisions.len() {
-                    *cursor += 1;
-                }
-            }
+        let n = match &self.nav {
+            DrillNavState::Browse { .. } => self.engine.get_all_decisions().len(),
             DrillNavState::Drill {
                 node_idx,
                 sibling_idx,
-                cursor,
                 ..
             } => {
-                let n = self.display[*node_idx][*sibling_idx].chunks.len();
-                if *cursor + 1 < n {
-                    *cursor += 1;
-                }
+                let files = files_for_decision(&self.engine, *node_idx);
+                chunks_for_file(&self.engine, *node_idx, &files[*sibling_idx]).len()
             }
+        };
+        let cursor = match &mut self.nav {
+            DrillNavState::Browse { cursor } => cursor,
+            DrillNavState::Drill {
+                sibling_idx, views, ..
+            } => &mut views[*sibling_idx].cursor,
+        };
+        if *cursor + 1 < n {
+            *cursor += 1;
         }
     }
 
     fn navigate_left(&mut self) {
         if let DrillNavState::Drill {
-            node_idx,
-            sibling_idx,
-            cursor,
-            expanded,
-            expanded_annotations,
+            sibling_idx, views, ..
         } = &mut self.nav
         {
-            let n = self.log.decisions[*node_idx].code_impacts.len();
+            let n = views.len();
             *sibling_idx = sibling_idx.checked_sub(1).unwrap_or(n - 1);
-            *cursor = 0;
-            expanded.clear();
-            expanded_annotations.clear();
         }
     }
 
     fn navigate_right(&mut self) {
         if let DrillNavState::Drill {
-            node_idx,
-            sibling_idx,
-            cursor,
-            expanded,
-            expanded_annotations,
+            sibling_idx, views, ..
         } = &mut self.nav
         {
-            let n = self.log.decisions[*node_idx].code_impacts.len();
+            let n = views.len();
             *sibling_idx = (*sibling_idx + 1) % n;
-            *cursor = 0;
-            expanded.clear();
-            expanded_annotations.clear();
         }
     }
 
     fn drill_in(&mut self) {
         if let DrillNavState::Browse { cursor } = &self.nav {
             let idx = *cursor;
+            let n_files = files_for_decision(&self.engine, idx).len();
             self.nav = DrillNavState::Drill {
                 node_idx: idx,
                 sibling_idx: 0,
-                cursor: 0,
-                expanded: HashSet::new(),
-                expanded_annotations: HashSet::from([0]),
+                views: vec![FileView::default(); n_files],
             };
         }
     }
@@ -608,14 +429,29 @@ impl App {
         }
     }
 
-    fn toggle_expansion(&mut self) {
-        if let DrillNavState::Drill {
-            cursor, expanded, ..
-        } = &mut self.nav
-        {
-            let chunk = *cursor;
-            if !expanded.remove(&chunk) {
-                expanded.insert(chunk);
+    fn current_view_mut(&mut self) -> Option<&mut FileView> {
+        match &mut self.nav {
+            DrillNavState::Drill {
+                sibling_idx, views, ..
+            } => Some(&mut views[*sibling_idx]),
+            DrillNavState::Browse { .. } => None,
+        }
+    }
+
+    fn toggle_context(&mut self) {
+        if let Some(view) = self.current_view_mut() {
+            let chunk = view.cursor;
+            if !view.expanded.remove(&chunk) {
+                view.expanded.insert(chunk);
+            }
+        }
+    }
+
+    fn toggle_note(&mut self) {
+        if let Some(view) = self.current_view_mut() {
+            let chunk = view.cursor;
+            if !view.expanded_notes.remove(&chunk) {
+                view.expanded_notes.insert(chunk);
             }
         }
     }
@@ -639,18 +475,35 @@ fn plural_s(n: usize) -> &'static str {
     if n == 1 { "" } else { "s" }
 }
 
+/// Hard-splits a word that can't fit on any line (long paths, URLs) into
+/// `max_cols`-sized pieces; words that fit come back whole.
+fn split_oversized(word: &str, max_cols: usize) -> Vec<String> {
+    if word.chars().count() <= max_cols {
+        return vec![word.to_string()];
+    }
+    let mut pieces = Vec::new();
+    let mut chars = word.chars().peekable();
+    while chars.peek().is_some() {
+        pieces.push(chars.by_ref().take(max_cols).collect());
+    }
+    pieces
+}
+
 fn wrap_text(text: &str, max_cols: usize) -> Vec<String> {
+    let max_cols = max_cols.max(1);
     let mut result = Vec::new();
     let mut current = String::new();
     for word in text.split_whitespace() {
-        if current.is_empty() {
-            current = word.to_string();
-        } else if current.len() + 1 + word.len() <= max_cols {
-            current.push(' ');
-            current.push_str(word);
-        } else {
-            result.push(std::mem::take(&mut current));
-            current = word.to_string();
+        for piece in split_oversized(word, max_cols) {
+            if current.is_empty() {
+                current = piece;
+            } else if current.chars().count() + 1 + piece.chars().count() <= max_cols {
+                current.push(' ');
+                current.push_str(&piece);
+            } else {
+                result.push(std::mem::take(&mut current));
+                current = piece;
+            }
         }
     }
     if !current.is_empty() {
@@ -707,7 +560,7 @@ fn render(frame: &mut Frame, app: &App) {
     let area = frame.area();
 
     frame.render_widget(
-        Paragraph::new("").style(Style::default().bg(theme.surface.crust())),
+        Paragraph::new("").style(stylesheet::terminal_floor(theme)),
         area,
     );
 
@@ -726,9 +579,7 @@ fn render(frame: &mut Frame, app: &App) {
         DrillNavState::Drill {
             node_idx,
             sibling_idx,
-            cursor,
-            expanded,
-            expanded_annotations,
+            views,
         } => render_drill(
             frame,
             content_area,
@@ -736,73 +587,91 @@ fn render(frame: &mut Frame, app: &App) {
             DrillContext {
                 node_idx: *node_idx,
                 sibling_idx: *sibling_idx,
-                cursor: *cursor,
-                expanded,
-                expanded_annotations,
+                view: &views[*sibling_idx],
             },
-            &app.approved,
         ),
     }
 
-    let status = match &app.nav {
-        DrillNavState::Browse { .. } => {
-            let approved = app.approved_decisions.len();
-            let total = app.log.decisions.len();
-            format!(
-                "commit {}   j/k navigate    Enter drill in    a approve ({}/{})    q quit",
-                app.log.commit, approved, total,
-            )
-        }
-        DrillNavState::Drill {
-            node_idx,
-            sibling_idx,
-            cursor,
-            expanded,
-            ..
-        } => {
-            let total = app.log.decisions[*node_idx].code_impacts.len();
-            let ctx_label = if expanded.contains(cursor) {
-                "collapse ctx"
-            } else {
-                "expand ctx"
-            };
-            let approved_count = app.display[*node_idx][*sibling_idx]
-                .chunks
-                .iter()
-                .enumerate()
-                .filter(|(i, _)| app.approved.contains(&(*node_idx, *sibling_idx, *i)))
-                .count();
-            let total_chunks = app.display[*node_idx][*sibling_idx].chunks.len();
-            format!(
-                "commit {}   file {}/{}    h/l files    j/k chunks    Tab {}    a approve ({}/{})    Esc back    q quit",
-                app.log.commit,
-                sibling_idx + 1,
-                total,
-                ctx_label,
-                approved_count,
-                total_chunks,
-            )
-        }
+    // An error message preempts the keybinding hints until the next keypress.
+    let (status, status_style) = if let Some(msg) = &app.message {
+        (msg.clone(), stylesheet::error(theme))
+    } else {
+        let hints = match &app.nav {
+            DrillNavState::Browse { .. } => {
+                let approved = app.engine.get_approved_decisions_count();
+                let total = app.engine.get_all_decisions().len();
+                format!(
+                    "commit {}   j/k navigate    Enter drill in    a approve ({}/{})    q quit",
+                    app.commit, approved, total,
+                )
+            }
+            DrillNavState::Drill {
+                node_idx,
+                sibling_idx,
+                views,
+            } => {
+                let files = files_for_decision(&app.engine, *node_idx);
+                let total = files.len();
+                let file_path = &files[*sibling_idx];
+                let chunk_ids = chunks_for_file(&app.engine, *node_idx, file_path);
+                let view = &views[*sibling_idx];
+                let total_chunks = chunk_ids.len();
+                let approved_count = chunk_ids
+                    .iter()
+                    .filter(|id| app.engine.state().is_approved(id))
+                    .count();
+                let ctx_label = if view.expanded.contains(&view.cursor) {
+                    "collapse ctx"
+                } else {
+                    "expand ctx"
+                };
+                // Only advertise h/l when there is more than one file to cycle.
+                let files_hint = if total > 1 {
+                    format!("file {}/{}    h/l files    ", sibling_idx + 1, total)
+                } else {
+                    String::new()
+                };
+                // Only advertise the note toggle when the focused chunk has one.
+                let note_hint = chunk_ids
+                    .get(view.cursor)
+                    .and_then(|id| note_for(&app.engine, id))
+                    .map(|_| {
+                        if view.expanded_notes.contains(&view.cursor) {
+                            "i collapse note    "
+                        } else {
+                            "i expand note    "
+                        }
+                    })
+                    .unwrap_or("");
+                format!(
+                    "commit {}   {}j/k chunks    Tab {}    {}a approve ({}/{})    Esc back    q quit",
+                    app.commit, files_hint, ctx_label, note_hint, approved_count, total_chunks,
+                )
+            }
+        };
+        (hints, stylesheet::status_bar(theme))
     };
-    frame.render_widget(
-        Paragraph::new(status).style(stylesheet::status_bar(theme)),
-        status_area,
-    );
+    frame.render_widget(Paragraph::new(status).style(status_style), status_area);
 }
 
 fn render_browse(frame: &mut Frame, area: Rect, app: &App, cursor: usize) {
     let theme = &app.theme;
     let cr = content_rect(area);
-    let text_width = cr.width as usize - 4;
+    let text_width = (cr.width as usize).saturating_sub(4);
     let mut lines: Vec<Line<'static>> = Vec::new();
+    let mut heights: Vec<u16> = Vec::new();
 
     lines.push(separator_line(cr.width, theme.surface.mantle()));
 
-    for (i, decision) in app.log.decisions.iter().enumerate() {
+    let decisions = app.engine.get_all_decisions();
+    for (i, decision) in decisions.iter().enumerate() {
+        let card_start = lines.len();
         let focused = i == cursor;
-        let is_decision_approved = app.approved_decisions.contains(&i);
-            let card = make_card(cr.width, focused, theme.accents.lavender);
-            let n_files = decision.code_impacts.len();
+        let is_decision_approved = app.engine.is_decision_approved(decision.number);
+        let card = make_card(cr.width, focused, theme.accents.lavender);
+        let n_files = decision.code_impacts.len();
+        let (chunks_approved, chunks_total) =
+            app.engine.decision_approval_progress(decision.number);
 
         // label row — CardTier::Header (surface1)
         let label_card = if is_decision_approved {
@@ -818,7 +687,13 @@ fn render_browse(frame: &mut Frame, area: Rect, app: &App, cursor: usize) {
                     Style::default().fg(theme.surface.text()).add_modifier(Modifier::BOLD),
                 ),
                 Span::styled(
-                    format!("  {} file{}", n_files, plural_s(n_files)),
+                    format!(
+                        "  {} file{} · {}/{} chunks approved",
+                        n_files,
+                        plural_s(n_files),
+                        chunks_approved,
+                        chunks_total,
+                    ),
                     Style::default().fg(theme.surface.overlay0()),
                 ),
             ],
@@ -852,34 +727,43 @@ fn render_browse(frame: &mut Frame, area: Rect, app: &App, cursor: usize) {
         }
 
         lines.push(separator_line(cr.width, theme.surface.mantle()));
+        heights.push((lines.len() - card_start) as u16);
     }
 
-    frame.render_widget(Paragraph::new(lines), cr);
+    // The leading separator belongs to the first card's height so offsets align.
+    if let Some(h) = heights.first_mut() {
+        *h += 1;
+    }
+    let scroll = scroll_into_view(&heights, cursor, cr.height);
+    frame.render_widget(Paragraph::new(lines).scroll((scroll, 0)), cr);
 }
 
-fn render_drill(
-    frame: &mut Frame,
-    area: Rect,
-    app: &App,
-    s: DrillContext<'_>,
-    approved: &HashSet<(usize, usize, usize)>,
-) {
+fn render_drill(frame: &mut Frame, area: Rect, app: &App, s: DrillContext<'_>) {
     let DrillContext {
         node_idx,
         sibling_idx,
-        cursor,
-        expanded,
-        expanded_annotations,
+        view,
     } = s;
+    let cursor = view.cursor;
     let theme = &app.theme;
     let cr = content_rect(area);
-    let text_width = cr.width as usize - 4;
-    let impact = &app.log.decisions[node_idx].code_impacts[sibling_idx];
-    let display = &app.display[node_idx][sibling_idx];
+    let text_width = (cr.width as usize).saturating_sub(4);
+
+    let decisions = app.engine.get_all_decisions();
+    let decision = decisions[node_idx];
+    let files = files_for_decision(&app.engine, node_idx);
+    let file_path = &files[sibling_idx];
+    let chunk_ids = chunks_for_file(&app.engine, node_idx, file_path);
+
+    // Find the code impact reasoning for this file
+    let impact = decision
+        .code_impacts
+        .iter()
+        .find(|ci| ci.file == *file_path)
+        .expect("file path from engine should match decision log");
 
     // Build the anchored header: label + summary at CardTier::Header (surface1).
-    // render_drill_header handles the mantle fill, separators, and layout split.
-    let is_decision_approved = app.approved_decisions.contains(&node_idx);
+    let is_decision_approved = app.engine.is_decision_approved(decision.number);
     let header_card = HierarchicalCard::new(cr.width);
     let mut header_lines: Vec<Line<'static>> = Vec::new();
     let file_row_card = if is_decision_approved {
@@ -890,7 +774,7 @@ fn render_drill(
     header_lines.push(file_row_card.at(
         CardTier::Header,
         vec![Span::styled(
-            format!("{} {}", Icons::FILE_MODIFIED, impact.file),
+            format!("{} {}", Icons::FILE_MODIFIED, file_path),
             Style::default().fg(theme.surface.text()).add_modifier(Modifier::BOLD),
         )],
         theme,
@@ -909,7 +793,7 @@ fn render_drill(
     let below_header_area = chunks_area;
 
     // Dot pagination — one mantle-level line between the strip and chunks.
-    let total_siblings = app.log.decisions[node_idx].code_impacts.len();
+    let total_siblings = files.len();
     let content_area = if total_siblings > 1 {
         let [dots_area, rest] =
             Layout::vertical([Constraint::Length(1), Constraint::Fill(1)]).areas(below_header_area);
@@ -927,17 +811,20 @@ fn render_drill(
         below_header_area
     };
 
+    let n = chunk_ids.len();
     let mut chunk_lines: Vec<Line<'static>> = Vec::new();
-    for (i, chunk) in display.chunks.iter().enumerate() {
-        let is_approved = approved.contains(&(node_idx, sibling_idx, i));
-        let card = make_card(cr.width, i == cursor, theme.accents.lavender);
-        let chunk_expanded = expanded.contains(&i);
-        let annot_expanded = expanded_annotations.contains(&i);
 
-        if let Some(instr) = &chunk.instruction {
-            let instr_text = format!("{}: {}", instr.author, instr.content);
+    for (i, chunk_id) in chunk_ids.iter().enumerate() {
+        let is_approved = app.engine.state().is_approved(chunk_id);
+        let card = make_card(cr.width, i == cursor, theme.accents.lavender);
+        let chunk_expanded = view.expanded.contains(&i);
+        let annot_expanded = view.expanded_notes.contains(&i);
+
+        let note = note_for(&app.engine, chunk_id);
+
+        if let Some(instr) = note {
             let wrap_width = text_width.saturating_sub(6);
-            let mut rows = wrap_text(&instr_text, wrap_width);
+            let mut rows = note_rows(instr, wrap_width);
             let has_more = rows.len() > 1;
             if !annot_expanded {
                 let first = rows.into_iter().next().unwrap_or_default();
@@ -976,41 +863,42 @@ fn render_drill(
             }
         }
 
-        let visible_lines: Vec<_> = chunk
-            .diff
-            .lines
-            .iter()
-            .filter(|line| chunk_expanded || line_has_change(line))
-            .collect();
+        if let Some(renderable) = app.engine.get_renderable_diff_object(chunk_id) {
+            let has_note = note.is_some();
+            let visible_lines: Vec<_> = renderable
+                .lines
+                .iter()
+                .filter(|line| chunk_expanded || line_has_change(line))
+                .collect();
 
-        let has_instr = chunk.instruction.is_some();
-        for (line_idx, line) in visible_lines.iter().enumerate() {
-            let ct = line_change_type(line);
-            let (fg, sigil) = match &ct {
-                Some(ChangeType::Added) => (theme.accents.green, "+"),
-                Some(ChangeType::Deleted) => (theme.accents.red, "-"),
-                _ => (theme.surface.subtext0(), " "),
-            };
-            let row_card = if !has_instr && line_idx == 0 && is_approved {
-                card.with_badge(Icons::APPROVED, theme.accents.green)
-            } else {
-                card
-            };
-            chunk_lines.push(row_card.at(
-                CardTier::Content,
-                vec![
-                    Span::styled(
-                        format!("{:>3} ", line.line_number),
-                        Style::default().fg(theme.surface.overlay0()),
-                    ),
-                    Span::styled(sigil, Style::default().fg(fg).add_modifier(Modifier::BOLD)),
-                    Span::styled(format!(" {}", line.content), Style::default().fg(fg)),
-                ],
-                theme,
-            ));
+            for (line_idx, line) in visible_lines.iter().enumerate() {
+                let ct = line_change_type(line);
+                let (fg, sigil) = match &ct {
+                    Some(ChangeType::Added) => (theme.accents.green, "+"),
+                    Some(ChangeType::Deleted) => (theme.accents.red, "-"),
+                    _ => (theme.surface.subtext0(), " "),
+                };
+                let row_card = if !has_note && line_idx == 0 && is_approved {
+                    card.with_badge(Icons::APPROVED, theme.accents.green)
+                } else {
+                    card
+                };
+                chunk_lines.push(row_card.at(
+                    CardTier::Content,
+                    vec![
+                        Span::styled(
+                            format!("{:>3} ", line.line_number),
+                            Style::default().fg(theme.surface.overlay0()),
+                        ),
+                        Span::styled(sigil, Style::default().fg(fg).add_modifier(Modifier::BOLD)),
+                        Span::styled(format!(" {}", line.content), Style::default().fg(fg)),
+                    ],
+                    theme,
+                ));
+            }
         }
 
-        if i + 1 < display.chunks.len() {
+        if i + 1 < n {
             chunk_lines.push(Line::styled(
                 format!("{:^width$}", "···", width = cr.width as usize),
                 Style::default()
@@ -1020,13 +908,16 @@ fn render_drill(
         }
     }
 
-    let n = display.chunks.len();
-    let heights: Vec<u16> = (0..n)
-        .map(|i| {
+    let heights: Vec<u16> = chunk_ids
+        .iter()
+        .enumerate()
+        .map(|(i, chunk_id)| {
             let h = visible_line_count(
-                &display.chunks[i],
-                expanded.contains(&i),
-                expanded_annotations.contains(&i),
+                &app.engine,
+                chunk_id,
+                note_for(&app.engine, chunk_id),
+                view.expanded.contains(&i),
+                view.expanded_notes.contains(&i),
                 text_width,
             );
             if i + 1 < n { h + 1 } else { h }
@@ -1051,25 +942,29 @@ fn line_has_change(line: &RenderableLine<'_>) -> bool {
 }
 
 fn visible_line_count(
-    chunk: &MockChunk,
+    engine: &ReviewEngine,
+    chunk_id: &ReviewableDiffId,
+    note: Option<&diffviz_review::Instruction>,
     expanded: bool,
     annot_expanded: bool,
     text_width: usize,
 ) -> u16 {
-    let code_lines = if expanded {
-        chunk.diff.lines.len() as u16
+    let code_lines = if let Some(renderable) = engine.get_renderable_diff_object(chunk_id) {
+        if expanded {
+            renderable.lines.len() as u16
+        } else {
+            renderable
+                .lines
+                .iter()
+                .filter(|l| line_has_change(l))
+                .count() as u16
+        }
     } else {
-        chunk
-            .diff
-            .lines
-            .iter()
-            .filter(|l| line_has_change(l))
-            .count() as u16
+        0
     };
-    let instr_lines = if let Some(instr) = &chunk.instruction {
+    let instr_lines = if let Some(instr) = note {
         if annot_expanded {
-            let text = format!("{}: {}", instr.author, instr.content);
-            wrap_text(&text, text_width.saturating_sub(6)).len() as u16
+            note_rows(instr, text_width.saturating_sub(6)).len() as u16
         } else {
             1
         }
@@ -1077,6 +972,16 @@ fn visible_line_count(
         0
     };
     code_lines + instr_lines
+}
+
+/// Wrapped display rows for a note: authors prefix the first contribution;
+/// each appended contribution starts on its own row (note content is
+/// newline-separated under the single-note model).
+fn note_rows(instr: &diffviz_review::Instruction, wrap_width: usize) -> Vec<String> {
+    let text = format!("{}: {}", instr.author, instr.content);
+    text.split('\n')
+        .flat_map(|segment| wrap_text(segment, wrap_width))
+        .collect()
 }
 
 fn make_card(col_width: u16, focused: bool, accent_color: Color) -> HierarchicalCard {
@@ -1094,17 +999,27 @@ fn main() -> Result<()> {
     io::stdout().execute(EnterAlternateScreen)?;
     let mut terminal = Terminal::new(CrosstermBackend::new(io::stdout()))?;
 
-    let mut app = App::new();
+    let mut app = App::new()?;
+    let mut dirty = true;
 
     loop {
-        terminal.draw(|f| render(f, &app))?;
+        // Redraw only when state changed — no busy re-rendering between keys.
+        if dirty {
+            terminal.draw(|f| render(f, &app))?;
+            dirty = false;
+        }
 
-        if event::poll(std::time::Duration::from_millis(50))?
-            && let Event::Key(key) = event::read()?
-            && key.kind == KeyEventKind::Press
-            && let Some(event) = handle_key_event(key.code)
-        {
-            app.handle_nav_event(event);
+        if event::poll(std::time::Duration::from_millis(250))? {
+            match event::read()? {
+                Event::Key(key) if key.kind == KeyEventKind::Press => {
+                    if let Some(event) = handle_key_event(key.code) {
+                        app.handle_nav_event(event);
+                        dirty = true;
+                    }
+                }
+                Event::Resize(_, _) => dirty = true,
+                _ => {}
+            }
         }
 
         if app.quit {

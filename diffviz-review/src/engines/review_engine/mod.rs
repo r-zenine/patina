@@ -517,7 +517,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add_two_instructions_to_exact_same_range_stores_both() {
+    fn test_add_two_instructions_to_exact_same_range_folds_into_one_note() {
         let diff = create_test_reviewable_diff("test.rs", 1);
         let mut engine = ReviewEngine::new(vec![diff], "test_author".to_string());
 
@@ -531,10 +531,17 @@ mod tests {
             )
             .unwrap();
         engine
-            .add_instruction(id, "Second instruction".to_string(), "reviewer".to_string())
+            .add_instruction(
+                id.clone(),
+                "Second instruction".to_string(),
+                "reviewer".to_string(),
+            )
             .unwrap();
 
-        assert_eq!(engine.state().instructions.total_instructions(), 2);
+        // Single-note model: editing means appending to the existing note.
+        assert_eq!(engine.state().instructions.total_instructions(), 1);
+        let notes = engine.state().get_instructions(&id).unwrap();
+        assert_eq!(notes[0].content, "First instruction\nSecond instruction");
     }
 
     #[test]

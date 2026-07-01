@@ -4,13 +4,18 @@ use ratatui::style::Color;
 
 use crate::palette;
 
-/// Ten-step luminance ramp from darkest (0) to brightest (9).
+/// Eleven-step luminance ramp from darkest (0) to brightest (10).
 ///
 /// Index → Catppuccin Mocha name:
 ///   0 = crust, 1 = mantle, 2 = base, 3 = surface0, 4 = surface1,
-///   5 = overlay0, 6 = overlay2, 7 = subtext0, 8 = subtext1, 9 = text
+///   5 = surface2, 6 = overlay0, 7 = overlay2, 8 = subtext0,
+///   9 = subtext1, 10 = text
+///
+/// Structural elevation only uses crust..=surface1 (see `CardTier` and the
+/// `stylesheet` layer functions). `surface2` is reserved for selection state
+/// so an in-flow selection can never collide with structural elevation.
 #[derive(Clone, Copy)]
-pub struct SurfaceRamp(pub [Color; 10]);
+pub struct SurfaceRamp(pub [Color; 11]);
 
 impl Index<usize> for SurfaceRamp {
     type Output = Color;
@@ -35,20 +40,25 @@ impl SurfaceRamp {
     pub fn surface1(&self) -> Color {
         self.0[4]
     }
-    pub fn overlay0(&self) -> Color {
+    /// Reserved for selection state (`stylesheet::selection`) — never
+    /// use as a structural tier background.
+    pub fn surface2(&self) -> Color {
         self.0[5]
     }
-    pub fn overlay2(&self) -> Color {
+    pub fn overlay0(&self) -> Color {
         self.0[6]
     }
-    pub fn subtext0(&self) -> Color {
+    pub fn overlay2(&self) -> Color {
         self.0[7]
     }
-    pub fn subtext1(&self) -> Color {
+    pub fn subtext0(&self) -> Color {
         self.0[8]
     }
-    pub fn text(&self) -> Color {
+    pub fn subtext1(&self) -> Color {
         self.0[9]
+    }
+    pub fn text(&self) -> Color {
+        self.0[10]
     }
 }
 
@@ -89,6 +99,7 @@ impl Theme {
                 c.base.into(),
                 c.surface0.into(),
                 c.surface1.into(),
+                c.surface2.into(),
                 c.overlay0.into(),
                 c.overlay2.into(),
                 c.subtext0.into(),

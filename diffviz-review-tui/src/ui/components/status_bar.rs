@@ -47,7 +47,7 @@ fn render_navigation_status(
         .split(area);
 
     let state_info = create_state_info(ui_state, review_engine, theme);
-    let bar_style = stylesheet::status_bar(theme).patch(stylesheet::layer_base(theme));
+    let bar_style = stylesheet::status_bar(theme).patch(stylesheet::terminal_floor(theme));
     let state_paragraph = Paragraph::new(state_info).style(bar_style);
     f.render_widget(state_paragraph, chunks[0]);
 
@@ -71,7 +71,7 @@ fn render_input_status(f: &mut Frame, area: Rect, mode_name: &str, help_text: &s
     ]);
 
     let paragraph = Paragraph::new(status_line)
-        .style(stylesheet::status_bar(theme).patch(stylesheet::layer_base(theme)));
+        .style(stylesheet::status_bar(theme).patch(stylesheet::terminal_floor(theme)));
     f.render_widget(paragraph, area);
 }
 

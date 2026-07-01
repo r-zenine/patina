@@ -7,3 +7,4 @@ description = "Shared design system for diffviz TUIs — Catppuccin palette, tok
 [dependencies]
 ratatui = { workspace = true }
 catppuccin = { workspace = true }
+unicode-width = { workspace = true }

@@ -51,11 +51,27 @@ pub fn keybind_desc(theme: &Theme) -> Style {
 }
 
 // --- Surface layers (bg-based elevation, dark theme: lighter = higher) ---
-// Terminal background should be set to mantle (#181825) — the true floor.
-// Panels rise from there: base → surface0 → surface1
+// Canonical elevation ramp (matches `CardTier` in card.rs):
+//   crust    → terminal floor: fill the full frame     = terminal_floor
+//   mantle   → widget floor: separators, gaps,
+//              pinned-header containers                = widget_floor
+//   base     → raw content (code lines, diffs)         = CardTier::Content
+//   surface0 → secondary info, metadata, panels        = CardTier::Body / layer_raised
+//   surface1 → labels, summaries, modals, popups       = CardTier::Header / layer_elevated
+//   surface2 → selection state only — never structural = selection
+//
+// `layer_raised`/`layer_elevated` are the panel-granularity view of the same
+// two tiers `CardTier::Body`/`CardTier::Header` use per-row; sharing those
+// colors is intentional alignment, not a collision.
 
-pub fn layer_base(theme: &Theme) -> Style {
+/// Terminal floor (crust). Fill the whole frame with this before drawing.
+pub fn terminal_floor(theme: &Theme) -> Style {
     Style::default().bg(theme.surface.crust())
+}
+
+/// Widget floor (mantle) — separators, gaps, and pinned-header containers.
+pub fn widget_floor(theme: &Theme) -> Style {
+    Style::default().bg(theme.surface.mantle())
 }
 
 pub fn layer_raised(theme: &Theme) -> Style {
@@ -67,11 +83,17 @@ pub fn layer_elevated(theme: &Theme) -> Style {
 }
 
 // --- State (the only two bg exceptions) ---
+//
+// Selection sits on surface2 — one luminance step above the highest
+// structural tier and used by nothing else — so a selected row can never
+// blend into `CardTier` or layer elevation. In card-based views still prefer
+// `HierarchicalCard::focused` (accent bar); use `selection` for flat lists
+// and range highlights.
 
 pub fn selection(theme: &Theme) -> Style {
     Style::default()
         .fg(theme.surface.text())
-        .bg(theme.surface.surface0())
+        .bg(theme.surface.surface2())
 }
 
 pub fn cursor(theme: &Theme) -> Style {

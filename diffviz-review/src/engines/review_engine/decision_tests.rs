@@ -409,7 +409,7 @@ fn test_add_decision_instruction_invalid_decision() {
 }
 
 #[test]
-fn test_add_decision_instruction_multiple_to_same_decision() {
+fn test_add_decision_instruction_multiple_folds_into_single_note() {
     let mut engine = create_engine_with_decision();
 
     engine
@@ -419,8 +419,14 @@ fn test_add_decision_instruction_multiple_to_same_decision() {
         .add_decision_instruction(1, "Second instruction".to_string(), "author2".to_string())
         .unwrap();
 
+    // Single-note model: the second add appends to the existing note.
     let instructions = engine.get_decision_instructions(1).unwrap();
-    assert_eq!(instructions.len(), 2);
+    assert_eq!(instructions.len(), 1);
+    assert_eq!(
+        instructions[0].content,
+        "First instruction\nSecond instruction"
+    );
+    assert_eq!(instructions[0].author, "author1, author2");
 }
 
 #[test]
@@ -460,7 +466,7 @@ fn test_remove_decision_instruction_not_found() {
 }
 
 #[test]
-fn test_get_decision_instructions_returns_all() {
+fn test_get_decision_instructions_accumulates_contributions_in_one_note() {
     let mut engine = create_engine_with_decision();
 
     engine
@@ -473,8 +479,10 @@ fn test_get_decision_instructions_returns_all() {
         .add_decision_instruction(1, "Third".to_string(), "author".to_string())
         .unwrap();
 
+    // Single-note model: every contribution lands in the one note.
     let instructions = engine.get_decision_instructions(1).unwrap();
-    assert_eq!(instructions.len(), 3);
+    assert_eq!(instructions.len(), 1);
+    assert_eq!(instructions[0].content, "First\nSecond\nThird");
 }
 
 #[test]
@@ -486,30 +494,28 @@ fn test_get_decision_instructions_for_missing_decision() {
 }
 
 #[test]
-fn test_add_and_remove_decision_instructions() {
+fn test_removing_the_note_clears_all_its_contributions() {
     let mut engine = create_engine_with_decision();
 
     engine
-        .add_decision_instruction(1, "Keep this".to_string(), "author".to_string())
+        .add_decision_instruction(1, "First thought".to_string(), "author".to_string())
         .unwrap();
     engine
-        .add_decision_instruction(1, "Remove this".to_string(), "author".to_string())
+        .add_decision_instruction(1, "Second thought".to_string(), "author".to_string())
         .unwrap();
 
-    let remove_id = engine
+    // Single-note model: there is one note; removing it removes everything.
+    let note_id = engine
         .get_decision_instructions(1)
         .unwrap()
-        .iter()
-        .find(|i| i.content == "Remove this")
+        .first()
         .unwrap()
         .id
         .clone();
 
-    engine.remove_decision_instruction(&remove_id).unwrap();
+    engine.remove_decision_instruction(&note_id).unwrap();
 
-    let remaining = engine.get_decision_instructions(1).unwrap();
-    assert_eq!(remaining.len(), 1);
-    assert_eq!(remaining[0].content, "Keep this");
+    assert_eq!(engine.get_decision_instructions(1).unwrap().len(), 0);
 }
 
 #[test]

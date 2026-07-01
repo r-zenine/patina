@@ -503,10 +503,13 @@ mod tests {
         state.add_instruction(reviewable_id.clone(), instruction1);
         state.add_instruction(reviewable_id.clone(), instruction2);
 
+        // Single-note model: the second add folds into the existing note.
         let instructions = state.get_instructions(&reviewable_id).unwrap();
-        assert_eq!(instructions.len(), 2);
-        assert_eq!(instructions[0].content, "First instruction");
-        assert_eq!(instructions[1].content, "Second instruction");
+        assert_eq!(instructions.len(), 1);
+        assert_eq!(
+            instructions[0].content,
+            "First instruction\nSecond instruction"
+        );
     }
 
     #[test]
