@@ -5,6 +5,7 @@
 
 use crate::decision_navigation::DecisionNavigationTree;
 use diffviz_review::ReviewableDiffId;
+use std::collections::HashSet;
 use std::time::{Duration, Instant};
 
 /// Timeout duration for leader key mode (seconds)
@@ -21,6 +22,47 @@ const CURSOR_VIEW_HEIGHT_FALLBACK: usize = 20;
 pub enum FocusPanel {
     FileList,
     DiffView,
+}
+
+/// Per-file view state within a drilled decision, retained while cycling
+/// sibling files with h/l so a round-trip doesn't lose the reviewer's place.
+#[derive(Debug, Default, Clone, PartialEq, Eq)]
+pub struct FileView {
+    /// j/k cursor within the file's chunk list (chunk-granular, no line cursor).
+    pub(crate) cursor: usize,
+    /// Chunks with expanded code context (Tab toggles).
+    pub(crate) expanded: HashSet<usize>,
+    /// Chunks with expanded note text (i toggles).
+    pub(crate) expanded_notes: HashSet<usize>,
+    /// Drill viewport page offset (Ctrl-d/u) for reading inside chunks
+    /// taller than the screen.
+    pub(crate) page_offset: usize,
+}
+
+/// State machine for the DrillNav pattern.
+///
+/// `Browse` — exploring top-level decisions as cards.
+/// `Drill`  — inside a decision: its header is pinned, chunk cards scroll below.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DrillNavState {
+    Browse {
+        cursor: usize,
+    },
+    Drill {
+        /// Which decision we're inside (Enter drills in, Esc backs out).
+        decision_idx: usize,
+        /// h/l cycling among sibling files within the decision.
+        file_idx: usize,
+        /// One view state per sibling file, index-aligned with the
+        /// decision's sorted file list.
+        views: Vec<FileView>,
+    },
+}
+
+impl Default for DrillNavState {
+    fn default() -> Self {
+        DrillNavState::Browse { cursor: 0 }
+    }
 }
 
 /// Input mode for handling different types of text input
@@ -89,6 +131,14 @@ pub struct UiState {
 
     /// Decision-based navigation tree (primary navigation pattern)
     pub decision_tree: DecisionNavigationTree,
+
+    /// DrillNav state machine (replaces the two-panel navigation model).
+    /// Private: accessed only through UiState methods (V4 encapsulation).
+    drill_nav: DrillNavState,
+
+    /// One-shot error line for the status bar; cleared on the next keypress.
+    /// Private: accessed only through UiState methods (V4 encapsulation).
+    status_message: Option<String>,
 }
 
 impl Default for UiState {
@@ -112,6 +162,8 @@ impl Default for UiState {
             leader_submenu: None,
             show_help: false,
             decision_tree: DecisionNavigationTree::new(),
+            drill_nav: DrillNavState::default(),
+            status_message: None,
         }
     }
 }
@@ -423,4 +475,109 @@ impl UiState {
             self.reset_scroll();
         }
     }
+
+    // ── DrillNav state machine ────────────────────────────────────────────
+    // Phase 0 of plan-drillnav-main-tui: accessors are real, mutators are
+    // inert stubs — the state machine logic lands in Phase 1.
+
+    /// DrillNav mode name for snapshots: "Browse" or "Drill".
+    pub fn nav_mode(&self) -> &'static str {
+        match self.drill_nav {
+            DrillNavState::Browse { .. } => "Browse",
+            DrillNavState::Drill { .. } => "Drill",
+        }
+    }
+
+    /// Cursor over decision cards while browsing; None when drilled in.
+    pub fn browse_cursor(&self) -> Option<usize> {
+        match self.drill_nav {
+            DrillNavState::Browse { cursor } => Some(cursor),
+            DrillNavState::Drill { .. } => None,
+        }
+    }
+
+    /// (decision_idx, file_idx, chunk_cursor) when drilled in; None while browsing.
+    pub fn drill_position(&self) -> Option<(usize, usize, usize)> {
+        match &self.drill_nav {
+            DrillNavState::Browse { .. } => None,
+            DrillNavState::Drill {
+                decision_idx,
+                file_idx,
+                views,
+            } => Some((*decision_idx, *file_idx, views[*file_idx].cursor)),
+        }
+    }
+
+    /// Whether the focused chunk has expanded code context; None while browsing.
+    pub fn drill_context_expanded(&self) -> Option<bool> {
+        self.current_file_view()
+            .map(|v| v.expanded.contains(&v.cursor))
+    }
+
+    /// Whether the focused chunk has its note expanded; None while browsing.
+    pub fn drill_note_expanded(&self) -> Option<bool> {
+        self.current_file_view()
+            .map(|v| v.expanded_notes.contains(&v.cursor))
+    }
+
+    /// Drill viewport page offset for the focused file; None while browsing.
+    pub fn drill_page_offset(&self) -> Option<usize> {
+        self.current_file_view().map(|v| v.page_offset)
+    }
+
+    /// One-shot status-bar error message, if any.
+    pub fn status_message(&self) -> Option<&str> {
+        self.status_message.as_deref()
+    }
+
+    fn current_file_view(&self) -> Option<&FileView> {
+        match &self.drill_nav {
+            DrillNavState::Browse { .. } => None,
+            DrillNavState::Drill {
+                file_idx, views, ..
+            } => Some(&views[*file_idx]),
+        }
+    }
+
+    /// Set the one-shot status-bar error message.
+    pub fn set_status_message(&mut self, _message: String) {}
+
+    /// Clear the one-shot status-bar message (on the next keypress).
+    pub fn clear_status_message(&mut self) {}
+
+    /// Move the cursor up: previous decision card (Browse) or previous chunk (Drill).
+    pub fn navigate_up(&mut self) {}
+
+    /// Move the cursor down: next decision card (Browse) or next chunk (Drill).
+    pub fn navigate_down(&mut self) {}
+
+    /// Cycle to the previous sibling file (Drill only, wraps around).
+    pub fn navigate_left(&mut self) {}
+
+    /// Cycle to the next sibling file (Drill only, wraps around).
+    pub fn navigate_right(&mut self) {}
+
+    /// Enter the decision under the browse cursor.
+    pub fn drill_in(&mut self) {}
+
+    /// Back out of a drilled decision, restoring the browse cursor to it.
+    pub fn back(&mut self) {}
+
+    /// Toggle expanded code context on the focused chunk (Drill only).
+    pub fn toggle_context(&mut self) {}
+
+    /// Toggle note expansion on the focused chunk (Drill only).
+    pub fn toggle_note_expansion(&mut self) {}
+
+    /// Page the drill viewport up (Ctrl-u).
+    pub fn drill_page_up(&mut self) {}
+
+    /// Page the drill viewport down (Ctrl-d).
+    pub fn drill_page_down(&mut self) {}
+
+    /// Jump to the first decision card (Browse) or first chunk (Drill).
+    pub fn to_top(&mut self) {}
+
+    /// Jump to the last decision card (Browse) or last chunk (Drill).
+    pub fn to_bottom(&mut self) {}
 }

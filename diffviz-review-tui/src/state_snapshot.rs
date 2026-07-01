@@ -59,6 +59,35 @@ pub struct StateSnapshot {
 
     /// Current decision tree selection path (decision_index, chunk_index)
     pub decision_tree_path: (usize, Option<usize>),
+
+    // ── Schema v2: DrillNav fields (plan-drillnav-main-tui D6/D7). The old
+    // fields above remain until the tests reading them are rewritten.
+    /// DrillNav mode: "Browse" or "Drill"
+    pub nav_mode: String,
+
+    /// Cursor over decision cards; Some only while browsing
+    pub browse_cursor: Option<usize>,
+
+    /// Drilled decision index; Some only while drilled in
+    pub drill_decision: Option<usize>,
+
+    /// Focused sibling-file index within the drilled decision
+    pub drill_file: Option<usize>,
+
+    /// Chunk cursor within the focused file
+    pub drill_chunk: Option<usize>,
+
+    /// Whether the focused chunk has expanded code context
+    pub drill_context_expanded: Option<bool>,
+
+    /// Whether the focused chunk has its note expanded
+    pub drill_note_expanded: Option<bool>,
+
+    /// Drill viewport page offset for the focused file
+    pub drill_page_offset: Option<usize>,
+
+    /// One-shot status-bar error message (cleared on next keypress)
+    pub status_message: Option<String>,
 }
 
 impl StateSnapshot {
@@ -92,6 +121,15 @@ impl StateSnapshot {
                 ui_state.decision_tree.selected_path.decision_index,
                 ui_state.decision_tree.selected_path.chunk_index,
             ),
+            nav_mode: ui_state.nav_mode().to_string(),
+            browse_cursor: ui_state.browse_cursor(),
+            drill_decision: ui_state.drill_position().map(|(d, _, _)| d),
+            drill_file: ui_state.drill_position().map(|(_, f, _)| f),
+            drill_chunk: ui_state.drill_position().map(|(_, _, c)| c),
+            drill_context_expanded: ui_state.drill_context_expanded(),
+            drill_note_expanded: ui_state.drill_note_expanded(),
+            drill_page_offset: ui_state.drill_page_offset(),
+            status_message: ui_state.status_message().map(str::to_string),
         }
     }
 
@@ -130,6 +168,15 @@ mod tests {
             selection_anchor: None,
             selection_range: None,
             decision_tree_path: (0, None),
+            nav_mode: "Browse".to_string(),
+            browse_cursor: Some(0),
+            drill_decision: None,
+            drill_file: None,
+            drill_chunk: None,
+            drill_context_expanded: None,
+            drill_note_expanded: None,
+            drill_page_offset: None,
+            status_message: None,
         };
 
         let json = snapshot.to_json().unwrap();
