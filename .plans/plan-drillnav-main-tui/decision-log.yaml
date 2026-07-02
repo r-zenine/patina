@@ -1,0 +1,124 @@
+decisions:
+  - id: D1
+    title: TDD execution strategy
+    status: accepted
+    context: >
+      Requirements are fully specified by a working prototype; the crate has a
+      test harness purpose-built for state assertions, and prior plans in this
+      repo (plan-inline-reasoning-annotations) executed successfully with TDD.
+    decision: >
+      TDD. Phase 0 writes the DrillNav behavioral contract as failing harness
+      tests (plus the minimal state/snapshot stubs needed to compile); later
+      phases make groups of tests green.
+    consequences: >
+      Steel Thread rejected (would leave the 8 existing test files red for
+      longer with no compensating discovery value — the UX is already
+      validated by the prototype). Core-then-Integrate rejected (DrillNav
+      state is inseparable from UiState coupling, which is where the risk is).
+
+  - id: D2
+    title: DrillNav replaces the two-panel UI outright — no feature flag
+    status: accepted
+    context: >
+      Keeping FileList/DiffView behind a flag would double the surface the
+      harness must cover and keep dead UiEvents alive.
+    decision: >
+      DrillNav becomes the only UI. Old components (decision_navigation.rs,
+      decision_tree.rs, diff_view.rs, renderable_diff_widget.rs,
+      decision_details_panel.rs) and their UiState fields/events are deleted
+      in the final phase, after DrillNav tests are green.
+    consequences: >
+      No fallback during the migration window; the test binary remains usable
+      throughout because phases keep the harness green. Reverting means
+      reverting commits, not flipping a flag.
+
+  - id: D3
+    title: Chunk-granular cursor with viewport paging
+    status: accepted
+    context: >
+      Real diff chunks can exceed the viewport. The old UI solved this with a
+      line-level cursor + scroll_offset + selection state — the complexity
+      DrillNav is meant to remove.
+    decision: >
+      j/k moves between chunks (the prototype model). Ctrl-d/u page the drill
+      viewport, g/G jump to first/last chunk. scroll_into_view keeps the
+      focused chunk visible; an explicit page offset lets users read inside a
+      chunk taller than the screen. No line cursor, no cursor_index.
+    consequences: >
+      Line-precise operations are impossible — acceptable since range
+      selection is removed and notes attach to chunks. UiState drops
+      cursor_index/scroll_offset in favor of DrillNav-owned paging state.
+
+  - id: D4
+    title: Direct 'n' key appends to the focused chunk's note
+    status: accepted
+    context: >
+      Single-note model makes "add to note" the primary annotation action;
+      'i' is now note expand/collapse. Old binding was leader Space-i-i.
+    decision: >
+      'n' opens the existing instruction input modal targeting the focused
+      chunk (Browse: the focused decision via DecisionInstruction mode).
+      Submission routes through BusinessEvent::AddInstruction — the engine
+      appends to the existing note. Leader submenu keeps export and toggles;
+      Space-i-i is removed with the which-key table updated.
+    consequences: >
+      One new top-level binding; status bar advertises it contextually.
+      Input modal code is reused unchanged.
+
+  - id: D5
+    title: Reasoning annotations render inside drill chunk cards; selection and semantic toggle die
+    status: accepted
+    context: >
+      Product decision: annotations remain, range selection ('v') and
+      semantic-highlight toggle are dropped. Annotation computation currently
+      lives in diff_view.rs (view-layer, per plan-inline-reasoning-annotations
+      D1) and renderable_diff_widget.
+    decision: >
+      Port the annotation computation into the drill view: when show_reasoning
+      is on, annotation lines render inside the chunk card at CardTier::Content
+      before their trigger line, visually distinct (accent fg, no sigil).
+      Space-t-r toggle and the ◆ badge behavior are preserved.
+      ToggleRangeSelection, ToggleSemanticHighlight, ToggleFocus and their
+      UiState fields/keys are deleted.
+    consequences: >
+      reasoning_annotation_tests.rs is adapted, not deleted. The exact visual
+      treatment inside cards is a Phase 3 design objective (design-contribute).
+
+  - id: D6
+    title: DrillNavState lives in UiState; StateSnapshot schema v2
+    status: accepted
+    context: >
+      The prototype keeps nav state in a local enum with public fields —
+      violates the crate's V4 encapsulation rule; StateSnapshot serializes the
+      old model (focused_panel, decision_tree_path, cursor_index).
+    decision: >
+      DrillNavState { Browse { cursor }, Drill { decision_idx, file_idx,
+      views: Vec<FileView> } } becomes a UiState field behind methods
+      (navigate_*, drill_in, back, toggle_context, toggle_note, current
+      position accessors). The decision→files→chunks index is precomputed at
+      startup (replacing per-keystroke engine queries in the prototype).
+      StateSnapshot v2: nav_mode, browse_cursor, drill position
+      (decision/file/chunk), focused chunk's expanded flags, note-expanded
+      flags, plus retained fields (input_*, leader_*, show_help,
+      show_reasoning, status_message, should_quit).
+    consequences: >
+      Every existing test that asserts focused_panel/decision_tree_path/
+      cursor_index must be rewritten or deleted (per code-context.md test
+      inventory). Snapshot v2 lands in Phase 0 so tests compile.
+
+  - id: D7
+    title: Engine failures surface as a one-shot status message in UiState
+    status: accepted
+    context: >
+      handle_business_event_impl propagates errors up through dispatch_key,
+      which aborts the app; the prototype instead showed a red status-bar
+      message cleared on next keypress. Command::ShowMessage executes I/O-side
+      (useless for in-TUI display).
+    decision: >
+      Approval/note failures are caught in the update layer and stored as
+      UiState::status_message (rendered red in the status bar, cleared on next
+      key). This is state, not a side effect — Elm-compliant without new
+      Command variants. Fatal errors (draw failures) still propagate.
+    consequences: >
+      Command::ShowMessage remains for post-exit messages (export path).
+      status_message joins StateSnapshot v2 so tests can assert error surfacing.
