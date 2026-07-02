@@ -65,6 +65,29 @@ impl Default for DrillNavState {
     }
 }
 
+/// Precomputed decision→files→chunks index (plan-drillnav-main-tui D6).
+///
+/// Built once at startup from the engine so navigation bounds and
+/// approve/note target resolution never query the engine per keystroke.
+/// Decisions follow engine order; files are sorted lexicographically by
+/// path; chunks are sorted by ascending start line.
+#[derive(Debug, Default, Clone)]
+pub(crate) struct DrillIndex {
+    pub(crate) decisions: Vec<DrillDecision>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct DrillDecision {
+    pub(crate) number: u32,
+    pub(crate) files: Vec<DrillFile>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct DrillFile {
+    pub(crate) path: String,
+    pub(crate) chunks: Vec<ReviewableDiffId>,
+}
+
 /// Input mode for handling different types of text input
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InputMode {
@@ -136,6 +159,9 @@ pub struct UiState {
     /// Private: accessed only through UiState methods (V4 encapsulation).
     drill_nav: DrillNavState,
 
+    /// Precomputed decision→files→chunks index (D6), set at startup.
+    drill_index: DrillIndex,
+
     /// One-shot error line for the status bar; cleared on the next keypress.
     /// Private: accessed only through UiState methods (V4 encapsulation).
     status_message: Option<String>,
@@ -163,6 +189,7 @@ impl Default for UiState {
             show_help: false,
             decision_tree: DecisionNavigationTree::new(),
             drill_nav: DrillNavState::default(),
+            drill_index: DrillIndex::default(),
             status_message: None,
         }
     }
@@ -179,25 +206,27 @@ impl UiState {
         self.scroll_offset = 0;
     }
 
-    /// Get currently selected ReviewableDiff ID (computed from tree)
+    /// The focused chunk's ReviewableDiff ID (Drill mode); None while browsing.
     pub fn current_reviewable_id(&self) -> Option<ReviewableDiffId> {
-        self.decision_tree.selected_chunk_id()
+        let (decision_idx, file_idx, cursor) = self.drill_position()?;
+        Some(self.drill_index.decisions[decision_idx].files[file_idx].chunks[cursor].clone())
     }
 
-    /// Get currently selected file path (extracted from chunk_id when at chunk depth)
+    /// The focused sibling file's path (Drill mode); None while browsing.
     pub fn current_file_path(&self) -> Option<String> {
-        self.decision_tree
-            .selected_chunk_id()
-            .map(|chunk_id| chunk_id.file_path.clone())
+        let (decision_idx, file_idx, _) = self.drill_position()?;
+        Some(
+            self.drill_index.decisions[decision_idx].files[file_idx]
+                .path
+                .clone(),
+        )
     }
 
-    /// Get currently selected decision number when at depth 0 (decision level)
+    /// The decision number under the browse cursor; None while drilled in
+    /// or when the review has no decisions.
     pub fn current_decision_number(&self) -> Option<u32> {
-        if self.decision_tree.selected_path.depth() == 0 {
-            self.decision_tree.selected_decision_number()
-        } else {
-            None
-        }
+        let cursor = self.browse_cursor()?;
+        self.drill_index.decisions.get(cursor).map(|d| d.number)
     }
 
     /// Switch focus between panels
@@ -477,8 +506,6 @@ impl UiState {
     }
 
     // ── DrillNav state machine ────────────────────────────────────────────
-    // Phase 0 of plan-drillnav-main-tui: accessors are real, mutators are
-    // inert stubs — the state machine logic lands in Phase 1.
 
     /// DrillNav mode name for snapshots: "Browse" or "Drill".
     pub fn nav_mode(&self) -> &'static str {
@@ -539,45 +566,176 @@ impl UiState {
         }
     }
 
+    fn current_file_view_mut(&mut self) -> Option<&mut FileView> {
+        match &mut self.drill_nav {
+            DrillNavState::Browse { .. } => None,
+            DrillNavState::Drill {
+                file_idx, views, ..
+            } => Some(&mut views[*file_idx]),
+        }
+    }
+
+    /// Install the precomputed decision→files→chunks index (startup only).
+    pub(crate) fn set_drill_index(&mut self, index: DrillIndex) {
+        self.drill_index = index;
+    }
+
     /// Set the one-shot status-bar error message.
-    pub fn set_status_message(&mut self, _message: String) {}
+    pub fn set_status_message(&mut self, message: String) {
+        self.status_message = Some(message);
+    }
 
     /// Clear the one-shot status-bar message (on the next keypress).
-    pub fn clear_status_message(&mut self) {}
+    pub fn clear_status_message(&mut self) {
+        self.status_message = None;
+    }
 
     /// Move the cursor up: previous decision card (Browse) or previous chunk (Drill).
-    pub fn navigate_up(&mut self) {}
+    pub fn navigate_up(&mut self) {
+        match &mut self.drill_nav {
+            DrillNavState::Browse { cursor } => *cursor = cursor.saturating_sub(1),
+            DrillNavState::Drill {
+                file_idx, views, ..
+            } => {
+                let view = &mut views[*file_idx];
+                view.cursor = view.cursor.saturating_sub(1);
+            }
+        }
+    }
 
     /// Move the cursor down: next decision card (Browse) or next chunk (Drill).
-    pub fn navigate_down(&mut self) {}
+    pub fn navigate_down(&mut self) {
+        match &mut self.drill_nav {
+            DrillNavState::Browse { cursor } => {
+                if *cursor + 1 < self.drill_index.decisions.len() {
+                    *cursor += 1;
+                }
+            }
+            DrillNavState::Drill {
+                decision_idx,
+                file_idx,
+                views,
+            } => {
+                let n_chunks = self.drill_index.decisions[*decision_idx].files[*file_idx]
+                    .chunks
+                    .len();
+                let view = &mut views[*file_idx];
+                if view.cursor + 1 < n_chunks {
+                    view.cursor += 1;
+                }
+            }
+        }
+    }
 
     /// Cycle to the previous sibling file (Drill only, wraps around).
-    pub fn navigate_left(&mut self) {}
+    pub fn navigate_left(&mut self) {
+        if let DrillNavState::Drill {
+            file_idx, views, ..
+        } = &mut self.drill_nav
+        {
+            let n = views.len();
+            *file_idx = file_idx.checked_sub(1).unwrap_or(n - 1);
+        }
+    }
 
     /// Cycle to the next sibling file (Drill only, wraps around).
-    pub fn navigate_right(&mut self) {}
+    pub fn navigate_right(&mut self) {
+        if let DrillNavState::Drill {
+            file_idx, views, ..
+        } = &mut self.drill_nav
+        {
+            *file_idx = (*file_idx + 1) % views.len();
+        }
+    }
 
     /// Enter the decision under the browse cursor.
-    pub fn drill_in(&mut self) {}
+    pub fn drill_in(&mut self) {
+        if let DrillNavState::Browse { cursor } = &self.drill_nav {
+            let cursor = *cursor;
+            if let Some(decision) = self.drill_index.decisions.get(cursor)
+                && !decision.files.is_empty()
+            {
+                self.drill_nav = DrillNavState::Drill {
+                    decision_idx: cursor,
+                    file_idx: 0,
+                    views: vec![FileView::default(); decision.files.len()],
+                };
+            }
+        }
+    }
 
     /// Back out of a drilled decision, restoring the browse cursor to it.
-    pub fn back(&mut self) {}
+    pub fn back(&mut self) {
+        if let DrillNavState::Drill { decision_idx, .. } = &self.drill_nav {
+            self.drill_nav = DrillNavState::Browse {
+                cursor: *decision_idx,
+            };
+        }
+    }
 
     /// Toggle expanded code context on the focused chunk (Drill only).
-    pub fn toggle_context(&mut self) {}
+    pub fn toggle_context(&mut self) {
+        if let Some(view) = self.current_file_view_mut() {
+            let chunk = view.cursor;
+            if !view.expanded.remove(&chunk) {
+                view.expanded.insert(chunk);
+            }
+        }
+    }
 
     /// Toggle note expansion on the focused chunk (Drill only).
-    pub fn toggle_note_expansion(&mut self) {}
+    pub fn toggle_note_expansion(&mut self) {
+        if let Some(view) = self.current_file_view_mut() {
+            let chunk = view.cursor;
+            if !view.expanded_notes.remove(&chunk) {
+                view.expanded_notes.insert(chunk);
+            }
+        }
+    }
 
     /// Page the drill viewport up (Ctrl-u).
-    pub fn drill_page_up(&mut self) {}
+    pub fn drill_page_up(&mut self) {
+        if let Some(view) = self.current_file_view_mut() {
+            view.page_offset = view.page_offset.saturating_sub(PAGE_SCROLL_STEP);
+        }
+    }
 
     /// Page the drill viewport down (Ctrl-d).
-    pub fn drill_page_down(&mut self) {}
+    ///
+    /// The offset is unclamped at the state level; Phase 2 rendering combines
+    /// it with `scroll_into_view` against the real content height.
+    pub fn drill_page_down(&mut self) {
+        if let Some(view) = self.current_file_view_mut() {
+            view.page_offset += PAGE_SCROLL_STEP;
+        }
+    }
 
     /// Jump to the first decision card (Browse) or first chunk (Drill).
-    pub fn to_top(&mut self) {}
+    pub fn to_top(&mut self) {
+        match &mut self.drill_nav {
+            DrillNavState::Browse { cursor } => *cursor = 0,
+            DrillNavState::Drill {
+                file_idx, views, ..
+            } => views[*file_idx].cursor = 0,
+        }
+    }
 
     /// Jump to the last decision card (Browse) or last chunk (Drill).
-    pub fn to_bottom(&mut self) {}
+    pub fn to_bottom(&mut self) {
+        match &mut self.drill_nav {
+            DrillNavState::Browse { cursor } => {
+                *cursor = self.drill_index.decisions.len().saturating_sub(1);
+            }
+            DrillNavState::Drill {
+                decision_idx,
+                file_idx,
+                views,
+            } => {
+                let n_chunks = self.drill_index.decisions[*decision_idx].files[*file_idx]
+                    .chunks
+                    .len();
+                views[*file_idx].cursor = n_chunks.saturating_sub(1);
+            }
+        }
+    }
 }

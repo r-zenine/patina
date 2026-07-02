@@ -14,7 +14,10 @@
 //!
 //! All tests use InputTestHarness for fast state validation without rendering.
 
-#![cfg(feature = "test-harness")]
+// DISABLED (plan-drillnav-main-tui Phase 1): this suite encodes the old
+// two-panel navigation model that DrillNav replaced; the key table and
+// target resolution it drives no longer exist. Phase 4 deletes this file.
+#![cfg(any())]
 
 use diffviz_review::providers::mock_provider::MockDiffProvider;
 use diffviz_review::{

@@ -64,6 +64,10 @@ pub enum UiEvent {
     // Instructions visibility
     ToggleInstructions,
 
+    // DrillNav per-chunk toggles (Tab / i)
+    ToggleChunkContext,
+    ToggleNoteExpansion,
+
     // Inline reasoning annotations visibility
     ToggleReasoning,
 
@@ -104,7 +108,7 @@ pub fn handle_key_event(
     }
 }
 
-/// Handle keys in navigation mode
+/// Handle keys in navigation mode (the DrillNav key table)
 fn handle_navigation_keys(key: KeyEvent) -> Option<UiEvent> {
     match key {
         // Application controls
@@ -113,11 +117,6 @@ fn handle_navigation_keys(key: KeyEvent) -> Option<UiEvent> {
             modifiers: KeyModifiers::NONE,
             ..
         } => Some(UiEvent::Quit),
-        KeyEvent {
-            code: KeyCode::Char('r'),
-            modifiers: KeyModifiers::NONE,
-            ..
-        } => Some(UiEvent::Refresh),
         KeyEvent {
             code: KeyCode::Char('c'),
             modifiers: KeyModifiers::CONTROL,
@@ -219,60 +218,35 @@ fn handle_navigation_keys(key: KeyEvent) -> Option<UiEvent> {
             ..
         } => Some(UiEvent::NavigatePageDown),
 
-        // Tree expansion/collapse
+        // Per-chunk toggles: Tab expands context, i expands the note
         KeyEvent {
             code: KeyCode::Tab,
             modifiers: KeyModifiers::NONE,
             ..
-        } => Some(UiEvent::ToggleDecisionExpansion),
+        } => Some(UiEvent::ToggleChunkContext),
+        KeyEvent {
+            code: KeyCode::Char('i'),
+            modifiers: KeyModifiers::NONE,
+            ..
+        } => Some(UiEvent::ToggleNoteExpansion),
 
-        // Scrolling
-        KeyEvent {
-            code: KeyCode::Char('y'),
-            modifiers: KeyModifiers::CONTROL,
-            ..
-        } => Some(UiEvent::ScrollUp),
-        KeyEvent {
-            code: KeyCode::Char('e'),
-            modifiers: KeyModifiers::CONTROL,
-            ..
-        } => Some(UiEvent::ScrollDown),
-        KeyEvent {
-            code: KeyCode::Char('b'),
-            modifiers: KeyModifiers::CONTROL,
-            ..
-        } => Some(UiEvent::ScrollPageUp),
-        KeyEvent {
-            code: KeyCode::Char('f'),
-            modifiers: KeyModifiers::CONTROL,
-            ..
-        } => Some(UiEvent::ScrollPageDown),
-
-        // Inactive panel scrolling
-        KeyEvent {
-            code: KeyCode::Char('j'),
-            modifiers: KeyModifiers::CONTROL,
-            ..
-        } => Some(UiEvent::ScrollInactivePanelDown),
-        KeyEvent {
-            code: KeyCode::Char('k'),
-            modifiers: KeyModifiers::CONTROL,
-            ..
-        } => Some(UiEvent::ScrollInactivePanelUp),
-
-        // Review actions
+        // Review actions: Enter drills in, a toggles approval, n opens the
+        // note input for the focused decision (Browse) or chunk (Drill)
         KeyEvent {
             code: KeyCode::Enter,
             modifiers: KeyModifiers::NONE,
             ..
         } => Some(UiEvent::SelectCurrent),
-
-        // Visual selection (stays direct)
         KeyEvent {
-            code: KeyCode::Char('v'),
+            code: KeyCode::Char('a'),
             modifiers: KeyModifiers::NONE,
             ..
-        } => Some(UiEvent::ToggleRangeSelection),
+        } => Some(UiEvent::ToggleApprove),
+        KeyEvent {
+            code: KeyCode::Char('n'),
+            modifiers: KeyModifiers::NONE,
+            ..
+        } => Some(UiEvent::EnterInstructionMode),
 
         _ => None,
     }
@@ -291,8 +265,8 @@ fn handle_leader_keys(key: KeyEvent, submenu: Option<char>) -> Option<UiEvent> {
         (Some('a'), KeyCode::Char('d')) => Some(UiEvent::ToggleApprove),
         (Some('a'), KeyCode::Char('f')) => Some(UiEvent::ApproveFile),
 
-        // Instructions submenu (Space + i + ?)
-        (Some('i'), KeyCode::Char('i')) => Some(UiEvent::EnterInstructionMode),
+        // Instructions submenu (Space + i + ?); Space-i-i is gone — the
+        // direct `n` binding replaced it (D4)
         (Some('i'), KeyCode::Char('t')) => Some(UiEvent::ToggleInstructions),
 
         // Toggles submenu (Space + t + ?)

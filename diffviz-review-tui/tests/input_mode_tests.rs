@@ -1,8 +1,7 @@
 //! Integration tests for input mode workflows
 //!
 //! These tests validate text input modes for instruction and edit operations:
-//! - Entering instruction mode (Space+i+i)
-//! - Entering edit mode (Space+i+e)
+//! - Entering note input via the direct `n` binding (DrillNav, D4)
 //! - Text editing operations (typing, backspace, delete)
 //! - Cursor movement (left/right arrows, Home/End)
 //! - Word-wise cursor movement (Ctrl+left/right)
@@ -11,8 +10,9 @@
 //! - Visual modal rendering
 //! - Mode exit behavior and buffer cleanup
 //!
-//! NOTE: Input modes require being at chunk level (depth 1).
-//! Standard navigation to chunk: <Tab>j (expand decision, move down to chunk)
+//! NOTE: `n` targets the focused chunk while drilled in (Instruction mode)
+//! and the decision under the cursor while browsing (DecisionInstruction).
+//! Standard navigation to a chunk: <Enter> (drill into the first decision).
 
 #![cfg(feature = "test-harness")]
 
@@ -70,12 +70,12 @@ fn test_enter_instruction_mode() {
     // Navigate to chunk (depth 1) and enter instruction mode
     // Sequence: expand decision, down to file, expand file, down to chunk, leader+i+i
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>ii")
+        .run_sequence_final_state("<Enter>n")
         .expect("Entering instruction mode failed");
 
     assert_eq!(
         state.input_mode, "Instruction",
-        "Should be in instruction mode after Space+i+i"
+        "Should be in instruction mode after n in Drill"
     );
     assert_eq!(
         state.input_buffer, "",
@@ -98,7 +98,7 @@ fn test_exit_input_mode_with_esc() {
 
     // Enter instruction mode then cancel with Esc
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>ii<Esc>")
+        .run_sequence_final_state("<Enter>n<Esc>")
         .expect("Exiting input mode failed");
 
     assert_eq!(
@@ -122,7 +122,7 @@ fn test_exit_input_mode_with_ctrl_c() {
 
     // Enter instruction mode then cancel with Ctrl+C
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>ii<C-c>")
+        .run_sequence_final_state("<Enter>n<C-c>")
         .expect("Exiting input mode with Ctrl+C failed");
 
     assert_eq!(
@@ -142,7 +142,7 @@ fn test_type_text_in_instruction_mode() {
 
     // Enter instruction mode and type text
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>iihello")
+        .run_sequence_final_state("<Enter>nhello")
         .expect("Typing in instruction mode failed");
 
     assert_eq!(
@@ -166,7 +166,7 @@ fn test_type_text_with_spaces() {
 
     // Type text with spaces
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>iihello<Space>world")
+        .run_sequence_final_state("<Enter>nhello<Space>world")
         .expect("Typing with spaces failed");
 
     assert_eq!(
@@ -183,7 +183,7 @@ fn test_type_special_characters() {
 
     // Type text with punctuation and special chars
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>iiTest!@#")
+        .run_sequence_final_state("<Enter>nTest!@#")
         .expect("Typing special characters failed");
 
     assert_eq!(
@@ -203,7 +203,7 @@ fn test_backspace_deletes_char_before_cursor() {
 
     // Type text then backspace
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>iihello<Backspace>")
+        .run_sequence_final_state("<Enter>nhello<Backspace>")
         .expect("Backspace failed");
 
     assert_eq!(
@@ -223,7 +223,7 @@ fn test_multiple_backspaces() {
 
     // Type text then multiple backspaces
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>iihello<Backspace><Backspace><Backspace>")
+        .run_sequence_final_state("<Enter>nhello<Backspace><Backspace><Backspace>")
         .expect("Multiple backspaces failed");
 
     assert_eq!(state.input_buffer, "he", "Should delete 3 characters");
@@ -237,7 +237,7 @@ fn test_backspace_at_start_does_nothing() {
 
     // Backspace at start of empty buffer
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>ii<Backspace>")
+        .run_sequence_final_state("<Enter>n<Backspace>")
         .expect("Backspace at start failed");
 
     assert_eq!(
@@ -255,7 +255,7 @@ fn test_delete_forward() {
 
     // Type text, move cursor to middle, delete forward
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>iihello<Left><Left><Delete>")
+        .run_sequence_final_state("<Enter>nhello<Left><Left><Delete>")
         .expect("Delete forward failed");
 
     assert_eq!(
@@ -279,7 +279,7 @@ fn test_move_cursor_left() {
 
     // Type text then move cursor left
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>iihello<Left><Left>")
+        .run_sequence_final_state("<Enter>nhello<Left><Left>")
         .expect("Move cursor left failed");
 
     assert_eq!(state.input_buffer, "hello", "Buffer should be unchanged");
@@ -293,7 +293,7 @@ fn test_move_cursor_right() {
 
     // Type text, move left, then move right
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>iihello<Left><Left><Right>")
+        .run_sequence_final_state("<Enter>nhello<Left><Left><Right>")
         .expect("Move cursor right failed");
 
     assert_eq!(state.input_buffer, "hello", "Buffer should be unchanged");
@@ -307,7 +307,7 @@ fn test_move_cursor_to_home() {
 
     // Type text then move to start with Home
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>iihello<Home>")
+        .run_sequence_final_state("<Enter>nhello<Home>")
         .expect("Move cursor to home failed");
 
     assert_eq!(state.input_buffer, "hello", "Buffer should be unchanged");
@@ -321,7 +321,7 @@ fn test_move_cursor_to_end() {
 
     // Type text, move to start, then move to end with End
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>iihello<Home><End>")
+        .run_sequence_final_state("<Enter>nhello<Home><End>")
         .expect("Move cursor to end failed");
 
     assert_eq!(state.input_buffer, "hello", "Buffer should be unchanged");
@@ -336,7 +336,7 @@ fn test_move_cursor_word_left() {
 
     // Type multi-word text then move by word
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>iihello<Space>world<C-Left>")
+        .run_sequence_final_state("<Enter>nhello<Space>world<C-Left>")
         .expect("Move cursor word left failed");
 
     assert_eq!(
@@ -358,7 +358,7 @@ fn test_move_cursor_word_right() {
 
     // Type multi-word text, move to start, then move by word
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>iihello<Space>world<Home><C-Right>")
+        .run_sequence_final_state("<Enter>nhello<Space>world<Home><C-Right>")
         .expect("Move cursor word right failed");
 
     assert_eq!(
@@ -383,7 +383,7 @@ fn test_insert_text_at_cursor_position() {
 
     // Type text, move cursor to middle, insert new text
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>iiworld<Home>hello<Space>")
+        .run_sequence_final_state("<Enter>nworld<Home>hello<Space>")
         .expect("Insert at cursor failed");
 
     assert_eq!(
@@ -403,7 +403,7 @@ fn test_backspace_in_middle_of_text() {
 
     // Type text, move to middle, backspace
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>iihello<Left><Left><Backspace>")
+        .run_sequence_final_state("<Enter>nhello<Left><Left><Backspace>")
         .expect("Backspace in middle failed");
 
     assert_eq!(
@@ -428,7 +428,7 @@ fn test_submit_input_with_enter() {
 
     // Type text and submit with Enter
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>iihello<Enter>")
+        .run_sequence_final_state("<Enter>nhello<Enter>")
         .expect("Submit input failed");
 
     // After submission, should return to navigation mode
@@ -454,7 +454,7 @@ fn test_instruction_mode_visual_modal_displays() {
 
     // Enter instruction mode
     let results = harness
-        .run_sequence_with_renders("<Tab>j<Space>ii")
+        .run_sequence_with_renders("<Enter>n")
         .expect("Visual rendering failed");
 
     let output = &results.last().expect("No results").visual;
@@ -473,7 +473,7 @@ fn test_input_buffer_displays_in_modal() {
 
     // Type text and check visual output
     let results = harness
-        .run_sequence_with_renders("<Tab>j<Space>iihello")
+        .run_sequence_with_renders("<Enter>nhello")
         .expect("Visual rendering failed");
 
     let output = &results.last().expect("No results").visual;
@@ -497,7 +497,7 @@ fn test_navigate_enter_input_type_submit_workflow() {
 
     // Full workflow: navigate → expand → enter input mode → type → submit
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>iihello<Space>world<Enter>")
+        .run_sequence_final_state("<Enter>nhello<Space>world<Enter>")
         .expect("Full workflow failed");
 
     assert_eq!(
@@ -517,7 +517,7 @@ fn test_navigate_enter_input_cancel_workflow() {
 
     // Workflow with cancellation
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>iihello<Esc>")
+        .run_sequence_final_state("<Enter>nhello<Esc>")
         .expect("Cancel workflow failed");
 
     assert_eq!(
@@ -538,11 +538,11 @@ fn test_multiple_input_mode_sessions() {
 
     // Enter input mode, type, submit, then do it again
     harness
-        .run_sequence_final_state("<Tab>j<Space>iifirst<Enter>")
+        .run_sequence_final_state("<Enter>nfirst<Enter>")
         .expect("First session failed");
 
     let state = harness
-        .run_sequence_final_state("<Space>iisecond<Enter>")
+        .run_sequence_final_state("nsecond<Enter>")
         .expect("Second session failed");
 
     assert_eq!(
@@ -562,9 +562,7 @@ fn test_edit_text_complex_operations() {
 
     // Complex editing: type → move cursor → insert → delete → edit
     let state = harness
-        .run_sequence_final_state(
-            "<Tab>j<Space>iiworld<Home>hello<Space><End><Backspace><Backspace>!",
-        )
+        .run_sequence_final_state("<Enter>nworld<Home>hello<Space><End><Backspace><Backspace>!")
         .expect("Complex editing failed");
 
     assert_eq!(
@@ -580,13 +578,14 @@ fn test_input_mode_preserves_navigation_state() {
 
     // Navigate to specific position, enter input mode, exit
     let state = harness
-        .run_sequence_final_state("j<Tab>j<Space>ii<Esc>")
+        .run_sequence_final_state("j<Enter>n<Esc>")
         .expect("Navigation preservation failed");
 
-    // Navigation position should be preserved (decision 2, expanded, file selected)
+    // Drill position should be preserved (drilled into decision idx 1)
     assert_eq!(
-        state.decision_tree_path.0, 1,
-        "Decision position should be preserved"
+        state.drill_decision,
+        Some(1),
+        "Drill position should be preserved"
     );
     assert_eq!(
         state.input_mode, "Navigation",
@@ -624,7 +623,7 @@ fn submit_instruction_via_build_from_decisions_returns_to_navigation() {
     let mut harness = InputTestHarness::new(engine);
 
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>iihello<Enter>")
+        .run_sequence_final_state("<Enter>nhello<Enter>")
         .expect("Submitting instruction should not crash");
 
     assert_eq!(
@@ -642,9 +641,9 @@ fn test_enter_decision_instruction_mode_at_depth_0() {
     let engine = create_test_engine();
     let mut harness = InputTestHarness::new(engine);
 
-    // At depth 0 (decision level), Space+i+i should enter DecisionInstruction mode
+    // In Browse mode, n should enter DecisionInstruction mode
     let state = harness
-        .run_sequence_final_state("<Space>ii")
+        .run_sequence_final_state("n")
         .expect("Entering decision instruction mode failed");
 
     assert_eq!(
@@ -662,7 +661,7 @@ fn test_decision_instruction_mode_accepts_text() {
     let mut harness = InputTestHarness::new(engine);
 
     let state = harness
-        .run_sequence_final_state("<Space>iicheck error handling")
+        .run_sequence_final_state("ncheck error handling")
         .expect("Typing in decision instruction mode failed");
 
     assert_eq!(state.input_mode, "DecisionInstruction");
@@ -675,7 +674,7 @@ fn test_decision_instruction_mode_submit_exits_to_navigation() {
     let mut harness = InputTestHarness::new(engine);
 
     let state = harness
-        .run_sequence_final_state("<Space>iimy instruction<Enter>")
+        .run_sequence_final_state("nmy instruction<Enter>")
         .expect("Submitting decision instruction failed");
 
     assert_eq!(state.input_mode, "Navigation");
@@ -688,7 +687,7 @@ fn test_decision_instruction_mode_cancel_exits_to_navigation() {
     let mut harness = InputTestHarness::new(engine);
 
     let state = harness
-        .run_sequence_final_state("<Space>iimy instruction<Esc>")
+        .run_sequence_final_state("nmy instruction<Esc>")
         .expect("Cancelling decision instruction failed");
 
     assert_eq!(state.input_mode, "Navigation");
@@ -700,9 +699,9 @@ fn test_chunk_level_still_enters_regular_instruction_mode() {
     let engine = create_test_engine();
     let mut harness = InputTestHarness::new(engine);
 
-    // At depth 1 (chunk level), Space+i+i should still use regular Instruction mode
+    // Drilled into a chunk, n should still use regular Instruction mode
     let state = harness
-        .run_sequence_final_state("<Tab>j<Space>ii")
+        .run_sequence_final_state("<Enter>n")
         .expect("Entering instruction mode at chunk level failed");
 
     assert_eq!(

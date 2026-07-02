@@ -3,7 +3,11 @@
 //! These tests demonstrate common TUI workflows using the test harness,
 //! validating that keybindings work correctly and state transitions are correct.
 
-#![cfg(feature = "test-harness")]
+// DISABLED (plan-drillnav-main-tui Phase 1): this suite encodes the old
+// two-panel navigation model that DrillNav replaced; the key table and
+// target resolution it drives no longer exist. Phase 2 rewrites this file
+// against DrillNav.
+#![cfg(any())]
 
 use diffviz_review::providers::mock_provider::MockDiffProvider;
 use diffviz_review::{DiffQuery, GitRef, ReviewEngineBuilder};

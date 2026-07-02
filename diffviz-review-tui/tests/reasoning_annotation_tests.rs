@@ -127,6 +127,7 @@ fn space_tr_toggles_reasoning_off_again() {
 /// When at diff depth (depth 1) with decisions mapped and `show_reasoning` off,
 /// the diff panel title should contain the `◆ D1` badge.
 #[test]
+#[ignore = "old diff_view visuals are unreachable since DrillNav drives navigation (Phase 1); Phase 3 re-targets annotation visuals at the drill view"]
 fn title_badge_shown_when_reasoning_off_and_decisions_exist() {
     let engine = create_test_engine_with_decisions();
     // Use 160×40 so the full title (file + boundary name + badge) is not truncated.
@@ -223,6 +224,7 @@ fn annotation_lines_absent_when_reasoning_off() {
 /// This test validates positioning: the annotation must not appear after all
 /// diff content (it should be inline at the trigger line, not appended at end).
 #[test]
+#[ignore = "old diff_view visuals are unreachable since DrillNav drives navigation (Phase 1); Phase 3 re-targets annotation visuals at the drill view"]
 fn annotation_appears_at_correct_position() {
     let engine = create_test_engine_with_decisions();
     // Use 120×40 so the 79-char DECISION_REASONING fits without wrapping

@@ -14,7 +14,7 @@ use crate::{
     command::{Command, execute_command},
     error::ReviewTuiError,
     events::{BusinessEvent, UiEvent, handle_key_event, ui_event_to_business_event},
-    state::UiState,
+    state::{DrillDecision, DrillFile, DrillIndex, UiState},
     state_snapshot::StateSnapshot,
     ui,
 };
@@ -50,6 +50,8 @@ impl ReviewTuiApp {
         if ui_state.decision_tree.selected_chunk_id().is_some() {
             ui_state.reset_scroll();
         }
+
+        ui_state.set_drill_index(build_drill_index(review_engine));
 
         ui_state
     }
@@ -111,6 +113,10 @@ fn process_key_event_impl(
     ui_state: &mut UiState,
     key: KeyEvent,
 ) -> Result<Command> {
+    // The status message is one-shot (D7): any keypress clears it before the
+    // key is handled, so an error set below survives exactly one snapshot.
+    ui_state.clear_status_message();
+
     if let Some(ui_event) = handle_key_event(
         key,
         &ui_state.input_mode,
@@ -119,14 +125,32 @@ fn process_key_event_impl(
     ) {
         handle_ui_event_impl(engine, ui_state, &ui_event)?;
 
-        if let Some(business_event) = ui_event_to_business_event(&ui_event, ui_state) {
-            let command = handle_business_event_impl(engine, business_event)?;
+        match ui_event_to_business_event(&ui_event, ui_state) {
+            Some(business_event) => {
+                let result = handle_business_event_impl(engine, business_event);
 
-            if matches!(ui_event, UiEvent::SubmitInput) {
-                ui_state.exit_input_mode();
+                if matches!(ui_event, UiEvent::SubmitInput) {
+                    ui_state.exit_input_mode();
+                }
+
+                return match result {
+                    Ok(command) => Ok(command),
+                    // Business failures surface in the status bar instead of
+                    // aborting the app (D7); fatal errors keep propagating
+                    // from the layers above.
+                    Err(e) => {
+                        ui_state.set_status_message(format!("{e}"));
+                        Ok(Command::None)
+                    }
+                };
             }
-
-            return Ok(command);
+            None => {
+                // An approve keypress that resolves to no target (empty
+                // review) is an error, not a silent no-op (D7).
+                if matches!(ui_event, UiEvent::ToggleApprove) {
+                    ui_state.set_status_message("Nothing to approve".to_string());
+                }
+            }
         }
     }
 
@@ -134,125 +158,69 @@ fn process_key_event_impl(
 }
 
 fn handle_ui_event_impl(
-    engine: &ReviewEngine,
+    _engine: &ReviewEngine,
     ui_state: &mut UiState,
     event: &UiEvent,
 ) -> Result<()> {
-    let total_lines = get_total_lines_impl(engine, ui_state);
-
     match event {
         UiEvent::Quit => {
             ui_state.quit();
         }
 
-        UiEvent::NavigateUp => match ui_state.focused_panel {
-            crate::state::FocusPanel::FileList => {
-                ui_state.decision_tree.navigate_prev();
-                ui_state.reset_scroll();
-            }
-            crate::state::FocusPanel::DiffView => {
-                ui_state.cursor_up();
-            }
-        },
+        // ── DrillNav navigation ─────────────────────────────────────────
+        UiEvent::NavigateUp => {
+            ui_state.navigate_up();
+        }
 
-        UiEvent::NavigateDown => match ui_state.focused_panel {
-            crate::state::FocusPanel::FileList => {
-                ui_state.decision_tree.navigate_next();
-                ui_state.reset_scroll();
-            }
-            crate::state::FocusPanel::DiffView => {
-                ui_state.cursor_down(total_lines);
-            }
-        },
+        UiEvent::NavigateDown => {
+            ui_state.navigate_down();
+        }
 
         UiEvent::NavigateLeft => {
-            ui_state.focused_panel = crate::state::FocusPanel::FileList;
+            ui_state.navigate_left();
         }
 
         UiEvent::NavigateRight => {
-            ui_state.focused_panel = crate::state::FocusPanel::DiffView;
+            ui_state.navigate_right();
         }
 
-        UiEvent::NavigateToTop => match ui_state.focused_panel {
-            crate::state::FocusPanel::FileList => {
-                ui_state.navigate_to_first_in_tree();
-            }
-            crate::state::FocusPanel::DiffView => {
-                ui_state.cursor_to_top();
-            }
-        },
-
-        UiEvent::NavigateToBottom => match ui_state.focused_panel {
-            crate::state::FocusPanel::FileList => {
-                ui_state.navigate_to_last_in_tree();
-            }
-            crate::state::FocusPanel::DiffView => {
-                ui_state.cursor_to_bottom(total_lines);
-            }
-        },
-
-        UiEvent::NavigatePageUp => match ui_state.focused_panel {
-            crate::state::FocusPanel::FileList => {
-                ui_state.page_up();
-            }
-            crate::state::FocusPanel::DiffView => {
-                ui_state.cursor_page_up(total_lines);
-            }
-        },
-
-        UiEvent::NavigatePageDown => match ui_state.focused_panel {
-            crate::state::FocusPanel::FileList => {
-                ui_state.page_down();
-            }
-            crate::state::FocusPanel::DiffView => {
-                ui_state.cursor_page_down(total_lines);
-            }
-        },
-
-        UiEvent::ToggleFocus => {
-            ui_state.toggle_focus();
+        UiEvent::NavigateToTop => {
+            ui_state.to_top();
         }
 
+        UiEvent::NavigateToBottom => {
+            ui_state.to_bottom();
+        }
+
+        UiEvent::NavigatePageUp => {
+            ui_state.drill_page_up();
+        }
+
+        UiEvent::NavigatePageDown => {
+            ui_state.drill_page_down();
+        }
+
+        UiEvent::SelectCurrent => {
+            ui_state.drill_in();
+        }
+
+        UiEvent::Back => {
+            ui_state.back();
+        }
+
+        UiEvent::ToggleChunkContext => {
+            ui_state.toggle_context();
+        }
+
+        UiEvent::ToggleNoteExpansion => {
+            ui_state.toggle_note_expansion();
+        }
+
+        // ── Toggles (leader-reachable) ──────────────────────────────────
         UiEvent::ToggleContextDisplay => {
             ui_state.toggle_context_display();
             ui_state.deactivate_leader();
         }
-
-        UiEvent::ScrollUp => {
-            ui_state.scroll_up(1);
-        }
-
-        UiEvent::ScrollDown => {
-            ui_state.scroll_down(1);
-        }
-
-        UiEvent::ScrollPageUp => {
-            ui_state.page_up();
-        }
-
-        UiEvent::ScrollPageDown => {
-            ui_state.page_down();
-        }
-
-        UiEvent::ScrollInactivePanelUp => match ui_state.focused_panel {
-            crate::state::FocusPanel::FileList => {
-                ui_state.scroll_up(1);
-            }
-            crate::state::FocusPanel::DiffView => {
-                ui_state.decision_tree.navigate_prev();
-                ui_state.reset_scroll();
-            }
-        },
-
-        UiEvent::ScrollInactivePanelDown => match ui_state.focused_panel {
-            crate::state::FocusPanel::FileList => {
-                ui_state.scroll_down(1);
-            }
-            crate::state::FocusPanel::DiffView => {
-                ui_state.decision_tree.navigate_next();
-                ui_state.reset_scroll();
-            }
-        },
 
         UiEvent::EnterInstructionMode => {
             if let Some(reviewable_id) = ui_state.current_reviewable_id() {
@@ -297,29 +265,9 @@ fn handle_ui_event_impl(
 
         UiEvent::SubmitInput => {}
 
-        UiEvent::SelectCurrent => match ui_state.focused_panel {
-            crate::state::FocusPanel::FileList => {
-                ui_state.decision_tree.expand_current();
-                ui_state.reset_scroll();
-            }
-            crate::state::FocusPanel::DiffView => {}
-        },
-
         UiEvent::ToggleSemanticHighlight => {
             ui_state.toggle_semantic_highlight();
             ui_state.deactivate_leader();
-        }
-
-        UiEvent::ToggleRangeSelection => match ui_state.focused_panel {
-            crate::state::FocusPanel::DiffView => {
-                ui_state.toggle_range_selection(total_lines);
-            }
-            crate::state::FocusPanel::FileList => {}
-        },
-
-        UiEvent::ToggleDecisionExpansion => {
-            ui_state.decision_tree.toggle_expansion();
-            ui_state.reset_scroll();
         }
 
         UiEvent::ToggleInstructions => {
@@ -356,7 +304,17 @@ fn handle_ui_event_impl(
             ui_state.deactivate_leader();
         }
 
-        UiEvent::Back
+        // Old-model events: no longer key-bound, inert until the Phase 4
+        // purge deletes the variants.
+        UiEvent::ToggleFocus
+        | UiEvent::ToggleRangeSelection
+        | UiEvent::ToggleDecisionExpansion
+        | UiEvent::ScrollUp
+        | UiEvent::ScrollDown
+        | UiEvent::ScrollPageUp
+        | UiEvent::ScrollPageDown
+        | UiEvent::ScrollInactivePanelUp
+        | UiEvent::ScrollInactivePanelDown
         | UiEvent::Refresh
         | UiEvent::NavigateToFile(_)
         | UiEvent::DeleteForward
@@ -432,11 +390,46 @@ fn handle_business_event_impl(engine: &mut ReviewEngine, event: BusinessEvent) -
     }
 }
 
-fn get_total_lines_impl(engine: &ReviewEngine, ui_state: &UiState) -> usize {
-    if let Some(reviewable_id) = ui_state.current_reviewable_id()
-        && let Some(diff) = engine.get_renderable_diff_object(&reviewable_id)
-    {
-        return diff.lines.len();
-    }
-    0
+/// Build the precomputed decision→files→chunks index (D6): decisions in
+/// engine order, files sorted lexicographically, chunks by ascending start
+/// line — the DrillNav sibling and cursor order.
+fn build_drill_index(engine: &ReviewEngine) -> DrillIndex {
+    let pairs = engine.get_decision_reviewable_diffs();
+    let decisions = engine
+        .get_all_decisions()
+        .into_iter()
+        .map(|decision| {
+            let mut paths: Vec<String> = pairs
+                .iter()
+                .filter(|pair| pair.decision_number == decision.number)
+                .map(|pair| pair.chunk_id.file_path().to_string())
+                .collect::<std::collections::HashSet<_>>()
+                .into_iter()
+                .collect();
+            paths.sort();
+
+            let files = paths
+                .into_iter()
+                .map(|path| {
+                    let mut chunks: Vec<_> = pairs
+                        .iter()
+                        .filter(|pair| {
+                            pair.decision_number == decision.number
+                                && pair.chunk_id.file_path() == path
+                        })
+                        .map(|pair| pair.chunk_id.clone())
+                        .collect();
+                    chunks.sort_by_key(|id| id.line_range().start_line);
+                    DrillFile { path, chunks }
+                })
+                .collect();
+
+            DrillDecision {
+                number: decision.number,
+                files,
+            }
+        })
+        .collect();
+
+    DrillIndex { decisions }
 }
