@@ -1,0 +1,135 @@
+commit: "1efcc8a2925fdfbfbc4b4763be31c4dfaa30ce53"
+decisions:
+  - number: 1
+    title: Target resolution repurposes the existing UiState resolution methods
+    rationale: >
+      current_reviewable_id / current_file_path / current_decision_number now
+      read DrillNav position + index instead of the decision tree. Because
+      ToggleApprove and EnterInstructionMode already resolve targets through
+      these three methods, business.rs and the input-modal entry path work
+      verbatim with zero new surface. The old draw path stays panic-free: its
+      depth-1 branch (which unwraps current_reviewable_id) is unreachable now
+      that nothing drives the tree past depth 0.
+    code_impacts:
+      - reasoning: >
+          [Behavioral - Semantics change] The three resolution methods return
+          Drill-chunk / Drill-file / Browse-decision respectively; callers in
+          events/business.rs and app.rs EnterInstructionMode are intentionally
+          untouched.
+        file: diffviz-review-tui/src/state.rs
+        line_ranges:
+          - start: 209
+            end: 231
+
+  - number: 2
+    title: DrillIndex lives in UiState, built once from get_decision_reviewable_diffs
+    rationale: >
+      The D6 index (decisions → lexicographically sorted files → chunks by
+      start line) is a private UiState field so navigation bounds and target
+      resolution need no engine access per keystroke; app.rs builds it in
+      initialize_ui_state because only the app layer holds the engine. It
+      derives from get_decision_reviewable_diffs, NOT Decision.code_impacts —
+      the fixture's decision 2 declares a calculator.rs impact that maps to
+      zero chunks, so impacts would produce phantom files. drill_in guards on
+      a non-empty file list, making "Drill implies non-empty views" an
+      invariant that keeps direct indexing in accessors fail-fast-safe.
+    code_impacts:
+      - reasoning: >
+          [Structural - New entity] DrillIndex/DrillDecision/DrillFile
+          pub(crate) types + private UiState field with set_drill_index.
+        file: diffviz-review-tui/src/state.rs
+        line_ranges:
+          - start: 68
+            end: 89
+      - reasoning: >
+          [Structural - Startup wiring] build_drill_index constructs the index
+          from engine queries once; ordering here IS the navigation order the
+          Phase 0 tests assert.
+        file: diffviz-review-tui/src/app.rs
+        line_ranges:
+          - start: 393
+            end: 435
+
+  - number: 3
+    title: D7 status message clears at the top of process_key_event_impl; unresolvable approve is an explicit error
+    rationale: >
+      Every keypress clears the one-shot message before handling, so an error
+      set during that same keypress survives exactly one snapshot (prototype
+      behavior). Business-event failures are caught around
+      handle_business_event_impl and stored via set_status_message instead of
+      propagating; a ToggleApprove that resolves to no business event (empty
+      review) sets "Nothing to approve" rather than silently doing nothing —
+      the binding contract from Phase 0 decision #4. SubmitInput exits input
+      mode on both success and failure so a failed note never traps the user
+      in the modal.
+    code_impacts:
+      - reasoning: >
+          [Behavioral - Error path] Clear-then-set one-shot lifecycle and the
+          two error branches (business failure, unresolvable approve target).
+        file: diffviz-review-tui/src/app.rs
+        line_ranges:
+          - start: 111
+            end: 158
+
+  - number: 4
+    title: New UiEvents ToggleChunkContext and ToggleNoteExpansion instead of overloading old variants
+    rationale: >
+      Tab and i could have reused ToggleDecisionExpansion / ToggleInstructions,
+      but those names encode old-model semantics that other paths (leader
+      Space-i-t) still use with the old meaning. Two purpose-named variants
+      keep the event log readable and make the Phase 4 purge mechanical:
+      old variants die with their arms, the new ones stay. Removed bindings:
+      v, r, Ctrl-y/e/b/f, Ctrl-j/k; the events they fired remain as inert
+      no-op arms until Phase 4 deletes the variants.
+    code_impacts:
+      - reasoning: >
+          [Structural - Public API] UiEvent gains two variants; the DrillNav
+          key table binds Tab/i/a/n directly and drops the dead chords.
+        file: diffviz-review-tui/src/events/input.rs
+        line_ranges:
+          - start: 64
+            end: 68
+          - start: 112
+            end: 254
+
+  - number: 5
+    title: Old-model test suites disabled with cfg(any()) instead of left red or deleted early
+    rationale: >
+      Rewriting the key table necessarily breaks the five suites that encode
+      the two-panel model (keybinding, core_navigation, decision_approval,
+      panel_management, decision_tree_expansion) — the roadmap assigns their
+      rewrite to Phase 2 and deletion to Phase 4, but leaving them red would
+      end the phase with a failing build and deleting them now would jump
+      roadmap scope. A file-level `#![cfg(any())]` with a DISABLED header
+      keeps every phase green, keeps the old content in the working tree as
+      the Phase 2 rewrite reference, and produces no unexpected-cfg warnings
+      (unlike an undeclared feature gate). Two reasoning_annotation visual
+      tests that render the now-unreachable old diff_view are #[ignore]d with
+      a pointer to Phase 3, which re-targets them at the drill view.
+    code_impacts:
+      - reasoning: >
+          [Behavioral - Test scope] Suite disabled pending Phase 2 rewrite;
+          same marker in core_navigation_tests.rs and
+          decision_approval_tests.rs.
+        file: diffviz-review-tui/tests/keybinding_tests.rs
+        line_ranges:
+          - start: 6
+            end: 10
+      - reasoning: >
+          [Behavioral - Test scope] Suite disabled pending Phase 4 deletion;
+          same marker in decision_tree_expansion_tests.rs.
+        file: diffviz-review-tui/tests/panel_management_tests.rs
+        line_ranges:
+          - start: 8
+            end: 12
+
+  - number: 6
+    title: Drill paging is unclamped at the state level
+    rationale: >
+      drill_page_down adds PAGE_SCROLL_STEP without an upper bound because the
+      state layer cannot know the rendered content height; Phase 0 only
+      contracts that Ctrl-d moves the offset off zero and Ctrl-u clamps back
+      at zero. Phase 2 combines the offset with scroll_into_view against the
+      real card heights and is the right place to clamp — clamping here would
+      require duplicating render math in state, exactly what DrillNav removes.
+    code_impacts: []
