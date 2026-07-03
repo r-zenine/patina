@@ -72,10 +72,12 @@ fn create_root_menu(_ui_state: &UiState, theme: &Theme) -> Vec<Line<'static>> {
 }
 
 fn create_actions_submenu(ui_state: &UiState, theme: &Theme) -> Vec<Line<'static>> {
-    let mut items = vec![("a", "Approve diff"), ("f", "Approve file")];
+    let mut items = vec![("f", "Approve file")];
 
-    if ui_state.decision_tree.selected_path.depth() == 0 {
-        items.push(("d", "Approve decision"));
+    if ui_state.browse_cursor().is_some() {
+        items.push(("a/d", "Approve decision"));
+    } else {
+        items.push(("a", "Approve chunk"));
     }
 
     vec![

@@ -12,9 +12,10 @@ use crate::{
     state::{InputMode, UiState},
     ui::layout::centered_popup,
 };
+use diffviz_review::engines::ReviewEngine;
 
 /// Render input modal for text input modes
-pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState) {
+pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &ReviewEngine) {
     if !ui_state.is_in_input_mode() {
         return;
     }
@@ -24,7 +25,7 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState) {
 
     f.render_widget(Clear, popup_area);
 
-    let (title, _prompt, placeholder) = get_modal_content(&ui_state.input_mode);
+    let (title, _prompt, placeholder) = get_modal_content(&ui_state.input_mode, review_engine);
 
     let input_content = create_input_display(
         &ui_state.input_buffer,
@@ -60,18 +61,46 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState) {
     f.render_widget(help_paragraph, help_area);
 }
 
-fn get_modal_content(input_mode: &InputMode) -> (String, &'static str, &'static str) {
+fn get_modal_content(
+    input_mode: &InputMode,
+    review_engine: &ReviewEngine,
+) -> (String, &'static str, &'static str) {
     match input_mode {
-        InputMode::Instruction { reviewable_id } => (
-            format!("Add Instruction - {}", reviewable_id.file_path),
-            "Enter your instruction for this diff:",
-            "Type your instruction here...",
-        ),
-        InputMode::DecisionInstruction { decision_number } => (
-            format!("Add Instruction - Decision #{decision_number}"),
-            "Enter your instruction for this decision:",
-            "Type your instruction here...",
-        ),
+        InputMode::Instruction { reviewable_id } => {
+            let existing = review_engine
+                .state()
+                .get_instructions(reviewable_id)
+                .and_then(|v| v.first());
+            let title = match existing {
+                Some(instr) => format!(
+                    "Append to {}'s note - {}",
+                    instr.author, reviewable_id.file_path
+                ),
+                None => format!("Add Instruction - {}", reviewable_id.file_path),
+            };
+            (
+                title,
+                "Enter your instruction for this diff:",
+                "Type your instruction here...",
+            )
+        }
+        InputMode::DecisionInstruction { decision_number } => {
+            let existing = review_engine
+                .get_decision_instructions(*decision_number)
+                .and_then(|v| v.into_iter().next());
+            let title = match existing {
+                Some(instr) => format!(
+                    "Append to {}'s note - Decision #{decision_number}",
+                    instr.author
+                ),
+                None => format!("Add Instruction - Decision #{decision_number}"),
+            };
+            (
+                title,
+                "Enter your instruction for this decision:",
+                "Type your instruction here...",
+            )
+        }
         InputMode::Navigation => ("".to_string(), "", ""),
     }
 }

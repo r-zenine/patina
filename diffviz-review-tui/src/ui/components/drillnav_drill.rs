@@ -5,6 +5,8 @@
 //! row with `…` until `i` expands it) above its code lines
 //! (CardTier::Content, context lines hidden until Tab expands them). The
 //! focused chunk carries the accent bar; approved chunks a `✓` badge.
+//! When `show_reasoning` is on, each decision referencing the chunk's file
+//! renders a mauve reasoning line just above its trigger line (no sigil).
 //! Scrolling combines `scroll_into_view` on the focused chunk with the
 //! Ctrl-d/u page offset, clamped to the real content height.
 
@@ -15,8 +17,8 @@ use ratatui::widgets::Paragraph;
 use tui_design::{CardTier, HierarchicalCard, Icons, Theme, render_drill_header, scroll_into_view};
 
 use super::drillnav_common::{
-    content_rect, dot_pagination_line, line_change_type, line_has_change, make_card, note_for,
-    note_rows, wrap_text,
+    ReasoningAnnotation, annotations_for, content_rect, dot_pagination_line, line_change_type,
+    line_has_change, make_card, note_for, note_rows, wrap_text,
 };
 use crate::state::UiState;
 use diffviz_review::{Instruction, ReviewableDiffId};
@@ -148,6 +150,8 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, engine: &ReviewEngi
         }
 
         // Code rows — CardTier::Content; context lines only when expanded.
+        // Reasoning annotations (mauve, no sigil) render just above their
+        // trigger line when show_reasoning is on.
         if let Some(renderable) = engine.get_renderable_diff_object(chunk_id) {
             let has_note = note.is_some();
             let visible_lines: Vec<_> = renderable
@@ -155,8 +159,23 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, engine: &ReviewEngi
                 .iter()
                 .filter(|line| chunk_expanded || line_has_change(line))
                 .collect();
+            let annotations = if ui_state.show_reasoning {
+                annotations_for(engine, chunk_id)
+            } else {
+                Vec::new()
+            };
+            // Context lines may be collapsed, hiding the exact trigger line —
+            // attach each annotation to the first visible line at or after it.
+            let mut annotation_emitted = vec![false; annotations.len()];
 
             for (line_idx, line) in visible_lines.iter().enumerate() {
+                for (annotation, emitted) in annotations.iter().zip(annotation_emitted.iter_mut()) {
+                    if !*emitted && line.line_number >= annotation.trigger_line {
+                        chunk_lines.extend(annotation_rows(annotation, card, text_width, &theme));
+                        *emitted = true;
+                    }
+                }
+
                 let ct = line_change_type(line);
                 let (fg, sigil) = match &ct {
                     Some(ChangeType::Added) => (theme.accents.green, "+"),
@@ -203,6 +222,7 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, engine: &ReviewEngi
                 note_for(engine, chunk_id),
                 ui_state.drill_chunk_expanded(i),
                 ui_state.drill_chunk_note_expanded(i),
+                ui_state.show_reasoning,
                 text_width,
             );
             if i + 1 < n { h + 1 } else { h }
@@ -232,6 +252,7 @@ fn visible_line_count(
     note: Option<&Instruction>,
     expanded: bool,
     note_expanded: bool,
+    show_reasoning: bool,
     text_width: usize,
 ) -> u16 {
     let code_lines = if let Some(renderable) = engine.get_renderable_diff_object(chunk_id) {
@@ -247,6 +268,14 @@ fn visible_line_count(
     } else {
         0
     };
+    let annotation_lines: u16 = if show_reasoning {
+        annotations_for(engine, chunk_id)
+            .iter()
+            .map(|a| wrap_text(&format!("{}  {}", a.label, a.reasoning), text_width).len() as u16)
+            .sum()
+    } else {
+        0
+    };
     let note_lines = if let Some(instr) = note {
         if note_expanded {
             note_rows(instr, text_width.saturating_sub(6)).len() as u16
@@ -256,5 +285,30 @@ fn visible_line_count(
     } else {
         0
     };
-    code_lines + note_lines
+    code_lines + note_lines + annotation_lines
+}
+
+/// Wrapped rows for one reasoning annotation: mauve, no sigil.
+fn annotation_rows(
+    annotation: &ReasoningAnnotation,
+    card: HierarchicalCard,
+    text_width: usize,
+    theme: &Theme,
+) -> Vec<Line<'static>> {
+    wrap_text(
+        &format!("{}  {}", annotation.label, annotation.reasoning),
+        text_width,
+    )
+    .into_iter()
+    .map(|text_line| {
+        card.at(
+            CardTier::Content,
+            vec![
+                Span::styled("    ", Style::default()),
+                Span::styled(text_line, Style::default().fg(theme.accents.mauve)),
+            ],
+            theme,
+        )
+    })
+    .collect()
 }

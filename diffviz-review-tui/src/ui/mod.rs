@@ -32,7 +32,7 @@ pub fn draw(f: &mut Frame, ui_state: &UiState, review_engine: &ReviewEngine) {
 
     // Render overlays (in order - last rendered is on top)
     if ui_state.is_in_input_mode() {
-        components::input_modal::render(f, f.area(), ui_state);
+        components::input_modal::render(f, f.area(), ui_state, review_engine);
     }
 
     components::which_key::render(f, ui_state);
