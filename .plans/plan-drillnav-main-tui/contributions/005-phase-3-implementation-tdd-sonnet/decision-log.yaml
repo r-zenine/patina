@@ -1,0 +1,90 @@
+commit: "89d3903"
+decisions:
+  - number: 1
+    title: Annotation trigger line is chunk-relative, matching RenderableLine::line_number
+    rationale: >
+      The design doc (contribution 004) ported the old diff_view's absolute-
+      line trigger algorithm verbatim, but a debug pass revealed
+      RenderableLine::line_number resets to 1 per chunk rather than holding
+      the absolute file line — the old diff_view code already knew this and
+      converted (abs_trigger - diff_start + 1) before use; the port had
+      dropped that conversion. Restored it so the annotation actually lands
+      on a real line instead of never matching.
+    code_impacts:
+      - reasoning: >
+          annotations_for() now converts the absolute trigger (max(impact
+          range start, diff_start)) into a chunk-relative line number before
+          returning it on ReasoningAnnotation.trigger_line.
+        file: diffviz-review-tui/src/ui/components/drillnav_common.rs
+        line_ranges:
+          - start: 153
+            end: 205
+
+  - number: 2
+    title: Annotation-to-line matching is "first visible line at or after the trigger", not exact equality
+    rationale: >
+      Context lines are collapsed by default in DrillNav (chunk_expanded is
+      false until Tab), so the exact trigger line can be filtered out of
+      visible_lines entirely, silently dropping the annotation. Matching
+      against the first visible line whose number is >= trigger keeps the
+      annotation adjacent to the intended code even when that code's
+      preceding context is hidden.
+    code_impacts:
+      - reasoning: >
+          The code-row loop tracks a per-annotation emitted flag and pushes
+          annotation_rows() before the first visible line satisfying
+          line.line_number >= annotation.trigger_line, instead of requiring
+          line.line_number == annotation.trigger_line.
+        file: diffviz-review-tui/src/ui/components/drillnav_drill.rs
+        line_ranges:
+          - start: 152
+            end: 200
+
+  - number: 3
+    title: Note-entry modal title reads existing author(s) directly from the engine, no new UiState plumbing
+    rationale: >
+      The single-note append/fold merge (Instruction::append, comma-joins
+      distinct authors) already existed in the engine from an earlier plan —
+      only the modal's title text was missing awareness of it. Reusing
+      engine.state().get_instructions()/get_decision_instructions() in
+      input_modal.rs avoids adding any new UiState field or event just to
+      carry "does a note already exist" into the view.
+    code_impacts:
+      - reasoning: >
+          get_modal_content() now takes &ReviewEngine and looks up the
+          existing instruction for the target chunk or decision, switching
+          the title between "Add Instruction - ..." and "Append to {author}'s
+          note - ...".
+        file: diffviz-review-tui/src/ui/components/input_modal.rs
+        line_ranges:
+          - start: 63
+            end: 100
+
+  - number: 4
+    title: Help overlay and which-key text rewritten to the live key table only
+    rationale: >
+      Both overlays still documented the pre-DrillNav model (decision-tree
+      navigation, pane focus, visual-selection mode, comments submenu,
+      decision modal, Space-i-i/Space-i-e, export) — none of which bind to
+      anything in src/events/input.rs since Phase 1. Rewritten to list
+      exactly the reachable DrillNav bindings; the actions submenu's
+      approve-decision condition was also fixed from a frozen pre-DrillNav
+      field (`ui_state.decision_tree.selected_path.depth()`, which nothing
+      updates anymore) to `ui_state.browse_cursor().is_some()`.
+    code_impacts:
+      - reasoning: >
+          create_help_content() rewritten section-by-section against the
+          live key table (navigation, chunk-card toggles, review actions,
+          leader menu, utility).
+        file: diffviz-review-tui/src/ui/components/help_overlay.rs
+        line_ranges:
+          - start: 41
+            end: 70
+      - reasoning: >
+          create_actions_submenu() now branches on nav_mode via
+          browse_cursor() instead of the dead decision_tree path, so the
+          leader menu's approve label matches what 'a'/'d' will actually do.
+        file: diffviz-review-tui/src/ui/components/which_key.rs
+        line_ranges:
+          - start: 74
+            end: 81
