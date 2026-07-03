@@ -104,9 +104,6 @@ mod tests {
         let harness = RenderTestHarness::new();
         let mut ui_state = UiState::new();
 
-        ui_state.decision_tree =
-            crate::decision_navigation::DecisionNavigationTree::build_from_review_engine(&engine);
-
         let output = harness
             .render(&mut ui_state, &engine)
             .expect("Render failed");
@@ -118,9 +115,6 @@ mod tests {
         let engine = create_test_engine();
         let harness = RenderTestHarness::new();
         let mut ui_state = UiState::new();
-
-        ui_state.decision_tree =
-            crate::decision_navigation::DecisionNavigationTree::build_from_review_engine(&engine);
 
         let output = harness
             .render(&mut ui_state, &engine)

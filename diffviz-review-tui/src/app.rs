@@ -41,18 +41,7 @@ impl ReviewTuiApp {
     /// Initialize UI state from review engine
     fn initialize_ui_state(review_engine: &ReviewEngine) -> UiState {
         let mut ui_state = UiState::new();
-
-        ui_state.decision_tree =
-            crate::decision_navigation::DecisionNavigationTree::build_from_review_engine(
-                review_engine,
-            );
-
-        if ui_state.decision_tree.selected_chunk_id().is_some() {
-            ui_state.reset_scroll();
-        }
-
         ui_state.set_drill_index(build_drill_index(review_engine));
-
         ui_state
     }
 
@@ -216,12 +205,6 @@ fn handle_ui_event_impl(
             ui_state.toggle_note_expansion();
         }
 
-        // ── Toggles (leader-reachable) ──────────────────────────────────
-        UiEvent::ToggleContextDisplay => {
-            ui_state.toggle_context_display();
-            ui_state.deactivate_leader();
-        }
-
         UiEvent::EnterInstructionMode => {
             if let Some(reviewable_id) = ui_state.current_reviewable_id() {
                 ui_state.start_instruction_input(reviewable_id);
@@ -265,16 +248,6 @@ fn handle_ui_event_impl(
 
         UiEvent::SubmitInput => {}
 
-        UiEvent::ToggleSemanticHighlight => {
-            ui_state.toggle_semantic_highlight();
-            ui_state.deactivate_leader();
-        }
-
-        UiEvent::ToggleInstructions => {
-            ui_state.toggle_instructions();
-            ui_state.deactivate_leader();
-        }
-
         UiEvent::ToggleReasoning => {
             ui_state.toggle_reasoning();
             ui_state.deactivate_leader();
@@ -304,22 +277,9 @@ fn handle_ui_event_impl(
             ui_state.deactivate_leader();
         }
 
-        // Old-model events: no longer key-bound, inert until the Phase 4
-        // purge deletes the variants.
-        UiEvent::ToggleFocus
-        | UiEvent::ToggleRangeSelection
-        | UiEvent::ToggleDecisionExpansion
-        | UiEvent::ScrollUp
-        | UiEvent::ScrollDown
-        | UiEvent::ScrollPageUp
-        | UiEvent::ScrollPageDown
-        | UiEvent::ScrollInactivePanelUp
-        | UiEvent::ScrollInactivePanelDown
-        | UiEvent::Refresh
-        | UiEvent::NavigateToFile(_)
-        | UiEvent::DeleteForward
-        | UiEvent::MoveCursorWordLeft
-        | UiEvent::MoveCursorWordRight => {}
+        // Reachable in input mode but not yet implemented (no keybinding
+        // conflict — Delete/Ctrl-Left/Ctrl-Right just don't edit yet).
+        UiEvent::DeleteForward | UiEvent::MoveCursorWordLeft | UiEvent::MoveCursorWordRight => {}
     }
 
     Ok(())

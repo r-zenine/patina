@@ -3,7 +3,6 @@
 //! This module contains presentation-layer state that tracks navigation,
 //! focus, and input modes. Business logic state is handled by ReviewEngine.
 
-use crate::decision_navigation::DecisionNavigationTree;
 use diffviz_review::ReviewableDiffId;
 use std::collections::HashSet;
 use std::time::{Duration, Instant};
@@ -11,18 +10,8 @@ use std::time::{Duration, Instant};
 /// Timeout duration for leader key mode (seconds)
 const LEADER_TIMEOUT: Duration = Duration::from_secs(2);
 
-/// Number of lines to scroll per page operation
+/// Number of lines to scroll per page operation (drill viewport paging)
 const PAGE_SCROLL_STEP: usize = 10;
-
-/// Default view height used when total lines is unknown (for cursor positioning)
-const CURSOR_VIEW_HEIGHT_FALLBACK: usize = 20;
-
-/// Which panel currently has focus
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum FocusPanel {
-    FileList,
-    DiffView,
-}
 
 /// Per-file view state within a drilled decision, retained while cycling
 /// sibling files with h/l so a round-trip doesn't lose the reviewer's place.
@@ -105,14 +94,8 @@ impl InputMode {
 /// Pure UI navigation and display state
 #[derive(Clone)]
 pub struct UiState {
-    /// Which panel has focus
-    pub focused_panel: FocusPanel,
-
     /// Current input mode
     pub input_mode: InputMode,
-
-    /// Vertical scroll offset in the diff view
-    pub scroll_offset: usize,
 
     /// Input buffer for text entry
     pub input_buffer: String,
@@ -120,26 +103,8 @@ pub struct UiState {
     /// Cursor position within input buffer
     pub input_cursor: usize,
 
-    /// Whether to show all context lines or hide irrelevant ones
-    pub show_all_context: bool,
-
     /// Application should quit
     pub should_quit: bool,
-
-    /// Whether to highlight semantic changes
-    pub highlight_semantics: bool,
-
-    /// Current cursor position in the diff view (line index, not line number)
-    pub cursor_index: usize,
-
-    /// Anchor position for range selection (cursor index when 'v' first pressed)
-    pub selection_anchor: Option<usize>,
-
-    /// Current selection range (line numbers: start, end)
-    pub selection_range: Option<(usize, usize)>,
-
-    /// Whether to show instructions overlay
-    pub show_instructions: bool,
 
     /// Whether to show inline reasoning annotations in the diff view
     pub show_reasoning: bool,
@@ -151,9 +116,6 @@ pub struct UiState {
 
     /// Whether to show help overlay
     pub show_help: bool,
-
-    /// Decision-based navigation tree (primary navigation pattern)
-    pub decision_tree: DecisionNavigationTree,
 
     /// DrillNav state machine (replaces the two-panel navigation model).
     /// Private: accessed only through UiState methods (V4 encapsulation).
@@ -170,24 +132,15 @@ pub struct UiState {
 impl Default for UiState {
     fn default() -> Self {
         Self {
-            focused_panel: FocusPanel::FileList,
             input_mode: InputMode::Navigation,
-            scroll_offset: 0,
             input_buffer: String::new(),
             input_cursor: 0,
-            show_all_context: true,
             should_quit: false,
-            highlight_semantics: true,
-            cursor_index: 0,
-            selection_anchor: None,
-            selection_range: None,
-            show_instructions: false,
             show_reasoning: false,
             leader_active: false,
             leader_pressed_at: None,
             leader_submenu: None,
             show_help: false,
-            decision_tree: DecisionNavigationTree::new(),
             drill_nav: DrillNavState::default(),
             drill_index: DrillIndex::default(),
             status_message: None,
@@ -199,11 +152,6 @@ impl UiState {
     /// Create new UI state
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Reset scroll when navigating (called after tree navigation updates selection)
-    pub fn reset_scroll(&mut self) {
-        self.scroll_offset = 0;
     }
 
     /// The focused chunk's ReviewableDiff ID (Drill mode); None while browsing.
@@ -227,14 +175,6 @@ impl UiState {
     pub fn current_decision_number(&self) -> Option<u32> {
         let cursor = self.browse_cursor()?;
         self.drill_index.decisions.get(cursor).map(|d| d.number)
-    }
-
-    /// Switch focus between panels
-    pub fn toggle_focus(&mut self) {
-        self.focused_panel = match self.focused_panel {
-            FocusPanel::FileList => FocusPanel::DiffView,
-            FocusPanel::DiffView => FocusPanel::FileList,
-        };
     }
 
     fn enter_input_mode(&mut self, mode: InputMode) {
@@ -303,143 +243,14 @@ impl UiState {
         self.input_cursor = self.input_buffer.len();
     }
 
-    /// Scroll diff view up
-    pub fn scroll_up(&mut self, lines: usize) {
-        self.scroll_offset = self.scroll_offset.saturating_sub(lines);
-    }
-
-    /// Scroll diff view down
-    pub fn scroll_down(&mut self, lines: usize) {
-        self.scroll_offset += lines;
-    }
-
-    /// Page up in diff view
-    pub fn page_up(&mut self) {
-        self.scroll_up(PAGE_SCROLL_STEP);
-    }
-
-    /// Page down in diff view
-    pub fn page_down(&mut self) {
-        self.scroll_down(PAGE_SCROLL_STEP);
-    }
-
-    /// Move cursor and page up
-    pub fn cursor_page_up(&mut self, _total_lines: usize) {
-        self.cursor_index = self.cursor_index.saturating_sub(PAGE_SCROLL_STEP);
-        self.update_selection_range();
-        self.page_up();
-        if self.cursor_index < self.scroll_offset {
-            self.scroll_offset = self.cursor_index;
-        }
-    }
-
-    /// Move cursor and page down
-    pub fn cursor_page_down(&mut self, total_lines: usize) {
-        self.cursor_index =
-            (self.cursor_index + PAGE_SCROLL_STEP).min(total_lines.saturating_sub(1));
-        self.update_selection_range();
-        self.page_down();
-    }
-
-    /// Move cursor to top
-    pub fn cursor_to_top(&mut self) {
-        self.cursor_index = 0;
-        self.scroll_offset = 0;
-        self.update_selection_range();
-    }
-
-    /// Move cursor to bottom
-    pub fn cursor_to_bottom(&mut self, total_lines: usize) {
-        if total_lines > 0 {
-            self.cursor_index = total_lines - 1;
-            self.update_selection_range();
-            self.scroll_offset = total_lines.saturating_sub(CURSOR_VIEW_HEIGHT_FALLBACK);
-        }
-    }
-
-    /// Move cursor up one line
-    pub fn cursor_up(&mut self) {
-        if self.cursor_index > 0 {
-            self.cursor_index -= 1;
-            self.update_selection_range();
-            if self.cursor_index < self.scroll_offset {
-                self.scroll_up(1);
-            }
-        }
-    }
-
-    /// Move cursor down one line
-    pub fn cursor_down(&mut self, total_lines: usize) {
-        if self.cursor_index + 1 < total_lines {
-            self.cursor_index += 1;
-            self.update_selection_range();
-            if self.cursor_index >= self.scroll_offset + CURSOR_VIEW_HEIGHT_FALLBACK {
-                self.scroll_down(1);
-            }
-        }
-    }
-
-    /// Toggle showing all context vs hiding irrelevant context
-    pub fn toggle_context_display(&mut self) {
-        self.show_all_context = !self.show_all_context;
-    }
-
     /// Mark application to quit
     pub fn quit(&mut self) {
         self.should_quit = true;
     }
 
-    /// Toggle semantic highlighting on/off
-    pub fn toggle_semantic_highlight(&mut self) {
-        self.highlight_semantics = !self.highlight_semantics;
-    }
-
-    /// Toggle instructions visibility
-    pub fn toggle_instructions(&mut self) {
-        self.show_instructions = !self.show_instructions;
-    }
-
     /// Toggle inline reasoning annotations visibility
     pub fn toggle_reasoning(&mut self) {
         self.show_reasoning = !self.show_reasoning;
-    }
-
-    /// Toggle range selection - cycles through states (vim-like visual select)
-    /// State cycle: none → selecting (anchor set) → finalized → clear
-    pub fn toggle_range_selection(&mut self, total_lines: usize) {
-        if total_lines == 0 {
-            return;
-        }
-
-        // Ensure cursor is within bounds
-        if self.cursor_index >= total_lines {
-            self.cursor_index = total_lines - 1;
-        }
-
-        if self.selection_anchor.is_some() {
-            // Finalize selection, clear anchor (keep the range)
-            self.selection_anchor = None;
-        } else if self.selection_range.is_some() {
-            // Clear selection entirely
-            self.selection_range = None;
-        } else {
-            // Start new selection at current cursor position
-            self.selection_anchor = Some(self.cursor_index);
-            // Create initial single-line selection (line numbers are 1-indexed)
-            let line_num = self.cursor_index + 1;
-            self.selection_range = Some((line_num, line_num));
-        }
-    }
-
-    /// Update selection range based on cursor movement (when anchor is set)
-    /// This extends the visual selection as the user navigates
-    pub fn update_selection_range(&mut self) {
-        if let Some(anchor) = self.selection_anchor {
-            // Calculate range (line numbers are 1-indexed)
-            let start = anchor.min(self.cursor_index) + 1;
-            let end = anchor.max(self.cursor_index) + 1;
-            self.selection_range = Some((start, end));
-        }
     }
 
     /// Activate leader key mode
@@ -484,24 +295,6 @@ impl UiState {
             }
         } else {
             None
-        }
-    }
-
-    /// Navigate to the first item in the decision tree
-    pub fn navigate_to_first_in_tree(&mut self) {
-        let flattened = self.decision_tree.flatten();
-        if let Some(first) = flattened.first() {
-            self.decision_tree.selected_path = first.path.clone();
-            self.reset_scroll();
-        }
-    }
-
-    /// Navigate to the last item in the decision tree
-    pub fn navigate_to_last_in_tree(&mut self) {
-        let flattened = self.decision_tree.flatten();
-        if let Some(last) = flattened.last() {
-            self.decision_tree.selected_path = last.path.clone();
-            self.reset_scroll();
         }
     }
 

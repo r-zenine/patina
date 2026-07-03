@@ -11,7 +11,6 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 pub enum UiEvent {
     // Application lifecycle
     Quit,
-    Refresh,
 
     // Navigation
     Back,
@@ -23,17 +22,6 @@ pub enum UiEvent {
     NavigateToBottom,
     NavigatePageUp,
     NavigatePageDown,
-    NavigateToFile(String),
-
-    // View controls
-    ToggleFocus,
-    ToggleContextDisplay,
-    ScrollUp,
-    ScrollDown,
-    ScrollPageUp,
-    ScrollPageDown,
-    ScrollInactivePanelUp,
-    ScrollInactivePanelDown,
 
     // Input mode transitions
     EnterInstructionMode,
@@ -57,22 +45,12 @@ pub enum UiEvent {
     ApproveFile,
     SelectCurrent,
 
-    // Semantic and range selection controls
-    ToggleSemanticHighlight,
-    ToggleRangeSelection,
-
-    // Instructions visibility
-    ToggleInstructions,
-
     // DrillNav per-chunk toggles (Tab / i)
     ToggleChunkContext,
     ToggleNoteExpansion,
 
     // Inline reasoning annotations visibility
     ToggleReasoning,
-
-    // Decision tree expansion
-    ToggleDecisionExpansion,
 
     // Leader key system
     ActivateLeader,
@@ -257,7 +235,6 @@ fn handle_leader_keys(key: KeyEvent, submenu: Option<char>) -> Option<UiEvent> {
     match (submenu, key.code) {
         // First level - entering submenus
         (None, KeyCode::Char('a')) => Some(UiEvent::EnterLeaderSubmenu('a')),
-        (None, KeyCode::Char('i')) => Some(UiEvent::EnterLeaderSubmenu('i')),
         (None, KeyCode::Char('t')) => Some(UiEvent::EnterLeaderSubmenu('t')),
 
         // Actions submenu (Space + a + ?)
@@ -265,13 +242,7 @@ fn handle_leader_keys(key: KeyEvent, submenu: Option<char>) -> Option<UiEvent> {
         (Some('a'), KeyCode::Char('d')) => Some(UiEvent::ToggleApprove),
         (Some('a'), KeyCode::Char('f')) => Some(UiEvent::ApproveFile),
 
-        // Instructions submenu (Space + i + ?); Space-i-i is gone — the
-        // direct `n` binding replaced it (D4)
-        (Some('i'), KeyCode::Char('t')) => Some(UiEvent::ToggleInstructions),
-
         // Toggles submenu (Space + t + ?)
-        (Some('t'), KeyCode::Char('s')) => Some(UiEvent::ToggleSemanticHighlight),
-        (Some('t'), KeyCode::Char('c')) => Some(UiEvent::ToggleContextDisplay),
         (Some('t'), KeyCode::Char('r')) => Some(UiEvent::ToggleReasoning),
 
         // Cancel leader mode

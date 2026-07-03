@@ -122,26 +122,6 @@ fn test_leader_submenu_actions() {
 }
 
 #[test]
-fn test_leader_submenu_instructions() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    let state = harness
-        .run_sequence_final_state("<Space>i")
-        .expect("Instructions submenu failed");
-
-    assert!(
-        state.leader_active,
-        "Leader should remain active in submenu"
-    );
-    assert_eq!(
-        state.leader_submenu,
-        Some('i'),
-        "Should be in instructions submenu"
-    );
-}
-
-#[test]
 fn test_leader_submenu_toggles() {
     let engine = create_test_engine();
     let mut harness = InputTestHarness::new(engine);
@@ -275,22 +255,6 @@ fn test_leader_visual_actions_menu() {
 }
 
 #[test]
-fn test_leader_visual_instructions_menu() {
-    let engine = create_test_engine();
-    let mut harness = CombinedTestHarness::new(engine);
-
-    let results = harness
-        .run_sequence_with_renders("<Space>i")
-        .expect("Instructions menu render failed");
-
-    let output = &results.last().expect("No results").visual;
-    assert!(
-        output.contains("Instructions") || output.contains("i") || output.contains("Instruction"),
-        "Instructions submenu should be visible"
-    );
-}
-
-#[test]
 fn test_leader_visual_toggles_menu() {
     let engine = create_test_engine();
     let mut harness = CombinedTestHarness::new(engine);
@@ -404,54 +368,6 @@ fn test_leader_multiple_sequences() {
 }
 
 #[test]
-fn test_leader_toggle_semantic_highlighting() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    let state_before = harness
-        .run_sequence_final_state("")
-        .expect("Initial state failed");
-    let highlight_before = state_before.highlight_semantics;
-
-    let state_after = harness
-        .run_sequence_final_state("<Space>ts")
-        .expect("Toggle semantic failed");
-
-    assert_ne!(
-        highlight_before, state_after.highlight_semantics,
-        "Semantic highlighting should toggle"
-    );
-    assert!(
-        !state_after.leader_active,
-        "Leader should deactivate after action"
-    );
-}
-
-#[test]
-fn test_leader_toggle_context_display() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    let state_before = harness
-        .run_sequence_final_state("")
-        .expect("Initial state failed");
-    let context_before = state_before.show_all_context;
-
-    let state_after = harness
-        .run_sequence_final_state("<Space>tc")
-        .expect("Toggle context failed");
-
-    assert_ne!(
-        context_before, state_after.show_all_context,
-        "Context display should toggle"
-    );
-    assert!(
-        !state_after.leader_active,
-        "Leader should deactivate after action"
-    );
-}
-
-#[test]
 fn test_leader_navigation_in_submenu() {
     let engine = create_test_engine();
     let mut harness = InputTestHarness::new(engine);
@@ -520,7 +436,7 @@ fn test_leader_nested_submenu_sequences() {
 
     // Multiple submenu entries and exits
     let _state = harness
-        .run_sequence_final_state("<Space>a<Esc><Space>i<Esc><Space>t")
+        .run_sequence_final_state("<Space>a<Esc><Space>t<Esc><Space>a")
         .expect("Nested sequences failed");
 
     // Should end in toggles submenu (if implementation allows re-entry)

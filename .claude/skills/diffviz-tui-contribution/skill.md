@@ -95,11 +95,11 @@ if self.ui_state.leader_active && self.ui_state.is_leader_timed_out() {
 
 ```rust
 // CORRECT
-self.ui_state.navigate_to_first_in_tree();
-self.ui_state.close_modal_if_open();
+self.ui_state.navigate_up();
+self.ui_state.drill_in();
 
 // VIOLATION - direct field access
-self.ui_state.decision_tree.selected_path = first.path.clone();
+self.ui_state.drill_nav = DrillNavState::Browse { cursor: 0 };
 ```
 
 ### V5: Event Flow Architecture
@@ -159,7 +159,7 @@ Example: `jjk<Space>a<Enter>` = down, down, up, toggle, approve, enter
 
 **Test single keybinding**:
 ```bash
-cargo run --bin review-tui --features test-harness -- --test-input "j" | jq .focused_panel
+cargo run --bin review-tui --features test-harness -- --test-input "j" | jq .nav_mode
 ```
 
 **Capture before/after behavior**:
@@ -181,7 +181,7 @@ Reject contributions that:
 
 1. Add `&mut UiState` to view function signatures
 2. Perform file I/O or console output in update handlers without Command
-3. Access `decision_tree` fields directly outside `state.rs`
+3. Access `drill_nav`/`drill_index` fields directly outside `state.rs`
 4. Add time-based logic outside event handling flow
 5. Skip event system for user interactions
 6. Don't include tests for new functionality
@@ -192,7 +192,7 @@ Reject contributions that:
 # Architecture compliance checks
 rg "ui_state: &mut UiState" diffviz-review-tui/src/ui/
 rg "std::fs::|eprintln!|println!" diffviz-review-tui/src/app.rs
-rg "\.decision_tree\.(selected_path|show_decision_modal)" diffviz-review-tui/src/ --glob '!state.rs'
+rg "\.drill_nav\b" diffviz-review-tui/src/ --glob '!state.rs'
 
 # Run tests
 cargo test --package diffviz-review-tui --features test-harness

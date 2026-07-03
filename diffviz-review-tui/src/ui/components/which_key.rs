@@ -27,7 +27,6 @@ pub fn render(f: &mut Frame, ui_state: &UiState) {
     let content = match ui_state.leader_submenu {
         None => create_root_menu(ui_state, &theme),
         Some('a') => create_actions_submenu(ui_state, &theme),
-        Some('i') => create_instructions_submenu(&theme),
         Some('t') => create_toggles_submenu(&theme),
         _ => create_root_menu(ui_state, &theme),
     };
@@ -35,7 +34,6 @@ pub fn render(f: &mut Frame, ui_state: &UiState) {
     let title = match ui_state.leader_submenu {
         None => " Leader Menu (Space)",
         Some('a') => " Actions (Space + a)",
-        Some('i') => " Instructions (Space + i)",
         Some('t') => " Toggles (Space + t)",
         _ => " Leader Menu",
     };
@@ -58,10 +56,7 @@ pub fn render(f: &mut Frame, ui_state: &UiState) {
 fn create_root_menu(_ui_state: &UiState, theme: &Theme) -> Vec<Line<'static>> {
     vec![
         Line::from(""),
-        create_compact_line(
-            vec![("a", "Actions"), ("i", "Instructions"), ("t", "Toggles")],
-            theme,
-        ),
+        create_compact_line(vec![("a", "Actions"), ("t", "Toggles")], theme),
         Line::from(""),
         Line::from(vec![
             Span::raw("  "),
@@ -92,30 +87,10 @@ fn create_actions_submenu(ui_state: &UiState, theme: &Theme) -> Vec<Line<'static
     ]
 }
 
-fn create_instructions_submenu(theme: &Theme) -> Vec<Line<'static>> {
-    vec![
-        Line::from(""),
-        create_compact_line(vec![("i", "Add instruction"), ("t", "Toggle view")], theme),
-        Line::from(""),
-        Line::from(vec![
-            Span::raw("  "),
-            Span::styled("Esc", stylesheet::keybind_key(theme)),
-            Span::styled(" back", stylesheet::muted(theme)),
-        ]),
-    ]
-}
-
 fn create_toggles_submenu(theme: &Theme) -> Vec<Line<'static>> {
     vec![
         Line::from(""),
-        create_compact_line(
-            vec![
-                ("s", "Semantic highlighting"),
-                ("c", "Context folding"),
-                ("r", "Reasoning annotations"),
-            ],
-            theme,
-        ),
+        create_compact_line(vec![("r", "Reasoning annotations")], theme),
         Line::from(""),
         Line::from(vec![
             Span::raw("  "),
