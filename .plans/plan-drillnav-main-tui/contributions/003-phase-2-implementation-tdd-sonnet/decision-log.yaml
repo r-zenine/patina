@@ -1,0 +1,93 @@
+commit: "69a5ddb"
+decisions:
+  - number: 1
+    title: Content column capped at 120 cols and centered; surfaces fill full width
+    rationale: >
+      Wide terminals (200x60 manual test) would otherwise stretch chunk cards
+      into unreadable long lines. Capping and centering the text column while
+      letting the surface background fill the full terminal width keeps prose
+      and diff lines readable without wasting the extra width on empty
+      surface, matching the prototype's fixed reading column.
+    code_impacts:
+      - reasoning: >
+          content_rect() computes a centered Rect capped at CONTENT_WIDTH (120)
+          within the full draw area; both drillnav_browse and drillnav_drill
+          call it before laying out cards.
+        file: diffviz-review-tui/src/ui/components/drillnav_common.rs
+        line_ranges:
+          - start: 16
+            end: 28
+
+  - number: 2
+    title: Drill scroll combines scroll_into_view with an unclamped page offset, clamped at render time
+    rationale: >
+      D3/D6 left drill_page_offset as unclamped state (Ctrl-d/u can push it
+      past the content) so the state layer never needs to know rendered
+      heights. The view is the only place that knows real card heights, so
+      clamping against total content height belongs here, not in UiState.
+    code_impacts:
+      - reasoning: >
+          scroll_into_view(&heights, cursor, content_area.height) keeps the
+          focused chunk visible; the page offset is added and then clamped to
+          max_scroll (total_height - viewport height) so paging past the end
+          of the file is a no-op instead of blank space.
+        file: diffviz-review-tui/src/ui/components/drillnav_drill.rs
+        line_ranges:
+          - start: 196
+            end: 224
+
+  - number: 3
+    title: Status bar hints are contextual, matching the prototype's conditional format
+    rationale: >
+      Advertising h/l or the note toggle unconditionally would show dead keys
+      for single-file decisions or noteless chunks, contradicting the Phase 3
+      roadmap goal ("no dead keys" in the help overlay) one phase early — the
+      status bar should already only show live actions.
+    code_impacts:
+      - reasoning: >
+          drill_hints() only prepends the "file N/M  h/l files" segment when
+          total_files > 1, and only appends the note-toggle hint when
+          note_for() finds an instruction on the focused chunk; both branch on
+          UiState's expanded flags to pick "expand"/"collapse" wording.
+        file: diffviz-review-tui/src/ui/components/status_bar.rs
+        line_ranges:
+          - start: 79
+            end: 120
+
+  - number: 4
+    title: Note rows truncate to one line with an ellipsis until 'i' expands; approval badge anchors the card's first informative row
+    rationale: >
+      A chunk card's top row (the note if present, else the first code line)
+      is where the eye lands first, so the ✓ badge belongs there rather than
+      on a fixed position — otherwise an annotated, un-expanded chunk would
+      show the badge on a code line while the note sat above it unbadged.
+    code_impacts:
+      - reasoning: >
+          note_rows() wraps note text and drillnav_drill's per-chunk loop
+          collapses to one row (`{first}…`) when not expanded; the ✓ badge is
+          attached via with_badge() to row 0 of the note if one exists, else
+          to code line_idx 0, never both.
+        file: diffviz-review-tui/src/ui/components/drillnav_drill.rs
+        line_ranges:
+          - start: 108
+            end: 148
+          - start: 150
+            end: 184
+
+  - number: 5
+    title: One reasoning-annotation visual test deferred to Phase 3 rather than deleted
+    rationale: >
+      D5 assigns annotation rendering inside drill chunk cards to Phase 3; the
+      old diff_view.rs that used to inject annotation lines is no longer on
+      the draw path after this phase, so the test's assertion target doesn't
+      exist yet. Deleting it would lose the Phase 3 contract; #[ignore] with a
+      reason keeps it as a marker.
+    code_impacts:
+      - reasoning: >
+          annotation_lines_appear_when_reasoning_on marked #[ignore] with a
+          message pointing to D5 and this phase's removal of diff_view from
+          ui::draw.
+        file: diffviz-review-tui/tests/reasoning_annotation_tests.rs
+        line_ranges:
+          - start: 181
+            end: 182
