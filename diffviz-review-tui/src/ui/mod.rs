@@ -6,17 +6,28 @@ pub mod layout;
 use crate::state::UiState;
 use diffviz_review::engines::ReviewEngine;
 use ratatui::Frame;
+use ratatui::widgets::Paragraph;
+use tui_design::{Theme, stylesheet};
 
-/// Main UI drawing function
+/// Main UI drawing function: full-width DrillNav view over a status bar,
+/// with modal/overlay layers on top.
 pub fn draw(f: &mut Frame, ui_state: &UiState, review_engine: &ReviewEngine) {
+    let theme = Theme::mocha();
+
+    // Terminal floor (crust) under everything.
+    f.render_widget(
+        Paragraph::new("").style(stylesheet::terminal_floor(&theme)),
+        f.area(),
+    );
+
     let chunks = layout::create_main_layout(f.area());
 
-    let tree_focused = matches!(ui_state.focused_panel, crate::state::FocusPanel::FileList);
+    if ui_state.browse_cursor().is_some() {
+        components::drillnav_browse::render(f, chunks.content, ui_state, review_engine);
+    } else {
+        components::drillnav_drill::render(f, chunks.content, ui_state, review_engine);
+    }
 
-    // Render main components - tree explorer is now primary view for all decision levels
-    components::decision_tree::render(f, chunks.file_list, ui_state, review_engine, tree_focused);
-
-    components::diff_view::render(f, chunks.diff_view, ui_state, review_engine);
     components::status_bar::render(f, chunks.status_bar, ui_state, review_engine);
 
     // Render overlays (in order - last rendered is on top)

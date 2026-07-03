@@ -1,174 +1,166 @@
-//! Integration tests for TUI keybinding workflows
+//! Integration tests for DrillNav keybinding workflows (plan-drillnav-main-tui
+//! Phase 2).
 //!
-//! These tests demonstrate common TUI workflows using the test harness,
-//! validating that keybindings work correctly and state transitions are correct.
+//! These tests drive the full key → state → render pipeline: the DrillNav key
+//! table produces the expected visual output (browse cards, pinned drill
+//! header, note rows), the harness renders at arbitrary sizes, and snapshots
+//! round-trip with the v2 DrillNav fields.
+//!
+//! State-machine bounds and approval cascades live in the drillnav_* contract
+//! suites; this file focuses on keys driving the rendered UI.
 
-// DISABLED (plan-drillnav-main-tui Phase 1): this suite encodes the old
-// two-panel navigation model that DrillNav replaced; the key table and
-// target resolution it drives no longer exist. Phase 2 rewrites this file
-// against DrillNav.
-#![cfg(any())]
+#![cfg(feature = "test-harness")]
 
-use diffviz_review::providers::mock_provider::MockDiffProvider;
-use diffviz_review::{DiffQuery, GitRef, ReviewEngineBuilder};
-use diffviz_review_tui::test_harness::{
-    CombinedTestHarness, InputTestHarness, RenderTestHarness, StateSnapshot,
-};
+mod drillnav_common;
 
-/// Create a test ReviewEngine for testing
-fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
-    use diffviz_review::{CodeImpact, Decision, DecisionLineRange};
+use drillnav_common::create_drillnav_engine;
 
-    let mock_provider =
-        MockDiffProvider::from_review_fixtures().expect("Failed to load test fixtures");
-    let review_engine_builder =
-        ReviewEngineBuilder::new(Box::new(mock_provider), "test-user".to_string());
-    let diff_query = DiffQuery::new(GitRef::Head, GitRef::Unstaged);
-
-    let decisions = vec![
-        Decision {
-            number: 1,
-            title: "Refactor calculator implementation".to_string(),
-            rationale: Some("Add subtract method to Calculator struct".to_string()),
-            code_impacts: vec![CodeImpact {
-                file: "src/models/calculator.rs".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 1, end: 72 }],
-                reasoning: "Calculator trait implementation".to_string(),
-            }],
-        },
-        Decision {
-            number: 2,
-            title: "Improve React component structure".to_string(),
-            rationale: Some("Refactor component to use hooks".to_string()),
-            code_impacts: vec![CodeImpact {
-                file: "src/components/Greeting.tsx".to_string(),
-                line_ranges: vec![DecisionLineRange { start: 1, end: 49 }],
-                reasoning: "React component refactoring".to_string(),
-            }],
-        },
-        Decision {
-            number: 3,
-            title: "Documentation improvements".to_string(),
-            rationale: Some("Update README with new examples".to_string()),
-            code_impacts: vec![],
-        },
-    ];
-
-    review_engine_builder
-        .build_from_decisions(decisions, diff_query)
-        .expect("Failed to build ReviewEngine")
-}
+use diffviz_review_tui::test_harness::{CombinedTestHarness, InputTestHarness, StateSnapshot};
 
 // =============================================================================
-// Navigation Tests
+// Browse rendering
 // =============================================================================
 
 #[test]
-fn test_navigation_down_moves_cursor() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
+fn test_browse_renders_decision_cards() {
+    let mut harness = CombinedTestHarness::with_render_size(create_drillnav_engine(), 120, 40);
 
-    let snapshots = harness.run_sequence("j").expect("Run sequence");
+    let results = harness.run_sequence_with_renders("").expect("Render");
+    let visual = &results[0].visual;
 
-    // Should have initial state + 1 event = 2 snapshots
-    assert_eq!(snapshots.len(), 2);
-    // Navigation should have moved through decision tree
-    assert_eq!(snapshots[0].decision_tree_path.0, 0);
-    assert_eq!(snapshots[1].decision_tree_path.0, 1);
+    assert!(visual.contains("#1 Refactor calculator model module"));
+    assert!(visual.contains("#2 Improve error handling in network client"));
+    assert!(visual.contains("#3 Add structured logging throughout application"));
+    // Card metadata comes from the drill index: files and chunk progress
+    assert!(visual.contains("2 files · 0/9 chunks approved"));
+    assert!(visual.contains("1 file · 0/1 chunks approved"));
+    // File preview rows at Body tier
+    assert!(visual.contains("~ src/config/reader.rs"));
+    assert!(visual.contains("~ src/models/calculator.rs"));
 }
 
 #[test]
-fn test_navigation_up_moves_cursor_backward() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
+fn test_browse_status_bar_advertises_drill_in_and_approval_progress() {
+    let mut harness = CombinedTestHarness::with_render_size(create_drillnav_engine(), 120, 40);
 
-    // Move down twice, then up once
-    let snapshots = harness.run_sequence("jjk").expect("Run sequence");
+    let results = harness.run_sequence_with_renders("").expect("Render");
+    let visual = &results[0].visual;
 
-    // Should have 4 snapshots: initial + 3 events
-    assert_eq!(snapshots.len(), 4);
-    // Verify we went down then back up
-    assert_eq!(snapshots[0].decision_tree_path.0, 0);
-    assert_eq!(snapshots[1].decision_tree_path.0, 1);
-    assert_eq!(snapshots[2].decision_tree_path.0, 2);
-    assert_eq!(snapshots[3].decision_tree_path.0, 1);
-}
-
-#[test]
-fn test_navigation_multiple_down() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    let snapshots = harness.run_sequence("jj").expect("Run sequence");
-
-    // Should navigate down 2 times (3 decisions total, so indices 0, 1, 2)
-    assert_eq!(snapshots.len(), 3); // initial + 2 events
-    assert_eq!(snapshots[0].decision_tree_path.0, 0);
-    assert_eq!(snapshots[1].decision_tree_path.0, 1);
-    assert_eq!(snapshots[2].decision_tree_path.0, 2);
+    assert!(visual.contains("Enter drill in"));
+    assert!(visual.contains("a approve (0/3)"));
+    assert!(visual.contains("n note"));
 }
 
 // =============================================================================
-// Focus Tests
+// Drill-in / back rendering
 // =============================================================================
 
 #[test]
-fn test_toggle_focus_switches_panels() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
+fn test_enter_renders_drill_view_and_esc_returns_to_browse() {
+    let mut harness = CombinedTestHarness::with_render_size(create_drillnav_engine(), 120, 40);
 
-    // Use <Right> and <Left> to switch focus between panels
-    let snapshots = harness.run_sequence("<Right><Left>").expect("Run sequence");
+    let results = harness
+        .run_sequence_with_renders("<Enter><Esc>")
+        .expect("Run sequence");
 
-    // Initial should be FileList
-    assert_eq!(snapshots[0].focused_panel, "FileList");
-    // After Right should switch to DiffView
-    assert_eq!(snapshots[1].focused_panel, "DiffView");
-    // After Left should switch back to FileList
-    assert_eq!(snapshots[2].focused_panel, "FileList");
+    // Drilled in: pinned header shows the file and its impact reasoning
+    let drill_visual = &results[1].visual;
+    assert!(drill_visual.contains("~ src/config/reader.rs"));
+    assert!(drill_visual.contains("Configuration reader updates"));
+    // Browse card labels are gone from the drill view
+    assert!(!drill_visual.contains("#1 Refactor calculator model module"));
+
+    // Esc restores the browse cards
+    let browse_visual = &results[2].visual;
+    assert!(browse_visual.contains("#1 Refactor calculator model module"));
 }
 
 #[test]
-fn test_left_right_navigation_switches_focus() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
+fn test_drill_status_bar_is_contextual_for_multi_file_decision() {
+    let mut harness = CombinedTestHarness::with_render_size(create_drillnav_engine(), 120, 40);
 
-    let snapshots = harness.run_sequence("<Right><Left>").expect("Run sequence");
+    let results = harness
+        .run_sequence_with_renders("<Enter>")
+        .expect("Run sequence");
+    let visual = &results[1].visual;
 
-    // Initial should be FileList
-    assert_eq!(snapshots[0].focused_panel, "FileList");
-    // After Right should switch to DiffView
-    assert_eq!(snapshots[1].focused_panel, "DiffView");
-    // After Left should switch back to FileList
-    assert_eq!(snapshots[2].focused_panel, "FileList");
+    assert!(visual.contains("file 1/2"));
+    assert!(visual.contains("h/l files"));
+    assert!(visual.contains("j/k chunks"));
+    assert!(visual.contains("Tab expand ctx"));
+    assert!(visual.contains("Esc back"));
+    // reader.rs has 2 chunks, none approved
+    assert!(visual.contains("a approve (0/2)"));
+}
+
+#[test]
+fn test_drill_status_bar_omits_file_cycling_for_single_file_decision() {
+    let mut harness = CombinedTestHarness::with_render_size(create_drillnav_engine(), 120, 40);
+
+    // Decision idx 1 has a single file: no h/l hint, no dot pagination
+    let results = harness
+        .run_sequence_with_renders("j<Enter>")
+        .expect("Run sequence");
+    let visual = &results[2].visual;
+
+    assert!(!visual.contains("h/l files"));
+    assert!(!visual.contains("●"));
+    assert!(visual.contains("~ src/network/client.rs"));
 }
 
 // =============================================================================
-// Display/Context Tests
+// Note rendering (n to append, i to expand)
+// =============================================================================
+
+const LONG_NOTE: &str = "this note is long enough that the collapsed single row \
+                         cannot hold it and the renderer must truncate it";
+
+#[test]
+fn test_note_renders_truncated_and_i_expands_it() {
+    let mut harness = CombinedTestHarness::with_render_size(create_drillnav_engine(), 120, 40);
+
+    let sequence = format!("<Enter>n{LONG_NOTE}<Enter>");
+    let results = harness
+        .run_sequence_with_renders(&sequence)
+        .expect("Run sequence");
+    let collapsed = &results.last().expect("results").visual;
+
+    // Collapsed: one row, author-prefixed, ellipsis marks the truncation
+    assert!(collapsed.contains("test-user: this note is long enough"));
+    assert!(collapsed.contains("…"));
+    assert!(!collapsed.contains("truncate it"));
+
+    // i expands the note to its full wrapped rows
+    let results = harness.run_sequence_with_renders("i").expect("Expand note");
+    let expanded = &results.last().expect("results").visual;
+    assert!(expanded.contains("truncate it"));
+    assert!(!expanded.contains("…"));
+}
+
+// =============================================================================
+// Render sizes
 // =============================================================================
 
 #[test]
-fn test_toggle_context_display() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    let initial = harness.run_sequence_final_state("").expect("Initial");
-    // show_all_context should start as true
-    assert!(initial.show_all_context);
-
-    // Test that state is captured correctly between calls
-    let initial2 = harness.run_sequence_final_state("").expect("Initial again");
-    assert_eq!(initial2.show_all_context, initial.show_all_context);
+fn test_renders_at_small_and_large_terminal_sizes() {
+    for (w, h) in [(80, 24), (200, 60)] {
+        let mut harness = CombinedTestHarness::with_render_size(create_drillnav_engine(), w, h);
+        let results = harness
+            .run_sequence_with_renders("<Enter>jl<Esc>")
+            .expect("Run sequence");
+        for result in &results {
+            assert!(!result.visual.is_empty(), "empty visual at {w}x{h}");
+        }
+    }
 }
 
 // =============================================================================
-// Quit Test
+// Key table robustness
 // =============================================================================
 
 #[test]
 fn test_quit_key() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
+    let mut harness = InputTestHarness::new(create_drillnav_engine());
 
     let initial = harness.run_sequence_final_state("").expect("Initial");
     assert!(!initial.should_quit);
@@ -177,202 +169,46 @@ fn test_quit_key() {
     assert!(after_quit.should_quit);
 }
 
-// =============================================================================
-// Rendering Tests
-// =============================================================================
-
 #[test]
-fn test_render_initial_state() {
-    let engine = create_test_engine();
-    let mut ui_state = diffviz_review_tui::state::UiState::new();
-    ui_state.decision_tree =
-        diffviz_review_tui::decision_navigation::DecisionNavigationTree::build_from_review_engine(
-            &engine,
-        );
+fn test_special_keys_do_not_error() {
+    let mut harness = InputTestHarness::new(create_drillnav_engine());
 
-    let harness = RenderTestHarness::new();
-    let visual = harness
-        .render(&mut ui_state, &engine)
-        .expect("Render failed");
-
-    // Visual output should contain expected UI elements
-    assert!(visual.contains("Decisions"));
-    assert!(visual.contains("Decision Details"));
-    assert!(!visual.is_empty());
-}
-
-#[test]
-fn test_render_custom_size() {
-    let engine = create_test_engine();
-    let mut ui_state = diffviz_review_tui::state::UiState::new();
-    ui_state.decision_tree =
-        diffviz_review_tui::decision_navigation::DecisionNavigationTree::build_from_review_engine(
-            &engine,
-        );
-
-    let harness = RenderTestHarness::with_size(120, 40);
-    let visual = harness
-        .render(&mut ui_state, &engine)
-        .expect("Render failed");
-
-    // Should render without errors
-    assert!(!visual.is_empty());
-}
-
-// =============================================================================
-// Combined Integration Tests
-// =============================================================================
-
-#[test]
-fn test_combined_navigation_and_render() {
-    let engine = create_test_engine();
-    let mut harness = CombinedTestHarness::new(engine);
-
-    let results = harness
-        .run_sequence_with_renders("jj")
-        .expect("Combined test failed");
-
-    // Should have initial state + 2 key events = 3 results
-    assert_eq!(results.len(), 3);
-
-    // Each result should have both state and visual
-    for result in results {
-        assert!(!result.visual.is_empty());
-        assert!(!result.state.focused_panel.is_empty());
+    for key in ["<Space>", "<Enter>", "<Esc>", "<Tab>", "<Up>", "<Down>"] {
+        harness
+            .run_sequence_final_state(key)
+            .unwrap_or_else(|e| panic!("{key} errored: {e}"));
     }
 }
 
 #[test]
-fn test_combined_with_custom_render_size() {
-    let engine = create_test_engine();
-    let mut harness = CombinedTestHarness::with_render_size(engine, 100, 30);
+fn test_modifier_keys_do_not_error() {
+    let mut harness = InputTestHarness::new(create_drillnav_engine());
 
-    let results = harness
-        .run_sequence_with_renders("j")
-        .expect("Combined test with custom size failed");
-
-    assert_eq!(results.len(), 2); // initial + 1 key event
-    assert!(!results[0].visual.is_empty());
-    assert!(!results[1].visual.is_empty());
+    for key in ["<C-d>", "<C-u>", "<S-G>", "<A-x>"] {
+        harness
+            .run_sequence_final_state(key)
+            .unwrap_or_else(|e| panic!("{key} errored: {e}"));
+    }
 }
 
 // =============================================================================
-// State Snapshot Tests
+// Snapshot v2 round-trip
 // =============================================================================
 
 #[test]
-fn test_snapshot_serialization_roundtrip() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    let snapshot1 = harness
-        .run_sequence_final_state("jj")
-        .expect("First sequence");
-    let json = snapshot1.to_json().expect("Serialize failed");
-    let snapshot2 = StateSnapshot::from_json(&json).expect("Deserialize failed");
-
-    // Should match after roundtrip
-    assert_eq!(snapshot1.focused_panel, snapshot2.focused_panel);
-    assert_eq!(snapshot1.cursor_index, snapshot2.cursor_index);
-    assert_eq!(snapshot1.should_quit, snapshot2.should_quit);
-}
-
-#[test]
-fn test_snapshot_captures_all_fields() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
+fn test_snapshot_roundtrip_preserves_drillnav_fields() {
+    let mut harness = InputTestHarness::new(create_drillnav_engine());
 
     let snapshot = harness
-        .run_sequence_final_state("")
-        .expect("Snapshot failed");
+        .run_sequence_final_state("<Enter>jl")
+        .expect("Run sequence");
+    let json = snapshot.to_json().expect("Serialize");
+    let restored = StateSnapshot::from_json(&json).expect("Deserialize");
 
-    // Verify all expected fields are present and non-empty/default
-    assert!(!snapshot.focused_panel.is_empty());
-    assert!(!snapshot.input_mode.is_empty());
-    assert!(!snapshot.should_quit);
-    assert!(!snapshot.leader_active);
-}
-
-// =============================================================================
-// Special Key Tests
-// =============================================================================
-
-#[test]
-fn test_special_keys_work() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    // Test various special keys don't cause errors
-    let _space = harness
-        .run_sequence_final_state("<Space>")
-        .expect("Space key");
-    let _enter = harness
-        .run_sequence_final_state("<Enter>")
-        .expect("Enter key");
-    let _esc = harness.run_sequence_final_state("<Esc>").expect("Esc key");
-    let _tab = harness.run_sequence_final_state("<Tab>").expect("Tab key");
-
-    // Test arrow keys
-    let _up = harness.run_sequence_final_state("<Up>").expect("Up key");
-    let _down = harness
-        .run_sequence_final_state("<Down>")
-        .expect("Down key");
-}
-
-#[test]
-fn test_modifier_keys_work() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    // Test modifier combinations don't cause errors
-    let _ctrl_j = harness
-        .run_sequence_final_state("<C-j>")
-        .expect("Ctrl+j key");
-    let _shift_q = harness
-        .run_sequence_final_state("<S-q>")
-        .expect("Shift+q key");
-    let _alt_x = harness
-        .run_sequence_final_state("<A-x>")
-        .expect("Alt+x key");
-}
-
-// =============================================================================
-// Approval System Tests
-// =============================================================================
-
-#[test]
-fn test_file_approval_event_conversion() {
-    // Test that when at file level (depth 1), ToggleApprove converts to ApproveFile event
-    // This is the regression test for the bug where file-level approval was silently failing
-
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    // Expand decision (Enter) and navigate to file (j)
-    let snapshots = harness.run_sequence("<Enter>j").expect("Run sequence");
-
-    // Verify we're at file level (depth 1)
-    assert!(
-        snapshots[snapshots.len() - 1]
-            .decision_tree_path
-            .1
-            .is_some(),
-        "Should be at chunk depth (depth 1)"
-    );
-
-    // The key test: pressing Space+a+a at chunk level should invoke approval
-    // Previously this would silently fail because current_reviewable_id() returned None
-    // Now it should call ApproveFile because current_file_path() is available
-
-    // Verify leader is deactivated after approval (showing the action succeeded)
-    let results_after_approval = harness
-        .run_sequence("<Space>aa")
-        .expect("Approval sequence failed");
-
-    // After Space+a+a, leader should be deactivated
-    let final_state = &results_after_approval[results_after_approval.len() - 1];
-    assert!(
-        !final_state.leader_active,
-        "Leader should be deactivated after approval"
-    );
+    assert_eq!(restored.nav_mode, "Drill");
+    assert_eq!(restored.drill_decision, snapshot.drill_decision);
+    assert_eq!(restored.drill_file, snapshot.drill_file);
+    assert_eq!(restored.drill_chunk, snapshot.drill_chunk);
+    assert_eq!(restored.browse_cursor, None);
+    assert_eq!(restored.should_quit, snapshot.should_quit);
 }

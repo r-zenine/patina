@@ -552,6 +552,26 @@ impl UiState {
         self.current_file_view().map(|v| v.page_offset)
     }
 
+    /// Whether the given chunk in the focused file has expanded code context.
+    /// False while browsing (the drill view only asks when drilled in).
+    pub fn drill_chunk_expanded(&self, chunk: usize) -> bool {
+        self.current_file_view()
+            .is_some_and(|v| v.expanded.contains(&chunk))
+    }
+
+    /// Whether the given chunk in the focused file has its note expanded.
+    /// False while browsing (the drill view only asks when drilled in).
+    pub fn drill_chunk_note_expanded(&self, chunk: usize) -> bool {
+        self.current_file_view()
+            .is_some_and(|v| v.expanded_notes.contains(&chunk))
+    }
+
+    /// Read-only view of the precomputed decision→files→chunks index (D6),
+    /// for views needing file/chunk metadata.
+    pub(crate) fn drill_index(&self) -> &DrillIndex {
+        &self.drill_index
+    }
+
     /// One-shot status-bar error message, if any.
     pub fn status_message(&self) -> Option<&str> {
         self.status_message.as_deref()

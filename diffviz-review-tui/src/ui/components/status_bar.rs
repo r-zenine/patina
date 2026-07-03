@@ -1,15 +1,22 @@
-//! Status bar component showing keybindings and current state
+//! Status bar component showing contextual DrillNav keybinding hints.
+//!
+//! A one-shot error `status_message` (D7) preempts the hints in red until
+//! the next keypress. Hints are contextual per mode (prototype format):
+//! Browse advertises drill-in and decision approval progress; Drill
+//! advertises h/l only with multiple sibling files, the note toggle only
+//! when the focused chunk has a note, and per-file chunk approval progress.
 
 use ratatui::{
     Frame,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::Rect,
     style::Modifier,
     text::{Line, Span},
     widgets::Paragraph,
 };
 use tui_design::{Theme, stylesheet};
 
-use crate::state::{FocusPanel, InputMode, UiState};
+use super::drillnav_common::note_for;
+use crate::state::{InputMode, UiState};
 use diffviz_review::engines::ReviewEngine;
 
 /// Render the status bar
@@ -41,24 +48,74 @@ fn render_navigation_status(
     review_engine: &ReviewEngine,
     theme: &Theme,
 ) {
-    let chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([Constraint::Min(20), Constraint::Length(60)])
-        .split(area);
-
-    let state_info = create_state_info(ui_state, review_engine, theme);
-    let bar_style = stylesheet::status_bar(theme).patch(stylesheet::terminal_floor(theme));
-    let state_paragraph = Paragraph::new(state_info).style(bar_style);
-    f.render_widget(state_paragraph, chunks[0]);
-
-    let keybindings = match ui_state.focused_panel {
-        FocusPanel::FileList => create_file_list_keybindings(theme),
-        FocusPanel::DiffView => create_diff_view_keybindings(theme),
+    // An error message preempts the keybinding hints until the next keypress.
+    let (status, status_style) = if let Some(msg) = ui_state.status_message() {
+        (
+            msg.to_string(),
+            stylesheet::error(theme).patch(stylesheet::terminal_floor(theme)),
+        )
+    } else {
+        let hints = if ui_state.browse_cursor().is_some() {
+            browse_hints(review_engine)
+        } else {
+            drill_hints(ui_state, review_engine)
+        };
+        (
+            hints,
+            stylesheet::status_bar(theme).patch(stylesheet::terminal_floor(theme)),
+        )
     };
-    let keys_paragraph = Paragraph::new(keybindings)
-        .style(bar_style)
-        .alignment(ratatui::layout::Alignment::Right);
-    f.render_widget(keys_paragraph, chunks[1]);
+    f.render_widget(Paragraph::new(status).style(status_style), area);
+}
+
+fn browse_hints(review_engine: &ReviewEngine) -> String {
+    let approved = review_engine.get_approved_decisions_count();
+    let total = review_engine.get_all_decisions().len();
+    format!(
+        "j/k navigate    Enter drill in    n note    a approve ({approved}/{total})    ? help    q quit",
+    )
+}
+
+fn drill_hints(ui_state: &UiState, review_engine: &ReviewEngine) -> String {
+    let (decision_idx, file_idx, cursor) = ui_state
+        .drill_position()
+        .expect("drill hints requested outside Drill mode");
+    let files = &ui_state.drill_index().decisions[decision_idx].files;
+    let chunk_ids = &files[file_idx].chunks;
+
+    let total_files = files.len();
+    let total_chunks = chunk_ids.len();
+    let approved_count = chunk_ids
+        .iter()
+        .filter(|id| review_engine.state().is_approved(id))
+        .count();
+
+    let ctx_label = if ui_state.drill_context_expanded() == Some(true) {
+        "collapse ctx"
+    } else {
+        "expand ctx"
+    };
+    // Only advertise h/l when there is more than one file to cycle.
+    let files_hint = if total_files > 1 {
+        format!("file {}/{}    h/l files    ", file_idx + 1, total_files)
+    } else {
+        String::new()
+    };
+    // Only advertise the note toggle when the focused chunk has one.
+    let note_hint = chunk_ids
+        .get(cursor)
+        .and_then(|id| note_for(review_engine, id))
+        .map(|_| {
+            if ui_state.drill_note_expanded() == Some(true) {
+                "i collapse note    "
+            } else {
+                "i expand note    "
+            }
+        })
+        .unwrap_or("");
+    format!(
+        "{files_hint}j/k chunks    Tab {ctx_label}    {note_hint}n note    a approve ({approved_count}/{total_chunks})    Esc back    q quit",
+    )
 }
 
 fn render_input_status(f: &mut Frame, area: Rect, mode_name: &str, help_text: &str, theme: &Theme) {
@@ -73,69 +130,4 @@ fn render_input_status(f: &mut Frame, area: Rect, mode_name: &str, help_text: &s
     let paragraph = Paragraph::new(status_line)
         .style(stylesheet::status_bar(theme).patch(stylesheet::terminal_floor(theme)));
     f.render_widget(paragraph, area);
-}
-
-fn create_state_info(
-    _ui_state: &UiState,
-    review_engine: &ReviewEngine,
-    theme: &Theme,
-) -> Line<'static> {
-    let mut spans = Vec::new();
-
-    let total_decisions = review_engine.get_all_decisions().len();
-    let approved_decisions = review_engine.get_approved_decisions_count();
-
-    spans.push(Span::styled(
-        format!("Decision: {approved_decisions}/{total_decisions}"),
-        if total_decisions == approved_decisions {
-            stylesheet::success(theme)
-        } else {
-            stylesheet::body(theme)
-        },
-    ));
-
-    let total_reviewables = review_engine.get_ordered_reviewable_ids().len();
-    let total_approved = review_engine
-        .get_ordered_reviewable_ids()
-        .iter()
-        .filter(|id| review_engine.state().is_approved(id))
-        .count();
-
-    spans.push(Span::styled(" | ", stylesheet::muted(theme)));
-    spans.push(Span::styled(
-        format!("Overall: {total_approved}/{total_reviewables}"),
-        if total_approved == total_reviewables {
-            stylesheet::success(theme)
-        } else {
-            stylesheet::body(theme)
-        },
-    ));
-
-    Line::from(spans)
-}
-
-fn create_file_list_keybindings(theme: &Theme) -> Line<'static> {
-    Line::from(vec![
-        Span::styled("j/k", stylesheet::keybind_key(theme)),
-        Span::styled(" nav  ", stylesheet::keybind_desc(theme)),
-        Span::styled("Space", stylesheet::keybind_key(theme)),
-        Span::styled(" leader  ", stylesheet::keybind_desc(theme)),
-        Span::styled("?", stylesheet::keybind_key(theme)),
-        Span::styled(" help  ", stylesheet::keybind_desc(theme)),
-        Span::styled("q", stylesheet::keybind_key(theme)),
-        Span::styled(" quit", stylesheet::keybind_desc(theme)),
-    ])
-}
-
-fn create_diff_view_keybindings(theme: &Theme) -> Line<'static> {
-    Line::from(vec![
-        Span::styled("j/k", stylesheet::keybind_key(theme)),
-        Span::styled(" nav  ", stylesheet::keybind_desc(theme)),
-        Span::styled("v", stylesheet::keybind_key(theme)),
-        Span::styled(" visual  ", stylesheet::keybind_desc(theme)),
-        Span::styled("Space", stylesheet::keybind_key(theme)),
-        Span::styled(" leader  ", stylesheet::keybind_desc(theme)),
-        Span::styled("?", stylesheet::keybind_key(theme)),
-        Span::styled(" help", stylesheet::keybind_desc(theme)),
-    ])
 }

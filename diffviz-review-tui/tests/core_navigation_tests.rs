@@ -1,427 +1,177 @@
-//! Phase 1: Core Navigation Steel Thread
+//! Core navigation visuals for DrillNav (plan-drillnav-main-tui Phase 2).
 //!
-//! Tests basic navigation functionality using j/k/arrows/gg/G keybindings.
-//! This is the foundation for all other TUI tests - validating that cursor
-//! movement through the decision tree works correctly.
-//!
-//! Test Organization:
-//! - Single key navigation (j, k, arrows)
-//! - Multi-key sequences (jjj, kkk, jjkk)
-//! - Boundary navigation (top, bottom, wraparound)
-//! - Jump navigation (gg, G)
-//!
-//! All tests use InputTestHarness for fast state validation without rendering.
+//! The drillnav_navigation_tests suite owns the state-machine contract
+//! (cursor bounds, wraparound, per-file retention). This suite validates the
+//! *rendered* navigation feedback: the accent bar follows the browse cursor,
+//! dot pagination tracks h/l cycling, the pinned header swaps per file,
+//! scroll_into_view keeps the focused card visible, and Ctrl-d/u actually
+//! move the drill viewport.
 
-// DISABLED (plan-drillnav-main-tui Phase 1): this suite encodes the old
-// two-panel navigation model that DrillNav replaced; the key table and
-// target resolution it drives no longer exist. Phase 2 rewrites this file
-// against DrillNav.
-#![cfg(any())]
+#![cfg(feature = "test-harness")]
 
-use diffviz_review::providers::mock_provider::MockDiffProvider;
-use diffviz_review::{
-    CodeImpact, Decision, DecisionLineRange, DiffQuery, GitRef, ReviewDecisions,
-    ReviewEngineBuilder,
-};
-use diffviz_review_tui::test_harness::InputTestHarness;
+mod drillnav_common;
 
-// =============================================================================
-// Test Setup
-// =============================================================================
+use drillnav_common::create_drillnav_engine;
 
-/// Create a test ReviewEngine with 3 decisions for navigation testing
-fn create_test_engine() -> diffviz_review::engines::ReviewEngine {
-    let mock_provider =
-        MockDiffProvider::from_review_fixtures().expect("Failed to load test fixtures");
-    let review_engine_builder =
-        ReviewEngineBuilder::new(Box::new(mock_provider), "test-user".to_string());
-    let diff_query = DiffQuery::new(GitRef::Head, GitRef::Unstaged);
-    let mut review_engine = review_engine_builder
-        .build_from_decisions(vec![], diff_query)
-        .expect("Failed to build ReviewEngine");
+use diffviz_review_tui::test_harness::CombinedTestHarness;
 
-    // Set up 3 test decisions for consistent navigation testing
-    let mut decisions = ReviewDecisions::new();
+/// The rendered row containing `needle`, if any.
+fn line_with<'a>(visual: &'a str, needle: &str) -> Option<&'a str> {
+    visual.lines().find(|l| l.contains(needle))
+}
 
-    decisions.add_decision(Decision {
-        number: 1,
-        title: "Decision 1: Navigation Test".to_string(),
-        rationale: Some("First decision for testing navigation".to_string()),
-        code_impacts: vec![CodeImpact {
-            file: "src/lib.rs".to_string(),
-            line_ranges: vec![DecisionLineRange { start: 1, end: 10 }],
-            reasoning: "Test impact".to_string(),
-        }],
-    });
-
-    decisions.add_decision(Decision {
-        number: 2,
-        title: "Decision 2: Navigation Test".to_string(),
-        rationale: Some("Second decision for testing navigation".to_string()),
-        code_impacts: vec![CodeImpact {
-            file: "src/lib.rs".to_string(),
-            line_ranges: vec![DecisionLineRange { start: 11, end: 20 }],
-            reasoning: "Test impact".to_string(),
-        }],
-    });
-
-    decisions.add_decision(Decision {
-        number: 3,
-        title: "Decision 3: Navigation Test".to_string(),
-        rationale: Some("Third decision for testing navigation".to_string()),
-        code_impacts: vec![CodeImpact {
-            file: "src/lib.rs".to_string(),
-            line_ranges: vec![DecisionLineRange { start: 21, end: 30 }],
-            reasoning: "Test impact".to_string(),
-        }],
-    });
-
-    review_engine.set_decisions_with_index(decisions);
-    review_engine
+/// Whether the card row containing `needle` carries the focus accent bar.
+fn is_focused(visual: &str, needle: &str) -> bool {
+    line_with(visual, needle)
+        .unwrap_or_else(|| panic!("no rendered line contains {needle:?}"))
+        .starts_with('▌')
 }
 
 // =============================================================================
-// Single Key Navigation Tests
+// Browse: accent bar follows the cursor
 // =============================================================================
 
 #[test]
-fn test_navigation_j_moves_down_one_position() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
+fn test_accent_bar_starts_on_first_decision_card() {
+    let mut harness = CombinedTestHarness::with_render_size(create_drillnav_engine(), 120, 40);
 
-    let snapshots = harness.run_sequence("j").expect("Run sequence");
+    let results = harness.run_sequence_with_renders("").expect("Render");
+    let visual = &results[0].visual;
 
-    // Should have initial state + 1 event = 2 snapshots
-    assert_eq!(snapshots.len(), 2);
-    assert_eq!(
-        snapshots[0].decision_tree_path.0, 0,
-        "Initial position at 0"
-    );
-    assert_eq!(
-        snapshots[1].decision_tree_path.0, 1,
-        "After 'j', position at 1"
-    );
+    assert!(is_focused(visual, "#1 Refactor calculator model module"));
+    assert!(!is_focused(visual, "#2 Improve error handling"));
+    assert!(!is_focused(visual, "#3 Add structured logging"));
 }
 
 #[test]
-fn test_navigation_k_moves_up_one_position() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
+fn test_accent_bar_follows_j_and_k() {
+    let mut harness = CombinedTestHarness::with_render_size(create_drillnav_engine(), 120, 40);
 
-    // Start at position 1, then move up
-    let snapshots = harness.run_sequence("jk").expect("Run sequence");
+    let results = harness.run_sequence_with_renders("jk").expect("Run");
 
-    assert_eq!(snapshots.len(), 3, "Initial + 2 events");
-    assert_eq!(snapshots[0].decision_tree_path.0, 0, "Start at 0");
-    assert_eq!(snapshots[1].decision_tree_path.0, 1, "After 'j' at 1");
-    assert_eq!(snapshots[2].decision_tree_path.0, 0, "After 'k' back at 0");
+    let after_j = &results[1].visual;
+    assert!(!is_focused(after_j, "#1 Refactor calculator model module"));
+    assert!(is_focused(after_j, "#2 Improve error handling"));
+
+    let after_k = &results[2].visual;
+    assert!(is_focused(after_k, "#1 Refactor calculator model module"));
+    assert!(!is_focused(after_k, "#2 Improve error handling"));
 }
 
 #[test]
-fn test_navigation_down_arrow_moves_down() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
+fn test_browse_scrolls_focused_card_into_view_on_small_terminal() {
+    // 10 rows can't fit all three cards; jumping to the last decision must
+    // scroll its card into the viewport.
+    let mut harness = CombinedTestHarness::with_render_size(create_drillnav_engine(), 120, 10);
 
-    let snapshots = harness.run_sequence("<Down>").expect("Run sequence");
+    let results = harness.run_sequence_with_renders("<S-G>").expect("Run");
 
-    assert_eq!(snapshots.len(), 2);
-    assert_eq!(snapshots[0].decision_tree_path.0, 0);
-    assert_eq!(
-        snapshots[1].decision_tree_path.0, 1,
-        "Arrow down moves cursor"
-    );
-}
+    let initial = &results[0].visual;
+    assert!(initial.contains("#1 Refactor calculator model module"));
+    assert!(!initial.contains("#3 Add structured logging"));
 
-#[test]
-fn test_navigation_up_arrow_moves_up() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    let snapshots = harness.run_sequence("j<Up>").expect("Run sequence");
-
-    assert_eq!(snapshots.len(), 3);
-    assert_eq!(
-        snapshots[2].decision_tree_path.0, 0,
-        "Arrow up moves cursor"
-    );
+    let at_bottom = &results[1].visual;
+    assert!(at_bottom.contains("#3 Add structured logging"));
+    assert!(is_focused(at_bottom, "#3 Add structured logging"));
 }
 
 // =============================================================================
-// Multi-Key Sequence Tests
+// Drill: pinned header and dot pagination track h/l
 // =============================================================================
 
 #[test]
-fn test_navigation_multiple_j_moves_down_multiple_positions() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
+fn test_dot_pagination_tracks_file_cycling() {
+    let mut harness = CombinedTestHarness::with_render_size(create_drillnav_engine(), 120, 40);
 
-    let snapshots = harness.run_sequence("jjj").expect("Run sequence");
+    let results = harness.run_sequence_with_renders("<Enter>lh").expect("Run");
 
-    // Should have initial + 3 events = 4 snapshots
-    assert_eq!(snapshots.len(), 4);
-    assert_eq!(snapshots[0].decision_tree_path.0, 0);
-    assert_eq!(snapshots[1].decision_tree_path.0, 1);
-    assert_eq!(snapshots[2].decision_tree_path.0, 2);
-    // With 3 decisions collapsed, max position is 2 (indices 0, 1, 2)
-    assert_eq!(
-        snapshots[3].decision_tree_path.0, 2,
-        "After 'jjj' at bottom (position 2)"
-    );
+    // File 0 of 2 focused: active dot first
+    assert!(results[1].visual.contains("● ○"));
+    // l → file 1: active dot second
+    assert!(results[2].visual.contains("○ ●"));
+    // h → back to file 0
+    assert!(results[3].visual.contains("● ○"));
 }
 
 #[test]
-fn test_navigation_multiple_k_moves_up_multiple_positions() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
+fn test_pinned_header_swaps_with_sibling_file() {
+    let mut harness = CombinedTestHarness::with_render_size(create_drillnav_engine(), 120, 40);
 
-    // Move down 3, then up 2
-    let snapshots = harness.run_sequence("jjjkk").expect("Run sequence");
+    let results = harness.run_sequence_with_renders("<Enter>l").expect("Run");
 
-    assert_eq!(snapshots.len(), 6);
-    assert_eq!(
-        snapshots[3].decision_tree_path.0, 2,
-        "After 'jjj' at bottom (position 2)"
-    );
-    assert_eq!(snapshots[4].decision_tree_path.0, 1, "After first 'k'");
-    assert_eq!(snapshots[5].decision_tree_path.0, 0, "After second 'k'");
+    let file0 = &results[1].visual;
+    assert!(file0.contains("~ src/config/reader.rs"));
+    assert!(file0.contains("Configuration reader updates"));
+
+    let file1 = &results[2].visual;
+    assert!(file1.contains("~ src/models/calculator.rs"));
+    assert!(file1.contains("Calculator model structure refactoring"));
+    assert!(!file1.contains("~ src/config/reader.rs"));
 }
 
 #[test]
-fn test_navigation_mixed_sequence_j_and_k() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
+fn test_h_from_first_file_wraps_to_last_sibling() {
+    let mut harness = CombinedTestHarness::with_render_size(create_drillnav_engine(), 120, 40);
 
-    let snapshots = harness.run_sequence("jjkj").expect("Run sequence");
+    // Decision idx 2 has 3 files; h from file 0 wraps to file 2.
+    let results = harness
+        .run_sequence_with_renders("jj<Enter>h")
+        .expect("Run");
+    let visual = &results.last().expect("results").visual;
 
-    assert_eq!(snapshots.len(), 5);
-    assert_eq!(snapshots[0].decision_tree_path.0, 0);
-    assert_eq!(snapshots[1].decision_tree_path.0, 1);
-    assert_eq!(snapshots[2].decision_tree_path.0, 2);
-    assert_eq!(snapshots[3].decision_tree_path.0, 1, "After 'k' back to 1");
-    assert_eq!(snapshots[4].decision_tree_path.0, 2, "After 'j' to 2");
+    assert!(visual.contains("○ ○ ●"));
+    // File index 2 in lexicographic order: src/types/api.ts
+    assert!(visual.contains("~ src/types/api.ts"));
 }
 
 #[test]
-fn test_navigation_mixed_arrows_and_vim_keys() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
+fn test_drill_renders_chunk_separators_for_multi_chunk_file() {
+    let mut harness = CombinedTestHarness::with_render_size(create_drillnav_engine(), 120, 40);
 
-    let snapshots = harness.run_sequence("j<Down>k<Up>").expect("Run sequence");
+    let results = harness.run_sequence_with_renders("<Enter>").expect("Run");
 
-    assert_eq!(snapshots.len(), 5);
-    assert_eq!(snapshots[0].decision_tree_path.0, 0);
-    assert_eq!(snapshots[1].decision_tree_path.0, 1, "After 'j'");
-    assert_eq!(snapshots[2].decision_tree_path.0, 2, "After '<Down>'");
-    assert_eq!(snapshots[3].decision_tree_path.0, 1, "After 'k'");
-    assert_eq!(snapshots[4].decision_tree_path.0, 0, "After '<Up>'");
+    // reader.rs has 2 chunks → exactly one ··· separator row between cards
+    let visual = &results[1].visual;
+    let separators = visual.lines().filter(|l| l.trim() == "···").count();
+    assert_eq!(separators, 1);
 }
 
 // =============================================================================
-// Boundary Navigation Tests
+// Drill: viewport paging (Ctrl-d/u)
 // =============================================================================
 
 #[test]
-fn test_navigation_k_at_top_stays_at_top() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
+fn test_ctrl_d_moves_drill_viewport_and_ctrl_u_restores_it() {
+    // calculator.rs (7 chunk cards) overflows a 24-row viewport.
+    let mut harness = CombinedTestHarness::with_render_size(create_drillnav_engine(), 120, 24);
 
-    // Try to move up from initial position (should stay at 0)
-    let snapshots = harness.run_sequence("k").expect("Run sequence");
+    let results = harness
+        .run_sequence_with_renders("<Enter>l<C-d><C-u>")
+        .expect("Run");
 
-    assert_eq!(snapshots.len(), 2);
-    assert_eq!(snapshots[0].decision_tree_path.0, 0, "Start at top");
-    assert_eq!(
-        snapshots[1].decision_tree_path.0, 0,
-        "Stay at top after 'k'"
+    let unpaged = &results[2].visual;
+    let paged = &results[3].visual;
+    let restored = &results[4].visual;
+
+    assert_ne!(
+        unpaged, paged,
+        "Ctrl-d should scroll the drill viewport content"
     );
+    assert_eq!(unpaged, restored, "Ctrl-u should page back to the top");
+    // The pinned header must survive paging
+    assert!(paged.contains("~ src/models/calculator.rs"));
 }
 
 #[test]
-fn test_navigation_multiple_k_at_top_stays_at_top() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
+fn test_page_offset_is_clamped_at_content_end() {
+    let mut harness = CombinedTestHarness::with_render_size(create_drillnav_engine(), 120, 24);
 
-    let snapshots = harness.run_sequence("kkk").expect("Run sequence");
+    // Page far past the end: rendering clamps, so one more Ctrl-d changes nothing.
+    let results = harness
+        .run_sequence_with_renders("<Enter>l<C-d><C-d><C-d><C-d><C-d><C-d><C-d><C-d>")
+        .expect("Run");
 
-    assert_eq!(snapshots.len(), 4);
-    for snapshot in &snapshots {
-        assert_eq!(
-            snapshot.decision_tree_path.0, 0,
-            "Should stay at top regardless of 'k' presses"
-        );
-    }
-}
-
-#[test]
-fn test_navigation_j_past_bottom_behavior() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    // Move down many times to test bottom boundary
-    // With 3 decisions and their files/chunks, we should have multiple items in tree
-    let snapshots = harness
-        .run_sequence("jjjjjjjjjjjjjjjjjjjj")
-        .expect("Run sequence");
-
-    // Get the last position reached
-    let max_position = snapshots.last().unwrap().decision_tree_path.0;
-
-    // Verify we didn't go negative or wrap to 0
-    assert!(
-        max_position > 0,
-        "Should not wrap to 0 or go negative when at bottom"
-    );
-
-    // Verify position stabilized (last few snapshots should have same position)
-    let last_5: Vec<_> = snapshots.iter().rev().take(5).collect();
-    let positions: Vec<_> = last_5.iter().map(|s| s.decision_tree_path.0).collect();
-    assert!(
-        positions.windows(2).all(|w| w[0] == w[1]),
-        "Position should stabilize at bottom, got: {:?}",
-        positions
-    );
-}
-
-#[test]
-fn test_navigation_to_bottom_and_back_to_top() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    // Move down to bottom, then all the way back up
-    let snapshots = harness
-        .run_sequence("jjjjjjjjjjkkkkkkkkkkkkk")
-        .expect("Run sequence");
-
-    // Last snapshot should be back at position 0
-    assert_eq!(
-        snapshots.last().unwrap().decision_tree_path.0,
-        0,
-        "Should return to top after enough 'k' presses"
-    );
-}
-
-// =============================================================================
-// Jump Navigation Tests
-// =============================================================================
-
-#[test]
-#[ignore = "Jump to top (gg) not yet implemented"]
-fn test_navigation_gg_jumps_to_top() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    // Move down, then jump to top with gg
-    let snapshots = harness.run_sequence("jjjgg").expect("Run sequence");
-
-    assert_eq!(
-        snapshots.last().unwrap().decision_tree_path.0,
-        0,
-        "gg should jump to top"
-    );
-}
-
-#[test]
-#[ignore = "Jump to bottom (G) not yet implemented"]
-fn test_navigation_shift_g_jumps_to_bottom() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    // Start at top, jump to bottom with G
-    let snapshots = harness.run_sequence("<S-g>").expect("Run sequence");
-
-    let last_pos = snapshots.last().unwrap().decision_tree_path.0;
-    assert!(last_pos > 0, "G should jump to bottom (pos > 0)");
-
-    // Verify we're actually at the bottom by trying to go down
-    let snapshots2 = harness.run_sequence("j").expect("Run sequence");
-    assert_eq!(
-        snapshots2.last().unwrap().decision_tree_path.0,
-        last_pos,
-        "Should stay at bottom after G"
-    );
-}
-
-#[test]
-#[ignore = "Jump navigation (gg/G) not yet implemented"]
-fn test_navigation_gg_then_shift_g_covers_full_range() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    // Jump to bottom, then to top, then to bottom again
-    let snapshots = harness.run_sequence("<S-g>gg<S-g>").expect("Run sequence");
-
-    let pos_after_g = snapshots[1].decision_tree_path.0;
-    let pos_after_gg = snapshots[2].decision_tree_path.0;
-    let pos_after_g2 = snapshots[3].decision_tree_path.0;
-
-    assert!(pos_after_g > 0, "After G should be at bottom");
-    assert_eq!(pos_after_gg, 0, "After gg should be at top");
-    assert_eq!(
-        pos_after_g2, pos_after_g,
-        "After G again should be at bottom"
-    );
-}
-
-// =============================================================================
-// State Consistency Tests
-// =============================================================================
-
-#[test]
-fn test_navigation_preserves_focused_panel() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    let snapshots = harness.run_sequence("jjkk").expect("Run sequence");
-
-    // All snapshots should maintain the same focused panel during navigation
-    let initial_panel = &snapshots[0].focused_panel;
-    for snapshot in &snapshots {
-        assert_eq!(
-            &snapshot.focused_panel, initial_panel,
-            "Navigation should not change focused panel"
-        );
-    }
-}
-
-#[test]
-fn test_navigation_updates_decision_tree_path_only() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    let snapshots = harness.run_sequence("jk").expect("Run sequence");
-
-    // Verify only decision_tree_path changes, other state remains stable
-    assert_eq!(
-        snapshots[0].input_mode, snapshots[1].input_mode,
-        "Input mode should not change"
-    );
-    assert_eq!(
-        snapshots[0].input_mode, snapshots[2].input_mode,
-        "Input mode should not change"
-    );
-    assert_eq!(
-        snapshots[0].leader_active, snapshots[1].leader_active,
-        "Leader state should not change"
-    );
-    assert_eq!(
-        snapshots[0].show_help, snapshots[1].show_help,
-        "Help state should not change"
-    );
-}
-
-#[test]
-fn test_navigation_sequence_creates_expected_snapshot_count() {
-    let engine = create_test_engine();
-    let mut harness = InputTestHarness::new(engine);
-
-    let sequence = "jjjkkjk";
-    let snapshots = harness.run_sequence(sequence).expect("Run sequence");
-
-    // Should have initial state + 7 events = 8 snapshots
-    let expected_count = sequence.len() + 1;
-    assert_eq!(
-        snapshots.len(),
-        expected_count,
-        "Each key should produce one snapshot plus initial"
-    );
+    let far = &results[results.len() - 2].visual;
+    let further = &results[results.len() - 1].visual;
+    assert_eq!(far, further, "paging past the end must be clamped");
 }
