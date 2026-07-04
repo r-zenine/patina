@@ -249,3 +249,64 @@ fn test_input_without_sequence_fails_loudly() {
     let output = review_tui(&["--test-input"]);
     assert!(!output.status.success());
 }
+
+#[test]
+fn agent_repl_session_persists_state_across_commands() {
+    // The Phase 4 gate: drill in with one command, navigate with the next,
+    // observe with a third — cursor state must persist with no prefix replay.
+    use std::io::Write;
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_review-tui"))
+        .arg("--agent-repl")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("failed to spawn review-tui --agent-repl");
+
+    child
+        .stdin
+        .take()
+        .expect("stdin piped")
+        .write_all(
+            concat!(
+                r#"{"cmd":"keys","input":"<Enter>"}"#, // drill into decision 1
+                "\n",
+                r#"{"cmd":"keys","input":"j"}"#, // next chunk — builds on prior command
+                "\n",
+                r#"{"cmd":"render"}"#,
+                "\n",
+                r#"{"cmd":"quit"}"#,
+                "\n",
+            )
+            .as_bytes(),
+        )
+        .expect("write script");
+
+    let output = child.wait_with_output().expect("repl run");
+    assert!(output.status.success());
+
+    let responses: Vec<serde_json::Value> = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(|l| serde_json::from_str(l).expect("one JSON response per line"))
+        .collect();
+
+    assert_eq!(responses.len(), 4);
+    assert_eq!(responses[0]["v"], 1);
+    assert_eq!(responses[0]["state"]["nav_mode"], "Drill");
+    assert_eq!(responses[0]["state"]["drill_chunk"], 0);
+    assert_eq!(
+        responses[1]["state"]["drill_chunk"], 1,
+        "the j built on the previous command's drill state — no prefix replay"
+    );
+    assert_eq!(responses[2]["state"]["drill_chunk"], 1);
+    assert!(
+        responses[2]["affordances"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|a| a["event"] == "NavigateDown"),
+        "observation carries legal moves"
+    );
+    assert_eq!(responses[3]["ok"], true);
+}

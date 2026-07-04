@@ -5,6 +5,7 @@ pub mod input_parser;
 pub mod input_test;
 pub mod manifest;
 pub mod render_test;
+pub mod repl;
 pub mod runtime;
 pub mod traits;
 
@@ -21,5 +22,6 @@ pub use manifest::{
     build_manifest,
 };
 pub use render_test::RenderTestHarness;
+pub use repl::{REPL_PROTOCOL_VERSION, run_repl, run_repl_io};
 pub use runtime::run_app;
 pub use traits::ELMApp;

@@ -7,6 +7,7 @@
 //! - `--describe`            print the app manifest (see [`crate::manifest`])
 //! - `--test-input <seq>`    run a key sequence, print the final snapshot
 //! - `--test-full <seq>`     run a key sequence, print state + visual per step
+//! - `--agent-repl`          persistent NDJSON session (see [`crate::repl`])
 //! - no flags                run the real TUI via [`crate::run_app`]
 
 use std::fmt::Write as _;
@@ -25,6 +26,8 @@ pub enum AgentMode {
     TestInput(String),
     /// Run the sequence headlessly, print state + visual at each step.
     TestFull(String),
+    /// Persistent NDJSON session on stdin/stdout.
+    Repl,
     /// Run the interactive TUI.
     Run,
 }
@@ -39,6 +42,7 @@ pub fn parse_agent_args<I: IntoIterator<Item = String>>(args: I) -> Result<Agent
     match args.first().map(String::as_str) {
         None => Ok(AgentMode::Run),
         Some("--describe") => reject_extra(&args, 1, AgentMode::Describe),
+        Some("--agent-repl") => reject_extra(&args, 1, AgentMode::Repl),
         Some("--test-input") => {
             let seq = sequence_arg(&args, "--test-input")?;
             reject_extra(&args, 2, AgentMode::TestInput(seq))
@@ -48,7 +52,7 @@ pub fn parse_agent_args<I: IntoIterator<Item = String>>(args: I) -> Result<Agent
             reject_extra(&args, 2, AgentMode::TestFull(seq))
         }
         Some(other) => Err(TuiError::Usage(format!(
-            "unknown argument: {other} (expected --describe, --test-input <seq>, or --test-full <seq>)"
+            "unknown argument: {other} (expected --describe, --agent-repl, --test-input <seq>, or --test-full <seq>)"
         ))),
     }
 }
@@ -121,6 +125,7 @@ pub fn run_agent_cli<M: ELMApp>(mut app: M, args: impl IntoIterator<Item = Strin
             print!("{}", full_test_output(app, &seq)?);
             Ok(())
         }
+        AgentMode::Repl => crate::repl::run_repl(app),
         AgentMode::Run => run_app(&mut app),
     }
 }
