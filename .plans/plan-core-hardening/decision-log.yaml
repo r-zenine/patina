@@ -1,0 +1,200 @@
+commit: "[placeholder]"
+decisions:
+  - id: D001
+    title: Execution strategy — TDD
+    status: accepted
+    rationale: >
+      Requirements are fully specified (the review pinned every defect with a
+      reproduction) and the work is refactoring whose success criterion is
+      "same or corrected behavior, provably". TDD's refactor pattern fits:
+      Phase 0 builds the safety net (behavior-pinning tests + failing bug
+      reproductions), every later phase goes red-to-green. Also matches the
+      crate's existing bug_*.rs convention and the in-flight
+      plan-semantic-anchors-tree-sitter, keeping contributor workflow uniform.
+    alternatives_considered:
+      - Core-then-Integrate: viable for the diff-engine swap (build new module
+        standalone, then switch call sites) but weaker for the arithmetic and
+        matching fixes where the deliverable IS a behavior correction that a
+        test must witness first.
+      - Steel Thread: rejected, no requirement uncertainty to de-risk.
+
+  - id: D002
+    title: Diff engine — replace hand-rolled Myers with the `similar` crate, Patience algorithm
+    status: accepted
+    rationale: >
+      The hand-rolled Myers forward pass is structurally broken (snake advances
+      only y; produces invalid edit scripts that drop lines on any input where
+      one old line equals several consecutive new lines). Rather than repair a
+      bespoke implementation of a solved problem, adopt `similar`: mature,
+      MIT-licensed, used by insta, exposes per-change old_index/new_index which
+      is exactly the index-carrying DiffOp shape we want. Patience algorithm
+      chosen over Myers for output quality: it anchors on unique lines,
+      producing the human-readable diffs code review needs, and structurally
+      eliminates the merge_identical_add_delete_pairs post-patch. Semantic-
+      anchor alignment moves out of the pathfinding (where fusing non-equal
+      lines into snakes made invariants unverifiable) into an explicit post-pass
+      converting adjacent Delete/Add runs with matching anchors into Modify ops.
+    alternatives_considered:
+      - imara-diff: fastest Rust engine (gitoxide), Histogram support, but the
+        interner-based API is ceremony we don't need at per-unit diff sizes.
+      - Fix the hand-rolled Myers in place: zero new dependency, but more work
+        and more risk to end up with a worse-tested version of what a vetted
+        crate provides; rejected by user.
+    consequences:
+      - New runtime dependency `similar` in diffviz-core (workspace-level).
+      - myers_diff.rs is deleted, not repaired; anchor alignment becomes a
+        separately testable pure function.
+
+  - id: D003
+    title: This plan owns the filed-bug fixes; no separate minimal patches
+    status: accepted
+    rationale: >
+      The five filed bugs are symptoms of exactly the structures this plan
+      replaces (broken Myers -> engine swap; range end-line exclusion and
+      column-0 off-by-one -> LineIndex; cross-impl mispairing -> qualified
+      names; invisible Python assignments/class bodies -> container recursion).
+      Minimal patches would be rewritten within days. The filed bugs' failing
+      tests instead become Phase 0 acceptance criteria and each phase's
+      exit criterion un-ignores the reproductions it fixes.
+    alternatives_considered:
+      - Land minimal bug patches first, refactor after: faster nominal bug
+        turnaround, immediately-discarded work; rejected by user.
+
+  - id: D004
+    title: DiffOp carries line indices, not Strings
+    status: accepted
+    rationale: >
+      DiffOp::Keep { line: String } forced content-based lookup
+      (find_original_line_content) to recover &'source str lifetimes, which has
+      a wrong-content fallback and is ambiguous under duplicate lines. Indices
+      (Keep { old_idx, new_idx }, Add { new_idx }, Delete { old_idx },
+      Modify { old_idx, new_idx }) make wrong-content lookup unrepresentable,
+      give lifetimes for free, and let byte ranges be computed from real line
+      offsets instead of "+1 for newline" accumulation (also fixes CRLF drift).
+
+  - id: D005
+    title: One LineIndex on SourceCode replaces four hand-rolled line/byte conversions
+    status: accepted
+    rationale: >
+      line_to_byte_offset, count_lines, clamp_line_range, and
+      line_range_from_bytes are four mutually inconsistent implementations of
+      one concept, and two verified bugs live in their disagreements. The
+      standard structure (newline table: Vec<usize> of line-start offsets,
+      built in one pass; line->byte is indexing, byte->line is partition_point)
+      is ~30 lines, O(log n) per query, and makes the conversions consistent by
+      construction. Inclusive-line-to-half-open-byte conversion happens only
+      here: byte range of lines [a, b] = line_start(a) .. line_start(b+1)
+      (or EOF), which fixes the end-line exclusion by definition.
+    consequences:
+      - find_units_touching_range_recursive likely becomes dead (it existed to
+        paper over the empty single-line interval); Phase 3 verifies by test
+        before removing.
+
+  - id: D006
+    title: Byte ranges become std::ops::Range<usize>; lines stay usize but conversions are centralized
+    status: accepted
+    rationale: >
+      Both arithmetic bugs were convention ambiguities ((usize, usize) tuples,
+      sometimes inclusive lines, sometimes exclusive bytes). Range<usize> is
+      self-documenting for bytes and gives contains/is_empty for free. A full
+      newtype for line numbers was considered and rejected for now (YAGNI):
+      the ambiguity that actually bit us is bytes-vs-lines at conversion sites,
+      and those all collapse into LineIndex; a LineNr newtype would churn every
+      signature in the crate for marginal additional safety.
+    alternatives_considered:
+      - LineNr/ByteOffset newtypes throughout: maximal safety, large mechanical
+        churn across public API; revisit if a line/byte confusion recurs.
+
+  - id: D007
+    title: Unit identity is container-qualified name matching; GumTree deferred
+    status: accepted
+    rationale: >
+      The pairing defect is that identity is (type discriminant, bare name)
+      over a flat scan. Container-qualified identity (e.g. impl target + name,
+      module path + name) fixes every observed mispairing with a small change:
+      the builder already threads parent_context for impl blocks; extend it to
+      a qualified path carried on SemanticNode/OwnedNodeData alongside the
+      existing identifier. GumTree-style similarity matching (Falleri et al.,
+      ASE 2014) would additionally give rename/move detection, but nothing
+      consumes ASTChangeType::Rename/Reorder today — building it now is
+      speculative (YAGNI, Last Responsible Moment). Recorded as the designated
+      future direction if rename detection becomes a feature.
+    consequences:
+      - Overload ambiguity within one container (same name, same type) remains
+        unresolved; acceptable for the 4 core languages today (Rust/Go/Python/
+        TS don't overload by bare name in ways that produce same qualified
+        name + same unit type at the same nesting level, except TS declaration
+        merging — documented limitation).
+
+  - id: D008
+    title: Container recursion via container_body_field for all 8 languages
+    status: accepted
+    rationale: >
+      build_data_structure never collects children, so methods inside class
+      bodies are invisible for every class-based language, and the Statement
+      classification arm drops wrappers (expression_statement) without
+      recursing, hiding Python module-level assignments. Fix the mechanism once
+      in the generic builder — actually consult the container_body_field hook
+      that already exists per-descriptor, and recurse through statement-wrapper
+      kinds — then enable and test per language. User chose all 8 languages
+      (not just the 4 core ones); split across two phases (mechanism + core 4,
+      then remaining 4) so each phase stays 1-3 sessions and independently
+      shippable.
+    alternatives_considered:
+      - Core 4 languages only: recommended initially, overridden by user.
+      - Defer entirely: rejected, it is the only improvement users of OOP
+        languages will directly feel.
+
+  - id: D009
+    title: Dead-code sweep and error cleanup land FIRST (Phase 1), before refactors
+    status: accepted
+    rationale: >
+      Deleting the legacy pairing API (is_semantically_identical chain,
+      can_pair_with, filtered_units chain, Deletion path, source_ranges) before
+      the refactor phases shrinks the surface every later phase must keep
+      compiling and prevents wasted effort updating code that is about to be
+      deleted. Verified zero users outside diffviz-core/src. Low risk, pure
+      deletion + mechanical error-type migration, keeps suite green.
+    consequences:
+      - The Deleted-boundary wrong-source landmine (extract_boundary_name and
+        overall_line_range read new_source for Deleted nodes) is mostly
+        defused by deleting the unreachable Deletion path; the get_display_node
+        consolidation onto NodeChangeStatus keeps the correct-source variant
+        (line_utils' get_display_node_with_source) as the canonical one.
+
+  - id: D010
+    title: proptest as dev-dependency for the reconstruction property test
+    status: accepted
+    rationale: >
+      The invariant "replaying the ops reconstructs both inputs exactly" is the
+      test that would have caught the Myers bug on day one. proptest over
+      random Vec<String> pairs makes it permanent and cheap (~40 lines).
+      Dev-dependency only; no runtime surface.
+
+  - id: D011
+    title: Keep unwrap_or(ESSENTIAL) semantics when simplifying relevance precedence
+    status: accepted
+    rationale: >
+      determine_line_relevance_with_precedence's two-pass logic ("ESSENTIAL
+      wins, else min") is mathematically just min() because ESSENTIAL == 0 is
+      the domain minimum — simplify to one iterator chain. The separate
+      question of the unwrap_or(ESSENTIAL) default for lines overlapping no
+      annotation (which prevents such lines from ever folding) is a behavior
+      choice, not a simplification; changing it would alter TUI folding.
+      Keep the current default, document it with a comment, defer any change
+      to a TUI-driven decision.
+
+  - id: D012
+    title: Deferred items
+    status: accepted
+    rationale: >
+      Explicitly out of scope per YAGNI / Last Responsible Moment:
+      (1) GumTree matching and rename detection (see D007).
+      (2) RenderableDiff coordinate-frame unification (line_number is
+      boundary-relative in the Modified path, file-absolute elsewhere;
+      changing it alters TUI consumer behavior — needs its own plan with
+      diffviz-review involvement).
+      (3) Anchor extraction migration — owned by
+      plan-semantic-anchors-tree-sitter; this plan only touches anchor
+      consumption (D002 post-pass).
+      (4) LineNr/ByteOffset newtypes (see D006).
