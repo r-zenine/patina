@@ -1,6 +1,204 @@
 # Active Bugs - diffviz-core
 
-*(no active bugs)*
+## 🐛 Bug: Myers Diff Drops Lines on Duplicate-Line Inputs
+
+**Issue**: In `shortest_edit_script_semantic` (`renderable_diff/myers_diff.rs`), the greedy
+"snake" loop advances only `y` while `x` stays fixed, comparing the same old line against
+successive new lines. Correct Myers extends diagonally (`x += 1; y += 1` while `a[x] == b[y]`).
+Whenever one old line equals several consecutive new lines (duplicate blank lines, repeated
+statements, repeated `}` lines), the recorded diagonal run is invalid and the backtrack
+produces an edit script that silently drops lines.
+
+**Impact**:
+- Rendered diffs are missing lines — reviewers see incomplete/incorrect diffs
+- `["a"]` → `["a","a","a"]` produces an **empty** diff
+- Inserting a blank line next to an existing blank line shows `a();` as deleted and never shows the addition
+- Every `Modified` boundary renders through this path
+
+**Affected Languages**: All (language-agnostic diff engine bug)
+
+**Test Location**: `tests/bug_myers_diff_drops_duplicate_lines.rs`
+- `repeated_statement_insertion_reconstructs_both_sources()` — [FAILING, #[ignore]] 🐛
+- `blank_line_insertion_reconstructs_both_sources()` — [FAILING, #[ignore]] 🐛
+
+**Suggested Fix**: Fix the snake loop (or replace the hand-rolled implementation with a
+vetted crate such as `imara-diff`/`similar`). Keep the reconstruction invariant test:
+replaying the ops must rebuild both inputs exactly.
+
+---
+
+## 🐛 Bug: Decompose Path Drops Units Ending on the Range's End Line
+
+**Issue**: `line_to_byte_offset(source, end_line)` returns the byte offset of the **start**
+of `end_line`, and `find_contained_units_recursive` requires `node_range.end <= end_byte`.
+A unit whose last line is the range's end line is not "contained" and is silently omitted.
+`tests/bug_decompose_path_unchanged_units.rs` works around this with a "load-bearing"
+trailing blank line in its fixture.
+
+**Impact**:
+- A range covering exactly two complete functions yields only 1 ReviewableDiff
+- For single-line ranges, `start_byte == end_byte` — the contained query is an empty
+  interval (this is why the `find_units_touching_range_recursive` fallback had to exist)
+
+**Affected Languages**: All
+
+**Test Location**: `tests/bug_range_end_line_excluded.rs`
+- `range_covering_two_functions_yields_two_diffs()` — [FAILING, #[ignore]] 🐛
+
+**Suggested Fix**: `end_byte` should be the end of `end_line` (start of `end_line + 1`, or EOF).
+
+---
+
+## 🐛 Bug: Same-Named Units Pair Across Containers
+
+**Issue**: `find_semantic_unit_by_name` (`decision_based_diff.rs`) matches old-tree
+counterparts by (unit-type discriminant, name text) over a flat scan and returns the first
+hit, ignoring container context. With `impl A { fn get }` and `impl B { fn get }`, a change
+to `B::get` is paired against `A::get`.
+
+**Impact**:
+- The old/new diff shown to the reviewer is fiction (wrong old counterpart)
+- If the new body of `B::get` happens to equal `A::get`'s body, the identical-content skip
+  drops the unit entirely
+- Fires constantly in Rust (`fn new`, `fn get`, trait impls)
+
+**Affected Languages**: All (worst in Rust/Go where same-named methods are idiomatic)
+
+**Test Location**: `tests/bug_same_name_cross_container_pairing.rs`
+- `modified_method_pairs_with_same_impl_counterpart()` — [FAILING, #[ignore]] 🐛
+
+**Suggested Fix**: Qualify matching by container path (impl target / module). The builder
+already threads the impl target through `parent_context`; carry it into the identifier.
+
+---
+
+## 🐛 Bug: Python Module-Level Assignments Never Become Variable Units
+
+**Issue**: In tree-sitter-python, `X = 1` at module level parses as
+`expression_statement → assignment`. `GenericSemanticTreeBuilder::build_typed_node`
+classifies `expression_statement` as `Statement` and drops it **without recursing into
+children**, so the `("assignment", Variable)` entry in `PYTHON_SEMANTIC_KIND_MAP` is
+unreachable dead code.
+
+**Impact**:
+- Ranges over module-level constants fail with `NoUnitsInRange` instead of yielding diffs
+- Same non-recursion pattern hides anything nested under classification-only kinds
+
+**Affected Languages**: Python (same mechanism affects other languages' wrapped constructs)
+
+**Test Location**: `tests/bug_python_module_level_assignment_invisible.rs`
+- `range_over_module_level_constants_yields_variable_units()` — [FAILING, #[ignore]] 🐛
+
+---
+
+## 🐛 Bug: line_range Off by One for Nodes Starting at Column 0
+
+**Issue**: `SourceCode::line_range_from_bytes` (`ast_diff/source.rs`) computes the start
+line as `prefix.lines().count()`, but `str::lines()` ignores a trailing newline. A node
+starting at column 0 of line N (prefix ends with `'\n'` — the common case for top-level
+items) reports `start_line = N-1`. Mid-line offsets are correct, which is why this
+survives casual testing.
+
+**Impact**:
+- Every `RenderableDiff.overall_line_range` goes through this path (boundary nodes are
+  `OwnedNodeData` with no tree-sitter position info) — reported line ranges are shifted
+
+**Affected Languages**: All
+
+**Test Location**: `tests/bug_line_range_column_zero_off_by_one.rs`
+- `node_starting_at_column_zero_reports_correct_start_line()` — [FAILING, #[ignore]] 🐛
+
+**Suggested Fix**: Count newlines, not lines: `prefix.bytes().filter(|&b| b == b'\n').count() + 1`.
+
+---
+
+## 🐛 Bug: Class Bodies Have No Semantic Children — Methods Invisible to Range Lookup
+
+**Issue**: `GenericSemanticTreeBuilder::build_data_structure` never collects children, so
+for class-based languages every method inside a class is absent from the semantic tree.
+Rust escapes only because methods live in `impl` blocks, special-cased as Module containers
+that recurse. The unused `container_body_field` descriptor hook exists to fix exactly this.
+
+**Impact**:
+- A range over one Python/TypeScript/Java method resolves to the entire class —
+  one-method changes produce whole-class diffs, defeating step-by-step review
+
+**Affected Languages**: Python, TypeScript, JavaScript, Java, C++ (all class-based)
+
+**Test Location**: `tests/bug_class_bodies_have_no_semantic_children.rs`
+- `range_over_python_method_resolves_to_method_not_class()` — [FAILING, #[ignore]] 🐛
+
+---
+
+## 🐛 Bug: CRLF Line Endings Cause Byte-Offset Drift
+
+**Issue**: `split_into_lines_with_positions` (line_utils.rs) and the Modified rendering
+path advance offsets by `line.len() + 1`, but `str::lines()` strips both `\r` and `\n`.
+On CRLF sources, each line's byte range drifts one byte earlier per preceding line.
+
+**Impact**:
+- Annotation-to-line mapping (relevance, change highlighting) is progressively misaligned
+  on Windows-formatted files
+
+**Affected Languages**: All (any CRLF source)
+
+**Test Location**: `tests/bug_crlf_byte_offset_drift.rs`
+- `crlf_source_line_byte_ranges_match_actual_offsets()` — [FAILING, #[ignore]] 🐛
+
+---
+
+## 🐛 Bug: Deleted Boundaries Read the Wrong Source
+
+**Issue**: `extract_boundary_name` (name_extractors.rs) and the `overall_line_range`
+computation in `RenderableDiff::try_from` always read `new_source`, even for `Deleted`
+boundaries whose byte ranges belong to the old file. `line_utils` handles this correctly
+via `get_display_node_with_source`; the other two call sites don't. Currently a landmine —
+`ChangeClassification::Deletion` is never constructed by the production path — but any
+code building a Deleted boundary gets a garbage name and nonsense line range.
+
+**Impact**:
+- Deleted function renders with fallback name ("function") instead of its actual name
+- `overall_line_range` computed against the wrong file
+
+**Affected Languages**: All
+
+**Test Location**: `tests/bug_deleted_boundary_reads_new_source.rs`
+- `deleted_function_boundary_name_comes_from_old_source()` — [FAILING, #[ignore]] 🐛
+
+---
+
+## 🐛 Bug: Mixed Line-Number Coordinate Systems in RenderableDiff
+
+**Issue**: Lines from the Modified rendering path are numbered 1..n relative to the
+boundary, and `changed_line_numbers` stores those relative values — while
+`metadata.overall_line_range` is file-absolute. Consumers correlating the two mix frames.
+
+**Impact**:
+- "Which file lines changed?" answered with boundary-relative numbers that fall outside
+  the advertised absolute line range
+
+**Affected Languages**: All
+
+**Test Location**: `tests/bug_mixed_line_number_coordinate_systems.rs`
+- `changed_line_numbers_fall_within_overall_line_range()` — [FAILING, #[ignore]] 🐛
+
+---
+
+## 🐛 Bug: Callable parameter_count Counts Comma Tokens
+
+**Issue**: `build_callable` computes `parameters_node.child_count() - 2`, which removes the
+parens but counts `,` separators. `fn f(a: i32, b: i32)` reports parameter_count = 3.
+
+**Impact**:
+- Wrong metadata on every multi-parameter Callable (harmless today only because both
+  sides of comparisons are computed the same wrong way)
+
+**Affected Languages**: All
+
+**Test Location**: `tests/bug_parameter_count_includes_commas.rs`
+- `two_parameter_function_reports_parameter_count_two()` — [FAILING, #[ignore]] 🐛
+
+**Suggested Fix**: Use `named_child_count()`.
 
 ---
 
