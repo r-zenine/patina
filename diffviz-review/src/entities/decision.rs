@@ -10,15 +10,11 @@ use crate::state::ReviewState;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-// Import the derive macro (must be at module level for #[derive(...)] to work)
-extern crate diffviz_schema_macro;
-use diffviz_schema_macro::SchemaTemplate;
-
 /// An inclusive range of line numbers affected by a code impact
 ///
 /// Represents a contiguous block of lines within a file that are affected by a decision.
 /// Both start and end are inclusive.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, SchemaTemplate)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DecisionLineRange {
     /// First line in the affected range (inclusive)
     pub start: usize,
@@ -32,20 +28,12 @@ pub struct DecisionLineRange {
 /// risk worth reviewer attention. The line_ranges specify the exact code, while reasoning
 /// states the risk or contract change (not a description of the edit). Mechanical ripple
 /// (import updates, call-site renames, moved code) does not belong here.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, SchemaTemplate)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CodeImpact {
     /// The risk or contract change a reviewer must verify at these lines
-    #[schema(
-        example = "\"[Behavioral - Invariant mutation] Middleware now rejects requests without JWT; formerly anonymous routes must be re-verified\"",
-        comment = "What a reviewer must verify here — the risk or contract change, prefixed with [Behavioral - ...] or [Structural - ...]; not a restatement of the edit"
-    )]
     pub reasoning: String,
 
     /// Path to the source file relative to repository root
-    #[schema(
-        example = "src/auth/middleware.rs",
-        comment = "Path to the source file relative to repository root"
-    )]
     pub file: String,
 
     /// Line ranges within this file affected by the decision
@@ -58,24 +46,15 @@ pub struct CodeImpact {
 /// and maps that choice to the exact locations in code where it was implemented.
 /// Decisions provide semantic context for code review by organizing changes around the
 /// decisions that drove them.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, SchemaTemplate)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Decision {
     /// Sequential identifier for this decision (starting from 1)
-    #[schema(comment = "Sequential identifier for this decision (starting from 1)")]
     pub number: u32,
 
     /// One-sentence summary of the decision
-    #[schema(
-        example = "Add authentication middleware",
-        comment = "One-sentence summary of the architectural decision"
-    )]
     pub title: String,
 
     /// Optional explanation of why this decision was chosen, including constraints or trade-offs considered
-    #[schema(
-        example = "Middleware must validate tokens for security requirements",
-        comment = "Why this choice was made — constraints, priorities, trade-offs"
-    )]
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rationale: Option<String>,
 
@@ -93,11 +72,9 @@ pub struct Decision {
 /// The log can be used in two phases:
 /// - **Strategy phase**: Decisions planned but not yet implemented (commit is optional)
 /// - **Implementation phase**: Decisions realized in code (commit is required for tracking)
-#[derive(Debug, Clone, Serialize, Deserialize, SchemaTemplate)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DecisionLog {
-    #[schema(
-        comment = "Git hash of the commit containing the code changes described by these decisions"
-    )]
+    /// Git hash of the commit containing the code changes described by these decisions
     pub commit: String,
 
     /// The ordered list of architectural decisions made in this contribution

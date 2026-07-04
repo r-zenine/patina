@@ -16,7 +16,6 @@ uuid = { workspace = true }
 sha2 = { workspace = true }
 log = {workspace = true}
 diffviz-core = { path = "../diffviz-core" }
-diffviz-schema-macro = { path = "../diffviz-schema-macro" }
 
 [dev-dependencies]
 serde_json = { workspace = true }

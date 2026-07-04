@@ -1,0 +1,11 @@
+commit: "[placeholder]"  # Git hash of the commit containing the code changes described by these decisions
+decisions:
+  - number: 1  # Sequential identifier for this decision (starting from 1)
+    title: Add authentication middleware  # One-sentence summary of the architectural decision
+    rationale: Middleware must validate tokens for security requirements  # Optional - Why this choice was made — constraints, priorities, trade-offs
+    code_impacts:
+      - reasoning: "[Behavioral - Invariant mutation] Middleware now rejects requests without JWT; formerly anonymous routes must be re-verified"  # What a reviewer must verify here — the risk or contract change, prefixed with [Behavioral - ...] or [Structural - ...]; not a restatement of the edit
+        file: src/auth/middleware.rs  # Path to the source file relative to repository root
+        line_ranges:
+          - start: 1
+            end: 1

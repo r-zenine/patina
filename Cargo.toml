@@ -6,7 +6,6 @@ members = [
     "diffviz-git",
     "diffviz-core",
     "diffviz-review-tui",
-    "diffviz-schema-macro",
     "tui-design",
     "tui-harness",
     "libs/*",
