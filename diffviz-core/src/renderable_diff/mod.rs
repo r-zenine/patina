@@ -90,8 +90,6 @@ pub struct SemanticAnchor {
 pub enum SemanticAnchorType {
     FunctionSignature,  // fn calculate_total(
     VariableAssignment, // let config =
-    FieldAssignment,    // user.name =
-    MethodCall,         // obj.method(
     Import,             // use diffviz::
     StructDeclaration,  // struct MyStruct {
     EnumDeclaration,    // enum MyEnum {

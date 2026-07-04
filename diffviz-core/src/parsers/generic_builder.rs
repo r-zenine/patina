@@ -477,6 +477,10 @@ impl<D: LanguageDescriptor> LanguageParser for GenericSemanticTreeBuilder<D> {
             .cloned()
             .unwrap_or_else(|| SemanticNodeKind::Other(node_kind.to_string()))
     }
+
+    fn extract_identifier(&self, node: Node, source: &str) -> Option<String> {
+        self.descriptor.extract_identifier(node, source)
+    }
 }
 
 // ── Invariant assertion ───────────────────────────────────────────────────────

@@ -247,25 +247,32 @@ fn build_reviewable_diff_from_unit_with_data(
     language: ProgrammingLanguage,
     old_source: Box<dyn SourceProvider>,
     new_source: Box<dyn SourceProvider>,
+    new_source_text: &str,
 ) -> ReviewableDiff {
     let (boundary_node, metadata) = match context.classification {
         ChangeClassification::Addition => {
             let unit = context.new_unit.expect("Addition must have new_unit");
-            create_addition_diff(unit, context.parser, context.start_time)
+            create_addition_diff(unit, context.parser, new_source_text, context.start_time)
         }
         ChangeClassification::Deletion => {
             // For deletion, we would need the old_unit, but we're not supporting this path
             // in the current implementation. This would require holding a reference to the old tree.
             // For now, create from new_unit marked as deleted
             let unit = context.new_unit.expect("Deletion must have new_unit");
-            create_deletion_diff(unit, context.parser, context.start_time)
+            create_deletion_diff(unit, context.parser, new_source_text, context.start_time)
         }
         ChangeClassification::Modification => {
             let new = context.new_unit.expect("Modification must have new_unit");
             let old = context
                 .old_node_data
                 .expect("Modification must have old_node_data");
-            create_modification_diff_with_data(old, new, context.parser, context.start_time)
+            create_modification_diff_with_data(
+                old,
+                new,
+                context.parser,
+                new_source_text,
+                context.start_time,
+            )
         }
     };
 
@@ -282,6 +289,7 @@ fn build_reviewable_diff_from_unit_with_data(
 fn create_addition_diff(
     unit: &SemanticNode,
     parser: &dyn LanguageParser,
+    source: &str,
     start_time: Instant,
 ) -> (DiffNode, DiffMetadata) {
     let semantic_kind = unit_type_to_semantic_kind(&unit.unit_type);
@@ -293,7 +301,7 @@ fn create_addition_diff(
             node: OwnedNodeData::with_identifier(&unit.tree_sitter_node, unit.identifier.clone()),
         },
         relevance: calculate_relevance(&unit.unit_type),
-        children: build_child_nodes_with_context(&unit.tree_sitter_node, parser),
+        children: build_child_nodes_with_context(&unit.tree_sitter_node, parser, source),
     };
 
     let mut change_summary = HashMap::new();
@@ -313,6 +321,7 @@ fn create_addition_diff(
 fn create_deletion_diff(
     unit: &SemanticNode,
     parser: &dyn LanguageParser,
+    source: &str,
     start_time: Instant,
 ) -> (DiffNode, DiffMetadata) {
     let semantic_kind = unit_type_to_semantic_kind(&unit.unit_type);
@@ -324,7 +333,7 @@ fn create_deletion_diff(
             node: OwnedNodeData::with_identifier(&unit.tree_sitter_node, unit.identifier.clone()),
         },
         relevance: calculate_relevance(&unit.unit_type),
-        children: build_child_nodes_with_context(&unit.tree_sitter_node, parser),
+        children: build_child_nodes_with_context(&unit.tree_sitter_node, parser, source),
     };
 
     let mut change_summary = HashMap::new();
@@ -345,6 +354,7 @@ fn create_modification_diff_with_data(
     old_node: OwnedNodeData,
     new_unit: &SemanticNode,
     parser: &dyn LanguageParser,
+    source: &str,
     start_time: Instant,
 ) -> (DiffNode, DiffMetadata) {
     let semantic_kind = unit_type_to_semantic_kind(&new_unit.unit_type);
@@ -362,7 +372,7 @@ fn create_modification_diff_with_data(
             change_type,
         },
         relevance: calculate_relevance(&new_unit.unit_type),
-        children: build_child_nodes_with_context(&new_unit.tree_sitter_node, parser),
+        children: build_child_nodes_with_context(&new_unit.tree_sitter_node, parser, source),
     };
 
     let mut change_summary = HashMap::new();
@@ -379,14 +389,19 @@ fn create_modification_diff_with_data(
 }
 
 /// Build child DiffNodes with context expansion and relevance classification
-fn build_child_nodes_with_context(node: &Node, parser: &dyn LanguageParser) -> Vec<DiffNode> {
-    build_child_nodes_recursive(node, parser, 0)
+fn build_child_nodes_with_context(
+    node: &Node,
+    parser: &dyn LanguageParser,
+    source: &str,
+) -> Vec<DiffNode> {
+    build_child_nodes_recursive(node, parser, source, 0)
 }
 
 /// Recursively build child DiffNodes with relevance classification
 fn build_child_nodes_recursive(
     node: &Node,
     parser: &dyn LanguageParser,
+    source: &str,
     depth: usize,
 ) -> Vec<DiffNode> {
     const MAX_DEPTH: usize = 10;
@@ -401,15 +416,16 @@ fn build_child_nodes_recursive(
     for child in node.children(&mut cursor) {
         let semantic_kind = parser.classify_node_kind(child.kind());
         let relevance = parser.classify_leaf_relevance(&semantic_kind);
+        let identifier = parser.extract_identifier(child, source);
 
         let diff_node = DiffNode {
             node_type: child.kind().to_string(),
             semantic_kind,
             change_status: NodeChangeStatus::Unchanged {
-                node: OwnedNodeData::from_tree_sitter_node(&child),
+                node: OwnedNodeData::with_identifier(&child, identifier),
             },
             relevance,
-            children: build_child_nodes_recursive(&child, parser, depth + 1),
+            children: build_child_nodes_recursive(&child, parser, source, depth + 1),
         };
 
         children.push(diff_node);
@@ -634,6 +650,7 @@ pub fn create_reviewable_diff_from_range(
                         .map(|p| p.clone_box())
                         .unwrap_or_else(|| new_source.clone_box()),
                     new_source.clone_box(),
+                    new_source_str,
                 ))
             })
             .collect();
@@ -684,6 +701,7 @@ pub fn create_reviewable_diff_from_range(
             .map(|p| p.clone_box())
             .unwrap_or_else(|| new_source.clone_box()),
         new_source.clone_box(),
+        new_source_str,
     )])
 }
 

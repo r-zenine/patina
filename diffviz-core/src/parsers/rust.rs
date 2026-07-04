@@ -219,6 +219,10 @@ impl LanguageParser for RustParser {
         self.0.classify_node_kind(node_kind)
     }
 
+    fn extract_identifier(&self, node: tree_sitter::Node, source: &str) -> Option<String> {
+        self.0.extract_identifier(node, source)
+    }
+
     fn get_context_boundaries(
         &self,
         change_type: &ASTChangeType,

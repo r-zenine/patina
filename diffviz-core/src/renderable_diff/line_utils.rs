@@ -61,7 +61,7 @@ pub fn create_single_source_lines<'source>(
                 semantic_anchor: extract_semantic_anchor(
                     line_info.text,
                     reviewable,
-                    line_info.byte_range.0,
+                    boundary_start_byte + line_info.byte_range.0,
                 ),
             }
         })

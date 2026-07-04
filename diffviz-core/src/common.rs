@@ -5,7 +5,7 @@
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
-use tree_sitter::Tree;
+use tree_sitter::{Node, Tree};
 
 #[derive(Debug, Error)]
 pub enum ASTError {
@@ -158,8 +158,16 @@ pub trait LanguageParser: Send + Sync {
         crate::semantic_ast::SemanticError,
     >;
 
-    /// Classify TreeSitter node kinds into semantic categories  
+    /// Classify TreeSitter node kinds into semantic categories
     fn classify_node_kind(&self, node_kind: &str) -> SemanticNodeKind;
+
+    /// Extract the identifier/name for a node, using language-specific grammar knowledge.
+    ///
+    /// Default: no identifier. Languages built on `GenericSemanticTreeBuilder` delegate
+    /// to their `LanguageDescriptor::extract_identifier` override.
+    fn extract_identifier(&self, _node: Node, _source: &str) -> Option<String> {
+        None
+    }
 
     /// Get context boundary node kinds for a given change, in priority order
     /// Default implementation provides generic boundaries that work across languages
