@@ -1,0 +1,33 @@
+commit: null
+
+decisions:
+  - number: 1
+    title: Match semantics are a property of the scope, not of each binding row
+    rationale: >
+      Only two deviations from exact (code, modifiers) matching exist, and
+      both are leader-scope-wide (code-only matching; unknown-key fallback),
+      pinned by Phase 0. Encoding strategy per row would force all five
+      consumers to understand a field that exists for two cases; per-scope
+      semantics inside lookup() keeps rows pure data.
+    code_impacts: []
+
+  - number: 2
+    title: Parametric behaviors are coded fallbacks with doc-only catch-all rows
+    rationale: >
+      InputChar(c) cannot be a finite table row. Putting it in the dispatch
+      table would need a matcher closure per row (no longer const data, D004
+      violation). Fallbacks after table lookup reproduce Phase 0 ordering
+      (Ctrl-c beats the char catch-all), while CATCH_ALLS doc rows keep the
+      manifest and affordances honest about them. EnterLeaderSubmenu is NOT
+      parametric — submenus are exactly 'a' and 't', two concrete rows.
+    code_impacts: []
+
+  - number: 3
+    title: Event labels in manifest/affordances come from Debug formatting of UiEvent
+    rationale: >
+      The alternative — a hand-written label per row — is a sixth copy of
+      binding knowledge. Debug output ("ToggleApprove",
+      "EnterLeaderSubmenu('a')") is stable, unique per variant, and free;
+      agents treat it as an opaque identifier that matches across bindings
+      and affordances.
+    code_impacts: []
