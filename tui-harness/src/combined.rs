@@ -3,8 +3,7 @@
 //! After each key event, captures both the state snapshot and the visual output.
 
 use crate::{
-    Result, TuiError, input_parser::parse_input_sequence, render_test::RenderTestHarness,
-    traits::ELMApp,
+    Result, input_parser::parse_input_sequence, render_test::RenderTestHarness, traits::ELMApp,
 };
 
 /// Combined test result: state snapshot + visual output at one step.
@@ -40,12 +39,14 @@ impl<M: ELMApp> CombinedTestHarness<M> {
 
     /// Run an input sequence capturing both state and visual output at each step.
     ///
-    /// The first result is the initial state (before any events).
+    /// The first result is the initial state (before any steps). `<Wait:N>`
+    /// steps sleep N milliseconds and run `on_tick`, then capture like any
+    /// other step.
     pub fn run_sequence_with_renders(
         &mut self,
         input: &str,
     ) -> Result<Vec<CombinedTestResult<M::Snapshot>>> {
-        let events = parse_input_sequence(input)?;
+        let steps = parse_input_sequence(input)?;
         let mut results = Vec::new();
 
         results.push(CombinedTestResult {
@@ -53,10 +54,8 @@ impl<M: ELMApp> CombinedTestHarness<M> {
             visual: self.render_harness.render(&self.app)?,
         });
 
-        for event in events {
-            self.app
-                .dispatch_key(event)
-                .map_err(|e| TuiError::App(Box::new(e)))?;
+        for step in steps {
+            step.apply(&mut self.app)?;
 
             results.push(CombinedTestResult {
                 state: self.app.snapshot(),

@@ -8,7 +8,7 @@ pub mod traits;
 
 pub use combined::{CombinedTestHarness, CombinedTestResult};
 pub use error::{Result, TuiError};
-pub use input_parser::parse_input_sequence;
+pub use input_parser::{InputStep, parse_input_sequence};
 pub use input_test::InputTestHarness;
 pub use render_test::RenderTestHarness;
 pub use runtime::run_app;

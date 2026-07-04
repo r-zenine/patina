@@ -119,9 +119,9 @@ pub fn create_empty_engine() -> ReviewEngine {
 /// tests can assert business state (approvals, notes) directly.
 pub fn drive_app(engine: ReviewEngine, input: &str) -> ReviewEngine {
     let mut app = ReviewTuiApp::new(engine).expect("Failed to create ReviewTuiApp");
-    let keys = parse_input_sequence(input).expect("Failed to parse input sequence");
-    for key in keys {
-        app.process_key_event(key).expect("Failed to process key");
+    let steps = parse_input_sequence(input).expect("Failed to parse input sequence");
+    for step in steps {
+        step.apply(&mut app).expect("Failed to apply input step");
     }
     app.into_review_engine()
 }

@@ -75,6 +75,38 @@ fn test_leader_key_activation() {
 }
 
 #[test]
+fn test_leader_key_times_out_after_wait() {
+    let engine = create_test_engine();
+    let mut harness = InputTestHarness::new(engine);
+
+    // LEADER_TIMEOUT is 2s; <Wait:N> sleeps and runs on_tick, which is where
+    // the timeout check lives.
+    let state = harness
+        .run_sequence_final_state("<Space><Wait:2100>")
+        .expect("Leader timeout sequence failed");
+
+    assert!(
+        !state.leader_active,
+        "Leader should deactivate after the 2s timeout elapses"
+    );
+}
+
+#[test]
+fn test_leader_key_survives_short_wait() {
+    let engine = create_test_engine();
+    let mut harness = InputTestHarness::new(engine);
+
+    let state = harness
+        .run_sequence_final_state("<Space><Wait:50>")
+        .expect("Leader short-wait sequence failed");
+
+    assert!(
+        state.leader_active,
+        "Leader should stay active well within the 2s timeout"
+    );
+}
+
+#[test]
 fn test_leader_key_deactivation_with_esc() {
     let engine = create_test_engine();
     let mut harness = InputTestHarness::new(engine);

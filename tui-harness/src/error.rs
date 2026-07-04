@@ -9,6 +9,10 @@ pub enum TuiError {
     #[error("unreachable")]
     Infallible(#[from] std::convert::Infallible),
 
+    /// Malformed compact input sequence (vim-style test notation).
+    #[error("Invalid input sequence: {0}")]
+    Parse(String),
+
     /// App-level error, wrapped to avoid leaking the app's error type into the harness.
     #[error("App error: {0}")]
     App(Box<dyn std::error::Error + Send + Sync + 'static>),
