@@ -6,7 +6,7 @@ edition = "2024"
 [dependencies]
 diffviz-review = { path = "../diffviz-review" }
 diffviz-core = { path = "../diffviz-core" }
-git2 = "0.20"
+gitkit = { path = "../libs/gitkit" }
 thiserror = { workspace = true }
 serde = { workspace = true }
 log = { workspace = true }
@@ -14,5 +14,6 @@ sha2 = { workspace = true }
 
 [dev-dependencies]
 diffviz-review = { path = "../diffviz-review", features = ["test-utils"] }
+git2 = "0.20"
 tempfile = { workspace = true }
 assert_matches = "1.5"

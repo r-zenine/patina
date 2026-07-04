@@ -8,7 +8,7 @@ fn test_repository_not_found() {
     let result = GitRepository::open("/definitely/does/not/exist");
 
     match result {
-        Err(GitError::RepositoryNotFound { path, .. }) => {
+        Err(GitError::Core(gitkit::Error::RepositoryNotFound { path, .. })) => {
             assert!(path.contains("/definitely/does/not/exist"));
         }
         _ => panic!("Expected RepositoryNotFound error"),
@@ -24,7 +24,7 @@ fn test_repository_open_regular_file() {
     let result = GitRepository::open(&file_path);
 
     match result {
-        Err(GitError::RepositoryNotFound { .. }) => (),
+        Err(GitError::Core(gitkit::Error::RepositoryNotFound { .. })) => (),
         _ => panic!("Expected RepositoryNotFound error when opening a regular file"),
     }
 }
@@ -33,7 +33,7 @@ fn test_repository_open_regular_file() {
 fn test_git_error_conversion_to_diffviz_error() {
     // Create a mock git2::Error for testing
     let git2_error = git2::Error::from_str("Some git operation failed");
-    let git_error = GitError::Git(git2_error);
+    let git_error = GitError::Core(gitkit::Error::Git(git2_error));
     let diffviz_error: DiffVizError = git_error.into();
 
     match diffviz_error {
@@ -48,10 +48,10 @@ fn test_git_error_conversion_to_diffviz_error() {
 #[test]
 fn test_invalid_commit_conversion_to_diffviz_error() {
     let git2_error = git2::Error::from_str("revision not found");
-    let git_error = GitError::InvalidCommit {
+    let git_error = GitError::Core(gitkit::Error::InvalidCommit {
         hash: "bad_hash".to_string(),
         source: git2_error,
-    };
+    });
     let diffviz_error: DiffVizError = git_error.into();
 
     match diffviz_error {
@@ -65,10 +65,10 @@ fn test_invalid_commit_conversion_to_diffviz_error() {
 #[test]
 fn test_repository_not_found_conversion_to_diffviz_error() {
     let git2_error = git2::Error::from_str("repository not found");
-    let git_error = GitError::RepositoryNotFound {
+    let git_error = GitError::Core(gitkit::Error::RepositoryNotFound {
         path: "/path/not/found".to_string(),
         source: git2_error,
-    };
+    });
     let diffviz_error: DiffVizError = git_error.into();
 
     match diffviz_error {
@@ -81,14 +81,12 @@ fn test_repository_not_found_conversion_to_diffviz_error() {
 
 #[test]
 fn test_staging_error_with_detailed_message() {
-    use diffviz_git::GitError;
-
     // Test that staging errors include detailed context
-    let staging_error = GitError::StagingFailed {
+    let staging_error = GitError::Core(gitkit::Error::StagingFailed {
         file: "test_file.rs".to_string(),
         reason: "Failed to apply patch to index".to_string(),
         source: None,
-    };
+    });
 
     let error_msg = format!("{staging_error}");
     assert!(error_msg.contains("test_file.rs"));
@@ -103,12 +101,10 @@ fn test_staging_error_with_detailed_message() {
 
 #[test]
 fn test_patch_creation_error_with_detailed_message() {
-    use diffviz_git::GitError;
-
-    let patch_error = GitError::PatchCreationFailed {
+    let patch_error = GitError::Core(gitkit::Error::PatchCreationFailed {
         file: "broken_file.rs".to_string(),
         reason: "Invalid hunk header: 'malformed'".to_string(),
-    };
+    });
 
     let error_msg = format!("{patch_error}");
     assert!(error_msg.contains("broken_file.rs"));

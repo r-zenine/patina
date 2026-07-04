@@ -1,79 +1,40 @@
 use diffviz_review::errors::DiffVizError;
 use diffviz_review::providers::{DiffProvider, FileStats, FileStatus};
 use diffviz_review::{DiffQuery, GitRef};
-use git2::{DiffOptions, Repository};
-use std::path::Path;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum GitError {
-    #[error("Git operation failed: {0}")]
-    Git(#[from] git2::Error),
-
-    #[error("Repository not found at path: {path}")]
-    RepositoryNotFound {
-        path: String,
-        #[source]
-        source: git2::Error,
-    },
-
-    #[error("Invalid commit hash: {hash}")]
-    InvalidCommit {
-        hash: String,
-        #[source]
-        source: git2::Error,
-    },
-
-    #[error("Failed to stage hunk in file '{file}': {reason}")]
-    StagingFailed {
-        file: String,
-        reason: String,
-        #[source]
-        source: Option<git2::Error>,
-    },
-
-    #[error("Failed to create patch for file '{file}': {reason}")]
-    PatchCreationFailed { file: String, reason: String },
-
-    #[error("IO error")]
-    Io(#[from] std::io::Error),
-
-    #[error(
-        "Level 1 validation failed for file '{file}': hunks show {hunk_additions:+}/{hunk_deletions:-} but git stats show {git_additions:+}/{git_deletions:-}"
-    )]
-    ValidationFailed {
-        file: String,
-        hunk_additions: u32,
-        hunk_deletions: u32,
-        git_additions: u32,
-        git_deletions: u32,
-    },
+    #[error(transparent)]
+    Core(#[from] gitkit::Error),
 }
 
 impl From<GitError> for DiffVizError {
     fn from(err: GitError) -> Self {
         match err {
-            GitError::Git(git_err) => DiffVizError::Git(format!("{git_err}")),
-            GitError::RepositoryNotFound { path, source } => {
+            GitError::Core(gitkit::Error::Git(git_err)) => DiffVizError::Git(format!("{git_err}")),
+            GitError::Core(gitkit::Error::RepositoryNotFound { path, source }) => {
                 DiffVizError::Repository(format!("Repository not found at '{path}': {source}"))
             }
-            GitError::InvalidCommit { hash, source } => {
+            GitError::Core(gitkit::Error::InvalidCommit { hash, source }) => {
                 DiffVizError::InvalidOperation(format!("Invalid commit '{hash}': {source}"))
             }
-            GitError::StagingFailed { file, reason, .. } => {
+            GitError::Core(gitkit::Error::StagingFailed { file, reason, .. }) => {
                 DiffVizError::Git(format!("Failed to stage hunk in file '{file}': {reason}"))
             }
-            GitError::PatchCreationFailed { file, reason } => DiffVizError::ProcessingFailed(
-                format!("Failed to create patch for file '{file}': {reason}"),
-            ),
-            GitError::Io(io_err) => DiffVizError::Io(io_err),
-            GitError::ValidationFailed {
+            GitError::Core(gitkit::Error::PatchCreationFailed { file, reason }) => {
+                DiffVizError::ProcessingFailed(format!(
+                    "Failed to create patch for file '{file}': {reason}"
+                ))
+            }
+            GitError::Core(gitkit::Error::Io(io_err)) => DiffVizError::Io(io_err),
+            GitError::Core(gitkit::Error::ValidationFailed {
                 file,
                 hunk_additions,
                 hunk_deletions,
                 git_additions,
                 git_deletions,
-            } => DiffVizError::ProcessingFailed(format!(
+            }) => DiffVizError::ProcessingFailed(format!(
                 "Level 1 validation failed for file '{file}': hunks show +{hunk_additions}/{hunk_deletions} but git stats show +{git_additions}/{git_deletions}"
             )),
         }
@@ -82,392 +43,24 @@ impl From<GitError> for DiffVizError {
 
 pub type Result<T> = std::result::Result<T, GitError>;
 
+/// Adapter over `gitkit::GitRepository`. Exists as a local newtype (rather
+/// than using `gitkit::GitRepository` directly) so `DiffProvider` can be
+/// implemented on it without violating the orphan rule.
 pub struct GitRepository {
-    repo: Repository,
+    inner: gitkit::GitRepository,
 }
 
 impl GitRepository {
-    pub fn open<P: AsRef<Path>>(path: P) -> Result<Self> {
-        let path_str = path.as_ref().to_string_lossy().to_string();
-        let repo = Repository::open(path).map_err(|source| GitError::RepositoryNotFound {
-            path: path_str,
-            source,
-        })?;
-        Ok(Self { repo })
+    pub fn open<P: AsRef<std::path::Path>>(path: P) -> Result<Self> {
+        Ok(Self {
+            inner: gitkit::GitRepository::open(path)?,
+        })
     }
 
-    /// Resolves commit references to their corresponding git tree objects.
-    ///
-    /// Takes commit references (which can be hashes, branch names, tags, etc.) and converts
-    /// them to git2::Tree objects that can be used for diff comparison. This involves
-    /// parsing the references, finding the commit objects, and extracting their trees.
-    ///
-    /// # Arguments
-    ///
-    /// * `from_commit` - Source commit reference to resolve
-    /// * `to_commit` - Target commit reference to resolve
-    ///
-    /// # Returns
-    ///
-    /// Returns a tuple of (from_tree, to_tree) or GitError if commits cannot be found.
-    fn resolve_commit_trees(
-        &self,
-        from_commit: &str,
-        to_commit: &str,
-    ) -> Result<(git2::Tree<'_>, git2::Tree<'_>)> {
-        let from_obj =
-            self.repo
-                .revparse_single(from_commit)
-                .map_err(|source| GitError::InvalidCommit {
-                    hash: from_commit.to_string(),
-                    source,
-                })?;
-
-        let to_obj =
-            self.repo
-                .revparse_single(to_commit)
-                .map_err(|source| GitError::InvalidCommit {
-                    hash: to_commit.to_string(),
-                    source,
-                })?;
-
-        let from_tree = from_obj
-            .as_commit()
-            .ok_or_else(|| GitError::InvalidCommit {
-                hash: from_commit.to_string(),
-                source: git2::Error::from_str("Reference does not point to a commit"),
-            })?
-            .tree()
-            .map_err(|source| GitError::InvalidCommit {
-                hash: from_commit.to_string(),
-                source,
-            })?;
-
-        let to_tree = to_obj
-            .as_commit()
-            .ok_or_else(|| GitError::InvalidCommit {
-                hash: to_commit.to_string(),
-                source: git2::Error::from_str("Reference does not point to a commit"),
-            })?
-            .tree()
-            .map_err(|source| GitError::InvalidCommit {
-                hash: to_commit.to_string(),
-                source,
-            })?;
-
-        Ok((from_tree, to_tree))
-    }
-
-    /// Creates a git diff between two tree objects with appropriate options.
-    ///
-    /// Configures git diff options for comprehensive comparison including:
-    /// - Context lines for better understanding
-    /// - Rename detection for moved files
-    /// - Appropriate thresholds for rename/copy detection
-    ///
-    /// # Arguments
-    ///
-    /// * `from_tree` - Source tree object
-    /// * `to_tree` - Target tree object
-    ///
-    /// # Returns
-    ///
-    /// Returns a git2::Diff object ready for processing.
-    fn create_git_diff(
-        &self,
-        from_tree: &git2::Tree,
-        to_tree: &git2::Tree,
-    ) -> Result<git2::Diff<'_>> {
-        let mut diff_options = DiffOptions::new();
-        diff_options.context_lines(3);
-
-        self.repo
-            .diff_tree_to_tree(Some(from_tree), Some(to_tree), Some(&mut diff_options))
-            .map_err(GitError::Git)
-    }
-
-    /// Gets the HEAD tree for diff comparisons
-    fn get_head_tree(&self) -> Result<git2::Tree<'_>> {
-        let head = self.repo.head().map_err(GitError::Git)?;
-        let head_commit = head.peel_to_commit().map_err(GitError::Git)?;
-        head_commit.tree().map_err(GitError::Git)
-    }
-
-    // Helper methods for DiffProvider implementation
-
-    /// Get file content at a specific commit
-    /// Returns None if file doesn't exist at that commit
-    fn get_file_content_at_commit(
-        &self,
-        file_path: &str,
-        commit_ref: &str,
-    ) -> Result<Option<String>> {
-        // Handle special cases
-        if commit_ref == "working-directory" {
-            // Read from working directory
-            let full_path = self
-                .repo
-                .workdir()
-                .ok_or_else(|| GitError::PatchCreationFailed {
-                    file: file_path.to_string(),
-                    reason: "Repository has no working directory".to_string(),
-                })?
-                .join(file_path);
-
-            return match std::fs::read_to_string(&full_path) {
-                Ok(content) => Ok(Some(content)),
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
-                Err(e) => Err(GitError::Io(e)),
-            };
-        }
-
-        if commit_ref == "index" {
-            // Read from git index (staged changes)
-            let index = self.repo.index().map_err(GitError::Git)?;
-            return match index.get_path(Path::new(file_path), 0) {
-                Some(entry) => {
-                    let blob = self.repo.find_blob(entry.id).map_err(GitError::Git)?;
-                    match std::str::from_utf8(blob.content()) {
-                        Ok(content) => Ok(Some(content.to_string())),
-                        Err(_) => Err(GitError::PatchCreationFailed {
-                            file: file_path.to_string(),
-                            reason: "File contains invalid UTF-8".to_string(),
-                        }),
-                    }
-                }
-                None => Ok(None),
-            };
-        }
-
-        // Regular commit reference
-        let commit_obj = match self.repo.revparse_single(commit_ref) {
-            Ok(obj) => obj,
-            Err(_) => return Ok(None), // Commit doesn't exist
-        };
-
-        let commit = match commit_obj.as_commit() {
-            Some(c) => c,
-            None => return Ok(None), // Not a commit
-        };
-
-        let tree = commit.tree().map_err(GitError::Git)?;
-
-        match tree.get_path(Path::new(file_path)) {
-            Ok(tree_entry) => {
-                let blob = self
-                    .repo
-                    .find_blob(tree_entry.id())
-                    .map_err(GitError::Git)?;
-                match std::str::from_utf8(blob.content()) {
-                    Ok(content) => Ok(Some(content.to_string())),
-                    Err(_) => Err(GitError::PatchCreationFailed {
-                        file: file_path.to_string(),
-                        reason: "File contains invalid UTF-8".to_string(),
-                    }),
-                }
-            }
-            Err(_) => Ok(None), // File doesn't exist at this commit
-        }
-    }
-
-    /// Extract git diff statistics for a specific file
-    /// This provides authoritative statistics directly from git
-    fn get_file_stats_for_commits(
-        &self,
-        file_path: &str,
-        from_commit: &str,
-        to_commit: &str,
-    ) -> Result<FileStats> {
-        if from_commit == "HEAD" && to_commit == "working-directory" {
-            return self.get_working_directory_stats_for_file(file_path);
-        }
-
-        // Since hunks no longer contain line data, we need to extract stats directly from git
-        self.get_file_stats_from_git_diff(file_path, from_commit, to_commit)
-    }
-
-    fn get_working_directory_stats_for_file(&self, file_path: &str) -> Result<FileStats> {
-        // Since hunks no longer contain line data, extract stats directly from git
-        self.get_working_directory_stats_from_git_diff(file_path)
-    }
-
-    /// Extract git diff statistics directly from git diff
-    fn get_file_stats_from_git_diff(
-        &self,
-        file_path: &str,
-        from_commit: &str,
-        to_commit: &str,
-    ) -> Result<FileStats> {
-        let (from_tree, to_tree) = self.resolve_commit_trees(from_commit, to_commit)?;
-        let git_diff = self.create_git_diff(&from_tree, &to_tree)?;
-
-        let mut additions = 0;
-        let mut deletions = 0;
-
-        // Iterate through diff to count additions/deletions for the target file
-        for (delta_idx, delta) in git_diff.deltas().enumerate() {
-            let delta_file_path = delta
-                .new_file()
-                .path()
-                .or_else(|| delta.old_file().path())
-                .and_then(|p| p.to_str())
-                .unwrap_or("");
-
-            if delta_file_path != file_path {
-                continue;
-            }
-
-            if let Ok(Some(patch)) = git2::Patch::from_diff(&git_diff, delta_idx) {
-                // Count additions and deletions in this patch
-                for hunk_idx in 0..patch.num_hunks() {
-                    let num_lines = patch.num_lines_in_hunk(hunk_idx).unwrap_or(0);
-                    for line_idx in 0..num_lines {
-                        if let Ok(diff_line) = patch.line_in_hunk(hunk_idx, line_idx) {
-                            match diff_line.origin() {
-                                '+' => additions += 1,
-                                '-' => deletions += 1,
-                                _ => {} // Skip context lines
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(FileStats::new(additions, deletions))
-    }
-
-    /// Extract working directory stats directly from git diff
-    fn get_working_directory_stats_from_git_diff(&self, file_path: &str) -> Result<FileStats> {
-        let head_tree = self.get_head_tree()?;
-        let mut diff_opts = git2::DiffOptions::new();
-        diff_opts.include_untracked(true);
-
-        let git_diff = self
-            .repo
-            .diff_tree_to_workdir_with_index(Some(&head_tree), Some(&mut diff_opts))
-            .map_err(GitError::Git)?;
-
-        let mut additions = 0;
-        let mut deletions = 0;
-
-        // Iterate through diff to count additions/deletions for the target file
-        for (delta_idx, delta) in git_diff.deltas().enumerate() {
-            let delta_file_path = delta
-                .new_file()
-                .path()
-                .or_else(|| delta.old_file().path())
-                .and_then(|p| p.to_str())
-                .unwrap_or("");
-
-            if delta_file_path != file_path {
-                continue;
-            }
-
-            if let Ok(Some(patch)) = git2::Patch::from_diff(&git_diff, delta_idx) {
-                // Count additions and deletions in this patch
-                for hunk_idx in 0..patch.num_hunks() {
-                    let num_lines = patch.num_lines_in_hunk(hunk_idx).unwrap_or(0);
-                    for line_idx in 0..num_lines {
-                        if let Ok(diff_line) = patch.line_in_hunk(hunk_idx, line_idx) {
-                            match diff_line.origin() {
-                                '+' => additions += 1,
-                                '-' => deletions += 1,
-                                _ => {} // Skip context lines
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(FileStats::new(additions, deletions))
-    }
-
-    fn get_diff_files(
-        &self,
-        from_commit: &str,
-        to_commit: &str,
-    ) -> std::result::Result<Vec<(String, FileStatus)>, Box<dyn std::error::Error>> {
-        // Simplified: just extract file paths and statuses directly from git diff
-        let (from_tree, to_tree) = self.resolve_commit_trees(from_commit, to_commit)?;
-        let git_diff = self.create_git_diff(&from_tree, &to_tree)?;
-
-        let mut files = Vec::new();
-        git_diff.foreach(
-            &mut |delta, _progress| {
-                let status = match delta.status() {
-                    git2::Delta::Added => FileStatus::Added,
-                    git2::Delta::Deleted => FileStatus::Deleted,
-                    git2::Delta::Modified => FileStatus::Modified,
-                    git2::Delta::Renamed => FileStatus::Renamed,
-                    git2::Delta::Copied => FileStatus::Copied,
-                    git2::Delta::Untracked => FileStatus::Untracked,
-                    _ => FileStatus::Modified,
-                };
-
-                let path = if let Some(new_file) = delta.new_file().path() {
-                    new_file.to_string_lossy().to_string()
-                } else if let Some(old_file) = delta.old_file().path() {
-                    old_file.to_string_lossy().to_string()
-                } else {
-                    "<unknown>".to_string()
-                };
-
-                files.push((path, status));
-                true
-            },
-            None,
-            None,
-            None,
-        )?;
-
-        Ok(files)
-    }
-
-    fn get_working_directory_files(
-        &self,
-    ) -> std::result::Result<Vec<(String, FileStatus)>, Box<dyn std::error::Error>> {
-        // Simplified: extract file information directly from git diff
-        let head_tree = self.get_head_tree()?;
-        let mut diff_opts = git2::DiffOptions::new();
-        diff_opts.include_untracked(true);
-
-        let git_diff = self
-            .repo
-            .diff_tree_to_workdir_with_index(Some(&head_tree), Some(&mut diff_opts))
-            .map_err(GitError::Git)?;
-
-        let mut files = Vec::new();
-        git_diff.foreach(
-            &mut |delta, _progress| {
-                let status = match delta.status() {
-                    git2::Delta::Added => FileStatus::Added,
-                    git2::Delta::Deleted => FileStatus::Deleted,
-                    git2::Delta::Modified => FileStatus::Modified,
-                    git2::Delta::Renamed => FileStatus::Renamed,
-                    git2::Delta::Copied => FileStatus::Copied,
-                    git2::Delta::Untracked => FileStatus::Untracked,
-                    _ => FileStatus::Modified,
-                };
-
-                let path = if let Some(new_file) = delta.new_file().path() {
-                    new_file.to_string_lossy().to_string()
-                } else if let Some(old_file) = delta.old_file().path() {
-                    old_file.to_string_lossy().to_string()
-                } else {
-                    "<unknown>".to_string()
-                };
-
-                files.push((path, status));
-                true
-            },
-            None,
-            None,
-            None,
-        )?;
-
-        Ok(files)
+    /// Resolve a commit hash to its parent commit hash
+    /// Used for building diff queries that show the exact commit's changes (commit^..commit)
+    pub fn resolve_parent_commit(&self, commit_hash: &str) -> Result<String> {
+        Ok(self.inner.resolve_parent_commit(commit_hash)?)
     }
 
     // TODO: BROKEN - Hunk type doesn't exist, needs refactoring
@@ -714,35 +307,20 @@ impl GitRepository {
         }
     }
     */
+}
 
-    /// Resolve a commit hash to its parent commit hash
-    /// Used for building diff queries that show the exact commit's changes (commit^..commit)
-    pub fn resolve_parent_commit(&self, commit_hash: &str) -> Result<String> {
-        let commit_obj =
-            self.repo
-                .revparse_single(commit_hash)
-                .map_err(|source| GitError::InvalidCommit {
-                    hash: commit_hash.to_string(),
-                    source,
-                })?;
+fn map_stats(raw: gitkit::RawFileStats) -> FileStats {
+    FileStats::new(raw.additions, raw.deletions)
+}
 
-        let commit = commit_obj
-            .as_commit()
-            .ok_or_else(|| GitError::InvalidCommit {
-                hash: commit_hash.to_string(),
-                source: git2::Error::new(
-                    git2::ErrorCode::InvalidSpec,
-                    git2::ErrorClass::Reference,
-                    "Not a commit object",
-                ),
-            })?;
-
-        let parent = commit.parent(0).map_err(|source| GitError::InvalidCommit {
-            hash: commit_hash.to_string(),
-            source,
-        })?;
-
-        Ok(parent.id().to_string())
+fn map_status(raw: gitkit::RawFileStatus) -> FileStatus {
+    match raw {
+        gitkit::RawFileStatus::Added => FileStatus::Added,
+        gitkit::RawFileStatus::Modified => FileStatus::Modified,
+        gitkit::RawFileStatus::Deleted => FileStatus::Deleted,
+        gitkit::RawFileStatus::Renamed => FileStatus::Renamed,
+        gitkit::RawFileStatus::Copied => FileStatus::Copied,
+        gitkit::RawFileStatus::Untracked => FileStatus::Untracked,
     }
 }
 
@@ -757,11 +335,16 @@ impl DiffProvider for GitRepository {
         let to_ref = git_ref_to_string(&query.to)?;
 
         // Handle special cases for working directory comparisons
-        match (&query.from, &query.to) {
-            (GitRef::Head, GitRef::Unstaged) => self.get_working_directory_files(),
-            (GitRef::Staged, GitRef::Unstaged) => self.get_working_directory_files(), // TODO: Implement staged vs unstaged
-            _ => self.get_diff_files(&from_ref, &to_ref),
-        }
+        let raw_files = match (&query.from, &query.to) {
+            (GitRef::Head, GitRef::Unstaged) => self.inner.get_working_directory_files()?,
+            (GitRef::Staged, GitRef::Unstaged) => self.inner.get_working_directory_files()?, // TODO: Implement staged vs unstaged
+            _ => self.inner.get_diff_files(&from_ref, &to_ref)?,
+        };
+
+        Ok(raw_files
+            .into_iter()
+            .map(|(path, status)| (path, map_status(status)))
+            .collect())
     }
 
     fn get_file_stats(
@@ -773,16 +356,20 @@ impl DiffProvider for GitRepository {
         let to_ref = git_ref_to_string(&query.to)?;
 
         // Handle special cases for working directory comparisons
-        match (&query.from, &query.to) {
+        let raw_stats = match (&query.from, &query.to) {
             (GitRef::Head, GitRef::Unstaged) => {
-                Ok(self.get_working_directory_stats_for_file(file_path)?)
+                self.inner.get_working_directory_stats_for_file(file_path)?
             }
             (GitRef::Staged, GitRef::Unstaged) => {
                 // TODO: Implement proper staged vs unstaged stats
-                Ok(self.get_working_directory_stats_for_file(file_path)?)
+                self.inner.get_working_directory_stats_for_file(file_path)?
             }
-            _ => Ok(self.get_file_stats_for_commits(file_path, &from_ref, &to_ref)?),
-        }
+            _ => self
+                .inner
+                .get_file_stats_for_commits(file_path, &from_ref, &to_ref)?,
+        };
+
+        Ok(map_stats(raw_stats))
     }
 
     fn get_source_code(
@@ -792,38 +379,23 @@ impl DiffProvider for GitRepository {
     ) -> std::result::Result<String, Box<dyn std::error::Error>> {
         let ref_string = git_ref_to_string(git_ref)?;
 
-        match git_ref {
-            GitRef::Unstaged => {
-                // Read file from working directory
-                let full_path = self
-                    .repo
-                    .workdir()
-                    .ok_or_else(|| {
-                        Box::new(GitError::Git(git2::Error::from_str(
-                            "Repository has no working directory",
-                        )))
-                    })?
-                    .join(file_path);
-                Ok(std::fs::read_to_string(full_path)?)
-            }
-            GitRef::Staged => {
-                // TODO: Implement reading from index
-                let content = self
-                    .get_file_content_at_commit(file_path, "HEAD")?
-                    .ok_or_else(|| {
-                        Box::new(GitError::Git(git2::Error::from_str("File not found")))
-                    })?;
-                Ok(content)
-            }
-            _ => {
-                let content = self
-                    .get_file_content_at_commit(file_path, &ref_string)?
-                    .ok_or_else(|| {
-                        Box::new(GitError::Git(git2::Error::from_str("File not found")))
-                    })?;
-                Ok(content)
-            }
-        }
+        let commit_ref = match git_ref {
+            GitRef::Unstaged => "working-directory",
+            GitRef::Staged => "HEAD", // TODO: Implement reading from index
+            _ => ref_string.as_str(),
+        };
+
+        let content = self
+            .inner
+            .get_file_content_at_commit(file_path, commit_ref)?
+            .ok_or_else(|| {
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::NotFound,
+                    format!("File not found: {file_path}"),
+                )) as Box<dyn std::error::Error>
+            })?;
+
+        Ok(content)
     }
 
     fn get_file_hash(
