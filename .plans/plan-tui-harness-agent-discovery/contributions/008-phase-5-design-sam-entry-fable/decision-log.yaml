@@ -1,0 +1,23 @@
+commit: null
+
+decisions:
+  - number: 1
+    title: sam's agent entry is a fixture-driven example binary, not a sam-cli subcommand
+    rationale: >
+      The hard constraint is zero impact on sam's production CLI UX. A
+      hidden subcommand is still reachable production surface; a
+      feature-gated bin is an example with extra configuration. Examples
+      don't ship, mirror the kitchen_sink precedent, and sam-tui's generic
+      modal view needs concrete fixture data anyway — which the existing
+      test suite already defines (MockValue items + OptionToggle).
+    code_impacts: []
+
+  - number: 2
+    title: One hand-written const binding list feeds both describe() and affordances()
+    rationale: >
+      D006 rules out a registry for sam's ~12 keys, but hand-writing the key
+      list twice (manifest + affordances) would let sam's own two discovery
+      surfaces disagree. A single const in headless.rs, filtered by
+      construction config (has_options, allow_multi_select), keeps sam
+      internally consistent while staying registry-free.
+    code_impacts: []
