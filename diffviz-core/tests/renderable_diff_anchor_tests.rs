@@ -358,3 +358,100 @@ fn phase1_python_def_identifier() {
         Some("process".to_string())
     );
 }
+
+// ── Phase 3 gate: correct anchors through the Myers diff (Modified) path ─────
+//
+// create_line_by_line_diff_for_modified used to pass a hardcoded byte offset of 0
+// to extract_semantic_anchor at every call site, so every line queried the tree at
+// byte 0 instead of its real position. These tests use a preamble comment so the
+// function boundary does NOT start at byte 0, making a regression to the old
+// all-zero behavior fail loudly instead of passing by coincidence.
+
+const MYERS_OLD_SOURCE: &str =
+    "// preamble\nfn calculate(x: i32) -> i32 {\n    let temp = x;\n    temp + 1\n}\n";
+const MYERS_NEW_SOURCE: &str =
+    "// preamble\nfn calculate(x: i32) -> i32 {\n    let temp = x;\n    temp + 2\n}\n";
+
+fn anchors_for_modified_range(
+    old_source_text: &str,
+    new_source_text: &str,
+    start_line: usize,
+    end_line: usize,
+    language: ProgrammingLanguage,
+    parser: &dyn LanguageParser,
+) -> Vec<(usize, Option<SemanticAnchor>)> {
+    let old_source = SourceCode::new(old_source_text.to_string());
+    let new_source = SourceCode::new(new_source_text.to_string());
+    let mut diffs = create_reviewable_diff_from_range(
+        "test_file",
+        start_line,
+        end_line,
+        Some(&old_source),
+        &new_source,
+        language,
+        parser,
+    )
+    .expect("create_reviewable_diff_from_range failed");
+
+    assert!(
+        !diffs.is_empty(),
+        "no ReviewableDiff returned for range {start_line}-{end_line}"
+    );
+    let reviewable = diffs.remove(0);
+    assert!(
+        matches!(
+            reviewable.boundary.change_status,
+            NodeChangeStatus::Modified { .. }
+        ),
+        "expected a Modified boundary to exercise the Myers diff path"
+    );
+
+    let renderable =
+        RenderableDiff::try_from(&reviewable).expect("RenderableDiff::try_from failed");
+
+    renderable
+        .lines
+        .iter()
+        .map(|l| (l.line_number, l.semantic_anchor.clone()))
+        .collect()
+}
+
+#[test]
+fn myers_path_signature_anchor() {
+    let parser = RustParser::new();
+    let lines = anchors_for_modified_range(
+        MYERS_OLD_SOURCE,
+        MYERS_NEW_SOURCE,
+        2,
+        5,
+        ProgrammingLanguage::Rust,
+        &parser,
+    );
+    assert_eq!(
+        anchor_at(&lines, 1),
+        Some(SemanticAnchor {
+            anchor_type: SemanticAnchorType::FunctionSignature,
+            identifier: "calculate".to_string(),
+        })
+    );
+}
+
+#[test]
+fn myers_path_variable_binding_anchor() {
+    let parser = RustParser::new();
+    let lines = anchors_for_modified_range(
+        MYERS_OLD_SOURCE,
+        MYERS_NEW_SOURCE,
+        2,
+        5,
+        ProgrammingLanguage::Rust,
+        &parser,
+    );
+    assert_eq!(
+        anchor_at(&lines, 2),
+        Some(SemanticAnchor {
+            anchor_type: SemanticAnchorType::VariableAssignment,
+            identifier: "temp".to_string(),
+        })
+    );
+}
