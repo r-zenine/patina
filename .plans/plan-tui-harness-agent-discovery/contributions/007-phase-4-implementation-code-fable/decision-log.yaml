@@ -1,0 +1,36 @@
+commit: "f3ca86020ce047361eb70d761ad57e22bb77ef7b"
+decisions:
+  - number: 1
+    title: run_repl_io is generic over BufRead/Write streams
+    rationale: >
+      Binding the loop to real stdio would force every protocol test to
+      spawn a subprocess. Generic streams let the 12 protocol tests run
+      in-process on byte buffers (fast, no binary-path coupling), while
+      run_repl(app) is a two-line stdio binding. The one subprocess test
+      that remains (in diffviz-review-tui) exists to prove the wiring, not
+      the protocol.
+    code_impacts:
+      - reasoning: "[Behavioral - Error path change] Errors inside a session (bad JSON, unknown cmd, app dispatch error) produce ok:false responses and CONTINUE the loop — only quit/EOF return; reviewers should verify no error path accidentally breaks the loop, since killing the session destroys the state the REPL exists to protect"
+        file: tui-harness/src/repl.rs
+        line_ranges:
+          - start: 41
+            end: 104
+  - number: 2
+    title: keys errors report applied:N because partial application mutates state
+    rationale: >
+      Steps apply one at a time; an app error mid-sequence leaves the first
+      N steps' effects in place. Silently pretending the command failed
+      atomically would desynchronize the agent's world model. The error
+      response carries applied so the agent knows the state moved, and can
+      render to re-observe (pinned by the jjxj test: two j's land, error
+      reports applied: 2, subsequent render shows count 2).
+    code_impacts: []
+  - number: 3
+    title: deny_unknown_fields on request parsing
+    rationale: >
+      An agent sending {"cmd":"keys","inpt":"jj"} (typo'd field) would
+      otherwise deserialize-fail with a confusing missing-field message or —
+      worse for future optional fields — silently ignore data. Strict
+      parsing makes protocol violations loud at the boundary, consistent
+      with the CLI's unknown-flag policy (Phase 1 decision 4).
+    code_impacts: []
