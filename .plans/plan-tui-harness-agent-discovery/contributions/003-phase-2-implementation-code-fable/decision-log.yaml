@@ -1,0 +1,41 @@
+commit: "854ef78afcd63ef45551d918229b4be2df8a4ccb"
+decisions:
+  - number: 1
+    title: Agent CLI modes are no longer gated behind the test-harness feature
+    rationale: >
+      The old test modes were feature-gated "to exclude from production
+      builds", but this binary is fixture-only by design (its doc header says
+      so) and run_agent_cli lives in tui-harness, which has no features. The
+      discovery surface is the product for agents, not test scaffolding —
+      gating --describe would mean a production-built binary lies about
+      supporting discovery. The test-harness feature still exists and still
+      gates the library's test_harness wrapper module used by integration
+      tests; the documented cargo commands with --features test-harness keep
+      working unchanged.
+    code_impacts:
+      - reasoning: "[Behavioral - Control flow at boundaries] main() unconditionally delegates to run_agent_cli — unknown flags now exit non-zero instead of falling through to the interactive TUI, and --test-render is gone (was a never-implemented stub); anything scripted against fall-through or --test-render breaks loudly"
+        file: diffviz-review-tui/src/main.rs
+        line_ranges:
+          - start: 21
+            end: 30
+  - number: 2
+    title: ReviewTuiApp::describe() ships mode docs but zero bindings
+    rationale: >
+      Hand-writing the ~30 bindings into describe() would create the fifth
+      drift copy of the key table — the exact failure this plan exists to
+      eliminate. The manifest therefore documents app identity, the three
+      input modes, notation, and the snapshot schema now, and a dedicated
+      test (describe_bindings_stay_empty_until_the_registry_exists) pins
+      bindings at empty so Phase 3 flips that test to non-empty
+      registry-generated content intentionally, not accidentally.
+    code_impacts: []
+  - number: 3
+    title: Byte-compatibility proven by golden diff, enforced by structural tests
+    rationale: >
+      Pre-migration outputs of --test-input "j" and --test-full "j" were
+      captured, and post-migration outputs diffed byte-identical (gate
+      passed). The committed regression tests assert structure (all 17
+      snapshot fields, step headers, JSON validity) rather than embedding the
+      golden bytes, because the goldens encode the fixture decisions — a
+      legitimate fixture edit should not masquerade as a format regression.
+    code_impacts: []
