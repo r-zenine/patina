@@ -72,10 +72,9 @@ fn get_modal_content(
                 .get_instructions(reviewable_id)
                 .and_then(|v| v.first());
             let title = match existing {
-                Some(instr) => format!(
-                    "Append to {}'s note - {}",
-                    instr.author, reviewable_id.file_path
-                ),
+                Some(instr) => {
+                    format!("Edit {}'s note - {}", instr.author, reviewable_id.file_path)
+                }
                 None => format!("Add Instruction - {}", reviewable_id.file_path),
             };
             (
@@ -89,10 +88,9 @@ fn get_modal_content(
                 .get_decision_instructions(*decision_number)
                 .and_then(|v| v.into_iter().next());
             let title = match existing {
-                Some(instr) => format!(
-                    "Append to {}'s note - Decision #{decision_number}",
-                    instr.author
-                ),
+                Some(instr) => {
+                    format!("Edit {}'s note - Decision #{decision_number}", instr.author)
+                }
                 None => format!("Add Instruction - Decision #{decision_number}"),
             };
             (

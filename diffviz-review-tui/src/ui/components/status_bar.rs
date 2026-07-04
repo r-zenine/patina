@@ -114,7 +114,7 @@ fn drill_hints(ui_state: &UiState, review_engine: &ReviewEngine) -> String {
         })
         .unwrap_or("");
     format!(
-        "{files_hint}j/k chunks    Tab {ctx_label}    {note_hint}n note    a approve ({approved_count}/{total_chunks})    Esc back    q quit",
+        "{files_hint}j/k chunks    Ctrl-d/u page    Tab {ctx_label}    {note_hint}n note    a approve ({approved_count}/{total_chunks})    Esc back    q quit",
     )
 }
 

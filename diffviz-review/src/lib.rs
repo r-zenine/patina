@@ -7,6 +7,7 @@ pub mod review_engine_builder;
 pub mod state;
 pub mod summary;
 pub mod templates;
+pub mod adapters;
 
 // Re-export key types for external use
 pub use engines::{ReviewEngine, ReviewProgress};

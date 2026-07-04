@@ -173,6 +173,42 @@ impl ReviewEngine {
         Ok(())
     }
 
+    /// Overwrite the existing instruction for a decision with fully edited
+    /// content, rather than appending a new line to it.
+    pub fn edit_decision_instruction(
+        &mut self,
+        decision_number: u32,
+        content: String,
+        author: String,
+    ) -> Result<()> {
+        if !self
+            .state
+            .decisions
+            .decisions
+            .contains_key(&decision_number)
+        {
+            return Err(crate::errors::DiffVizError::Review(
+                crate::errors::ReviewError::InvalidDecision { decision_number },
+            ));
+        }
+
+        let instruction = Instruction {
+            id: uuid::Uuid::new_v4().to_string(),
+            author,
+            timestamp: chrono::Utc::now()
+                .format("%Y-%m-%d %H:%M:%S UTC")
+                .to_string(),
+            content,
+            status: InstructionStatus::Active,
+        };
+
+        self.state
+            .decision_instructions
+            .replace_instruction(decision_number, instruction);
+
+        Ok(())
+    }
+
     /// Remove a specific decision instruction by ID
     pub fn remove_decision_instruction(&mut self, instruction_id: &str) -> Result<()> {
         match self

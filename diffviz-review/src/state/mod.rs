@@ -209,6 +209,17 @@ impl ReviewState {
         self
     }
 
+    /// Overwrite an existing instruction's content in place (returns new state)
+    pub fn replace_instruction(
+        &mut self,
+        reviewable_id: ReviewableDiffId,
+        instruction: Instruction,
+    ) -> &mut Self {
+        self.instructions
+            .replace_instruction(reviewable_id, instruction);
+        self
+    }
+
     /// Approve all reviewable diffs in a file (returns new state)
     pub fn approve_all_in_file(&mut self, file_path: &str, reviewer: String) -> &mut Self {
         let timestamp = chrono::Utc::now()

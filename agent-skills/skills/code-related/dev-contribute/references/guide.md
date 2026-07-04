@@ -82,20 +82,24 @@ Before proceeding to execution work, confirm all of these:
    diffviz display review <path-to-contribution-folder>
    ```
 
-   This returns a structured summary with three sections to act on:
+   This returns a minimal YAML summary with just the work still outstanding:
 
-   - **`approvals`** — file/line ranges the reviewer signed off. No rework needed for these.
-   - **`decision_approvals`** — decisions that were approved (`approved: true`) or rejected (`approved: false`). Rejected decisions must be revisited.
-   - **`instructions`** — reviewer directives. Filter for entries where `status: "active"`. Each active instruction contains `file`, `line_range`, `content`, and `query`. Use the `query` field with `git show <query>:<file>` to retrieve file content at the right git ref for context.
+   - **`commit`** — the commit the review was performed against.
+   - **`unapproved_decisions`** — decisions from `decision-log.yaml` with no matching approval yet. Each entry has `number`, `title`, `rationale` (omitted if none), and `code_impacts` (file + reasoning). There is no separate "rejected" state — a decision is either approved or it still shows up here awaiting review.
+   - **`instructions.active`** — reviewer directives tied to a specific code range, not yet addressed. Each entry has `file`, `lines`, `content`, `author`, `timestamp`.
+   - **`instructions.addressed`** — code-range directives already resolved in a prior contribution; omitted from action but useful for context.
+   - **`decision_instructions`** — reviewer directives tied to a *decision* rather than a code range (e.g. "reconsider this approach"). In minimal mode this is a flat list of the active ones only, each with `decision_number`, `decision_title`, `content`, `author`, `timestamp`. A decision can carry an active instruction even if it's already approved, so check this even when a decision isn't in `unapproved_decisions`.
 
-   **If the review summary contains rejected decisions or active instructions:**
+   Pass `--full` to also get `decisions.approved` (with `approved_by`/`approval_timestamp`), `decision_instructions` split into `active`/`addressed`, and a `summary` stats block — useful for reporting, not required for the workflow below.
+
+   **If the review summary contains unapproved decisions, active instructions, or active decision instructions:**
    - **Do not proceed to the next roadmap phase**
    - Create a new contribution folder (next sequential number) to address the feedback
    - The folder name should reflect what was done: `NNN-phase-X-review-response-[specialty]-[agent]`
-   - Address every active instruction and revisit every rejected decision in that contribution
+   - Address every active instruction (code-level and decision-level) and revisit every unapproved decision in that contribution
    - Follow all standard Outcome 2 and Outcome 3 requirements for this new contribution
 
-   **If absent, or if all decisions are approved and there are no active instructions**, proceed normally to the next incomplete phase.
+   **If absent, or if `unapproved_decisions`, `instructions.active`, and `decision_instructions` (active) are all empty**, proceed normally to the next incomplete phase.
 
 #### Identify Your Phase (Phase Scoping)
 

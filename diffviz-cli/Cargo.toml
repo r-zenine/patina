@@ -10,7 +10,6 @@ path = "src/main.rs"
 [dependencies]
 diffviz-review = { path = "../diffviz-review" }
 diffviz-review-tui = { path = "../diffviz-review-tui" }
-diffviz-git = { path = "../diffviz-git" }
 diffviz-core = { path = "../diffviz-core" }
 tokio = { workspace = true }
 clap = { version = "4.0", features = ["derive"] }

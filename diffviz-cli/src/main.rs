@@ -9,7 +9,7 @@ use commands::{
     CommandExecutor, debug::DebugCommand, display::DisplayReviewCommand, review::ReviewCommand,
     templates::TemplatesCommand, validate::ValidateCommand,
 };
-use diffviz_git::GitRepository;
+use diffviz_review::adapters::git::GitRepository;
 use diffviz_review::{
     DecisionLog, DiffQuery, ReviewEngineBuilder, load_review_state, save_review_state,
 };

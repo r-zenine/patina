@@ -177,25 +177,40 @@ impl UiState {
         self.drill_index.decisions.get(cursor).map(|d| d.number)
     }
 
-    fn enter_input_mode(&mut self, mode: InputMode) {
+    fn enter_input_mode(&mut self, mode: InputMode, initial_content: Option<String>) {
         self.input_mode = mode;
-        self.input_buffer.clear();
-        self.input_cursor = 0;
+        self.input_buffer = initial_content.unwrap_or_default();
+        self.input_cursor = self.input_buffer.len();
     }
 
-    /// Enter instruction input mode for a chunk
-    pub fn start_instruction_input(&mut self, reviewable_id: ReviewableDiffId) {
-        self.enter_input_mode(InputMode::Instruction { reviewable_id });
+    /// Enter instruction input mode for a chunk, preloading any existing
+    /// note's content so the reviewer can see and edit it rather than typing
+    /// blind into an empty box.
+    pub fn start_instruction_input(
+        &mut self,
+        reviewable_id: ReviewableDiffId,
+        existing_content: Option<String>,
+    ) {
+        self.enter_input_mode(InputMode::Instruction { reviewable_id }, existing_content);
     }
 
-    /// Enter instruction input mode for a decision
-    pub fn start_decision_instruction_input(&mut self, decision_number: u32) {
-        self.enter_input_mode(InputMode::DecisionInstruction { decision_number });
+    /// Enter instruction input mode for a decision, preloading any existing
+    /// note's content so the reviewer can see and edit it rather than typing
+    /// blind into an empty box.
+    pub fn start_decision_instruction_input(
+        &mut self,
+        decision_number: u32,
+        existing_content: Option<String>,
+    ) {
+        self.enter_input_mode(
+            InputMode::DecisionInstruction { decision_number },
+            existing_content,
+        );
     }
 
     /// Exit input mode and return to navigation
     pub fn exit_input_mode(&mut self) {
-        self.enter_input_mode(InputMode::Navigation);
+        self.enter_input_mode(InputMode::Navigation, None);
     }
 
     /// Check if currently in any input mode
@@ -411,7 +426,10 @@ impl UiState {
                 file_idx, views, ..
             } => {
                 let view = &mut views[*file_idx];
-                view.cursor = view.cursor.saturating_sub(1);
+                if view.cursor > 0 {
+                    view.cursor -= 1;
+                    view.page_offset = 0;
+                }
             }
         }
     }
@@ -435,6 +453,7 @@ impl UiState {
                 let view = &mut views[*file_idx];
                 if view.cursor + 1 < n_chunks {
                     view.cursor += 1;
+                    view.page_offset = 0;
                 }
             }
         }
@@ -529,7 +548,11 @@ impl UiState {
             DrillNavState::Browse { cursor } => *cursor = 0,
             DrillNavState::Drill {
                 file_idx, views, ..
-            } => views[*file_idx].cursor = 0,
+            } => {
+                let view = &mut views[*file_idx];
+                view.cursor = 0;
+                view.page_offset = 0;
+            }
         }
     }
 
@@ -548,6 +571,7 @@ impl UiState {
                     .chunks
                     .len();
                 views[*file_idx].cursor = n_chunks.saturating_sub(1);
+                views[*file_idx].page_offset = 0;
             }
         }
     }

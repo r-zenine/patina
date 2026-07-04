@@ -92,6 +92,29 @@ impl<K: Hash + Eq + Clone> InstructionMap<K> {
         }
     }
 
+    /// Overwrites the existing note's content wholesale (the edit-in-place
+    /// path, used when the caller showed the reviewer the full previous text
+    /// and let them rewrite it, as opposed to [`add_instruction`]'s blind
+    /// append). Falls back to inserting `instruction` unchanged when the key
+    /// has no note yet.
+    ///
+    /// [`add_instruction`]: Self::add_instruction
+    pub fn replace_instruction(&mut self, key: K, instruction: Instruction) {
+        let notes = self.instructions.entry(key).or_default();
+        match notes.first_mut() {
+            Some(existing) => {
+                existing.content = instruction.content;
+                existing.timestamp = instruction.timestamp;
+                existing.status = InstructionStatus::Active;
+                if !existing.author.split(", ").any(|a| a == instruction.author) {
+                    existing.author.push_str(", ");
+                    existing.author.push_str(&instruction.author);
+                }
+            }
+            None => notes.push(instruction),
+        }
+    }
+
     pub fn get_instructions(&self, key: &K) -> Option<&Vec<Instruction>> {
         self.instructions.get(key)
     }

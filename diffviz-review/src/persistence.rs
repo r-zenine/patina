@@ -4,8 +4,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::entities::instruction::InstructionStatus;
 use crate::summary::{
-    ApprovedDecisionEntry, InstructionEntry, ReviewSummary, ReviewSummaryDecisions,
-    ReviewSummaryInstructions, ReviewSummaryStats, UnapprovedDecisionEntry,
+    ApprovedDecisionEntry, DecisionInstructionEntry, InstructionEntry, ReviewSummary,
+    ReviewSummaryDecisionInstructions, ReviewSummaryDecisions, ReviewSummaryInstructions,
+    ReviewSummaryStats, UnapprovedDecisionEntry,
 };
 use crate::{
     ApprovalRecord, DecisionApprovals, DecisionLog, ReviewApprovals, ReviewEngine, ReviewableDiffId,
@@ -113,8 +114,20 @@ struct SummaryExportedInstruction {
 }
 
 #[derive(Deserialize)]
+struct SummaryExportedDecisionInstruction {
+    decision_number: u32,
+    content: String,
+    author: String,
+    timestamp: String,
+    #[serde(default)]
+    status: InstructionStatus,
+}
+
+#[derive(Deserialize)]
 struct SummaryExportedInstructions {
     instructions: Vec<SummaryExportedInstruction>,
+    #[serde(default)]
+    decision_instructions: Vec<SummaryExportedDecisionInstruction>,
 }
 
 #[derive(Deserialize)]
@@ -136,17 +149,27 @@ pub fn summarize_review_state(folder: &Path) -> Result<ReviewSummary, Persistenc
         DecisionLog::parse(&yaml_content).map_err(|e| PersistenceError::Parse(e.to_string()))?;
 
     let review_state_path = folder.join("review-state.json");
-    let (decision_approvals, exported_instructions) = if review_state_path.exists() {
-        let json = std::fs::read_to_string(&review_state_path)?;
-        let state: SummaryReviewStateFile = serde_json::from_str(&json)?;
-        (state.decision_approvals, state.instructions.instructions)
-    } else {
-        (vec![], vec![])
-    };
+    let (decision_approvals, exported_instructions, exported_decision_instructions) =
+        if review_state_path.exists() {
+            let json = std::fs::read_to_string(&review_state_path)?;
+            let state: SummaryReviewStateFile = serde_json::from_str(&json)?;
+            (
+                state.decision_approvals,
+                state.instructions.instructions,
+                state.instructions.decision_instructions,
+            )
+        } else {
+            (vec![], vec![], vec![])
+        };
 
     let approval_map: std::collections::HashMap<u32, &SummaryDecisionApproval> = decision_approvals
         .iter()
         .map(|a| (a.decision_number, a))
+        .collect();
+    let title_map: std::collections::HashMap<u32, &str> = log
+        .decisions
+        .iter()
+        .map(|d| (d.number, d.title.as_str()))
         .collect();
 
     let mut approved_decisions = Vec::new();
@@ -188,11 +211,33 @@ pub fn summarize_review_state(folder: &Path) -> Result<ReviewSummary, Persistenc
         }
     }
 
+    let mut active_decision_instructions = Vec::new();
+    let mut addressed_decision_instructions = Vec::new();
+    for inst in exported_decision_instructions {
+        let entry = DecisionInstructionEntry {
+            decision_number: inst.decision_number,
+            decision_title: title_map
+                .get(&inst.decision_number)
+                .map(|t| t.to_string())
+                .unwrap_or_default(),
+            content: inst.content,
+            author: inst.author,
+            timestamp: inst.timestamp,
+        };
+        match inst.status {
+            InstructionStatus::Active => active_decision_instructions.push(entry),
+            InstructionStatus::Addressed => addressed_decision_instructions.push(entry),
+        }
+    }
+
     let total_decisions = log.decisions.len();
     let approved_count = approved_decisions.len();
     let unapproved_count = unapproved_decisions.len();
     let total_instructions = active_instructions.len() + addressed_instructions.len();
     let active_count = active_instructions.len();
+    let total_decision_instructions =
+        active_decision_instructions.len() + addressed_decision_instructions.len();
+    let active_decision_instructions_count = active_decision_instructions.len();
 
     Ok(ReviewSummary {
         commit: log.commit,
@@ -205,12 +250,18 @@ pub fn summarize_review_state(folder: &Path) -> Result<ReviewSummary, Persistenc
             active: active_instructions,
             addressed: addressed_instructions,
         },
+        decision_instructions: ReviewSummaryDecisionInstructions {
+            active: active_decision_instructions,
+            addressed: addressed_decision_instructions,
+        },
         summary: ReviewSummaryStats {
             total_decisions,
             approved_decisions: approved_count,
             unapproved_decisions: unapproved_count,
             total_instructions,
             active_instructions: active_count,
+            total_decision_instructions,
+            active_decision_instructions: active_decision_instructions_count,
         },
     })
 }
@@ -252,4 +303,66 @@ pub fn save_review_state(folder: &Path, engine: &ReviewEngine) -> Result<(), Per
     let json = serde_json::to_string_pretty(&state_file)?;
     std::fs::write(folder.join("review-state.json"), json)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn summarize_review_state_surfaces_active_decision_instructions() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("decision-log.yaml"),
+            r#"
+commit: abc1234
+decisions:
+  - number: 1
+    title: Test decision
+    rationale: because reasons
+    code_impacts:
+      - reasoning: test impact
+        file: src/lib.rs
+        line_ranges:
+          - start: 1
+            end: 5
+"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("review-state.json"),
+            r#"{
+  "approvals": [],
+  "instructions": {
+    "_meta": {"format_version": "1.3", "description": "test"},
+    "instructions": [],
+    "decision_instructions": [
+      {"decision_number": 1, "content": "please reconsider", "author": "ryad", "timestamp": "t", "status": "active"},
+      {"decision_number": 1, "content": "old note", "author": "ryad", "timestamp": "t0", "status": "addressed"}
+    ]
+  },
+  "decision_approvals": []
+}"#,
+        )
+        .unwrap();
+
+        let summary = summarize_review_state(dir.path()).unwrap();
+
+        assert_eq!(summary.decision_instructions.active.len(), 1);
+        assert_eq!(
+            summary.decision_instructions.active[0].content,
+            "please reconsider"
+        );
+        assert_eq!(
+            summary.decision_instructions.active[0].decision_title,
+            "Test decision"
+        );
+        assert_eq!(summary.decision_instructions.addressed.len(), 1);
+        assert_eq!(summary.summary.total_decision_instructions, 2);
+        assert_eq!(summary.summary.active_decision_instructions, 1);
+
+        let minimal = summary.to_yaml_minimal().unwrap();
+        assert!(minimal.contains("please reconsider"));
+        assert!(!minimal.contains("old note"));
+    }
 }

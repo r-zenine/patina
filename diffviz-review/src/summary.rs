@@ -29,12 +29,23 @@ pub struct InstructionEntry {
 }
 
 #[derive(Debug, Serialize)]
+pub struct DecisionInstructionEntry {
+    pub decision_number: u32,
+    pub decision_title: String,
+    pub content: String,
+    pub author: String,
+    pub timestamp: String,
+}
+
+#[derive(Debug, Serialize)]
 pub struct ReviewSummaryStats {
     pub total_decisions: usize,
     pub approved_decisions: usize,
     pub unapproved_decisions: usize,
     pub total_instructions: usize,
     pub active_instructions: usize,
+    pub total_decision_instructions: usize,
+    pub active_decision_instructions: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -50,11 +61,18 @@ pub struct ReviewSummaryInstructions {
 }
 
 #[derive(Debug, Serialize)]
+pub struct ReviewSummaryDecisionInstructions {
+    pub active: Vec<DecisionInstructionEntry>,
+    pub addressed: Vec<DecisionInstructionEntry>,
+}
+
+#[derive(Debug, Serialize)]
 pub struct ReviewSummary {
     pub commit: String,
     pub contribution_folder: String,
     pub decisions: ReviewSummaryDecisions,
     pub instructions: ReviewSummaryInstructions,
+    pub decision_instructions: ReviewSummaryDecisionInstructions,
     pub summary: ReviewSummaryStats,
 }
 
@@ -72,6 +90,7 @@ struct MinimalOutput<'a> {
     commit: &'a str,
     unapproved_decisions: Vec<MinimalDecisionEntry<'a>>,
     instructions: &'a ReviewSummaryInstructions,
+    decision_instructions: &'a [DecisionInstructionEntry],
 }
 
 impl ReviewSummary {
@@ -89,6 +108,7 @@ impl ReviewSummary {
                     code_impacts: &d.code_impacts,
                 })
                 .collect(),
+            decision_instructions: &self.decision_instructions.active,
             instructions: &self.instructions,
         };
         serde_yaml::to_string(&output)

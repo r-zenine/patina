@@ -15,7 +15,10 @@ chrono = { workspace = true }
 uuid = { workspace = true }
 sha2 = { workspace = true }
 log = {workspace = true}
+gitkit = { path = "../libs/gitkit" }
 diffviz-core = { path = "../diffviz-core" }
 
 [dev-dependencies]
 serde_json = { workspace = true }
+tempfile = { workspace = true }
+git2 = "0.20"

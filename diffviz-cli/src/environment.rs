@@ -1,4 +1,4 @@
-use diffviz_git::GitRepository;
+use diffviz_review::adapters::git::GitRepository;
 use diffviz_review::errors::Result as CoreResult;
 use std::path::Path;
 

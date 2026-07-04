@@ -1,24 +1,23 @@
 [workspace]
 resolver = "2"
 members = [
-    "diffviz-cli",
-    "diffviz-review",
-    "diffviz-git",
-    "diffviz-core",
-    "diffviz-review-tui",
-    "tui-design",
-    "tui-harness",
-    "libs/*",
-    # sam
-    "sam-cli",
-    "sam-config",
-    "sam-core",
-    "sam-mcp",
-    "sam-persistence",
-    "sam-readers",
-    "sam-terminals",
-    "sam-tui",
-    "sam-utils",
+  "diffviz-cli",
+  "diffviz-review",
+  "diffviz-core",
+  "diffviz-review-tui",
+  "tui-design",
+  "tui-harness",
+  "libs/*",
+  # sam
+  "sam-cli",
+  "sam-config",
+  "sam-core",
+  "sam-mcp",
+  "sam-persistence",
+  "sam-readers",
+  "sam-terminals",
+  "sam-tui",
+  "sam-utils",
 ]
 
 [workspace.dependencies]

@@ -94,6 +94,31 @@ impl ReviewEngine {
         Ok(())
     }
 
+    /// Overwrite the existing instruction for a ReviewableDiff with fully
+    /// edited content, rather than appending a new line to it.
+    pub fn edit_instruction(
+        &mut self,
+        reviewable_id: ReviewableDiffId,
+        content: String,
+        author: String,
+    ) -> Result<()> {
+        let instruction = Instruction {
+            id: uuid::Uuid::new_v4().to_string(),
+            author,
+            timestamp: chrono::Utc::now()
+                .format("%Y-%m-%d %H:%M:%S UTC")
+                .to_string(),
+            content,
+            status: InstructionStatus::Active,
+        };
+
+        self.state
+            .replace_instruction(reviewable_id.clone(), instruction);
+        self.invalidate_cache(&reviewable_id);
+
+        Ok(())
+    }
+
     /// Approve all ReviewableDiffs in a specific file
     pub fn approve_all_in_file(&mut self, file_path: &str, reviewer: String) -> Result<()> {
         let reviewable_ids: Vec<ReviewableDiffId> = self

@@ -137,6 +137,31 @@ fn test_note_renders_truncated_and_i_expands_it() {
     assert!(!expanded.contains("…"));
 }
 
+#[test]
+fn test_reopening_note_preloads_existing_text_for_editing() {
+    let mut harness = CombinedTestHarness::with_render_size(create_drillnav_engine(), 120, 40);
+
+    // Write the initial note and submit it.
+    harness
+        .run_sequence_with_renders("<Enter>nFirst note<Enter>")
+        .expect("Run sequence");
+
+    // Reopening the note input shows the existing text pre-filled, not blank.
+    let results = harness.run_sequence_with_renders("n").expect("Reopen note");
+    let modal_visual = &results.last().expect("results").visual;
+    assert!(modal_visual.contains("First note"));
+    assert!(modal_visual.contains("Edit test-user's note"));
+
+    // Editing the pre-filled text and resubmitting replaces the note in
+    // place rather than appending a duplicate copy of the original text.
+    let results = harness
+        .run_sequence_with_renders(" - edited<Enter>i")
+        .expect("Edit and submit");
+    let expanded_visual = &results.last().expect("results").visual;
+    assert!(expanded_visual.contains("First note - edited"));
+    assert_eq!(expanded_visual.matches("First note").count(), 1);
+}
+
 // =============================================================================
 // Render sizes
 // =============================================================================
@@ -189,6 +214,31 @@ fn test_modifier_keys_do_not_error() {
             .run_sequence_final_state(key)
             .unwrap_or_else(|e| panic!("{key} errored: {e}"));
     }
+}
+
+#[test]
+fn test_chunk_navigation_resets_stale_page_offset() {
+    // Regression: Ctrl-d accumulates a raw page offset that used to survive
+    // j/k cursor moves, so the render's scroll clamp kept pinning near the
+    // bottom of the content even after the focused chunk changed — the
+    // focus indicator appeared to vanish. Moving the cursor must clear it.
+    let mut harness = InputTestHarness::new(create_drillnav_engine());
+
+    let paged = harness
+        .run_sequence_final_state("<Enter><C-d><C-d><C-d>")
+        .expect("Run sequence");
+    assert!(paged.drill_page_offset.unwrap_or(0) > 0);
+
+    let after_down = harness.run_sequence_final_state("j").expect("Run sequence");
+    assert_eq!(after_down.drill_page_offset, Some(0));
+
+    let paged_again = harness
+        .run_sequence_final_state("<C-d><C-d>")
+        .expect("Run sequence");
+    assert!(paged_again.drill_page_offset.unwrap_or(0) > 0);
+
+    let after_up = harness.run_sequence_final_state("k").expect("Run sequence");
+    assert_eq!(after_up.drill_page_offset, Some(0));
 }
 
 // =============================================================================
