@@ -1,0 +1,33 @@
+commit: "c9af2745d8cec9aa6d8801c31d64bacdd2d90465"
+decisions:
+  - number: 1
+    title: Characterize dispatch quirks as pinned behavior instead of fixing them
+    rationale: >
+      Phase 0's job is a faithful safety net for the Phase 3 registry
+      refactor, not a cleanup. Two quirks were found and deliberately pinned
+      rather than fixed: leader-mode dispatch matches on key.code only
+      (Ctrl-a opens the actions submenu like plain a), and any unknown key in
+      leader mode silently deactivates the leader. Fixing them here would
+      change behavior before the net exists; fixing them during Phase 3 would
+      entangle a refactor with behavior changes. If the registry design wants
+      modifier-sensitive leader matching, that is a post-Phase-3 decision
+      with its own test updates.
+    code_impacts:
+      - reasoning: "[Behavioral - Control flow at boundaries] These tests freeze the full (mode, leader, key) → UiEvent contract including quirks; Phase 3 must make them pass UNCHANGED — any edit to this file during the registry refactor signals a behavior regression, not a test to fix"
+        file: diffviz-review-tui/tests/dispatch_characterization_tests.rs
+        line_ranges:
+          - start: 1
+            end: 367
+  - number: 2
+    title: Test handle_key_event directly, not through the TUI harness
+    rationale: >
+      The 134 existing harness tests exercise flows (state after key
+      sequences); they would not catch a lost alias like Ctrl-u/PageUp if the
+      primary binding still worked. Calling the pure function
+      handle_key_event directly pins the dispatch table itself, is
+      feature-flag independent (no test-harness feature needed), and stays
+      valid whether dispatch is match arms (today) or a registry lookup
+      (Phase 3). Input-mode routing is covered via DecisionInstruction plus
+      an equivalence probe proving Instruction routes identically, avoiding a
+      dependency on engine fixtures.
+    code_impacts: []
