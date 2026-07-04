@@ -1,0 +1,73 @@
+decisions:
+  - id: D1
+    title: "History analysis lives in a new patina-analysis crate, not diffviz-review"
+    status: accepted
+    rationale: >
+      diffviz-review is tailored to the interactive review process (decisions, approvals,
+      instructions). Blending VCS history metrics into it violates single responsibility.
+      A dedicated patina-analysis crate sits above git-provider and diffviz-core in the
+      dependency graph, keeping diffviz-review focused.
+      Dependency graph: patina-analysis → git-provider → diffviz-review → diffviz-core
+                        patina-analysis → diffviz-core (Phase 2, tree-sitter direct access)
+      HistoryProvider trait, CommitRecord, and HistorySignals all live in patina-analysis.
+      git-provider exposes only raw git primitives (no analysis types).
+      CLI and TUI depend on both diffviz-review and patina-analysis independently.
+
+  - id: D1b
+    title: "diffviz-git renamed to git-provider"
+    status: accepted
+    rationale: >
+      diffviz-git is shared infrastructure used by both diffviz-cli and patina-cli.
+      Tying it to either tool name would be misleading. git-provider accurately describes
+      its role (provides git data to consumers) and is tool-neutral.
+
+  - id: D2
+    title: "History walk bounded by time window, not commit count"
+    status: accepted
+    rationale: >
+      Time window (default 90 days) is more meaningful than N commits — a repo with
+      100 commits/day and one with 1 commit/day have very different coupling signals
+      from the same commit count. User can override with --history-days.
+
+  - id: D3
+    title: "Metrics 1 and 2 share a single history walk"
+    status: accepted
+    rationale: >
+      Revision hotspots and logical coupling both only need CommitRecord { hash, date,
+      files_changed }. Walking history once and computing both from the same data avoids
+      a second O(N commits) traversal. Non-uniform modules needs line diffs and is a
+      separate Phase 2 walk.
+
+  - id: D4
+    title: "Non-uniform modules uses tree-sitter SemanticTree, not line diff heuristics"
+    status: accepted
+    rationale: >
+      diffviz-core explicitly forbids string/regex analysis. Even outside that constraint,
+      tree-sitter gives us exact function/struct boundaries — a line diff heuristic
+      (looking for 'fn ' in changed lines) would misfire on closures, macros, etc.
+      The SemanticTree path is more precise and consistent with the codebase rules.
+
+  - id: D5
+    title: "Phase 2 silently skips unsupported languages"
+    status: accepted
+    rationale: >
+      Non-uniform module analysis is only meaningful for source files with tree-sitter
+      support. Binary files, JSON/TOML, and unknown extensions are skipped — this is
+      a scope filter, not a defensive fallback. Metrics 1 and 2 still apply to all files.
+
+  - id: D6
+    title: "HistorySignals attached per-file during review setup, not computed lazily"
+    status: accepted
+    rationale: >
+      Computing history metrics lazily in the TUI would tie git I/O to render cycles.
+      Better to compute upfront during review initialization (same as how ReviewableDiff
+      is built) and pass HistorySignals as pre-computed data to the TUI.
+
+  - id: D7
+    title: "Steel Thread execution strategy"
+    status: accepted
+    rationale: >
+      Phase 1 delivers a complete, visible feature (hotspots + coupling in TUI).
+      Each phase is a shippable increment. Avoids building internal infrastructure
+      that never surfaces to the user. The git traversal in Phase 0 is made concrete
+      immediately by Phase 1's metric computation and TUI display.
