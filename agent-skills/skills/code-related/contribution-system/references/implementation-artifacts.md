@@ -39,7 +39,7 @@ decisions:
     rationale: "[Why this choice was made — constraints, priorities, trade-offs]"  # optional
     code_impacts:
       - file: "[path/to/file.rs]"
-        reasoning: "[Why this file is affected by this decision]"
+        reasoning: "[Behavioral - Error path change] [What a reviewer must verify here — the risk or contract change, not a description of the edit]"
         line_ranges:
           - start: 10
             end: 50
@@ -48,7 +48,7 @@ decisions:
     title: "[Next decision]"
     code_impacts:
       - file: "[path/to/another/file.rs]"
-        reasoning: "[Why affected]"
+        reasoning: "[Structural - Public API] [Risk or contract change]"
         line_ranges:
           - start: 100
             end: 150
@@ -58,6 +58,7 @@ decisions:
 - Use `number` (u32) for decision ID, matching the struct
 - Use `title` (not `decision`) — this is the struct field name
 - `code_impacts` must reference actual code changes in this contribution
+- `code_impacts` is critical-only: mark where the decision is embodied (a behavioral or structural risk a reviewer must scrutinize), not mechanical ripple such as import/path updates, call-site renames, or moved code — see "Identifying Code Impacts" in the dev-contribute guide
 - `commit` must be populated with git hash of the commit containing code changes (dev-contribute Step 4.5)
 - `rationale` is optional
 - This is the **same schema** used in strategy decision-logs; see [strategy-artifacts.md](strategy-artifacts.md)

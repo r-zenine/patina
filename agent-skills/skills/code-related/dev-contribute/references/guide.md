@@ -256,7 +256,7 @@ Before finalizing contribution, confirm all of these:
 
 - [ ] Can another agent understand what was done and why?
 - [ ] Are assumptions and blockers clearly documented?
-- [ ] Does decision-log.yaml reference the commit hash with all code_impacts populated?
+- [ ] Does decision-log.yaml reference the commit hash, with code_impacts curated to critical impacts only (root causes, not mechanical ripple)?
 - [ ] Is the decision-log.yaml you produced valid ? ( use `diffviz validate decision-log <path-to-decision-log.yaml>`)
 - [ ] Does context-handoff.md explain what works, what's fragile, and what's next?
 - [ ] If a prior decision needed revision, is there a revision contribution with clear reasoning?
@@ -289,6 +289,14 @@ Then fill in the decisions you made during this contribution:
 
 `code_impacts` is a high-signal field — **only document critical impacts, omit everything else.** If an entry is present, it means a reviewer should pay attention to it.
 
+**Root cause, not ripple.** An impact marks where a decision is *embodied* — the seam where the choice was made and where it could be wrong. It does not enumerate everywhere the consequences ripple: the diff at the recorded commit already lists every touched file. Mechanical fallout that the compiler or a rename forces is never an impact:
+
+- import/`use` statement updates and module path changes
+- call-site edits that mechanically follow a signature change or rename already documented at its source
+- code moved between files/crates with behavior unchanged (document the move decision once, at the seam)
+- re-export shuffles, visibility plumbing, formatting
+- test edits that mirror the production change
+
 **How to identify what qualifies:**
 
 Scan your changes and check each one against these two categories. Use your knowledge of the codebase to judge criticality — do not count callers or dependents mechanically.
@@ -300,16 +308,20 @@ Scan your changes and check each one against these two categories. Use your know
 - Concurrency surface — anything touching locks, channels, async boundaries
 
 **Structural impacts (critical tier):**
-- Public API signature changes — function/method signatures, trait implementations, exported types
+- Public API contract changes — signature/trait/type changes that alter what callers must do or may assume. A renamed or moved path where the compiler forces the fix and behavior is unchanged is churn, not an impact.
 - Dependency direction violations — an inner layer suddenly depending on an outer one
 - Core entity shape changes — struct fields added/removed/retyped in domain models
 - Interface contract changes — trait/interface modifications that silently break implementors
 
-**How to label each impact:**
+**How to write the `reasoning` field:**
 
-Prefix the `reasoning` field with the impact category:
+State what a reviewer must verify or what could break — a risk, a changed contract, a violated assumption. Prefix it with the impact category:
 - `[Behavioral - Invariant mutation] Removed the guard that ensured...`
 - `[Structural - Public API] Changed signature of X, all callers must now...`
+
+Litmus test: if the reasoning merely restates what the diff shows ("updated imports", "added field X to struct Y"), the entry does not belong — delete it, or rewrite it as the risk it creates.
+
+The prefix is enforced: `diffviz validate decision-log` fails any log whose reasoning fields lack a `[Behavioral - <kind>]` or `[Structural - <kind>]` prefix. Do not satisfy the validator by slapping a prefix on a mechanical change — if no category honestly fits, the entry must be removed.
 
 If a change does not fall into either critical tier, omit it from `code_impacts` entirely.
 

@@ -26,17 +26,18 @@ pub struct DecisionLineRange {
     pub end: usize,
 }
 
-/// How a single decision affects a specific file
+/// Where a decision is embodied in code and what a reviewer must scrutinize there
 ///
-/// Describes which lines in a file are affected by a decision and explains the connection.
-/// The line_ranges specify the exact code affected, while reasoning explains why this
-/// decision impacts these particular lines.
+/// Marks a critical location where a decision took effect — a behavioral or structural
+/// risk worth reviewer attention. The line_ranges specify the exact code, while reasoning
+/// states the risk or contract change (not a description of the edit). Mechanical ripple
+/// (import updates, call-site renames, moved code) does not belong here.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, SchemaTemplate)]
 pub struct CodeImpact {
-    ////// Explanation of why this decision impacts these specific lines
+    /// The risk or contract change a reviewer must verify at these lines
     #[schema(
-        example = "Middleware validates JWT tokens and injects user context",
-        comment = "Why this file is affected by this decision"
+        example = "\"[Behavioral - Invariant mutation] Middleware now rejects requests without JWT; formerly anonymous routes must be re-verified\"",
+        comment = "What a reviewer must verify here — the risk or contract change, prefixed with [Behavioral - ...] or [Structural - ...]; not a restatement of the edit"
     )]
     pub reasoning: String,
 
@@ -78,7 +79,7 @@ pub struct Decision {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub rationale: Option<String>,
 
-    /// All files and line ranges affected by this decision
+    /// Critical locations where this decision is embodied (curated, not an exhaustive list of touched files)
     pub code_impacts: Vec<CodeImpact>,
 }
 
@@ -109,6 +110,50 @@ impl DecisionLog {
     pub fn parse(content: &str) -> Result<DecisionLog> {
         Ok(serde_yaml::from_str(content)?)
     }
+
+    /// Check every code impact against the reasoning convention: the field must start
+    /// with a critical-tier category prefix — `[Behavioral - <kind>]` or `[Structural - <kind>]`.
+    ///
+    /// Enforced by `diffviz validate decision-log` only; parsing stays lenient so that
+    /// logs written before the convention still load for review.
+    pub fn reasoning_convention_violations(&self) -> Vec<ReasoningConventionViolation> {
+        self.decisions
+            .iter()
+            .flat_map(|decision| {
+                decision
+                    .code_impacts
+                    .iter()
+                    .filter(|impact| !reasoning_has_category_prefix(&impact.reasoning))
+                    .map(|impact| ReasoningConventionViolation {
+                        decision_number: decision.number,
+                        decision_title: decision.title.clone(),
+                        file: impact.file.clone(),
+                        reasoning: impact.reasoning.clone(),
+                    })
+            })
+            .collect()
+    }
+}
+
+/// Category prefixes that mark a code impact as belonging to a critical tier
+const REASONING_CATEGORY_PREFIXES: [&str; 2] = ["[Behavioral - ", "[Structural - "];
+
+fn reasoning_has_category_prefix(reasoning: &str) -> bool {
+    REASONING_CATEGORY_PREFIXES.iter().any(|prefix| {
+        reasoning
+            .strip_prefix(prefix)
+            .and_then(|rest| rest.find(']'))
+            .is_some_and(|kind_len| kind_len > 0)
+    })
+}
+
+/// A code impact whose reasoning lacks the critical-tier category prefix
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReasoningConventionViolation {
+    pub decision_number: u32,
+    pub decision_title: String,
+    pub file: String,
+    pub reasoning: String,
 }
 
 /// A value type pairing a ReviewableDiffId with the decision it belongs to.

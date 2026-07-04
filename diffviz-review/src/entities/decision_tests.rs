@@ -675,3 +675,89 @@ decisions:
     let log = DecisionLog::parse(yaml).unwrap();
     assert_eq!(log.commit, "abc123def456");
 }
+
+// --- Reasoning convention lint ---
+
+fn log_with_reasonings(reasonings: &[&str]) -> DecisionLog {
+    DecisionLog {
+        commit: "abc123".to_string(),
+        decisions: vec![Decision {
+            number: 1,
+            title: "Some decision".to_string(),
+            rationale: None,
+            code_impacts: reasonings
+                .iter()
+                .map(|reasoning| CodeImpact {
+                    file: "src/lib.rs".to_string(),
+                    reasoning: reasoning.to_string(),
+                    line_ranges: vec![DecisionLineRange { start: 1, end: 10 }],
+                })
+                .collect(),
+        }],
+    }
+}
+
+#[test]
+fn test_reasoning_convention_accepts_both_category_prefixes() {
+    let log = log_with_reasonings(&[
+        "[Behavioral - Invariant mutation] Removed the guard that ensured non-empty input",
+        "[Structural - Public API] Changed signature of parse, callers must pass commit",
+    ]);
+    assert!(log.reasoning_convention_violations().is_empty());
+}
+
+#[test]
+fn test_reasoning_convention_flags_missing_prefix() {
+    let log = log_with_reasonings(&["Updated imports to the new module path"]);
+    let violations = log.reasoning_convention_violations();
+    assert_eq!(violations.len(), 1);
+    assert_eq!(violations[0].decision_number, 1);
+    assert_eq!(violations[0].decision_title, "Some decision");
+    assert_eq!(violations[0].file, "src/lib.rs");
+    assert_eq!(
+        violations[0].reasoning,
+        "Updated imports to the new module path"
+    );
+}
+
+#[test]
+fn test_reasoning_convention_flags_unknown_category() {
+    let log = log_with_reasonings(&["[Cosmetic - Rename] Renamed helper for clarity"]);
+    assert_eq!(log.reasoning_convention_violations().len(), 1);
+}
+
+#[test]
+fn test_reasoning_convention_flags_unclosed_or_empty_kind() {
+    let log = log_with_reasonings(&[
+        "[Behavioral - Invariant mutation without closing bracket",
+        "[Structural - ] Missing kind",
+    ]);
+    assert_eq!(log.reasoning_convention_violations().len(), 2);
+}
+
+#[test]
+fn test_reasoning_convention_empty_code_impacts_is_clean() {
+    let log = DecisionLog {
+        commit: "abc123".to_string(),
+        decisions: vec![Decision {
+            number: 1,
+            title: "Planning decision".to_string(),
+            rationale: None,
+            code_impacts: vec![],
+        }],
+    };
+    assert!(log.reasoning_convention_violations().is_empty());
+}
+
+#[test]
+fn test_reasoning_convention_reports_each_offending_impact() {
+    let log = log_with_reasonings(&[
+        "[Behavioral - Error path change] Errors from load are now swallowed and logged",
+        "Moved code between files",
+        "Formatting only",
+    ]);
+    let violations = log.reasoning_convention_violations();
+    assert_eq!(violations.len(), 2);
+    assert_eq!(violations[0].reasoning, "Moved code between files");
+    assert_eq!(violations[1].reasoning, "Formatting only");
+}

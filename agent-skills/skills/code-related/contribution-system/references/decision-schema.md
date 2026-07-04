@@ -23,7 +23,7 @@ The distinction between strategy, design, and implementation is the `code_impact
 
 - **Strategy-level** (`dev-strategy` output): `code_impacts: []` — empty, decisions made before coding
 - **Design-level** (design contributions): `code_impacts: []` — empty, design specs with no code yet
-- **Implementation-level** (contributions): `code_impacts: [...]` — populated, decisions + actual code changes
+- **Implementation-level** (contributions): `code_impacts: [...]` — populated with each decision's critical impacts (where the decision is embodied — not an exhaustive list of touched files)
 
 Same YAML structure, different semantic meaning determined by phase.
 

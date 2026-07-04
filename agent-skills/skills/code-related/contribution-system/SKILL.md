@@ -67,7 +67,7 @@ When you need information about a feature, use this table to find the right arti
 | **"What functions/classes are relevant?"** | `code-context.md` | Plan root |
 | **"Why was this architecture chosen?"** | `decision-log.yaml` | Plan root |
 | **"What changed in this contribution?"** | `decision-log.yaml` | `contributions/NNN-.../` |
-| **"Which files were affected by decision #3?"** | `decision-log.yaml` → `code_impacts` | `contributions/NNN-.../` |
+| **"Where must a reviewer scrutinize decision #3?"** | `decision-log.yaml` → `code_impacts` | `contributions/NNN-.../` |
 | **"What should the next phase focus on?"** | `context-handoff.md` | `contributions/NNN-.../` |
 | **"What's the design for error handling?"** | `design-doc.md` | `contributions/NNN-design-.../` |
 | **"What design constraints exist?"** | `decision-log.yaml` (design variant) | `contributions/NNN-design-.../` |

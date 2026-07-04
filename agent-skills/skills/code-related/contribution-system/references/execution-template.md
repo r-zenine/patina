@@ -99,7 +99,7 @@ The third outcome ensures documentation and continuity for the next phase.
 
 **Outcome 3: KNOWLEDGE TRANSFER** (next phase is unblocked)
 - Code is committed (all code changes committed before documentation is written — decision-log.yaml references commit hash)
-- Decisions are recorded (decision-log.yaml populated with code_impacts showing what changed, commit field populated with git hash)
+- Decisions are recorded (decision-log.yaml with code_impacts marking only the critical impacts a reviewer must scrutinize, commit field populated with git hash)
 - Context is handed off (context-handoff.md tells next phase what to focus on and why)
 - Contribution folder is committed (contribution folder with decision-log.yaml and context-handoff.md staged and committed)
 

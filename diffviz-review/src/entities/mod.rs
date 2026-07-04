@@ -16,7 +16,7 @@ pub use approval::{Approval, ApprovalMap, ApprovalRecord, DecisionApprovals, Rev
 pub use cascade_result::CascadeResult;
 pub use decision::{
     CodeImpact, Decision, DecisionApproval, DecisionLineRange, DecisionLog, DecisionReviewableDiff,
-    ReviewDecisions,
+    ReasoningConventionViolation, ReviewDecisions,
 };
 pub use instruction::{
     DecisionInstructions, Instruction, InstructionMap, InstructionStatus, ReviewInstructions,
