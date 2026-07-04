@@ -11,7 +11,7 @@ path = "src/main.rs"
 [dependencies]
 sam-core = {path="../sam-core"}
 sam-config = {path="../sam-config"}
-sam-utils = {path="../sam-utils"}
+fsutils = {path="../libs/fsutils"}
 sam-tui = {path="../sam-tui"}
 sam-readers = {path="../sam-readers"}
 sam-persistence = {path="../sam-persistence"}

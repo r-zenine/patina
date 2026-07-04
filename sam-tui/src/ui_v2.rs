@@ -8,7 +8,7 @@ use sam_core::entities::commands::Command;
 use sam_core::entities::vars::Var;
 use sam_readers::read_choices;
 use sam_terminals::processes::ShellCommand;
-use sam_utils::fsutils::ErrorsFS;
+use fsutils::ErrorsFS;
 use std::collections::{HashMap, HashSet};
 
 use thiserror::Error;

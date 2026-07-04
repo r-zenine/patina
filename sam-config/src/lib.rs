@@ -1,9 +1,8 @@
+use fsutils::walk_dir;
+use fsutils::ErrorsFS;
 use sam_core::entities::choices::Choice;
 use sam_core::entities::identifiers::Identifier;
 use sam_persistence::CacheError;
-use sam_utils::fsutils;
-use sam_utils::fsutils::walk_dir;
-use sam_utils::fsutils::ErrorsFS;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;

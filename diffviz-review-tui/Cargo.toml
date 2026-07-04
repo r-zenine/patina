@@ -7,7 +7,7 @@ description = "Clean TUI for code review built on ReviewEngine architecture"
 [dependencies]
 ratatui = { workspace = true }
 crossterm = { workspace = true }
-tui-harness = { path = "../tui-harness" }
+tui-harness = { path = "../libs/tui-harness" }
 anyhow = { workspace = true }
 thiserror = { workspace = true }
 diffviz-review = { path = "../diffviz-review" }
@@ -21,7 +21,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 log = { workspace = true }
 edtui = "0.8"
-tui-design = { path = "../tui-design" }
+tui-design = { path = "../libs/tui-design" }
 
 [features]
 test-harness = []

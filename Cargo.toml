@@ -5,8 +5,6 @@ members = [
   "diffviz-review",
   "diffviz-core",
   "diffviz-review-tui",
-  "tui-design",
-  "tui-harness",
   "libs/*",
   # sam
   "sam-cli",
@@ -17,7 +15,6 @@ members = [
   "sam-readers",
   "sam-terminals",
   "sam-tui",
-  "sam-utils",
 ]
 
 [workspace.dependencies]

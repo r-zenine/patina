@@ -6,13 +6,13 @@ edition = "2021"
 [dependencies]
 sam-core = {path="../sam-core"}
 sam-persistence = {path="../sam-persistence"}
-sam-utils = {path="../sam-utils"}
+fsutils = {path="../libs/fsutils"}
 sam-readers = {path="../sam-readers"}
 sam-terminals = {path="../sam-terminals"}
 thiserror = "2.0.12"
 ratatui = { workspace = true }
 crossterm = { workspace = true }
-tui-harness = { path = "../tui-harness" }
+tui-harness = { path = "../libs/tui-harness" }
 serde = { workspace = true }
 serde_json = { workspace = true }
 schemars = { workspace = true }

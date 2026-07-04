@@ -1,5 +1,5 @@
 [package]
-name = "sam-utils"
+name = "fsutils"
 version = "1.3.0"
 edition = "2021"
 
