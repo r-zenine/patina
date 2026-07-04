@@ -38,7 +38,9 @@ Ensures contributions to diffviz-review-tui follow:
 | Update | Mutates `UiState`, returns `Command` | `src/app.rs` |
 | Command | I/O side effects only | `src/command.rs` |
 | Events | `KeyEvent` → `UiEvent` → `BusinessEvent` | `src/events/*.rs` |
+| Keybindings | One registry row per binding (feeds everything) | `src/events/bindings.rs` |
 | Tests | Test harness with fixture data | `tests/keybinding_tests.rs` |
+| Discovery | `--describe` / `--agent-repl` on the binary | provided by `tui-harness` |
 
 ## Architecture Compliance Rules
 
@@ -104,42 +106,66 @@ self.ui_state.drill_nav = DrillNavState::Browse { cursor: 0 };
 
 ### V5: Event Flow Architecture
 
-**Flow**: `KeyEvent` → `UiEvent` → `BusinessEvent` → `Command`
+**Flow**: `KeyEvent` → registry lookup (`src/events/bindings.rs`) → `UiEvent` → `BusinessEvent` → `Command`
 
 **Adding features**:
 1. Add `UiEvent` variant in `src/events/input.rs`
-2. Map key to event in `handle_key_event()`
+2. Add a `Binding` row in `src/events/bindings.rs` (keys, event, notation,
+   description) — dispatch, which-key, help overlay, `--describe`, and
+   affordances all pick it up from this one row
 3. Handle in `handle_ui_event()` for UI changes
 4. Add `BusinessEvent` if ReviewEngine interaction needed
 5. Return `Command` for side effects in `handle_business_event()`
 
+**Never** add key matching outside the registry — `handle_key_event` is a
+lookup plus two documented fallbacks, nothing else.
+
 ## Testing Your Changes
 
-### Three Testing Modes
+### Discover First
+
+The binary describes itself — start here instead of reading source:
+```bash
+cargo run --bin review-tui -- --describe
+```
+Returns a JSON manifest: all keybindings per mode, the input-sequence
+notation grammar, and the JSON Schema of the state snapshot.
+
+### Four Testing Modes
 
 **Mode 1: Input Testing** - State validation
 ```bash
-cargo run --bin review-tui --features test-harness -- --test-input "jjk<Space>"
+cargo run --bin review-tui -- --test-input "jjk<Space>"
 ```
-Returns JSON state snapshot after each key.
+Returns the final JSON state snapshot.
 
 **Mode 2: Integration Testing** - Full workflow
 ```bash
-cargo run --bin review-tui --features test-harness -- --test-full "sequence"
+cargo run --bin review-tui -- --test-full "sequence"
 ```
-Returns state + visual output at each step.
+Returns state + visual + affordances (keys meaningful right now) at each step.
 
-**Mode 3: Unit Tests** - Regression prevention
+**Mode 3: Persistent Session** - Multi-turn exploration without prefix replay
+```bash
+cargo run --bin review-tui -- --agent-repl
+```
+NDJSON on stdin/stdout: `{"cmd":"keys","input":"jj"}`, `{"cmd":"render"}`,
+`{"cmd":"describe"}`, `{"cmd":"quit"}`. Every response carries
+`state` + `visual` + `affordances`. Errors never end the session.
+
+**Mode 4: Unit Tests** - Regression prevention
 ```bash
 cargo test --package diffviz-review-tui --features test-harness
 ```
+(The `test-harness` feature is only needed for `cargo test`; the CLI modes
+above work on any build.)
 
 ### Testing Workflow
 
 ```
 [ ] Step 1: Identify feature/keybinding to test
-[ ] Step 2: Look up keybinding in src/events/input.rs
-[ ] Step 3: Run CLI test (--test-input or --test-full)
+[ ] Step 2: Find it in --describe output (or add its row to src/events/bindings.rs)
+[ ] Step 3: Run CLI test (--test-input, --test-full, or an --agent-repl session)
 [ ] Step 4: Verify expected state changes in JSON output
 [ ] Step 5: Write integration test in tests/keybinding_tests.rs
 [ ] Step 6: Run full test suite to confirm
@@ -147,32 +173,38 @@ cargo test --package diffviz-review-tui --features test-harness
 
 ### Input Notation
 
-Vim-style compact notation:
+Vim-style compact notation (full grammar in `--describe` under `notation`):
 - Single keys: `j`, `k`, `a`
 - Special keys: `<Space>`, `<Enter>`, `<Esc>`, `<Up>`, `<Down>`
 - Modifiers: `<C-j>` (Ctrl), `<S-?>` (Shift), `<A-x>` (Alt)
-- Delays: `<Wait:100>`
+- Delays: `<Wait:100>` — sleeps and runs `on_tick`, so timeouts really fire
 
-Example: `jjk<Space>a<Enter>` = down, down, up, toggle, approve, enter
+Example: `jjk<Space>a<Enter>` = down, down, up, leader, actions submenu, submit
 
 ### Debugging Patterns
 
 **Test single keybinding**:
 ```bash
-cargo run --bin review-tui --features test-harness -- --test-input "j" | jq .nav_mode
+cargo run --bin review-tui -- --test-input "j" | jq .nav_mode
 ```
 
 **Capture before/after behavior**:
 ```bash
-cargo run --bin review-tui --features test-harness -- --test-full "sequence" > before.txt
+cargo run --bin review-tui -- --test-full "sequence" > before.txt
 # Make changes
-cargo run --bin review-tui --features test-harness -- --test-full "sequence" > after.txt
+cargo run --bin review-tui -- --test-full "sequence" > after.txt
 diff before.txt after.txt
 ```
 
 **Verify test engine setup**:
 ```bash
-cargo run --bin review-tui --features test-harness -- --test-input "" | jq .
+cargo run --bin review-tui -- --test-input "" | jq .
+```
+
+**Drive a live session** (state persists between commands):
+```bash
+printf '%s\n' '{"cmd":"keys","input":"<Enter>"}' '{"cmd":"keys","input":"j"}' '{"cmd":"quit"}' \
+  | cargo run --quiet --bin review-tui -- --agent-repl
 ```
 
 ## Code Review Rejection Criteria
@@ -185,6 +217,10 @@ Reject contributions that:
 4. Add time-based logic outside event handling flow
 5. Skip event system for user interactions
 6. Don't include tests for new functionality
+7. Add key matching outside `src/events/bindings.rs` (dispatch, overlays,
+   manifest, and affordances must all read the same registry row)
+8. Edit `tests/dispatch_characterization_tests.rs` to make a refactor pass
+   (that file pins behavior — changing it means behavior changed)
 
 ## Verification Commands
 
