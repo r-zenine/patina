@@ -91,11 +91,15 @@ pub fn full_test_output<M: ELMApp>(app: M, sequence: &str) -> Result<String> {
     for (i, result) in results.iter().enumerate() {
         let state_json =
             serde_json::to_string_pretty(&result.state).map_err(|e| TuiError::App(Box::new(e)))?;
+        let affordances_json = serde_json::to_string_pretty(&result.affordances)
+            .map_err(|e| TuiError::App(Box::new(e)))?;
         writeln!(output, "=== Step {i} ===").expect("writing to String cannot fail");
         writeln!(output, "State:").expect("writing to String cannot fail");
         writeln!(output, "{state_json}").expect("writing to String cannot fail");
         writeln!(output, "\nVisual:").expect("writing to String cannot fail");
         writeln!(output, "{}", result.visual).expect("writing to String cannot fail");
+        writeln!(output, "\nAffordances:").expect("writing to String cannot fail");
+        writeln!(output, "{affordances_json}").expect("writing to String cannot fail");
         writeln!(output).expect("writing to String cannot fail");
     }
     Ok(output)

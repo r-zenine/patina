@@ -89,11 +89,48 @@ fn describe_lists_the_input_modes() {
 }
 
 #[test]
-fn describe_bindings_stay_empty_until_the_registry_exists() {
-    // Phase 3 generates bindings from the registry; hand-writing them here
-    // would recreate the drift this plan eliminates.
+fn describe_bindings_come_from_the_registry() {
+    // Flipped intentionally in Phase 3: bindings are generated from the
+    // keybinding registry (events/bindings.rs), never hand-written.
     let manifest = stdout_json(&["--describe"]);
-    assert_eq!(manifest["bindings"].as_array().unwrap().len(), 0);
+    let bindings = manifest["bindings"].as_array().unwrap();
+
+    assert!(
+        bindings.len() >= 30,
+        "expected the full registry (+ catch-alls), got {}",
+        bindings.len()
+    );
+
+    // Spot-check one row per scope, including an alias pair and a catch-all.
+    let find = |mode: &str, event: &str| {
+        bindings
+            .iter()
+            .find(|b| b["mode"] == mode && b["event"] == event)
+            .unwrap_or_else(|| panic!("no binding for mode={mode} event={event}"))
+    };
+    assert_eq!(
+        find("Navigation", "NavigateDown")["keys"],
+        serde_json::json!(["j", "<Down>"])
+    );
+    assert_eq!(
+        find("Leader", "EnterLeaderSubmenu('a')")["keys"],
+        serde_json::json!(["a"])
+    );
+    assert_eq!(
+        find("Leader:a", "ApproveFile")["keys"],
+        serde_json::json!(["f"])
+    );
+    assert_eq!(
+        find("Input", "InputChar")["keys"],
+        serde_json::json!(["<any character>"])
+    );
+
+    for binding in bindings {
+        assert!(
+            !binding["description"].as_str().unwrap().is_empty(),
+            "undocumented binding: {binding}"
+        );
+    }
 }
 
 #[test]
@@ -123,6 +160,72 @@ fn test_full_prints_step_sections_with_state_and_visual() {
     assert!(!text.contains("=== Step 2 ==="));
     assert!(text.contains("State:"));
     assert!(text.contains("Visual:"));
+}
+
+fn last_step_of(output: &str) -> &str {
+    output
+        .split("=== Step ")
+        .last()
+        .expect("output has step sections")
+}
+
+#[test]
+fn affordances_in_navigation_list_movement_not_submenu_actions() {
+    let output = review_tui(&["--test-full", ""]);
+    let text = String::from_utf8_lossy(&output.stdout);
+    let step = last_step_of(&text);
+
+    assert!(step.contains("Affordances:"));
+    assert!(step.contains("\"event\": \"NavigateDown\""));
+    assert!(
+        !step.contains("\"event\": \"ApproveFile\""),
+        "submenu-only action leaked into navigation affordances"
+    );
+}
+
+#[test]
+fn affordances_follow_the_leader_submenu() {
+    let output = review_tui(&["--test-full", "<Space>a"]);
+    let text = String::from_utf8_lossy(&output.stdout);
+    let step = last_step_of(&text);
+
+    assert!(step.contains("\"event\": \"ApproveFile\""));
+    assert!(step.contains("\"event\": \"ToggleApprove\""));
+    assert!(
+        step.contains("<any other key>"),
+        "leader catch-all must be advertised"
+    );
+    assert!(
+        !step.contains("\"event\": \"NavigateDown\""),
+        "navigation bindings leaked into leader affordances"
+    );
+}
+
+#[test]
+fn affordances_in_input_mode_advertise_text_entry() {
+    let output = review_tui(&["--test-full", "<Enter>n"]);
+    let text = String::from_utf8_lossy(&output.stdout);
+    let step = last_step_of(&text);
+
+    assert!(step.contains("\"event\": \"SubmitInput\""));
+    assert!(step.contains("<any character>"));
+    assert!(!step.contains("\"event\": \"NavigateDown\""));
+}
+
+#[test]
+fn which_key_overlay_renders_from_the_registry() {
+    let output = review_tui(&["--test-full", "<Space>"]);
+    let text = String::from_utf8_lossy(&output.stdout);
+    let step = last_step_of(&text);
+
+    assert!(
+        step.contains("Actions"),
+        "which-key must show submenu hints"
+    );
+    assert!(
+        step.contains("Toggles"),
+        "which-key must show submenu hints"
+    );
 }
 
 #[test]

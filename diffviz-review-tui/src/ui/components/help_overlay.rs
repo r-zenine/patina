@@ -1,6 +1,8 @@
 //! Help overlay component showing all keybindings
 //!
-//! Displays a comprehensive reference of all available keybindings when '?' is pressed.
+//! Displays a comprehensive reference of all available keybindings when '?'
+//! is pressed. Content is rendered from the keybinding registry
+//! (`events::bindings`) — the overlay cannot drift from dispatch.
 
 use ratatui::{
     Frame,
@@ -11,6 +13,8 @@ use ratatui::{
 };
 use tui_design::{Theme, stylesheet};
 
+use crate::events::UiEvent;
+use crate::events::bindings::{self, BindingScope, INPUT_CATCH_ALL, SUBMENUS};
 use crate::state::UiState;
 
 pub fn render(f: &mut Frame, ui_state: &UiState) {
@@ -39,34 +43,48 @@ pub fn render(f: &mut Frame, ui_state: &UiState) {
 }
 
 fn create_help_content(theme: &Theme) -> Vec<Line<'static>> {
-    vec![
-        Line::from(""),
-        create_section_header("NAVIGATION", theme),
-        create_help_line("j/k or ↓/↑", "Browse: decisions · Drill: chunks", theme),
-        create_help_line("h/l or ←/→", "Drill: switch sibling file", theme),
-        create_help_line("Enter", "Drill into the focused decision", theme),
-        create_help_line("Esc", "Back to Browse", theme),
-        create_help_line("g/G", "Jump to first/last", theme),
-        create_help_line("Ctrl+u/d, PgUp/Dn", "Page up/down", theme),
-        Line::from(""),
-        create_section_header("CHUNK CARD (Drill)", theme),
-        create_help_line("Tab", "Expand/collapse context lines", theme),
-        create_help_line("i", "Expand/collapse the chunk's note", theme),
-        Line::from(""),
-        create_section_header("REVIEW ACTIONS", theme),
-        create_help_line("a", "Toggle approve (decision or chunk)", theme),
-        create_help_line("n", "Add or append a note", theme),
-        Line::from(""),
-        create_section_header("LEADER MENU (Space + key)", theme),
-        create_help_line("Space a a/d", "Toggle approve chunk/decision", theme),
-        create_help_line("Space a f", "Approve all chunks in file", theme),
-        create_help_line("Space t r", "Toggle reasoning annotations", theme),
-        Line::from(""),
-        create_section_header("UTILITY", theme),
-        create_help_line("?", "Toggle this help overlay", theme),
-        create_help_line("q / Ctrl+c", "Quit application", theme),
-        Line::from(""),
-    ]
+    let mut lines = vec![Line::from(""), create_section_header("NAVIGATION", theme)];
+
+    for binding in bindings::bindings_for(BindingScope::Navigation) {
+        lines.push(create_help_line(
+            &binding.notation.join("/"),
+            binding.description,
+            theme,
+        ));
+    }
+
+    lines.push(Line::from(""));
+    lines.push(create_section_header("LEADER MENU (Space + key)", theme));
+    for submenu in SUBMENUS {
+        for binding in bindings::bindings_for(BindingScope::LeaderSubmenu(submenu.key)) {
+            if binding.event == UiEvent::DeactivateLeader {
+                continue;
+            }
+            lines.push(create_help_line(
+                &format!("Space {} {}", submenu.key, binding.notation.join("/")),
+                binding.description,
+                theme,
+            ));
+        }
+    }
+
+    lines.push(Line::from(""));
+    lines.push(create_section_header("TEXT INPUT (note editing)", theme));
+    for binding in bindings::bindings_for(BindingScope::Input) {
+        lines.push(create_help_line(
+            &binding.notation.join("/"),
+            binding.description,
+            theme,
+        ));
+    }
+    lines.push(create_help_line(
+        INPUT_CATCH_ALL.keys_label,
+        INPUT_CATCH_ALL.description,
+        theme,
+    ));
+    lines.push(Line::from(""));
+
+    lines
 }
 
 fn create_section_header(text: &str, theme: &Theme) -> Line<'static> {

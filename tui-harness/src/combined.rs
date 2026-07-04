@@ -3,7 +3,8 @@
 //! After each key event, captures both the state snapshot and the visual output.
 
 use crate::{
-    Result, input_parser::parse_input_sequence, render_test::RenderTestHarness, traits::ELMApp,
+    Result, input_parser::parse_input_sequence, manifest::Affordance,
+    render_test::RenderTestHarness, traits::ELMApp,
 };
 
 /// Combined test result: state snapshot + visual output at one step.
@@ -12,6 +13,8 @@ pub struct CombinedTestResult<S> {
     pub state: S,
     /// Visual output for this state.
     pub visual: String,
+    /// Keys meaningful in this state (empty for apps without affordances).
+    pub affordances: Vec<Affordance>,
 }
 
 /// Combined test harness for full integration testing.
@@ -52,6 +55,7 @@ impl<M: ELMApp> CombinedTestHarness<M> {
         results.push(CombinedTestResult {
             state: self.app.snapshot(),
             visual: self.render_harness.render(&self.app)?,
+            affordances: self.app.affordances(),
         });
 
         for step in steps {
@@ -60,6 +64,7 @@ impl<M: ELMApp> CombinedTestHarness<M> {
             results.push(CombinedTestResult {
                 state: self.app.snapshot(),
                 visual: self.render_harness.render(&self.app)?,
+                affordances: self.app.affordances(),
             });
         }
 

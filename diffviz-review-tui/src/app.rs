@@ -7,13 +7,16 @@ use crossterm::event::KeyEvent;
 use ratatui::Frame;
 
 use diffviz_review::engines::ReviewEngine;
-use tui_harness::{AppDescription, ELMApp, ModeDoc};
+use tui_harness::{Affordance, AppDescription, ELMApp, KeyBindingDoc, ModeDoc};
 
 use crate::{
     Result,
     command::{Command, execute_command},
     error::ReviewTuiError,
-    events::{BusinessEvent, UiEvent, handle_key_event, ui_event_to_business_event},
+    events::{
+        BusinessEvent, UiEvent, bindings, bindings::BindingScope, handle_key_event,
+        ui_event_to_business_event,
+    },
     state::{DrillDecision, DrillFile, DrillIndex, UiState},
     state_snapshot::StateSnapshot,
     ui,
@@ -112,12 +115,61 @@ impl ELMApp for ReviewTuiApp {
                     description: "Text input for a note on the focused decision".to_string(),
                 },
             ],
-            // Bindings are generated from the keybinding registry in Phase 3
-            // of plan-tui-harness-agent-discovery; hand-writing them here
-            // would recreate the doc-drift this plan eliminates.
-            bindings: Vec::new(),
+            bindings: registry_binding_docs(),
         })
     }
+
+    fn affordances(&self) -> Vec<Affordance> {
+        let scope = bindings::scope_of(
+            &self.ui_state.input_mode,
+            self.ui_state.leader_active,
+            self.ui_state.leader_submenu,
+        );
+
+        let mut affordances: Vec<Affordance> = bindings::bindings_for(scope)
+            .map(|binding| Affordance {
+                keys: binding.notation.iter().map(|s| s.to_string()).collect(),
+                event: format!("{:?}", binding.event),
+                description: binding.description.to_string(),
+            })
+            .collect();
+
+        if let Some(catch_all) = bindings::catch_all_for(scope) {
+            affordances.push(Affordance {
+                keys: vec![catch_all.keys_label.to_string()],
+                event: catch_all.event_label.to_string(),
+                description: catch_all.description.to_string(),
+            });
+        }
+
+        affordances
+    }
+}
+
+/// Every registry row plus the catch-all fallbacks, as manifest docs.
+fn registry_binding_docs() -> Vec<KeyBindingDoc> {
+    let mut docs: Vec<KeyBindingDoc> = bindings::BINDINGS
+        .iter()
+        .map(|binding| KeyBindingDoc {
+            mode: bindings::scope_label(binding.scope),
+            keys: binding.notation.iter().map(|s| s.to_string()).collect(),
+            event: format!("{:?}", binding.event),
+            description: binding.description.to_string(),
+        })
+        .collect();
+
+    for scope in [BindingScope::LeaderRoot, BindingScope::Input] {
+        if let Some(catch_all) = bindings::catch_all_for(scope) {
+            docs.push(KeyBindingDoc {
+                mode: bindings::scope_label(scope),
+                keys: vec![catch_all.keys_label.to_string()],
+                event: catch_all.event_label.to_string(),
+                description: catch_all.description.to_string(),
+            });
+        }
+    }
+
+    docs
 }
 
 // ---------------------------------------------------------------------------

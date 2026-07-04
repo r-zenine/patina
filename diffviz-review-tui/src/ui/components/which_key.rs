@@ -1,6 +1,8 @@
 //! Which-key style overlay component for leader key menu
 //!
-//! Displays available commands when the leader key is active, with timeout indicator.
+//! Displays available commands when the leader key is active, with timeout
+//! indicator. Content is rendered from the keybinding registry
+//! (`events::bindings`) — the overlay cannot drift from dispatch.
 
 use ratatui::{
     Frame,
@@ -11,6 +13,8 @@ use ratatui::{
 };
 use tui_design::{Theme, stylesheet};
 
+use crate::events::UiEvent;
+use crate::events::bindings::{self, BindingScope, SUBMENUS};
 use crate::state::UiState;
 
 /// Render the which-key overlay when leader is active (Spacemacs-style bottom panel)
@@ -24,19 +28,13 @@ pub fn render(f: &mut Frame, ui_state: &UiState) {
 
     f.render_widget(Clear, area);
 
-    let content = match ui_state.leader_submenu {
-        None => create_root_menu(ui_state, &theme),
-        Some('a') => create_actions_submenu(ui_state, &theme),
-        Some('t') => create_toggles_submenu(&theme),
-        _ => create_root_menu(ui_state, &theme),
+    let scope = match ui_state.leader_submenu {
+        None => BindingScope::LeaderRoot,
+        Some(c) => BindingScope::LeaderSubmenu(c),
     };
 
-    let title = match ui_state.leader_submenu {
-        None => " Leader Menu (Space)",
-        Some('a') => " Actions (Space + a)",
-        Some('t') => " Toggles (Space + t)",
-        _ => " Leader Menu",
-    };
+    let content = menu_lines(scope, &theme);
+    let title = menu_title(scope);
 
     let timeout_text = if let Some(remaining) = ui_state.leader_timeout_remaining() {
         format!(" [{}s] ", remaining.as_secs())
@@ -53,26 +51,30 @@ pub fn render(f: &mut Frame, ui_state: &UiState) {
     f.render_widget(paragraph, area);
 }
 
-fn create_root_menu(_ui_state: &UiState, theme: &Theme) -> Vec<Line<'static>> {
-    vec![
-        Line::from(""),
-        create_compact_line(vec![("a", "Actions"), ("t", "Toggles")], theme),
-        Line::from(""),
-        Line::from(vec![
-            Span::raw("  "),
-            Span::styled("Esc", stylesheet::keybind_key(theme)),
-            Span::styled(" cancel", stylesheet::muted(theme)),
-        ]),
-    ]
+fn menu_title(scope: BindingScope) -> String {
+    match scope {
+        BindingScope::LeaderSubmenu(c) => match SUBMENUS.iter().find(|s| s.key == c) {
+            Some(submenu) => format!(" {} (Space + {c})", submenu.title),
+            None => " Leader Menu".to_string(),
+        },
+        _ => " Leader Menu (Space)".to_string(),
+    }
 }
 
-fn create_actions_submenu(ui_state: &UiState, theme: &Theme) -> Vec<Line<'static>> {
-    let mut items = vec![("f", "Approve file")];
+fn menu_lines(scope: BindingScope, theme: &Theme) -> Vec<Line<'static>> {
+    let mut items: Vec<(String, &'static str)> = Vec::new();
+    let mut esc_label = "cancel";
 
-    if ui_state.browse_cursor().is_some() {
-        items.push(("a/d", "Approve decision"));
-    } else {
-        items.push(("a", "Approve chunk"));
+    for binding in bindings::bindings_for(scope) {
+        if binding.event == UiEvent::DeactivateLeader {
+            esc_label = if scope == BindingScope::LeaderRoot {
+                "cancel"
+            } else {
+                "back"
+            };
+            continue;
+        }
+        items.push((binding.notation.join("/"), binding.description));
     }
 
     vec![
@@ -82,25 +84,12 @@ fn create_actions_submenu(ui_state: &UiState, theme: &Theme) -> Vec<Line<'static
         Line::from(vec![
             Span::raw("  "),
             Span::styled("Esc", stylesheet::keybind_key(theme)),
-            Span::styled(" back", stylesheet::muted(theme)),
+            Span::styled(format!(" {esc_label}"), stylesheet::muted(theme)),
         ]),
     ]
 }
 
-fn create_toggles_submenu(theme: &Theme) -> Vec<Line<'static>> {
-    vec![
-        Line::from(""),
-        create_compact_line(vec![("r", "Reasoning annotations")], theme),
-        Line::from(""),
-        Line::from(vec![
-            Span::raw("  "),
-            Span::styled("Esc", stylesheet::keybind_key(theme)),
-            Span::styled(" back", stylesheet::muted(theme)),
-        ]),
-    ]
-}
-
-fn create_compact_line(items: Vec<(&str, &str)>, theme: &Theme) -> Line<'static> {
+fn create_compact_line(items: Vec<(String, &str)>, theme: &Theme) -> Line<'static> {
     let mut spans = vec![Span::raw("  ")];
 
     for (i, (key, description)) in items.iter().enumerate() {
