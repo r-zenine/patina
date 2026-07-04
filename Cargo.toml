@@ -9,6 +9,7 @@ members = [
     "diffviz-schema-macro",
     "tui-design",
     "tui-harness",
+    "libs/*",
     # sam
     "sam-cli",
     "sam-config",
