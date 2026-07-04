@@ -7,7 +7,7 @@ use crossterm::event::KeyEvent;
 use ratatui::Frame;
 
 use diffviz_review::engines::ReviewEngine;
-use tui_harness::ELMApp;
+use tui_harness::{AppDescription, ELMApp, ModeDoc};
 
 use crate::{
     Result,
@@ -91,6 +91,33 @@ impl ELMApp for ReviewTuiApp {
             self.ui_state.deactivate_leader();
         }
     }
+
+    fn describe(&self) -> Option<AppDescription> {
+        Some(AppDescription {
+            app: env!("CARGO_PKG_NAME").to_string(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            modes: vec![
+                ModeDoc {
+                    name: "Navigation".to_string(),
+                    description: "Browse decisions and drill into files/chunks; \
+                                  Space opens the leader-key menu"
+                        .to_string(),
+                },
+                ModeDoc {
+                    name: "Instruction".to_string(),
+                    description: "Text input for a note on the focused chunk".to_string(),
+                },
+                ModeDoc {
+                    name: "DecisionInstruction".to_string(),
+                    description: "Text input for a note on the focused decision".to_string(),
+                },
+            ],
+            // Bindings are generated from the keybinding registry in Phase 3
+            // of plan-tui-harness-agent-discovery; hand-writing them here
+            // would recreate the doc-drift this plan eliminates.
+            bindings: Vec::new(),
+        })
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -147,7 +174,7 @@ fn process_key_event_impl(
 }
 
 fn handle_ui_event_impl(
-    _engine: &ReviewEngine,
+    engine: &ReviewEngine,
     ui_state: &mut UiState,
     event: &UiEvent,
 ) -> Result<()> {
@@ -207,9 +234,18 @@ fn handle_ui_event_impl(
 
         UiEvent::EnterInstructionMode => {
             if let Some(reviewable_id) = ui_state.current_reviewable_id() {
-                ui_state.start_instruction_input(reviewable_id);
+                let existing_content = engine
+                    .state()
+                    .get_instructions(&reviewable_id)
+                    .and_then(|v| v.first())
+                    .map(|instr| instr.content.clone());
+                ui_state.start_instruction_input(reviewable_id, existing_content);
             } else if let Some(decision_number) = ui_state.current_decision_number() {
-                ui_state.start_decision_instruction_input(decision_number);
+                let existing_content = engine
+                    .get_decision_instructions(decision_number)
+                    .and_then(|v| v.into_iter().next())
+                    .map(|instr| instr.content.clone());
+                ui_state.start_decision_instruction_input(decision_number, existing_content);
             }
             ui_state.deactivate_leader();
         }
@@ -308,7 +344,7 @@ fn handle_business_event_impl(engine: &mut ReviewEngine, event: BusinessEvent) -
             content,
         } => {
             if !content.trim().is_empty() {
-                engine.add_instruction(reviewable_id, content, author)?;
+                engine.edit_instruction(reviewable_id, content, author)?;
             }
             Ok(Command::None)
         }
@@ -318,7 +354,7 @@ fn handle_business_event_impl(engine: &mut ReviewEngine, event: BusinessEvent) -
             content,
         } => {
             if !content.trim().is_empty() {
-                engine.add_decision_instruction(decision_number, content, author)?;
+                engine.edit_decision_instruction(decision_number, content, author)?;
             }
             Ok(Command::None)
         }
