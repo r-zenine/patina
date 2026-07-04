@@ -1,10 +1,16 @@
+use crate::manifest::{Affordance, AppDescription};
+
 /// ELM-architecture trait for TUI applications.
 ///
-/// Implementing this trait provides both a production runtime (`run_app`) and
-/// headless test harnesses (`InputTestHarness`, `RenderTestHarness`, `CombinedTestHarness`).
+/// Implementing this trait provides a production runtime (`run_app`),
+/// headless test harnesses (`InputTestHarness`, `RenderTestHarness`,
+/// `CombinedTestHarness`), and the agent-facing discovery CLI
+/// (`run_agent_cli` / `--describe`).
 pub trait ELMApp {
     /// Serializable state snapshot for test assertions and debug modes.
-    type Snapshot: serde::Serialize;
+    /// The `JsonSchema` bound lets `--describe` publish the snapshot's
+    /// schema so agents can interpret snapshots without reading source.
+    type Snapshot: serde::Serialize + schemars::JsonSchema;
 
     /// App-owned error type — no framework type is imposed.
     type Error: std::error::Error + Send + Sync + 'static;
@@ -29,4 +35,21 @@ pub trait ELMApp {
     /// Use for time-based logic (e.g. leader key timeouts) that must fire
     /// even when no key event arrives. Default is a no-op.
     fn on_tick(&mut self) {}
+
+    /// Static discovery data: app name/version, modes, keybindings.
+    ///
+    /// Default `None` marks the app as undescribed in the manifest — agents
+    /// can tell "no discovery data" apart from an unsupported flag.
+    fn describe(&self) -> Option<AppDescription> {
+        None
+    }
+
+    /// Keys that are meaningful in the app's *current* state.
+    ///
+    /// Default is empty. Apps with mode-dependent bindings should override
+    /// this so agents get a closed loop: act, then observe the new state
+    /// and the new legal moves.
+    fn affordances(&self) -> Vec<Affordance> {
+        Vec::new()
+    }
 }

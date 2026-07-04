@@ -132,39 +132,73 @@ fn parse_modifiers(modifier_part: &str) -> Result<KeyModifiers> {
             }
         }
     }
+    debug_assert_eq!(
+        MODIFIERS.len(),
+        3,
+        "keep parse_modifiers arms in sync with the MODIFIERS table"
+    );
 
     Ok(mods)
 }
 
+/// Special key names accepted inside angle brackets, and their key codes.
+///
+/// Single source of truth: the parser looks keys up here, and the
+/// `--describe` notation doc lists these same names — they cannot drift.
+const SPECIAL_KEYS: &[(&str, KeyCode)] = &[
+    ("Space", KeyCode::Char(' ')),
+    ("Enter", KeyCode::Enter),
+    ("Tab", KeyCode::Tab),
+    ("Esc", KeyCode::Esc),
+    ("Backspace", KeyCode::Backspace),
+    ("Delete", KeyCode::Delete),
+    ("Insert", KeyCode::Insert),
+    ("Home", KeyCode::Home),
+    ("End", KeyCode::End),
+    ("PageUp", KeyCode::PageUp),
+    ("PageDown", KeyCode::PageDown),
+    ("Up", KeyCode::Up),
+    ("Down", KeyCode::Down),
+    ("Left", KeyCode::Left),
+    ("Right", KeyCode::Right),
+    ("F1", KeyCode::F(1)),
+    ("F2", KeyCode::F(2)),
+    ("F3", KeyCode::F(3)),
+    ("F4", KeyCode::F(4)),
+    ("F5", KeyCode::F(5)),
+    ("F6", KeyCode::F(6)),
+    ("F7", KeyCode::F(7)),
+    ("F8", KeyCode::F(8)),
+    ("F9", KeyCode::F(9)),
+    ("F10", KeyCode::F(10)),
+    ("F11", KeyCode::F(11)),
+    ("F12", KeyCode::F(12)),
+];
+
+/// Modifier prefixes accepted inside angle brackets, with their meanings.
+const MODIFIERS: &[(&str, &str)] = &[("C", "Control"), ("S", "Shift"), ("A", "Alt")];
+
+/// Names accepted inside angle brackets, for the `--describe` notation doc.
+pub fn special_key_names() -> Vec<String> {
+    SPECIAL_KEYS
+        .iter()
+        .map(|(name, _)| name.to_string())
+        .collect()
+}
+
+/// Modifier prefixes with meanings (e.g. "C = Control"), for the notation doc.
+pub fn modifier_names() -> Vec<String> {
+    MODIFIERS
+        .iter()
+        .map(|(prefix, meaning)| format!("{prefix} = {meaning}"))
+        .collect()
+}
+
 fn parse_key_code(key_str: &str) -> Result<KeyCode> {
+    if let Some((_, code)) = SPECIAL_KEYS.iter().find(|(name, _)| *name == key_str) {
+        return Ok(*code);
+    }
     match key_str {
-        "Space" => Ok(KeyCode::Char(' ')),
-        "Enter" => Ok(KeyCode::Enter),
-        "Tab" => Ok(KeyCode::Tab),
-        "Esc" => Ok(KeyCode::Esc),
-        "Backspace" => Ok(KeyCode::Backspace),
-        "Delete" => Ok(KeyCode::Delete),
-        "Insert" => Ok(KeyCode::Insert),
-        "Home" => Ok(KeyCode::Home),
-        "End" => Ok(KeyCode::End),
-        "PageUp" => Ok(KeyCode::PageUp),
-        "PageDown" => Ok(KeyCode::PageDown),
-        "Up" => Ok(KeyCode::Up),
-        "Down" => Ok(KeyCode::Down),
-        "Left" => Ok(KeyCode::Left),
-        "Right" => Ok(KeyCode::Right),
-        "F1" => Ok(KeyCode::F(1)),
-        "F2" => Ok(KeyCode::F(2)),
-        "F3" => Ok(KeyCode::F(3)),
-        "F4" => Ok(KeyCode::F(4)),
-        "F5" => Ok(KeyCode::F(5)),
-        "F6" => Ok(KeyCode::F(6)),
-        "F7" => Ok(KeyCode::F(7)),
-        "F8" => Ok(KeyCode::F(8)),
-        "F9" => Ok(KeyCode::F(9)),
-        "F10" => Ok(KeyCode::F(10)),
-        "F11" => Ok(KeyCode::F(11)),
-        "F12" => Ok(KeyCode::F(12)),
         s if s.chars().count() == 1 => {
             let ch = s.chars().next().unwrap();
             Ok(KeyCode::Char(ch))

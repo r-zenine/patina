@@ -13,6 +13,10 @@ pub enum TuiError {
     #[error("Invalid input sequence: {0}")]
     Parse(String),
 
+    /// Invalid agent CLI arguments.
+    #[error("Usage error: {0}")]
+    Usage(String),
+
     /// App-level error, wrapped to avoid leaking the app's error type into the harness.
     #[error("App error: {0}")]
     App(Box<dyn std::error::Error + Send + Sync + 'static>),

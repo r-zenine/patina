@@ -1,10 +1,10 @@
-//! Kitchen-sink example: a toy counter ELM app demonstrating all harness modes.
+//! Kitchen-sink example: a toy counter ELM app demonstrating the agent CLI.
 //!
 //! Usage:
-//!   cargo run --example kitchen_sink                    # run interactive TUI
-//!   cargo run --example kitchen_sink -- --test-input "jjjkr"   # input harness
-//!   cargo run --example kitchen_sink -- --test-render           # render harness
-//!   cargo run --example kitchen_sink -- --test-full "jq"        # combined harness
+//!   cargo run --example kitchen_sink                             # interactive TUI
+//!   cargo run --example kitchen_sink -- --describe               # app manifest
+//!   cargo run --example kitchen_sink -- --test-input "jjjkr"     # final snapshot
+//!   cargo run --example kitchen_sink -- --test-full "jq"         # state + visual per step
 
 use crossterm::event::{KeyCode, KeyEvent};
 use ratatui::{
@@ -14,9 +14,10 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Paragraph},
 };
+use schemars::JsonSchema;
 use serde::Serialize;
 
-use tui_harness::{CombinedTestHarness, ELMApp, InputTestHarness, RenderTestHarness, run_app};
+use tui_harness::{Affordance, AppDescription, ELMApp, KeyBindingDoc, ModeDoc, run_agent_cli};
 
 // ---------------------------------------------------------------------------
 // App state
@@ -50,7 +51,7 @@ impl CounterApp {
 // Snapshot
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, JsonSchema)]
 struct CounterSnapshot {
     count: i32,
     mode: String,
@@ -137,6 +138,61 @@ impl ELMApp for CounterApp {
             label: self.label.clone(),
         }
     }
+
+    fn describe(&self) -> Option<AppDescription> {
+        let binding = |mode: &str, keys: &[&str], event: &str, description: &str| KeyBindingDoc {
+            mode: mode.to_string(),
+            keys: keys.iter().map(|k| k.to_string()).collect(),
+            event: event.to_string(),
+            description: description.to_string(),
+        };
+        Some(AppDescription {
+            app: "kitchen_sink".to_string(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            modes: vec![
+                ModeDoc {
+                    name: "Normal".to_string(),
+                    description: "Counting mode".to_string(),
+                },
+                ModeDoc {
+                    name: "LabelEdit".to_string(),
+                    description: "Editing the counter label".to_string(),
+                },
+            ],
+            bindings: vec![
+                binding("Normal", &["j"], "Increment", "Increase the count by 1"),
+                binding("Normal", &["k"], "Decrement", "Decrease the count by 1"),
+                binding("Normal", &["r"], "Reset", "Reset the count to 0"),
+                binding("Normal", &["i"], "EditLabel", "Enter label-edit mode"),
+                binding("Normal", &["q"], "Quit", "Quit the app"),
+                binding("LabelEdit", &["<Esc>"], "ExitEdit", "Back to normal mode"),
+                binding(
+                    "LabelEdit",
+                    &["<Backspace>"],
+                    "DeleteChar",
+                    "Delete last label char",
+                ),
+            ],
+        })
+    }
+
+    fn affordances(&self) -> Vec<Affordance> {
+        let description = self.describe().expect("kitchen_sink is always described");
+        let active_mode = match self.mode {
+            Mode::Normal => "Normal",
+            Mode::LabelEdit => "LabelEdit",
+        };
+        description
+            .bindings
+            .into_iter()
+            .filter(|b| b.mode == active_mode)
+            .map(|b| Affordance {
+                keys: b.keys,
+                event: b.event,
+                description: b.description,
+            })
+            .collect()
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -144,32 +200,5 @@ impl ELMApp for CounterApp {
 // ---------------------------------------------------------------------------
 
 fn main() {
-    let args: Vec<String> = std::env::args().collect();
-
-    if let Some(pos) = args.iter().position(|a| a == "--test-input") {
-        let seq = args.get(pos + 1).expect("--test-input requires a sequence");
-        let mut harness = InputTestHarness::new(CounterApp::new());
-        let snapshots = harness.run_sequence(seq).expect("input harness failed");
-        for snap in &snapshots {
-            println!("{}", serde_json::to_string_pretty(snap).unwrap());
-        }
-    } else if args.iter().any(|a| a == "--test-render") {
-        let harness = RenderTestHarness::new();
-        let app = CounterApp::new();
-        let output = harness.render(&app).expect("render harness failed");
-        println!("{output}");
-    } else if let Some(pos) = args.iter().position(|a| a == "--test-full") {
-        let seq = args.get(pos + 1).expect("--test-full requires a sequence");
-        let mut harness = CombinedTestHarness::new(CounterApp::new());
-        let results = harness
-            .run_sequence_with_renders(seq)
-            .expect("combined harness failed");
-        for (i, result) in results.iter().enumerate() {
-            println!("--- step {i} ---");
-            println!("{}", serde_json::to_string_pretty(&result.state).unwrap());
-            println!("{}", result.visual);
-        }
-    } else {
-        run_app(&mut CounterApp::new()).expect("TUI runtime failed");
-    }
+    run_agent_cli(CounterApp::new(), std::env::args().skip(1)).expect("agent CLI failed");
 }

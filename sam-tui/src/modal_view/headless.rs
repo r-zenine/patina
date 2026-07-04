@@ -11,7 +11,7 @@ use super::ui_insert_mode::{ListItems, UIInsertMode};
 use super::ui_options_mode::UIOptionsMode;
 use super::view::key_transformer;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, schemars::JsonSchema)]
 pub struct SamSnapshot {
     pub current_mode: String,
     pub cursor: usize,

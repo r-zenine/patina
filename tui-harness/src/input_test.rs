@@ -71,7 +71,7 @@ mod tests {
         }
     }
 
-    #[derive(serde::Serialize)]
+    #[derive(serde::Serialize, schemars::JsonSchema)]
     struct TickSnapshot {
         keys: u32,
         ticks: u32,

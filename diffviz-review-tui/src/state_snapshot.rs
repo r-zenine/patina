@@ -7,7 +7,7 @@ use crate::state::{InputMode, UiState};
 use serde::{Deserialize, Serialize};
 
 /// JSON-serializable snapshot of UI state for testing
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct StateSnapshot {
     /// Current input mode: "Navigation", "Instruction", or "DecisionInstruction"
     pub input_mode: String,

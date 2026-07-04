@@ -15,4 +15,5 @@ crossterm = { workspace = true }
 tui-harness = { path = "../tui-harness" }
 serde = { workspace = true }
 serde_json = { workspace = true }
+schemars = { workspace = true }
 fzy-rs = "0.1.0"
