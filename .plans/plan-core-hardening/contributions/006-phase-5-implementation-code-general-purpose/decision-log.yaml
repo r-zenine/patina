@@ -1,0 +1,68 @@
+commit: "b8012ae"
+
+decisions:
+  - number: 1
+    title: "Decompose-path trigger extended from Module-only to any container with populated children"
+    rationale: >
+      Wiring build_data_structure to collect children (via container_body_field) was
+      necessary but not sufficient: decision_based_diff.rs's decompose-path trigger,
+      find_contained_units_recursive, and find_units_touching_range_recursive all
+      hardcoded "pass-through container" as SemanticUnitType::Module only — a
+      leftover from when only impl/mod blocks (represented as Module) ever had
+      children. Verified empirically: a range over one TypeScript class method
+      resolved to the whole class (DataStructure) because find_unit_recursive fell
+      back to the class node (no single child fully contained the requested byte
+      range) and the decompose check `matches!(new_unit.unit_type, Module)` was
+      false for DataStructure, so the decompose/touching-fallback logic that finds
+      individual methods never ran. Introduced is_recursable_container(unit): true
+      for Module, and for DataStructure only when unit.children is non-empty. A
+      childless DataStructure (Rust struct/enum, Go struct/interface — kinds whose
+      descriptor doesn't wire container_body_field) is unaffected: is_recursable_container
+      returns false for them exactly as the old Module-only check did, preserving
+      their existing single-unit expand/decompose-leaf behavior and the Phase-0-pinned
+      Rust impl/struct tests.
+    code_impacts:
+      - file: "diffviz-core/src/decision_based_diff.rs"
+        reasoning: >
+          [Behavioral - Invariant mutation] A DataStructure node with children is now
+          treated as a pass-through container rather than a reportable leaf in all
+          three traversal functions (the top-level decompose trigger,
+          find_contained_units_recursive, find_units_touching_range_recursive). A
+          reviewer must verify no caller relies on a class-with-methods range
+          resolving to the whole class as a single Modification unit — it now
+          decomposes into per-method units, matching impl-block behavior.
+        line_ranges:
+          - start: 65
+            end: 139
+          - start: 517
+            end: 519
+
+  - number: 2
+    title: "Statement-wrapper splicing via a new descriptor hook, generic across languages"
+    rationale: >
+      Python's `expression_statement -> assignment` wrapper caused
+      build_typed_node's classification-only arm to drop the whole subtree
+      (including the assignment), making the ("assignment", Variable) kind-map
+      entry unreachable dead code. Rather than special-case Python inside the
+      generic builder, added LanguageDescriptor::statement_wrapper_kinds()
+      (default: empty) so build_container_children can splice a wrapper's
+      children directly into the enclosing container's children list instead of
+      classifying (and dropping) the wrapper. Only Python overrides it today
+      (["expression_statement"]); no other core-4 language needs it, since Go/
+      TypeScript/Rust already classify their variable-declaration constructs
+      directly without an intervening wrapper node.
+    code_impacts:
+      - file: "diffviz-core/src/parsers/generic_builder.rs"
+        reasoning: >
+          [Structural - Public API] build_data_structure gained container-body
+          recursion (new children via container_body_field + qualify(parent_context)),
+          and build_container_children gained wrapper-splicing. Both are additive to
+          the SemanticNode tree shape: existing consumers that only read
+          `.unit_type`/`.identifier` are unaffected, but any consumer walking
+          `.children` of a DataStructure or of a module/class body now sees nodes it
+          did not see before (methods, spliced module-level assignments).
+        line_ranges:
+          - start: 89
+            end: 122
+          - start: 260
+            end: 301
