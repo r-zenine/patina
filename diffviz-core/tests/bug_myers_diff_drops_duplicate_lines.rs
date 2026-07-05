@@ -63,7 +63,6 @@ mod bug_myers_diff_drops_duplicate_lines {
     // Expected rendered new text: fn f() { / x(); / x(); / x(); / }
     // Actual: only [`    x();`, `}`] — `fn f() {` and both added lines are dropped.
     #[test]
-    #[ignore = "bug: Myers snake loop advances only y, drops lines on duplicate-line inputs"]
     fn repeated_statement_insertion_reconstructs_both_sources() {
         let old = SourceCode::new("fn f() {\n    x();\n}\n");
         let new = SourceCode::new("fn f() {\n    x();\n    x();\n    x();\n}\n");
@@ -88,7 +87,6 @@ mod bug_myers_diff_drops_duplicate_lines {
     // Expected: one Added blank line, everything else Kept.
     // Actual: `    a();` is rendered as deleted and the added blank line never appears.
     #[test]
-    #[ignore = "bug: Myers snake loop advances only y, drops lines on duplicate-line inputs"]
     fn blank_line_insertion_reconstructs_both_sources() {
         let old = SourceCode::new("fn f() {\n    a();\n\n    b();\n}\n");
         let new = SourceCode::new("fn f() {\n    a();\n\n\n    b();\n}\n");

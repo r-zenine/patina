@@ -20,7 +20,6 @@ mod bug_crlf_byte_offset_drift {
     use diffviz_core::renderable_diff::RenderableDiff;
 
     #[test]
-    #[ignore = "bug: byte accounting assumes 1-byte newline, lines() also strips \\r"]
     fn crlf_source_line_byte_ranges_match_actual_offsets() {
         // "fn f() {\r\n    1;\r\n}\r\n"
         //  line 1 starts at byte 0, line 2 at byte 10, line 3 at byte 18

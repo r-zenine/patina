@@ -85,19 +85,44 @@ fn extract_boundary_source(
 
 /// Split source into lines preserving byte positions
 fn split_into_lines_with_positions(source: &str) -> Vec<LineInfo<'_>> {
-    let mut lines = Vec::new();
-    let mut byte_offset = 0;
-
-    for (line_num, line_text) in source.lines().enumerate() {
-        lines.push(LineInfo {
+    source
+        .lines()
+        .zip(line_byte_spans(source))
+        .enumerate()
+        .map(|(line_num, (line_text, byte_range))| LineInfo {
             number: line_num + 1,
             text: line_text,
-            byte_range: (byte_offset, byte_offset + line_text.len()),
-        });
-        byte_offset += line_text.len() + 1; // +1 for newline
+            byte_range,
+        })
+        .collect()
+}
+
+/// Byte range (content only, terminator excluded) of each line in `source`, in
+/// exactly the order and content `str::lines()` yields — so `lines()[i]` and
+/// `line_byte_spans(source)[i]` always describe the same line. Handles both
+/// `\n` and `\r\n` terminators; a missing trailing newline on the last line is
+/// fine (matches `str::lines()`, which never emits a synthetic empty final
+/// element).
+pub(super) fn line_byte_spans(source: &str) -> Vec<(usize, usize)> {
+    let bytes = source.as_bytes();
+    let mut spans = Vec::new();
+    let mut start = 0usize;
+
+    for (i, &byte) in bytes.iter().enumerate() {
+        if byte == b'\n' {
+            let mut end = i;
+            if end > start && bytes[end - 1] == b'\r' {
+                end -= 1;
+            }
+            spans.push((start, end));
+            start = i + 1;
+        }
+    }
+    if start < bytes.len() {
+        spans.push((start, bytes.len()));
     }
 
-    lines
+    spans
 }
 
 /// Collect all node annotations from the tree
@@ -166,4 +191,43 @@ fn map_annotations_to_line(
 /// Check if two byte ranges overlap
 pub(super) fn ranges_overlap(range1: (usize, usize), range2: (usize, usize)) -> bool {
     range1.0 < range2.1 && range2.0 < range1.1
+}
+
+#[cfg(test)]
+mod tests {
+    use super::line_byte_spans;
+
+    #[test]
+    fn empty_source_has_no_spans() {
+        assert_eq!(line_byte_spans(""), Vec::new());
+    }
+
+    #[test]
+    fn lf_terminated_lines() {
+        let source = "fn f() {\n    1;\n}\n";
+        assert_eq!(line_byte_spans(source), vec![(0, 8), (9, 15), (16, 17)]);
+    }
+
+    #[test]
+    fn missing_trailing_newline() {
+        let source = "a\nb";
+        assert_eq!(line_byte_spans(source), vec![(0, 1), (2, 3)]);
+    }
+
+    #[test]
+    fn crlf_terminated_lines() {
+        let source = "fn f() {\r\n    1;\r\n}\r\n";
+        assert_eq!(line_byte_spans(source), vec![(0, 8), (10, 16), (18, 19)]);
+    }
+
+    #[test]
+    fn spans_match_str_lines_content() {
+        let source = "fn f() {\r\n    1;\r\n}\r\n";
+        let spans = line_byte_spans(source);
+        let lines: Vec<&str> = source.lines().collect();
+        assert_eq!(spans.len(), lines.len());
+        for (span, line) in spans.iter().zip(lines) {
+            assert_eq!(&source[span.0..span.1], line);
+        }
+    }
 }

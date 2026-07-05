@@ -20,8 +20,8 @@ pub enum RenderableDiffError {
     SourceError(#[from] SourceError),
 }
 
+mod line_diff;
 mod line_utils;
-mod myers_diff;
 mod name_extractors;
 mod semantic_anchors;
 
@@ -136,70 +136,62 @@ fn build_byte_range_annotations(
     annotations
 }
 
-/// Helper function to create line-by-line diff for Modified changes using Myers algorithm
+/// Helper function to create line-by-line diff for Modified changes using the
+/// `similar`-backed line diff engine (see [`line_diff`]).
 fn create_line_by_line_diff_for_modified<'source>(
     reviewable: &'source ReviewableDiff,
     old_node: &crate::ast_diff::OwnedNodeData,
     new_node: &crate::ast_diff::OwnedNodeData,
 ) -> Result<Vec<RenderableLine<'source>>, crate::ast_diff::SourceError> {
-    use crate::renderable_diff::myers_diff::{DiffOp, myers_diff_semantic};
+    use crate::renderable_diff::line_diff::{DiffOp, align_by_anchors, diff_lines};
+    use crate::renderable_diff::line_utils::line_byte_spans;
     use crate::renderable_diff::semantic_anchors::extract_semantic_anchor;
 
     // Extract old and new source text using byte ranges
     let old_text = reviewable.old_source.node_text(old_node)?;
     let new_text = reviewable.new_source.node_text(new_node)?;
 
-    // Split into lines and prepare for Myers diff
     let old_lines: Vec<&str> = old_text.lines().collect();
     let new_lines: Vec<&str> = new_text.lines().collect();
 
-    // Extract semantic anchors for each line, tracking each side's absolute byte
-    // position independently so the DiffNode tree walk sees real offsets.
-    let mut old_byte_cursor = old_node.start_byte;
-    let old_lines_with_anchors: Vec<(&str, Option<SemanticAnchor>)> = old_lines
+    // Content-only byte spans (terminator-width-accurate, fixes CRLF drift)
+    // relative to each extracted text, one per line, indexed identically to
+    // old_lines/new_lines.
+    let old_spans = line_byte_spans(old_text);
+    let new_spans = line_byte_spans(new_text);
+
+    let old_boundary_start = old_node.start_byte;
+    let boundary_start = new_node.start_byte;
+
+    let old_anchors: Vec<Option<SemanticAnchor>> = old_lines
         .iter()
-        .map(|&line| {
-            let anchor = extract_semantic_anchor(line, reviewable, old_byte_cursor);
-            old_byte_cursor += line.len() + 1; // +1 for newline
-            (line, anchor)
-        })
+        .zip(&old_spans)
+        .map(|(&line, span)| extract_semantic_anchor(line, reviewable, old_boundary_start + span.0))
+        .collect();
+    let new_anchors: Vec<Option<SemanticAnchor>> = new_lines
+        .iter()
+        .zip(&new_spans)
+        .map(|(&line, span)| extract_semantic_anchor(line, reviewable, boundary_start + span.0))
         .collect();
 
-    let mut new_byte_cursor = new_node.start_byte;
-    let new_lines_with_anchors: Vec<(&str, Option<SemanticAnchor>)> = new_lines
-        .iter()
-        .map(|&line| {
-            let anchor = extract_semantic_anchor(line, reviewable, new_byte_cursor);
-            new_byte_cursor += line.len() + 1; // +1 for newline
-            (line, anchor)
-        })
-        .collect();
-
-    // Use semantic Myers diff algorithm
-    let diff_result = myers_diff_semantic(&old_lines_with_anchors, &new_lines_with_anchors);
+    let ops = align_by_anchors(
+        diff_lines(&old_lines, &new_lines),
+        &old_anchors,
+        &new_anchors,
+    );
 
     // Build byte range annotations from DiffNode tree (all annotations with byte positions)
     let byte_annotations = build_byte_range_annotations(&reviewable.boundary);
-    let boundary_start = new_node.start_byte;
-    let old_boundary_start = old_node.start_byte;
 
-    // Track byte position relative to extracted text (will be offset by boundary_start)
-    let mut current_byte_offset = 0;
-    // Track byte position relative to the old extracted text (offset by old_boundary_start)
-    let mut old_current_byte_offset = 0;
-
-    // Convert Myers diff operations to RenderableLines
-    let mut result_lines = Vec::new();
+    let mut result_lines = Vec::with_capacity(ops.len());
     let mut line_number = 1;
 
-    for op in &diff_result.ops {
-        match op {
-            DiffOp::Keep { line } => {
-                // Calculate byte range for this line in the full source
-                // (offset by boundary_start since we're working with extracted text)
-                let line_start_in_source = boundary_start + current_byte_offset;
-                let line_end_in_source = line_start_in_source + line.len();
-                let line_byte_range = (line_start_in_source, line_end_in_source);
+    for op in &ops {
+        match *op {
+            DiffOp::Keep { new_idx, .. } => {
+                let content = new_lines[new_idx];
+                let span = new_spans[new_idx];
+                let line_byte_range = (boundary_start + span.0, boundary_start + span.1);
 
                 // Determine relevance using precedence rule:
                 // - If ANY overlapping annotation is ESSENTIAL, use ESSENTIAL
@@ -209,145 +201,102 @@ fn create_line_by_line_diff_for_modified<'source>(
 
                 let annotation = LineAnnotation {
                     start_col: 0,
-                    end_col: line.len(),
+                    end_col: content.len(),
                     relevance,
                     change_type: None, // No change
                     semantic_kind: reviewable.boundary.semantic_kind.clone(),
                     node_depth: 0,
                 };
 
-                // Find the original line in the sources to maintain proper lifetime
-                let content = find_original_line_content(line, &old_lines, &new_lines);
-
                 result_lines.push(RenderableLine {
                     line_number,
                     content,
-                    byte_range: (0, line.len()),
+                    byte_range: (0, content.len()),
                     annotations: vec![annotation],
-                    semantic_anchor: extract_semantic_anchor(
-                        content,
-                        reviewable,
-                        line_start_in_source,
-                    ),
+                    semantic_anchor: new_anchors[new_idx].clone(),
                 });
                 line_number += 1;
-                current_byte_offset = line_end_in_source - boundary_start + 1; // +1 for newline
-                old_current_byte_offset += line.len() + 1; // Keep lines advance both sides identically
             }
-            DiffOp::Delete { line } => {
+            DiffOp::Delete { old_idx } => {
+                let content = old_lines[old_idx];
+
                 let annotation = LineAnnotation {
                     start_col: 0,
-                    end_col: line.len(),
+                    end_col: content.len(),
                     relevance: ESSENTIAL,
                     change_type: Some(ChangeType::Deleted),
                     semantic_kind: reviewable.boundary.semantic_kind.clone(),
                     node_depth: 0,
                 };
 
-                let content = find_original_line_content(line, &old_lines, &[]);
-                let line_start_in_source = old_boundary_start + old_current_byte_offset;
-                old_current_byte_offset += line.len() + 1; // +1 for newline
-
                 result_lines.push(RenderableLine {
                     line_number,
                     content,
-                    byte_range: (0, line.len()),
+                    byte_range: (0, content.len()),
                     annotations: vec![annotation],
-                    semantic_anchor: extract_semantic_anchor(
-                        content,
-                        reviewable,
-                        line_start_in_source,
-                    ),
+                    semantic_anchor: old_anchors[old_idx].clone(),
                 });
                 line_number += 1;
             }
-            DiffOp::Add { line } => {
-                // Calculate byte range for added line in the full source
-                let line_start_in_source = boundary_start + current_byte_offset;
-                let line_end_in_source = line_start_in_source + line.len();
-                current_byte_offset = line_end_in_source - boundary_start + 1; // +1 for newline
+            DiffOp::Add { new_idx } => {
+                let content = new_lines[new_idx];
 
                 let annotation = LineAnnotation {
                     start_col: 0,
-                    end_col: line.len(),
+                    end_col: content.len(),
                     relevance: ESSENTIAL,
                     change_type: Some(ChangeType::Added),
                     semantic_kind: reviewable.boundary.semantic_kind.clone(),
                     node_depth: 0,
                 };
 
-                let content = find_original_line_content(line, &[], &new_lines);
-
                 result_lines.push(RenderableLine {
                     line_number,
                     content,
-                    byte_range: (0, line.len()),
+                    byte_range: (0, content.len()),
                     annotations: vec![annotation],
-                    semantic_anchor: extract_semantic_anchor(
-                        content,
-                        reviewable,
-                        line_start_in_source,
-                    ),
+                    semantic_anchor: new_anchors[new_idx].clone(),
                 });
                 line_number += 1;
             }
-            DiffOp::Modify { old_line, new_line } => {
+            DiffOp::Modify { old_idx, new_idx } => {
                 // Modify operation: display as two lines - old (deleted) then new (added)
                 // This shows the semantic pairing while maintaining traditional diff view
-
-                // First, show the old line as deleted
+                let old_content = old_lines[old_idx];
                 let old_annotation = LineAnnotation {
                     start_col: 0,
-                    end_col: old_line.len(),
+                    end_col: old_content.len(),
                     relevance: ESSENTIAL,
                     change_type: Some(ChangeType::Deleted),
                     semantic_kind: reviewable.boundary.semantic_kind.clone(),
                     node_depth: 0,
                 };
-
-                let old_content = find_original_line_content(old_line, &old_lines, &[]);
-                let old_line_start_in_source = old_boundary_start + old_current_byte_offset;
-                old_current_byte_offset += old_line.len() + 1; // +1 for newline
 
                 result_lines.push(RenderableLine {
                     line_number,
                     content: old_content,
-                    byte_range: (0, old_line.len()),
+                    byte_range: (0, old_content.len()),
                     annotations: vec![old_annotation],
-                    semantic_anchor: extract_semantic_anchor(
-                        old_content,
-                        reviewable,
-                        old_line_start_in_source,
-                    ),
+                    semantic_anchor: old_anchors[old_idx].clone(),
                 });
                 line_number += 1;
 
-                // Then, show the new line as added
-                let line_start_in_source = boundary_start + current_byte_offset;
-                let line_end_in_source = line_start_in_source + new_line.len();
-                current_byte_offset = line_end_in_source - boundary_start + 1; // +1 for newline
-
+                let new_content = new_lines[new_idx];
                 let new_annotation = LineAnnotation {
                     start_col: 0,
-                    end_col: new_line.len(),
+                    end_col: new_content.len(),
                     relevance: ESSENTIAL,
                     change_type: Some(ChangeType::Added),
                     semantic_kind: reviewable.boundary.semantic_kind.clone(),
                     node_depth: 0,
                 };
 
-                let new_content = find_original_line_content(new_line, &[], &new_lines);
-
                 result_lines.push(RenderableLine {
                     line_number,
                     content: new_content,
-                    byte_range: (0, new_line.len()),
+                    byte_range: (0, new_content.len()),
                     annotations: vec![new_annotation],
-                    semantic_anchor: extract_semantic_anchor(
-                        new_content,
-                        reviewable,
-                        line_start_in_source,
-                    ),
+                    semantic_anchor: new_anchors[new_idx].clone(),
                 });
                 line_number += 1;
             }
@@ -374,34 +323,6 @@ fn determine_line_relevance_with_precedence(
         .map(|ann| ann.relevance)
         .min()
         .unwrap_or(ESSENTIAL)
-}
-
-/// Find the original line content with proper lifetime from the source slices
-fn find_original_line_content<'source>(
-    target_line: &str,
-    old_lines: &[&'source str],
-    new_lines: &[&'source str],
-) -> &'source str {
-    // Try to find the line in new lines first
-    for &line in new_lines {
-        if line == target_line {
-            return line;
-        }
-    }
-
-    // Then try old lines
-    for &line in old_lines {
-        if line == target_line {
-            return line;
-        }
-    }
-
-    // Fallback: return the first available line or a static empty string
-    if let Some(&first_line) = new_lines.first().or_else(|| old_lines.first()) {
-        first_line
-    } else {
-        ""
-    }
 }
 
 /// Fallible conversion from ReviewableDiff to RenderableDiff

@@ -6,9 +6,9 @@
 //! filtering out Deleted lines from the rendered output must reproduce the new
 //! source, and filtering out Added lines must reproduce the old source.
 //!
-//! `#[ignore]`d until `plan-core-hardening` Phase 2 replaces the hand-rolled Myers
-//! engine with `similar` — today this fails whenever the generated bodies contain
-//! duplicate/repeated lines, which is exactly the bug's trigger condition.
+//! Fixed by `plan-core-hardening` Phase 2, which replaced the hand-rolled Myers
+//! engine with `similar` — the old engine failed this property whenever the
+//! generated bodies contained duplicate/repeated lines.
 
 use diffviz_core::ReviewableDiff;
 use diffviz_core::ast_diff::SourceCode;
@@ -64,10 +64,9 @@ fn render_modification(old_source: &SourceCode, new_source: &SourceCode) -> Vec<
 }
 
 proptest! {
-    #![proptest_config(ProptestConfig::with_cases(256))]
+    #![proptest_config(ProptestConfig::with_cases(1024))]
 
     #[test]
-    #[ignore = "fails today: Myers snake loop drops lines on duplicate-line inputs (fixed by plan-core-hardening Phase 2)"]
     fn replaying_ops_reconstructs_both_sources(
         old_lines in prop::collection::vec(line_strategy(), 0..8),
         new_lines in prop::collection::vec(line_strategy(), 0..8),

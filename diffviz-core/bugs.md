@@ -1,31 +1,30 @@
 # Active Bugs - diffviz-core
 
-## 🐛 Bug: Myers Diff Drops Lines on Duplicate-Line Inputs
+## ✅ Fixed: Myers Diff Drops Lines on Duplicate-Line Inputs
 
-**Issue**: In `shortest_edit_script_semantic` (`renderable_diff/myers_diff.rs`), the greedy
+**Issue (historical)**: In `shortest_edit_script_semantic` (`renderable_diff/myers_diff.rs`), the greedy
 "snake" loop advances only `y` while `x` stays fixed, comparing the same old line against
 successive new lines. Correct Myers extends diagonally (`x += 1; y += 1` while `a[x] == b[y]`).
 Whenever one old line equals several consecutive new lines (duplicate blank lines, repeated
 statements, repeated `}` lines), the recorded diagonal run is invalid and the backtrack
 produces an edit script that silently drops lines.
 
-**Impact**:
-- Rendered diffs are missing lines — reviewers see incomplete/incorrect diffs
-- `["a"]` → `["a","a","a"]` produces an **empty** diff
-- Inserting a blank line next to an existing blank line shows `a();` as deleted and never shows the addition
-- Every `Modified` boundary renders through this path
+**Impact (historical)**:
+- Rendered diffs were missing lines — reviewers saw incomplete/incorrect diffs
+- `["a"]` → `["a","a","a"]` produced an **empty** diff
+- Inserting a blank line next to an existing blank line showed `a();` as deleted and never showed the addition
+- Every `Modified` boundary rendered through this path
 
 **Affected Languages**: All (language-agnostic diff engine bug)
 
 **Test Location**: `tests/bug_myers_diff_drops_duplicate_lines.rs`
-- `repeated_statement_insertion_reconstructs_both_sources()` — [FAILING, #[ignore]] 🐛
-- `blank_line_insertion_reconstructs_both_sources()` — [FAILING, #[ignore]] 🐛
+- `repeated_statement_insertion_reconstructs_both_sources()` — [PASSING] ✅
+- `blank_line_insertion_reconstructs_both_sources()` — [PASSING] ✅
 
-**Suggested Fix**: Fix the snake loop (or replace the hand-rolled implementation with a
-vetted crate such as `imara-diff`/`similar`). Keep the reconstruction invariant test:
-replaying the ops must rebuild both inputs exactly.
-
-**Plan**: `plan-core-hardening` Phase 2 (diff engine replacement).
+**Fixed by**: `plan-core-hardening` Phase 2 — `myers_diff.rs` deleted wholesale and replaced
+by `renderable_diff/line_diff.rs`, a `similar`-backed engine (Patience algorithm) with
+index-carrying `DiffOp`s and a separate `align_by_anchors` post-pass. The reconstruction
+property test (`tests/diff_reconstruction.rs`) is unignored and green over 1024 proptest cases.
 
 ---
 
@@ -143,23 +142,26 @@ languages then the remaining 4).
 
 ---
 
-## 🐛 Bug: CRLF Line Endings Cause Byte-Offset Drift
+## ✅ Fixed: CRLF Line Endings Cause Byte-Offset Drift
 
-**Issue**: `split_into_lines_with_positions` (line_utils.rs) and the Modified rendering
-path advance offsets by `line.len() + 1`, but `str::lines()` strips both `\r` and `\n`.
-On CRLF sources, each line's byte range drifts one byte earlier per preceding line.
+**Issue (historical)**: `split_into_lines_with_positions` (line_utils.rs) and the Modified rendering
+path advanced offsets by `line.len() + 1`, but `str::lines()` strips both `\r` and `\n`.
+On CRLF sources, each line's byte range drifted one byte earlier per preceding line.
 
-**Impact**:
-- Annotation-to-line mapping (relevance, change highlighting) is progressively misaligned
+**Impact (historical)**:
+- Annotation-to-line mapping (relevance, change highlighting) was progressively misaligned
   on Windows-formatted files
 
 **Affected Languages**: All (any CRLF source)
 
 **Test Location**: `tests/bug_crlf_byte_offset_drift.rs`
-- `crlf_source_line_byte_ranges_match_actual_offsets()` — [FAILING, #[ignore]] 🐛
+- `crlf_source_line_byte_ranges_match_actual_offsets()` — [PASSING] ✅
 
-**Plan**: `plan-core-hardening` Phase 2 (diff engine replacement — byte ranges derive
-from real line offsets instead of `+1 for newline`).
+**Fixed by**: `plan-core-hardening` Phase 2 — added `line_utils::line_byte_spans`, a shared
+helper computing terminator-width-accurate (`\n` vs `\r\n`) content-only byte spans per line,
+used by both `split_into_lines_with_positions` (single-source path) and the rewritten
+Modified-path renderer (which now indexes spans directly instead of accumulating
+`+1`-per-line offsets).
 
 ---
 
