@@ -3,12 +3,16 @@ name = "gitkit"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+test-utils = ["dep:tempfile"]
+
 [dependencies]
 git2 = "0.20"
 thiserror = { workspace = true }
 sha2 = { workspace = true }
 serde = { workspace = true }
 log = { workspace = true }
+tempfile = { workspace = true, optional = true }
 
 [dev-dependencies]
-tempfile = { workspace = true }
+gitkit = { path = ".", features = ["test-utils"] }

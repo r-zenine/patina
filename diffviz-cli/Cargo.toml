@@ -11,8 +11,9 @@ path = "src/main.rs"
 diffviz-review = { workspace = true }
 diffviz-review-tui = { workspace = true }
 diffviz-core = { workspace = true }
+gitkit = { workspace = true }
 tokio = { workspace = true }
-clap = { version = "4.0", features = ["derive"] }
+clap = { version = "4.6", features = ["derive"] }
 anyhow = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

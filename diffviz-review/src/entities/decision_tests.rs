@@ -762,3 +762,96 @@ fn test_reasoning_convention_reports_each_offending_impact() {
     assert_eq!(violations[0].reasoning, "Moved code between files");
     assert_eq!(violations[1].reasoning, "Formatting only");
 }
+
+// --- Commit verification ---
+
+/// A throwaway git repo with a single commit, for exercising `commit_violation`.
+struct CommitTestRepo {
+    _test_repo: gitkit::test_utils::TestRepo,
+    repo: gitkit::GitRepository,
+    commit_id: String,
+}
+
+fn make_commit_test_repo() -> CommitTestRepo {
+    let mut test_repo = gitkit::test_utils::TestRepo::new();
+    let commit_id = test_repo.commit_file("file.txt", "content");
+    let repo = gitkit::GitRepository::open(test_repo.path()).expect("failed to open via gitkit");
+    CommitTestRepo {
+        _test_repo: test_repo,
+        repo,
+        commit_id: commit_id.to_string(),
+    }
+}
+
+fn log_with_commit_and_impacts(commit: &str, has_code_impacts: bool) -> DecisionLog {
+    DecisionLog {
+        commit: commit.to_string(),
+        decisions: vec![Decision {
+            number: 1,
+            title: "Some decision".to_string(),
+            rationale: None,
+            code_impacts: if has_code_impacts {
+                vec![CodeImpact {
+                    file: "src/lib.rs".to_string(),
+                    reasoning: "[Behavioral - Invariant mutation] Real risk".to_string(),
+                    line_ranges: vec![DecisionLineRange { start: 1, end: 10 }],
+                }]
+            } else {
+                vec![]
+            },
+        }],
+    }
+}
+
+#[test]
+fn test_commit_violation_none_when_commit_resolves() {
+    let test_repo = make_commit_test_repo();
+    let log = log_with_commit_and_impacts(&test_repo.commit_id, true);
+    assert!(log.commit_violation(&test_repo.repo).is_none());
+}
+
+#[test]
+fn test_commit_violation_flags_nonexistent_commit() {
+    let test_repo = make_commit_test_repo();
+    let log = log_with_commit_and_impacts("deadbeefdeadbeefdeadbeefdeadbeefdeadbeef", true);
+    let violation = log.commit_violation(&test_repo.repo);
+    assert!(violation.is_some());
+    assert_eq!(
+        violation.unwrap().commit,
+        "deadbeefdeadbeefdeadbeefdeadbeefdeadbeef"
+    );
+}
+
+#[test]
+fn test_commit_violation_flags_placeholder_when_code_impacts_present() {
+    let test_repo = make_commit_test_repo();
+    let log = log_with_commit_and_impacts("[placeholder]", true);
+    assert!(log.commit_violation(&test_repo.repo).is_some());
+}
+
+#[test]
+fn test_commit_violation_flags_empty_commit_when_code_impacts_present() {
+    let test_repo = make_commit_test_repo();
+    let log = log_with_commit_and_impacts("", true);
+    assert!(log.commit_violation(&test_repo.repo).is_some());
+}
+
+#[test]
+fn test_commit_violation_none_for_placeholder_without_code_impacts() {
+    let test_repo = make_commit_test_repo();
+    let log = log_with_commit_and_impacts("[placeholder]", false);
+    assert!(log.commit_violation(&test_repo.repo).is_none());
+}
+
+#[test]
+fn test_commit_violation_none_for_hallucinated_hash_sharing_a_prefix() {
+    // A fabricated hash that merely shares a short prefix with a real commit
+    // must not be accepted — this mirrors the actual bug found in production
+    // (a recorded hash that matched `git log --oneline`'s abbreviation but not
+    // the real full commit id).
+    let test_repo = make_commit_test_repo();
+    let fabricated = format!("{}{}", &test_repo.commit_id[..7], "d".repeat(33));
+    assert_eq!(fabricated.len(), 40);
+    let log = log_with_commit_and_impacts(&fabricated, true);
+    assert!(log.commit_violation(&test_repo.repo).is_some());
+}

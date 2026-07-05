@@ -329,6 +329,8 @@ The prefix is enforced: `diffviz validate decision-log` fails any log whose reas
 
 If a change does not fall into either critical tier, omit it from `code_impacts` entirely.
 
+**The `commit` field is verified, not just present.** Whenever any decision has a populated `code_impacts`, `diffviz validate decision-log` opens the repository and resolves `commit` with git itself — a copy-paste error, a truncated hash, or a hash that merely *looks* plausible (e.g. sharing a short prefix with a real commit but not matching it fully) will fail validation, not just an empty or `"[placeholder]"` value. Always get the exact hash via `git rev-parse HEAD` right after committing (Step 4.5) — never reconstruct or guess it from memory or from `git log --oneline`'s abbreviated form.
+
 The template will look like this:
 ```yaml
 commit: "<git-hash>"  # Git hash from Step 4.5

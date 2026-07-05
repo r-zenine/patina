@@ -79,6 +79,33 @@ else
     echo -e "${YELLOW}No agents directory found in repository${NC}"
 fi
 
+# Wire the decision-log validation hook into settings.json.
+# It fires on every Write/Edit and self-filters to decision-log.yaml files,
+# so it's safe to register globally regardless of which skills a project uses.
+HOOK_SCRIPT="$CLAUDE_DIR/skills/contribution-system/hooks/validate-decision-log.sh"
+if [[ -f "$REPO_DIR/skills/code-related/contribution-system/hooks/validate-decision-log.sh" ]]; then
+    if ! command -v jq &> /dev/null; then
+        echo -e "${YELLOW}jq not found — skipping decision-log validation hook setup.${NC}"
+        echo -e "${YELLOW}Install jq and re-run this script to enable it.${NC}"
+    else
+        echo -e "${GREEN}Wiring decision-log validation hook into settings.json...${NC}"
+        SETTINGS_FILE="$CLAUDE_DIR/settings.json"
+        [[ -f "$SETTINGS_FILE" ]] || echo '{}' > "$SETTINGS_FILE"
+        tmp_settings="$(mktemp)"
+        if jq --arg cmd "$HOOK_SCRIPT" '
+            .hooks.PostToolUse = (
+                ((.hooks.PostToolUse // []) | map(select((.hooks // []) | any(.command == $cmd) | not)))
+                + [{"matcher": "Write|Edit", "hooks": [{"type": "command", "command": $cmd}]}]
+            )
+        ' "$SETTINGS_FILE" > "$tmp_settings"; then
+            mv "$tmp_settings" "$SETTINGS_FILE"
+        else
+            echo -e "${RED}Failed to update $SETTINGS_FILE (invalid JSON?) — leaving it untouched.${NC}"
+            rm -f "$tmp_settings"
+        fi
+    fi
+fi
+
 echo
 echo -e "${GREEN}Installation complete!${NC}"
 echo

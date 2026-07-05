@@ -14,10 +14,10 @@ pub use engines::{ReviewEngine, ReviewProgress};
 pub use entities::git_ref::{DiffQuery, GitRef};
 pub use entities::reviewable_diff_id::{LineRange, ReviewableDiffId};
 pub use entities::{
-    ApprovalMap, ApprovalRecord, CodeImpact, Decision, DecisionApproval, DecisionApprovals,
-    DecisionInstructions, DecisionLineRange, DecisionLog, DecisionReviewableDiff, Instruction,
-    InstructionMap, ReasoningConventionViolation, ReviewApprovals, ReviewDecisions,
-    ReviewInstructions,
+    ApprovalMap, ApprovalRecord, CodeImpact, CommitViolation, Decision, DecisionApproval,
+    DecisionApprovals, DecisionInstructions, DecisionLineRange, DecisionLog,
+    DecisionReviewableDiff, Instruction, InstructionMap, ReasoningConventionViolation,
+    ReviewApprovals, ReviewDecisions, ReviewInstructions,
 };
 pub use persistence::{
     PersistenceError, load_review_state, save_review_state, summarize_review_state,

@@ -1,4 +1,7 @@
-//! Testing utilities for Git repository operations
+//! Testing utilities for Git repository operations.
+//!
+//! Enabled via the `test-utils` feature so downstream crates can build throwaway
+//! repos for their own tests without taking a direct dependency on `git2`.
 
 use git2::{Repository, Signature, Time};
 use std::path::Path;

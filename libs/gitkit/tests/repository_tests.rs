@@ -1,9 +1,7 @@
-mod test_utils;
-
+use gitkit::test_utils::TestRepo;
 use gitkit::{Error, GitRepository, RawFileStatus};
 use std::fs;
 use tempfile::TempDir;
-use test_utils::TestRepo;
 
 #[test]
 fn test_repository_not_found() {

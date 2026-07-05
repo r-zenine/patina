@@ -88,6 +88,40 @@ impl DecisionLog {
         Ok(serde_yaml::from_str(content)?)
     }
 
+    /// Check whether `commit` is required and verifiable.
+    ///
+    /// A log with at least one populated `code_impacts` is an implementation-phase log,
+    /// where `commit` must be a real, resolvable git hash — not the strategy-phase
+    /// `"[placeholder]"` sentinel or an empty string. Strategy/design logs (all
+    /// `code_impacts: []`) are exempt since they precede any commit.
+    ///
+    /// Returns `None` if compliant (including "not applicable").
+    pub fn commit_violation(&self, repo: &gitkit::GitRepository) -> Option<CommitViolation> {
+        let requires_commit = self
+            .decisions
+            .iter()
+            .any(|decision| !decision.code_impacts.is_empty());
+        if !requires_commit {
+            return None;
+        }
+
+        let commit = self.commit.trim();
+        if commit.is_empty() || commit == "[placeholder]" {
+            return Some(CommitViolation {
+                commit: self.commit.clone(),
+                reason: "this log has code_impacts, so commit must be a real git hash, not empty or a placeholder".to_string(),
+            });
+        }
+
+        match repo.resolve_commit(commit) {
+            Ok(_) => None,
+            Err(source) => Some(CommitViolation {
+                commit: self.commit.clone(),
+                reason: format!("does not resolve to a commit in this repository: {source}"),
+            }),
+        }
+    }
+
     /// Check every code impact against the reasoning convention: the field must start
     /// with a critical-tier category prefix — `[Behavioral - <kind>]` or `[Structural - <kind>]`.
     ///
@@ -131,6 +165,14 @@ pub struct ReasoningConventionViolation {
     pub decision_title: String,
     pub file: String,
     pub reasoning: String,
+}
+
+/// A `commit` field that is missing, a placeholder, or unresolvable despite the log
+/// having code impacts that require it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CommitViolation {
+    pub commit: String,
+    pub reason: String,
 }
 
 /// A value type pairing a ReviewableDiffId with the decision it belongs to.

@@ -27,6 +27,8 @@ The distinction between strategy, design, and implementation is the `code_impact
 
 Same YAML structure, different semantic meaning determined by phase.
 
+`diffviz validate decision-log` enforces this: once any `code_impacts` is populated, `commit` must resolve to a real commit in the repository (not empty, not `"[placeholder]"`, and not a hash that merely looks plausible) — it opens the repo and checks the hash with git itself, it does not just check the string is present.
+
 ## Why Unified?
 
 The unified schema directly matches the `diffviz-review::Decision` struct in the codebase:

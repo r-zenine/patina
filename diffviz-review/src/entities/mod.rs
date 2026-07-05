@@ -15,8 +15,8 @@ pub mod git_ref;
 pub use approval::{Approval, ApprovalMap, ApprovalRecord, DecisionApprovals, ReviewApprovals};
 pub use cascade_result::CascadeResult;
 pub use decision::{
-    CodeImpact, Decision, DecisionApproval, DecisionLineRange, DecisionLog, DecisionReviewableDiff,
-    ReasoningConventionViolation, ReviewDecisions,
+    CodeImpact, CommitViolation, Decision, DecisionApproval, DecisionLineRange, DecisionLog,
+    DecisionReviewableDiff, ReasoningConventionViolation, ReviewDecisions,
 };
 pub use instruction::{
     DecisionInstructions, Instruction, InstructionMap, InstructionStatus, ReviewInstructions,

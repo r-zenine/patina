@@ -6,6 +6,9 @@ use git2::{DiffOptions, Repository};
 use std::path::Path;
 use thiserror::Error;
 
+#[cfg(feature = "test-utils")]
+pub mod test_utils;
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Git operation failed: {0}")]
@@ -110,6 +113,38 @@ impl GitRepository {
             source,
         })?;
         Ok(Self { repo })
+    }
+
+    /// Open the repository containing `path`, walking up through parent directories
+    /// to find it (unlike `open`, which requires `path` to be the repository root).
+    pub fn discover<P: AsRef<Path>>(path: P) -> Result<Self> {
+        let path_str = path.as_ref().to_string_lossy().to_string();
+        let repo = Repository::discover(path).map_err(|source| Error::RepositoryNotFound {
+            path: path_str,
+            source,
+        })?;
+        Ok(Self { repo })
+    }
+
+    /// Resolve `commit_hash` (short or full) to a full commit id, verifying it exists
+    /// and points at a commit object.
+    pub fn resolve_commit(&self, commit_hash: &str) -> Result<String> {
+        let obj =
+            self.repo
+                .revparse_single(commit_hash)
+                .map_err(|source| Error::InvalidCommit {
+                    hash: commit_hash.to_string(),
+                    source,
+                })?;
+
+        let commit = obj
+            .peel_to_commit()
+            .map_err(|source| Error::InvalidCommit {
+                hash: commit_hash.to_string(),
+                source,
+            })?;
+
+        Ok(commit.id().to_string())
     }
 
     fn resolve_commit_trees(

@@ -37,40 +37,75 @@ impl ValidateCommand {
 
                 match DecisionLog::parse(&content) {
                     Ok(log) => {
+                        let mut has_errors = false;
+
                         let violations = log.reasoning_convention_violations();
-                        if violations.is_empty() {
-                            println!("✓ {} is valid", self.file);
-                            return Ok(());
+                        if !violations.is_empty() {
+                            has_errors = true;
+                            eprintln!(
+                                "✗ {} has {} code impact(s) violating the reasoning convention:\n",
+                                self.file,
+                                violations.len()
+                            );
+                            for v in &violations {
+                                eprintln!(
+                                    "  decision #{} ({}) → {}",
+                                    v.decision_number, v.decision_title, v.file
+                                );
+                                eprintln!("    reasoning: {}\n", v.reasoning);
+                            }
+                            eprintln!(
+                                "Every code impact reasoning must start with a critical-tier prefix:"
+                            );
+                            eprintln!("  [Behavioral - <kind>] ...  or  [Structural - <kind>] ...");
+                            eprintln!(
+                                "and state the risk or contract change a reviewer must verify."
+                            );
+                            eprintln!(
+                                "If a change is mechanical ripple (import updates, call-site renames,"
+                            );
+                            eprintln!(
+                                "moved code), omit it from code_impacts entirely. See the dev-contribute"
+                            );
+                            eprintln!("guide, section \"Identifying Code Impacts\".\n");
                         }
 
-                        eprintln!(
-                            "✗ {} has {} code impact(s) violating the reasoning convention:\n",
-                            self.file,
-                            violations.len()
-                        );
-                        for v in &violations {
-                            eprintln!(
-                                "  decision #{} ({}) → {}",
-                                v.decision_number, v.decision_title, v.file
-                            );
-                            eprintln!("    reasoning: {}\n", v.reasoning);
+                        let repo_start = path.parent().unwrap_or(Path::new("."));
+                        match gitkit::GitRepository::discover(repo_start) {
+                            Ok(repo) => {
+                                if let Some(v) = log.commit_violation(&repo) {
+                                    has_errors = true;
+                                    eprintln!(
+                                        "✗ {} has an unverifiable commit: \"{}\"",
+                                        self.file, v.commit
+                                    );
+                                    eprintln!("    {}\n", v.reason);
+                                    eprintln!(
+                                        "Implementation logs (any decision with code_impacts) must record the"
+                                    );
+                                    eprintln!(
+                                        "real git hash of the commit containing the code changes — get it via"
+                                    );
+                                    eprintln!("  git rev-parse HEAD\n");
+                                }
+                            }
+                            Err(e) => {
+                                eprintln!(
+                                    "⚠ could not open a git repository near {} to verify the commit field: {e}",
+                                    self.file
+                                );
+                            }
                         }
-                        eprintln!(
-                            "Every code impact reasoning must start with a critical-tier prefix:"
-                        );
-                        eprintln!("  [Behavioral - <kind>] ...  or  [Structural - <kind>] ...");
-                        eprintln!("and state the risk or contract change a reviewer must verify.");
-                        eprintln!(
-                            "If a change is mechanical ripple (import updates, call-site renames,"
-                        );
-                        eprintln!(
-                            "moved code), omit it from code_impacts entirely. See the dev-contribute"
-                        );
-                        eprintln!("guide, section \"Identifying Code Impacts\".");
-                        Err(anyhow::anyhow!(
-                            "{} code impact(s) violate the reasoning convention",
-                            violations.len()
-                        ))
+
+                        if has_errors {
+                            return Err(anyhow::anyhow!(
+                                "{} failed decision-log validation",
+                                self.file
+                            ));
+                        }
+
+                        println!("✓ {} is valid", self.file);
+                        Ok(())
                     }
                     Err(e) => {
                         eprintln!("✗ {} is invalid", self.file);
