@@ -1,0 +1,13 @@
+[package]
+name = "depcheck"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+guppy = "0.17"
+camino = "1"
+anyhow = { workspace = true }
+
+[dev-dependencies]
+cargo-husky = { version = "1", default-features = false, features = ["user-hooks"] }

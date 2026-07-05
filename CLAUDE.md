@@ -24,18 +24,27 @@ DiffViz is an LLM-powered code review guide tool that transforms overwhelming co
 - `cargo clippy --workspace` - Lint all workspace crates
 - `cargo clippy --package <crate-name>` - Lint specific crate
 
+### Bounded-Context Dependency Policy
+- `cargo run -p depcheck -- check-deps` - Fails if any crate under `apps/<context>/` depends (directly or transitively) on a crate in a *different* `apps/<context>/`, or if any `libs/*` crate depends on an `apps/*` crate. Run this after adding any new internal dependency. Backed by [cargo-guppy](https://github.com/facebookincubator/cargo-guppy); policy logic lives in `maintenance/depcheck/src/main.rs`.
+
+### Pre-commit Hook
+- One-time setup per clone: `cargo test -p depcheck` (installs the git hook via `cargo-husky`, a dev-dependency of `maintenance/depcheck`).
+- The hook (`.cargo-husky/hooks/pre-commit`, copied to `.git/hooks/pre-commit`) runs on every `git commit`: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, then `cargo run -p depcheck -- check-deps`. Edit `.cargo-husky/hooks/pre-commit` to change it — the copy in `.git/hooks/` is regenerated automatically next time `depcheck`'s dev-dependencies are built.
+
 ## Clean Architecture Structure
 
 The project follows clean architecture principles with clear separation of concerns:
 
 ```
-diffviz/                      # Workspace root
-├── diffviz-cli/             # CLI entry point, command orchestration
-├── diffviz-core/            # Semantic analysis, ReviewableDiff, RenderableDiff (THE CORE)
-├── diffviz-review/          # Review orchestration, workflows, review processes
-├── diffviz-git/             # Git operations and diff parsing
-├── diffviz-llm/             # LLM client abstractions and implementations
-└── diffviz-utils/           # Shared utilities and common functions
+apps/diffviz/                 # diffviz bounded context
+├── cli/                     # CLI entry point, command orchestration
+├── core/                    # Semantic analysis, ReviewableDiff, RenderableDiff (THE CORE)
+├── review/                  # Review orchestration, workflows, review processes
+└── review-tui/              # TUI interface
+libs/                         # Generic subdomains shared across bounded contexts
+├── gitkit/                  # Git operations and diff parsing
+├── fsutils/                 # Filesystem helpers
+└── ...
 ```
 
 ## Dev rules 
@@ -84,10 +93,10 @@ crate: diffviz-core
 ## Key Architectural Patterns
 
 ### Entity-Centric Design
-- Core semantic models in `diffviz-core/src/` (`ReviewableDiff`, `RenderableDiff`, etc.)
-- Review entities in `diffviz-review/src/entities/`
-- Business engines in `diffviz-review/src/engines/`
-- Core algorithms in `diffviz-review/src/algorithms/`
+- Core semantic models in `apps/diffviz/core/src/` (`ReviewableDiff`, `RenderableDiff`, etc.)
+- Review entities in `apps/diffviz/review/src/entities/`
+- Business engines in `apps/diffviz/review/src/engines/`
+- Core algorithms in `apps/diffviz/review/src/algorithms/`
 
 ### Environment Pattern
 - Dependency injection container in CLI layer
