@@ -25,6 +25,8 @@ produces an edit script that silently drops lines.
 vetted crate such as `imara-diff`/`similar`). Keep the reconstruction invariant test:
 replaying the ops must rebuild both inputs exactly.
 
+**Plan**: `plan-core-hardening` Phase 2 (diff engine replacement).
+
 ---
 
 ## 🐛 Bug: Decompose Path Drops Units Ending on the Range's End Line
@@ -46,6 +48,8 @@ trailing blank line in its fixture.
 - `range_covering_two_functions_yields_two_diffs()` — [FAILING, #[ignore]] 🐛
 
 **Suggested Fix**: `end_byte` should be the end of `end_line` (start of `end_line + 1`, or EOF).
+
+**Plan**: `plan-core-hardening` Phase 3 (LineIndex + typed half-open ranges).
 
 ---
 
@@ -70,6 +74,8 @@ to `B::get` is paired against `A::get`.
 **Suggested Fix**: Qualify matching by container path (impl target / module). The builder
 already threads the impl target through `parent_context`; carry it into the identifier.
 
+**Plan**: `plan-core-hardening` Phase 4 (qualified-name unit matching).
+
 ---
 
 ## 🐛 Bug: Python Module-Level Assignments Never Become Variable Units
@@ -88,6 +94,8 @@ unreachable dead code.
 
 **Test Location**: `tests/bug_python_module_level_assignment_invisible.rs`
 - `range_over_module_level_constants_yields_variable_units()` — [FAILING, #[ignore]] 🐛
+
+**Plan**: `plan-core-hardening` Phase 5 (container recursion mechanism + core 4 languages).
 
 ---
 
@@ -110,6 +118,8 @@ survives casual testing.
 
 **Suggested Fix**: Count newlines, not lines: `prefix.bytes().filter(|&b| b == b'\n').count() + 1`.
 
+**Plan**: `plan-core-hardening` Phase 3 (LineIndex + typed half-open ranges).
+
 ---
 
 ## 🐛 Bug: Class Bodies Have No Semantic Children — Methods Invisible to Range Lookup
@@ -128,6 +138,9 @@ that recurse. The unused `container_body_field` descriptor hook exists to fix ex
 **Test Location**: `tests/bug_class_bodies_have_no_semantic_children.rs`
 - `range_over_python_method_resolves_to_method_not_class()` — [FAILING, #[ignore]] 🐛
 
+**Plan**: `plan-core-hardening` Phases 5–6 (container recursion mechanism, core 4
+languages then the remaining 4).
+
 ---
 
 ## 🐛 Bug: CRLF Line Endings Cause Byte-Offset Drift
@@ -144,6 +157,9 @@ On CRLF sources, each line's byte range drifts one byte earlier per preceding li
 
 **Test Location**: `tests/bug_crlf_byte_offset_drift.rs`
 - `crlf_source_line_byte_ranges_match_actual_offsets()` — [FAILING, #[ignore]] 🐛
+
+**Plan**: `plan-core-hardening` Phase 2 (diff engine replacement — byte ranges derive
+from real line offsets instead of `+1 for newline`).
 
 ---
 
@@ -165,6 +181,11 @@ code building a Deleted boundary gets a garbage name and nonsense line range.
 **Test Location**: `tests/bug_deleted_boundary_reads_new_source.rs`
 - `deleted_function_boundary_name_comes_from_old_source()` — [FAILING, #[ignore]] 🐛
 
+**Plan**: `plan-core-hardening` Phase 1 (decision D009) — deleting the unreachable
+`Deletion` classification path removes the landmine; the `get_display_node`
+consolidation onto `NodeChangeStatus` keeps `line_utils`'s source-aware variant
+(the one that gets Deleted right) as the sole implementation.
+
 ---
 
 ## 🐛 Bug: Mixed Line-Number Coordinate Systems in RenderableDiff
@@ -181,6 +202,11 @@ boundary, and `changed_line_numbers` stores those relative values — while
 
 **Test Location**: `tests/bug_mixed_line_number_coordinate_systems.rs`
 - `changed_line_numbers_fall_within_overall_line_range()` — [FAILING, #[ignore]] 🐛
+
+**Plan**: explicitly **out of scope** for `plan-core-hardening` (decision D012) —
+unifying the coordinate frame is a TUI-affecting behavior change, not a hardening
+fix, and needs its own plan with `diffviz-review` involvement. Left filed and
+`#[ignore]`d exactly as-is; do not fix or rescope under this plan.
 
 ---
 
@@ -199,6 +225,8 @@ parens but counts `,` separators. `fn f(a: i32, b: i32)` reports parameter_count
 - `two_parameter_function_reports_parameter_count_two()` — [FAILING, #[ignore]] 🐛
 
 **Suggested Fix**: Use `named_child_count()`.
+
+**Plan**: `plan-core-hardening` Phase 1 (micro-simplification).
 
 ---
 
