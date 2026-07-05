@@ -18,7 +18,6 @@ mod bug_line_range_column_zero_off_by_one {
     use diffviz_core::ast_diff::{OwnedNodeData, SourceCode, SourceProvider};
 
     #[test]
-    #[ignore = "bug: prefix.lines().count() undercounts when the byte offset sits at column 0"]
     fn node_starting_at_column_zero_reports_correct_start_line() {
         //                             0123456789...
         let source = SourceCode::new("line one\nline two\nline three\n");

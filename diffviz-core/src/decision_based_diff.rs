@@ -14,12 +14,13 @@
 //! 7. Produces a ReviewableDiff with proper DiffNode tree and context
 
 use crate::ast_diff::{
-    ASTChangeType, BACKGROUND, ESSENTIAL, IMPORTANT, OwnedNodeData, SourceProvider,
+    ASTChangeType, BACKGROUND, ESSENTIAL, IMPORTANT, LineIndex, OwnedNodeData, SourceProvider,
 };
 use crate::common::{LanguageParser, ProgrammingLanguage};
 use crate::reviewable_diff::{DiffMetadata, DiffNode, NodeChangeStatus, ReviewableDiff};
 use crate::semantic_ast::{SemanticNode, SemanticTree, SemanticUnitType};
 use std::collections::HashMap;
+use std::ops::Range;
 use std::time::Instant;
 use thiserror::Error;
 use tree_sitter::Node;
@@ -87,7 +88,17 @@ fn find_contained_units_recursive<'a>(
 
 /// Collect all non-Module semantic units that overlap with (touch) the range [start_byte, end_byte].
 /// This is used as a fallback when no units are strictly contained within the range.
-/// Useful for single-line ranges like "line 6 to 6" which may contain incomplete units.
+///
+/// Confirmed still reachable after `plan-core-hardening` Phase 3's `end_byte` fix (verified
+/// by temporarily instrumenting this call site and running the full suite, including
+/// ignored bug reproductions): `end_byte` now correctly extends to the end of the range's
+/// last line (up to EOF), but a container's tree-sitter span frequently stops short of a
+/// trailing newline that lies outside it. When the range's end line is the file's last line
+/// and the file ends in a newline, no unit's byte range reaches that far, so
+/// `find_contained_units_recursive` comes back empty and this fallback is what recovers a
+/// result — see `bug_class_bodies_have_no_semantic_children`'s
+/// `range_over_python_method_resolves_to_method_not_class` for a concrete case that exercises
+/// this exact path today.
 fn find_units_touching_range_recursive<'a>(
     node: &'a SemanticNode<'a>,
     start_byte: usize,
@@ -140,47 +151,28 @@ fn find_unit_recursive<'a>(
     Some((node, expanded_start, expanded_end))
 }
 
-/// Helper: Count total lines in source
-fn count_lines(source: &str) -> usize {
-    if source.is_empty() {
-        return 0;
-    }
-    // Count newlines and add 1 for the last line (which may not end with \n)
-    source.bytes().filter(|&b| b == b'\n').count() + 1
-}
-
 /// Helper: Clamp line range to source bounds
 /// Returns the adjusted (start_line, end_line) clamped to actual file bounds
-fn clamp_line_range(source: &str, start_line: usize, end_line: usize) -> (usize, usize) {
-    let actual_lines = count_lines(source);
-    let clamped_end = std::cmp::min(end_line, actual_lines);
+fn clamp_line_range(line_index: &LineIndex, start_line: usize, end_line: usize) -> (usize, usize) {
+    let clamped_end = std::cmp::min(end_line, line_index.line_count());
     (start_line, clamped_end)
 }
 
-/// Helper: Convert line number to byte offset in source
-fn line_to_byte_offset(_root: Node, source: &[u8], line: usize) -> Option<usize> {
-    // Line numbers are 1-based in most editors, convert to 0-based
-    let target_line = line.saturating_sub(1);
-
-    let mut current_line = 0;
-    let mut byte_offset = 0;
-
-    for (byte_idx, ch) in source.iter().enumerate() {
-        if current_line == target_line {
-            return Some(byte_idx);
-        }
-        if *ch == b'\n' {
-            current_line += 1;
-        }
-        byte_offset = byte_idx + 1;
+/// Helper: Byte range covering lines `start_line..=end_line`, `None` if
+/// `start_line` is out of bounds. `end_line` is expected to already be
+/// clamped to the source's line count by `clamp_line_range`; the end of that
+/// last line is the range's end byte (fixes the end-line-exclusion bug: this
+/// used to be the *start* of `end_line`, silently dropping any unit whose
+/// last line was the range's end line).
+fn byte_range_for_lines(
+    line_index: &LineIndex,
+    start_line: usize,
+    end_line: usize,
+) -> Option<Range<usize>> {
+    if start_line == 0 || start_line > line_index.line_count() {
+        return None;
     }
-
-    // Handle last line
-    if current_line == target_line {
-        Some(byte_offset)
-    } else {
-        None
-    }
+    Some(line_index.byte_range_of_lines(start_line, end_line))
 }
 
 /// 1.2: Find semantic unit by name and type in a tree
@@ -478,7 +470,8 @@ pub fn create_reviewable_diff_from_range(
     }
 
     let new_source_str = new_source.full_source();
-    let (start_line, end_line) = clamp_line_range(new_source_str, start_line, end_line);
+    let line_index = LineIndex::new(new_source_str);
+    let (start_line, end_line) = clamp_line_range(&line_index, start_line, end_line);
 
     let new_ast = parser
         .try_parse(new_source_str)
@@ -488,24 +481,14 @@ pub fn create_reviewable_diff_from_range(
         .build_semantic_tree(&new_ast, new_source_str)
         .map_err(DecisionDiffError::SemanticError)?;
 
-    let start_byte = line_to_byte_offset(
-        new_tree.root.tree_sitter_node,
-        new_source_str.as_bytes(),
-        start_line,
-    )
-    .ok_or(DecisionDiffError::NoUnitAtRange {
-        start_line,
-        end_line,
-    })?;
-    let end_byte = line_to_byte_offset(
-        new_tree.root.tree_sitter_node,
-        new_source_str.as_bytes(),
-        end_line,
-    )
-    .ok_or(DecisionDiffError::NoUnitAtRange {
-        start_line,
-        end_line,
-    })?;
+    let byte_range = byte_range_for_lines(&line_index, start_line, end_line).ok_or(
+        DecisionDiffError::NoUnitAtRange {
+            start_line,
+            end_line,
+        },
+    )?;
+    let start_byte = byte_range.start;
+    let end_byte = byte_range.end;
 
     let (new_unit, _, _) = find_unit_recursive(&new_tree.root, start_byte, end_byte).ok_or(
         DecisionDiffError::NoUnitAtRange {

@@ -46,14 +46,14 @@ mod bug_crlf_byte_offset_drift {
 
         // Byte ranges are relative to the boundary source, which starts at byte 0 here.
         assert_eq!(
-            renderable.lines[1].byte_range.0, 10,
+            renderable.lines[1].byte_range.start, 10,
             "line 2 ('    1;') starts at byte 10 in CRLF source, got {}",
-            renderable.lines[1].byte_range.0
+            renderable.lines[1].byte_range.start
         );
         assert_eq!(
-            renderable.lines[2].byte_range.0, 18,
+            renderable.lines[2].byte_range.start, 18,
             "line 3 ('}}') starts at byte 18 in CRLF source, got {}",
-            renderable.lines[2].byte_range.0
+            renderable.lines[2].byte_range.start
         );
     }
 }

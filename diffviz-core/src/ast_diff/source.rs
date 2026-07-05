@@ -1,4 +1,5 @@
 use crate::ast_diff::error::SourceError;
+use crate::ast_diff::line_index::LineIndex;
 use crate::ast_diff::nodes::NodeLike;
 
 /// Line range information for a node
@@ -49,13 +50,17 @@ pub trait SourceProvider: Send + Sync {
 #[derive(Debug, Clone)]
 pub struct SourceCode {
     content: String,
+    line_index: LineIndex,
 }
 
 impl SourceCode {
     /// Create a new SourceCode wrapper for the given source text
     pub fn new(content: impl Into<String>) -> Self {
+        let content = content.into();
+        let line_index = LineIndex::new(&content);
         Self {
-            content: content.into(),
+            content,
+            line_index,
         }
     }
 
@@ -88,27 +93,18 @@ impl SourceCode {
 
     /// Calculate line range from byte positions
     /// This is used for owned node data that doesn't have TreeSitter position information
+    ///
+    /// Both endpoints go through `LineIndex` (fixes the column-0 off-by-one: a
+    /// node starting at column 0 of line N used to report N-1 because
+    /// `prefix.lines().count()` ignores a trailing newline).
     pub fn line_range_from_bytes(&self, start_byte: usize, end_byte: usize) -> LineRange {
-        let content_str = &self.content;
+        let start_byte = start_byte.min(self.content.len());
+        let end_byte = end_byte.min(self.content.len());
 
-        // Find start position
-        let start_pos = content_str[..start_byte.min(content_str.len())]
-            .lines()
-            .count();
-        let start_line = if start_byte == 0 { 1 } else { start_pos };
-        let start_column = content_str[..start_byte.min(content_str.len())]
-            .rfind('\n')
-            .map(|pos| start_byte - pos - 1)
-            .unwrap_or(start_byte);
-
-        // Find end position
-        let end_content = &content_str[..end_byte.min(content_str.len())];
-        let end_pos = end_content.lines().count();
-        let end_line = if end_byte == 0 { 1 } else { end_pos };
-        let end_column = end_content
-            .rfind('\n')
-            .map(|pos| end_byte - pos - 1)
-            .unwrap_or(end_byte);
+        let start_line = self.line_index.byte_to_line(start_byte).max(1);
+        let end_line = self.line_index.byte_to_line(end_byte).max(1);
+        let start_column = start_byte - self.line_index.line_start(start_line).unwrap_or(0);
+        let end_column = end_byte - self.line_index.line_start(end_line).unwrap_or(0);
 
         LineRange {
             start_line,

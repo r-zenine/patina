@@ -1,5 +1,7 @@
 //! Utilities for line splitting, annotation mapping, and diff creation
 
+use std::ops::Range;
+
 use super::semantic_anchors::extract_semantic_anchor;
 use super::{ChangeType, LineAnnotation, RenderableLine};
 use crate::{
@@ -13,13 +15,13 @@ use crate::{
 pub struct LineInfo<'source> {
     pub number: usize,
     pub text: &'source str,
-    pub byte_range: (usize, usize),
+    pub byte_range: Range<usize>,
 }
 
 /// Node annotation collected from tree traversal
 #[derive(Debug, Clone)]
 pub struct NodeAnnotation {
-    pub byte_range: (usize, usize),
+    pub byte_range: Range<usize>,
     pub relevance: RelevanceScore,
     pub change_type: Option<ChangeType>,
     pub semantic_kind: SemanticNodeKind,
@@ -45,8 +47,14 @@ pub fn create_single_source_lines<'source>(
 
     // Adjust annotation byte ranges to be relative to boundary source
     for annotation in &mut node_annotations {
-        annotation.byte_range.0 = annotation.byte_range.0.saturating_sub(boundary_start_byte);
-        annotation.byte_range.1 = annotation.byte_range.1.saturating_sub(boundary_start_byte);
+        annotation.byte_range = annotation
+            .byte_range
+            .start
+            .saturating_sub(boundary_start_byte)
+            ..annotation
+                .byte_range
+                .end
+                .saturating_sub(boundary_start_byte);
     }
 
     // Map annotations to lines
@@ -54,16 +62,17 @@ pub fn create_single_source_lines<'source>(
         .into_iter()
         .map(|line_info| {
             let annotations = map_annotations_to_line(&line_info, &node_annotations);
+            let line_start = line_info.byte_range.start;
 
             RenderableLine {
                 line_number: line_info.number,
                 content: line_info.text,
-                byte_range: line_info.byte_range,
+                byte_range: line_info.byte_range.clone(),
                 annotations,
                 semantic_anchor: extract_semantic_anchor(
                     line_info.text,
                     reviewable,
-                    boundary_start_byte + line_info.byte_range.0,
+                    boundary_start_byte + line_start,
                 ),
             }
         })
@@ -103,7 +112,7 @@ fn split_into_lines_with_positions(source: &str) -> Vec<LineInfo<'_>> {
 /// `\n` and `\r\n` terminators; a missing trailing newline on the last line is
 /// fine (matches `str::lines()`, which never emits a synthetic empty final
 /// element).
-pub(super) fn line_byte_spans(source: &str) -> Vec<(usize, usize)> {
+pub(super) fn line_byte_spans(source: &str) -> Vec<Range<usize>> {
     let bytes = source.as_bytes();
     let mut spans = Vec::new();
     let mut start = 0usize;
@@ -114,12 +123,12 @@ pub(super) fn line_byte_spans(source: &str) -> Vec<(usize, usize)> {
             if end > start && bytes[end - 1] == b'\r' {
                 end -= 1;
             }
-            spans.push((start, end));
+            spans.push(start..end);
             start = i + 1;
         }
     }
     if start < bytes.len() {
-        spans.push((start, bytes.len()));
+        spans.push(start..bytes.len());
     }
 
     spans
@@ -139,7 +148,7 @@ fn collect_recursive(node: &DiffNode, annotations: &mut Vec<NodeAnnotation>, dep
     let change_type = extract_change_type(&node.change_status);
 
     annotations.push(NodeAnnotation {
-        byte_range: (node_ref.start_byte(), node_ref.end_byte()),
+        byte_range: node_ref.start_byte()..node_ref.end_byte(),
         relevance: node.relevance,
         change_type,
         semantic_kind: node.semantic_kind.clone(),
@@ -169,12 +178,15 @@ fn map_annotations_to_line(
 ) -> Vec<LineAnnotation> {
     node_annotations
         .iter()
-        .filter(|ann| ranges_overlap(ann.byte_range, line_info.byte_range))
+        .filter(|ann| ranges_overlap(&ann.byte_range, &line_info.byte_range))
         .map(|ann| {
             // Calculate column positions within the line
-            let start_col = ann.byte_range.0.saturating_sub(line_info.byte_range.0);
-            let end_col = (ann.byte_range.1.min(line_info.byte_range.1))
-                .saturating_sub(line_info.byte_range.0);
+            let start_col = ann
+                .byte_range
+                .start
+                .saturating_sub(line_info.byte_range.start);
+            let end_col = (ann.byte_range.end.min(line_info.byte_range.end))
+                .saturating_sub(line_info.byte_range.start);
 
             LineAnnotation {
                 start_col,
@@ -189,35 +201,36 @@ fn map_annotations_to_line(
 }
 
 /// Check if two byte ranges overlap
-pub(super) fn ranges_overlap(range1: (usize, usize), range2: (usize, usize)) -> bool {
-    range1.0 < range2.1 && range2.0 < range1.1
+pub(super) fn ranges_overlap(range1: &Range<usize>, range2: &Range<usize>) -> bool {
+    range1.start < range2.end && range2.start < range1.end
 }
 
 #[cfg(test)]
 mod tests {
     use super::line_byte_spans;
+    use std::ops::Range;
 
     #[test]
     fn empty_source_has_no_spans() {
-        assert_eq!(line_byte_spans(""), Vec::new());
+        assert_eq!(line_byte_spans(""), Vec::<Range<usize>>::new());
     }
 
     #[test]
     fn lf_terminated_lines() {
         let source = "fn f() {\n    1;\n}\n";
-        assert_eq!(line_byte_spans(source), vec![(0, 8), (9, 15), (16, 17)]);
+        assert_eq!(line_byte_spans(source), vec![0..8, 9..15, 16..17]);
     }
 
     #[test]
     fn missing_trailing_newline() {
         let source = "a\nb";
-        assert_eq!(line_byte_spans(source), vec![(0, 1), (2, 3)]);
+        assert_eq!(line_byte_spans(source), vec![0..1, 2..3]);
     }
 
     #[test]
     fn crlf_terminated_lines() {
         let source = "fn f() {\r\n    1;\r\n}\r\n";
-        assert_eq!(line_byte_spans(source), vec![(0, 8), (10, 16), (18, 19)]);
+        assert_eq!(line_byte_spans(source), vec![0..8, 10..16, 18..19]);
     }
 
     #[test]
@@ -227,7 +240,7 @@ mod tests {
         let lines: Vec<&str> = source.lines().collect();
         assert_eq!(spans.len(), lines.len());
         for (span, line) in spans.iter().zip(lines) {
-            assert_eq!(&source[span.0..span.1], line);
+            assert_eq!(&source[span.start..span.end], line);
         }
     }
 }

@@ -12,6 +12,7 @@ use crate::{
     reviewable_diff::{NodeChangeStatus, ReviewableDiff},
 };
 use std::collections::HashMap;
+use std::ops::Range;
 
 /// Error type for RenderableDiff creation
 #[derive(Debug, thiserror::Error)]
@@ -41,7 +42,7 @@ pub struct RenderableDiff<'source> {
 pub struct RenderableLine<'source> {
     pub line_number: usize,
     pub content: &'source str,
-    pub byte_range: (usize, usize),
+    pub byte_range: Range<usize>,
     pub annotations: Vec<LineAnnotation>,
     pub semantic_anchor: Option<SemanticAnchor>,
 }
@@ -98,7 +99,7 @@ pub enum SemanticAnchorType {
 /// Node annotation from DiffNode tree for byte range mapping
 #[derive(Debug, Clone)]
 struct ByteRangeAnnotation {
-    byte_range: (usize, usize),
+    byte_range: Range<usize>,
     relevance: RelevanceScore,
 }
 
@@ -117,7 +118,7 @@ fn build_byte_range_annotations(
         // Add annotation for this node
         let node_ref = node.change_status.display_node();
         annotations.push(ByteRangeAnnotation {
-            byte_range: (node_ref.start_byte, node_ref.end_byte),
+            byte_range: node_ref.start_byte..node_ref.end_byte,
             relevance: node.relevance,
         });
 
@@ -166,12 +167,14 @@ fn create_line_by_line_diff_for_modified<'source>(
     let old_anchors: Vec<Option<SemanticAnchor>> = old_lines
         .iter()
         .zip(&old_spans)
-        .map(|(&line, span)| extract_semantic_anchor(line, reviewable, old_boundary_start + span.0))
+        .map(|(&line, span)| {
+            extract_semantic_anchor(line, reviewable, old_boundary_start + span.start)
+        })
         .collect();
     let new_anchors: Vec<Option<SemanticAnchor>> = new_lines
         .iter()
         .zip(&new_spans)
-        .map(|(&line, span)| extract_semantic_anchor(line, reviewable, boundary_start + span.0))
+        .map(|(&line, span)| extract_semantic_anchor(line, reviewable, boundary_start + span.start))
         .collect();
 
     let ops = align_by_anchors(
@@ -190,8 +193,8 @@ fn create_line_by_line_diff_for_modified<'source>(
         match *op {
             DiffOp::Keep { new_idx, .. } => {
                 let content = new_lines[new_idx];
-                let span = new_spans[new_idx];
-                let line_byte_range = (boundary_start + span.0, boundary_start + span.1);
+                let span = &new_spans[new_idx];
+                let line_byte_range = (boundary_start + span.start)..(boundary_start + span.end);
 
                 // Determine relevance using precedence rule:
                 // - If ANY overlapping annotation is ESSENTIAL, use ESSENTIAL
@@ -211,7 +214,7 @@ fn create_line_by_line_diff_for_modified<'source>(
                 result_lines.push(RenderableLine {
                     line_number,
                     content,
-                    byte_range: (0, content.len()),
+                    byte_range: 0..content.len(),
                     annotations: vec![annotation],
                     semantic_anchor: new_anchors[new_idx].clone(),
                 });
@@ -232,7 +235,7 @@ fn create_line_by_line_diff_for_modified<'source>(
                 result_lines.push(RenderableLine {
                     line_number,
                     content,
-                    byte_range: (0, content.len()),
+                    byte_range: 0..content.len(),
                     annotations: vec![annotation],
                     semantic_anchor: old_anchors[old_idx].clone(),
                 });
@@ -253,7 +256,7 @@ fn create_line_by_line_diff_for_modified<'source>(
                 result_lines.push(RenderableLine {
                     line_number,
                     content,
-                    byte_range: (0, content.len()),
+                    byte_range: 0..content.len(),
                     annotations: vec![annotation],
                     semantic_anchor: new_anchors[new_idx].clone(),
                 });
@@ -275,7 +278,7 @@ fn create_line_by_line_diff_for_modified<'source>(
                 result_lines.push(RenderableLine {
                     line_number,
                     content: old_content,
-                    byte_range: (0, old_content.len()),
+                    byte_range: 0..old_content.len(),
                     annotations: vec![old_annotation],
                     semantic_anchor: old_anchors[old_idx].clone(),
                 });
@@ -294,7 +297,7 @@ fn create_line_by_line_diff_for_modified<'source>(
                 result_lines.push(RenderableLine {
                     line_number,
                     content: new_content,
-                    byte_range: (0, new_content.len()),
+                    byte_range: 0..new_content.len(),
                     annotations: vec![new_annotation],
                     semantic_anchor: new_anchors[new_idx].clone(),
                 });
@@ -314,12 +317,12 @@ fn create_line_by_line_diff_for_modified<'source>(
 /// plan-core-hardening) — a deliberate choice that prevents such lines from ever
 /// folding in the TUI; do not change this default without a TUI-driven decision.
 fn determine_line_relevance_with_precedence(
-    line_byte_range: (usize, usize),
+    line_byte_range: Range<usize>,
     annotations: &[ByteRangeAnnotation],
 ) -> RelevanceScore {
     annotations
         .iter()
-        .filter(|ann| line_utils::ranges_overlap(ann.byte_range, line_byte_range))
+        .filter(|ann| line_utils::ranges_overlap(&ann.byte_range, &line_byte_range))
         .map(|ann| ann.relevance)
         .min()
         .unwrap_or(ESSENTIAL)

@@ -32,7 +32,6 @@ mod bug_range_end_line_excluded {
     const NEW_SOURCE: &str = "fn first() {\n    1;\n}\n\nfn second() {\n    2;\n}\n";
 
     #[test]
-    #[ignore = "bug: end_byte = start of end_line, so units ending on the end line are dropped"]
     fn range_covering_two_functions_yields_two_diffs() {
         let new_provider = SourceCode::new(NEW_SOURCE.to_string());
         let parser = RustParser::new();

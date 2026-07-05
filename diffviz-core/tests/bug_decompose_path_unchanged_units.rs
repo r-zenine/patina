@@ -32,10 +32,10 @@ mod bug_decompose_path_unchanged_units {
     // 7: }
     // 8: (blank)
     //
-    // The trailing blank line is load-bearing: line_to_byte_offset(source, 8) returns the
-    // byte offset of the blank line, which is beyond the closing `}` of fn stable_fn.
-    // Without it, end_byte = start-of-line-7 = byte of the `}` itself, so fn stable_fn
-    // is not "fully contained" in [start, end) and the decompose path skips it.
+    // The trailing blank line is no longer load-bearing (plan-core-hardening Phase 3):
+    // `LineIndex::byte_range_of_lines` now makes `end_byte` the end of the range's last
+    // line regardless of a trailing blank line, fixing the end-line-exclusion bug this
+    // fixture originally worked around. Kept as-is since it's still a valid fixture.
     const OLD_SOURCE: &str =
         "fn changed_fn() -> i32 {\n    1\n}\n\nfn stable_fn() -> i32 {\n    42\n}\n\n";
 

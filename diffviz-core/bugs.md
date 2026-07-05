@@ -28,27 +28,28 @@ property test (`tests/diff_reconstruction.rs`) is unignored and green over 1024 
 
 ---
 
-## 🐛 Bug: Decompose Path Drops Units Ending on the Range's End Line
+## ✅ Fixed: Decompose Path Drops Units Ending on the Range's End Line
 
-**Issue**: `line_to_byte_offset(source, end_line)` returns the byte offset of the **start**
-of `end_line`, and `find_contained_units_recursive` requires `node_range.end <= end_byte`.
-A unit whose last line is the range's end line is not "contained" and is silently omitted.
-`tests/bug_decompose_path_unchanged_units.rs` works around this with a "load-bearing"
-trailing blank line in its fixture.
+**Issue (historical)**: `line_to_byte_offset(source, end_line)` returned the byte offset of
+the **start** of `end_line`, and `find_contained_units_recursive` required
+`node_range.end <= end_byte`. A unit whose last line was the range's end line was not
+"contained" and was silently omitted. `tests/bug_decompose_path_unchanged_units.rs` worked
+around this with a "load-bearing" trailing blank line in its fixture (comment there is now
+stale — kept for history, the workaround is no longer required).
 
-**Impact**:
-- A range covering exactly two complete functions yields only 1 ReviewableDiff
-- For single-line ranges, `start_byte == end_byte` — the contained query is an empty
-  interval (this is why the `find_units_touching_range_recursive` fallback had to exist)
+**Impact (historical)**:
+- A range covering exactly two complete functions yielded only 1 ReviewableDiff
+- For single-line ranges, `start_byte == end_byte` — the contained query was an empty
+  interval (this is why the `find_units_touching_range_recursive` fallback existed)
 
 **Affected Languages**: All
 
 **Test Location**: `tests/bug_range_end_line_excluded.rs`
-- `range_covering_two_functions_yields_two_diffs()` — [FAILING, #[ignore]] 🐛
+- `range_covering_two_functions_yields_two_diffs()` — [PASSING] ✅
 
-**Suggested Fix**: `end_byte` should be the end of `end_line` (start of `end_line + 1`, or EOF).
-
-**Plan**: `plan-core-hardening` Phase 3 (LineIndex + typed half-open ranges).
+**Fixed by**: `plan-core-hardening` Phase 3 — `LineIndex::byte_range_of_lines` is now the
+only place an inclusive line range converts to a half-open byte range; the end of the range
+is the end of `end_line` (not its start).
 
 ---
 
@@ -98,26 +99,26 @@ unreachable dead code.
 
 ---
 
-## 🐛 Bug: line_range Off by One for Nodes Starting at Column 0
+## ✅ Fixed: line_range Off by One for Nodes Starting at Column 0
 
-**Issue**: `SourceCode::line_range_from_bytes` (`ast_diff/source.rs`) computes the start
-line as `prefix.lines().count()`, but `str::lines()` ignores a trailing newline. A node
-starting at column 0 of line N (prefix ends with `'\n'` — the common case for top-level
-items) reports `start_line = N-1`. Mid-line offsets are correct, which is why this
-survives casual testing.
+**Issue (historical)**: `SourceCode::line_range_from_bytes` (`ast_diff/source.rs`) computed
+the start line as `prefix.lines().count()`, but `str::lines()` ignores a trailing newline. A
+node starting at column 0 of line N (prefix ends with `'\n'` — the common case for top-level
+items) reported `start_line = N-1`. Mid-line offsets were correct, which is why this survived
+casual testing.
 
-**Impact**:
-- Every `RenderableDiff.overall_line_range` goes through this path (boundary nodes are
-  `OwnedNodeData` with no tree-sitter position info) — reported line ranges are shifted
+**Impact (historical)**:
+- Every `RenderableDiff.overall_line_range` went through this path (boundary nodes are
+  `OwnedNodeData` with no tree-sitter position info) — reported line ranges were shifted
 
 **Affected Languages**: All
 
 **Test Location**: `tests/bug_line_range_column_zero_off_by_one.rs`
-- `node_starting_at_column_zero_reports_correct_start_line()` — [FAILING, #[ignore]] 🐛
+- `node_starting_at_column_zero_reports_correct_start_line()` — [PASSING] ✅
 
-**Suggested Fix**: Count newlines, not lines: `prefix.bytes().filter(|&b| b == b'\n').count() + 1`.
-
-**Plan**: `plan-core-hardening` Phase 3 (LineIndex + typed half-open ranges).
+**Fixed by**: `plan-core-hardening` Phase 3 — both endpoints of `line_range_from_bytes` now go
+through `LineIndex::byte_to_line` (`partition_point` over a newline-start table), replacing
+the `str::lines().count()` undercount.
 
 ---
 
