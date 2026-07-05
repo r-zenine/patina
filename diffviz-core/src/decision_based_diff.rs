@@ -175,14 +175,27 @@ fn byte_range_for_lines(
     Some(line_index.byte_range_of_lines(start_line, end_line))
 }
 
-/// 1.2: Find semantic unit by name and type in a tree
+/// Container-qualified match key for a unit: its `qualified_name` if the builder
+/// populated one (functions, data structures, variables), otherwise its bare name
+/// (`None` for nameless units like `source_file`/impl-as-module wrappers).
 ///
-/// Performs O(n) linear scan of all units, matching by name text and unit type.
+/// Matching on this key rather than bare name is what prevents cross-container
+/// mispairing (D007): `impl A { fn get }` and `impl B { fn get }` produce distinct
+/// keys (`"A::get"` vs `"B::get"`), so a change to one never pairs against the other.
+fn qualified_match_key(unit: &SemanticNode, source: &[u8]) -> Option<String> {
+    unit.qualified_name
+        .clone()
+        .or_else(|| get_unit_name(unit, source))
+}
+
+/// 1.2: Find semantic unit by container-qualified name and type in a tree
+///
+/// Performs O(n) linear scan of all units, matching by qualified name and unit type.
 /// Returns the first matching unit, or None if not found.
 fn find_semantic_unit_by_name<'a>(
     tree: &'a SemanticTree<'a>,
     source: &str,
-    target_name: &str,
+    target_qualified_name: Option<&str>,
     target_type: &SemanticUnitType,
 ) -> Option<&'a SemanticNode<'a>> {
     for unit in tree.all_units() {
@@ -194,13 +207,13 @@ fn find_semantic_unit_by_name<'a>(
             continue;
         }
 
-        // Check if name matches (handle nameless units like source_file)
-        let unit_name = get_unit_name(unit, source.as_bytes());
-        let names_match = match (unit_name.as_deref(), target_name) {
+        // Check if qualified name matches (handle nameless units like source_file)
+        let unit_key = qualified_match_key(unit, source.as_bytes());
+        let names_match = match (unit_key.as_deref(), target_qualified_name) {
             // Both nameless (e.g., source_file units)
-            (None, "") => true,
-            // Both have matching names
-            (Some(name), target) if name == target => true,
+            (None, None) => true,
+            // Both have matching qualified names
+            (Some(name), Some(target)) if name == target => true,
             // Name mismatch
             _ => false,
         };
@@ -534,7 +547,7 @@ pub fn create_reviewable_diff_from_range(
                     find_semantic_unit_by_name(
                         &old_tree,
                         old_source_str,
-                        &get_unit_name(unit, new_source_str.as_bytes()).unwrap_or_default(),
+                        qualified_match_key(unit, new_source_str.as_bytes()).as_deref(),
                         &unit.unit_type,
                     )
                     .map(|old_unit| {
@@ -542,6 +555,7 @@ pub fn create_reviewable_diff_from_range(
                             &old_unit.tree_sitter_node,
                             old_unit.identifier.clone(),
                         )
+                        .with_qualified_name(old_unit.qualified_name.clone())
                     })
                 })
                 .collect()
@@ -606,10 +620,13 @@ pub fn create_reviewable_diff_from_range(
         find_semantic_unit_by_name(
             &old_tree,
             old_source_str,
-            &get_unit_name(new_unit, new_source_str.as_bytes()).unwrap_or_default(),
+            qualified_match_key(new_unit, new_source_str.as_bytes()).as_deref(),
             &new_unit.unit_type,
         )
-        .map(|unit| OwnedNodeData::with_identifier(&unit.tree_sitter_node, unit.identifier.clone()))
+        .map(|unit| {
+            OwnedNodeData::with_identifier(&unit.tree_sitter_node, unit.identifier.clone())
+                .with_qualified_name(unit.qualified_name.clone())
+        })
     } else {
         None
     };

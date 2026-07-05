@@ -53,28 +53,37 @@ is the end of `end_line` (not its start).
 
 ---
 
-## 🐛 Bug: Same-Named Units Pair Across Containers
+## ✅ Fixed: Same-Named Units Pair Across Containers
 
-**Issue**: `find_semantic_unit_by_name` (`decision_based_diff.rs`) matches old-tree
-counterparts by (unit-type discriminant, name text) over a flat scan and returns the first
-hit, ignoring container context. With `impl A { fn get }` and `impl B { fn get }`, a change
-to `B::get` is paired against `A::get`.
+**Issue (historical)**: `find_semantic_unit_by_name` (`decision_based_diff.rs`) matched
+old-tree counterparts by (unit-type discriminant, name text) over a flat scan and returned
+the first hit, ignoring container context. With `impl A { fn get }` and `impl B { fn get }`,
+a change to `B::get` was paired against `A::get`.
 
-**Impact**:
-- The old/new diff shown to the reviewer is fiction (wrong old counterpart)
-- If the new body of `B::get` happens to equal `A::get`'s body, the identical-content skip
-  drops the unit entirely
-- Fires constantly in Rust (`fn new`, `fn get`, trait impls)
+**Impact (historical)**:
+- The old/new diff shown to the reviewer was fiction (wrong old counterpart)
+- If the new body of `B::get` happened to equal `A::get`'s body, the identical-content skip
+  dropped the unit entirely
+- Fired constantly in Rust (`fn new`, `fn get`, trait impls)
 
 **Affected Languages**: All (worst in Rust/Go where same-named methods are idiomatic)
 
 **Test Location**: `tests/bug_same_name_cross_container_pairing.rs`
-- `modified_method_pairs_with_same_impl_counterpart()` — [FAILING, #[ignore]] 🐛
+- `modified_method_pairs_with_same_impl_counterpart()` — [PASSING] ✅
+- `same_named_fns_in_sibling_modules_do_not_mispair()` — [PASSING] ✅
+- `method_and_free_function_with_same_bare_name_do_not_mispair()` — [PASSING] ✅
+- `renamed_container_surfaces_as_addition_not_bogus_match()` — [PASSING] ✅
 
-**Suggested Fix**: Qualify matching by container path (impl target / module). The builder
-already threads the impl target through `parent_context`; carry it into the identifier.
+**Fixed by**: `plan-core-hardening` Phase 4 — unit identity is now (container-qualified
+name, unit type) rather than (bare name, unit type). `SemanticNode`/`OwnedNodeData` carry a
+`qualified_name` (`"Type::name"` / `"mod::name"`), built by threading `parent_context`
+through `build_impl_container`/`build_module_container` (now chained, supporting nesting)
+and computed for `Callable`/`DataStructure`/`Variable` units. `find_semantic_unit_by_name`
+matches on this qualified key instead of bare name.
 
-**Plan**: `plan-core-hardening` Phase 4 (qualified-name unit matching).
+**Known limitation** (decision D007, unchanged): same qualified name + same unit type at the
+same nesting level (e.g. TypeScript declaration merging) still first-matches. Accepted, not
+fixed by this phase.
 
 ---
 

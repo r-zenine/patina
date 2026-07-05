@@ -28,6 +28,7 @@ mod bug_line_range_column_zero_off_by_one {
             end_byte: 17,
             kind: "test_node".to_string(),
             identifier: None,
+            qualified_name: None,
         };
         let range = source.line_range(&node_line2);
         assert_eq!(
@@ -41,6 +42,7 @@ mod bug_line_range_column_zero_off_by_one {
             end_byte: 28,
             kind: "test_node".to_string(),
             identifier: None,
+            qualified_name: None,
         };
         let range = source.line_range(&node_line3);
         assert_eq!(

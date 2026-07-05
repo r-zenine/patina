@@ -348,6 +348,7 @@ pub mod test_helpers {
                         end_byte: placeholder_content.len(),
                         kind: "test".to_string(),
                         identifier: None,
+                        qualified_name: None,
                     },
                 },
                 relevance: 0,

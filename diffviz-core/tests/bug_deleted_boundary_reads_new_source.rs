@@ -36,6 +36,7 @@ mod bug_deleted_boundary_reads_new_source {
                     end_byte: old_source.len(),
                     kind: "function_item".to_string(),
                     identifier: Some("deleted_one".to_string()),
+                    qualified_name: None,
                 },
             },
             relevance: 0,

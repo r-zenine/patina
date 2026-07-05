@@ -19,6 +19,15 @@ use crate::semantic_ast::{
 use std::collections::{HashMap, HashSet};
 use tree_sitter::{Node, Parser, Tree};
 
+/// Build a container-qualified name: `"parent::name"` if a container path is known,
+/// otherwise just `name`. Used to compute `SemanticNode::qualified_name`.
+fn qualify(parent_context: Option<&str>, name: &str) -> String {
+    match parent_context {
+        Some(ctx) => format!("{ctx}::{name}"),
+        None => name.to_string(),
+    }
+}
+
 /// Generic semantic tree builder parametrised over any [`LanguageDescriptor`].
 ///
 /// Wire it up by wrapping it in a language-specific newtype that also provides
@@ -169,15 +178,21 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
             SemanticNodeKind::Struct
             | SemanticNodeKind::Enum
             | SemanticNodeKind::Interface
-            | SemanticNodeKind::Class => Some(self.build_data_structure(node, source, parent)),
+            | SemanticNodeKind::Class => {
+                Some(self.build_data_structure(node, source, parent, parent_context))
+            }
 
-            SemanticNodeKind::ImplBlock => Some(self.build_impl_container(node, source)),
+            SemanticNodeKind::ImplBlock => {
+                Some(self.build_impl_container(node, source, parent_context))
+            }
 
-            SemanticNodeKind::Module => Some(self.build_module_container(node, source)),
+            SemanticNodeKind::Module => {
+                Some(self.build_module_container(node, source, parent_context))
+            }
 
             SemanticNodeKind::Import => self.build_import(node, source).ok(),
 
-            SemanticNodeKind::Variable => Some(self.build_variable(node, source)),
+            SemanticNodeKind::Variable => Some(self.build_variable(node, source, parent_context)),
 
             // Statement, Expression, Comment, SignatureComponent, TypeDefinition, Other:
             // These are classification-only kinds; skip them in tree construction.
@@ -227,6 +242,9 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
             },
             metadata_nodes,
         );
+        semantic_node.qualified_name = identifier
+            .as_deref()
+            .map(|name| qualify(parent_context, name));
         semantic_node.identifier = identifier;
         semantic_node
     }
@@ -236,6 +254,7 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
         node: Node<'a>,
         source: &str,
         parent: Option<Node<'a>>,
+        parent_context: Option<&str>,
     ) -> SemanticNode<'a> {
         let name_node = node.child_by_field_name("name");
         let type_parameters = node.child_by_field_name("type_parameters");
@@ -266,6 +285,9 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
             },
             metadata_nodes,
         );
+        semantic_node.qualified_name = identifier
+            .as_deref()
+            .map(|name| qualify(parent_context, name));
         semantic_node.identifier = identifier;
         semantic_node
     }
@@ -275,15 +297,21 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
     /// Representing impl blocks as Module triggers the decompose path in
     /// `create_reviewable_diff_from_range`, so byte ranges covering the impl
     /// header correctly resolve to the enclosed methods rather than the full file.
-    fn build_impl_container<'a>(&self, node: Node<'a>, source: &str) -> SemanticNode<'a> {
+    fn build_impl_container<'a>(
+        &self,
+        node: Node<'a>,
+        source: &str,
+        parent_context: Option<&str>,
+    ) -> SemanticNode<'a> {
         let target_type = node
             .child_by_field_name("type")
             .and_then(|n| n.utf8_text(source.as_bytes()).ok())
             .unwrap_or("Unknown");
+        let own_path = qualify(parent_context, target_type);
 
         let children = node
             .child_by_field_name("body")
-            .map(|body| self.build_container_children(body, source, Some(target_type)))
+            .map(|body| self.build_container_children(body, source, Some(&own_path)))
             .unwrap_or_default();
 
         let mut module_node = SemanticNode::new(
@@ -300,13 +328,20 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
         module_node
     }
 
-    fn build_module_container<'a>(&self, node: Node<'a>, source: &str) -> SemanticNode<'a> {
+    fn build_module_container<'a>(
+        &self,
+        node: Node<'a>,
+        source: &str,
+        parent_context: Option<&str>,
+    ) -> SemanticNode<'a> {
         let name_node = node.child_by_field_name("name");
         let visibility = self.descriptor.extract_visibility(node, source);
+        let module_name = name_node.and_then(|n| n.utf8_text(source.as_bytes()).ok());
+        let own_path = module_name.map(|name| qualify(parent_context, name));
 
         let children = node
             .child_by_field_name("body")
-            .map(|body| self.build_container_children(body, source, None))
+            .map(|body| self.build_container_children(body, source, own_path.as_deref()))
             .unwrap_or_default();
 
         let mut module_node = SemanticNode::new(
@@ -344,7 +379,12 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
         ))
     }
 
-    fn build_variable<'a>(&self, node: Node<'a>, source: &str) -> SemanticNode<'a> {
+    fn build_variable<'a>(
+        &self,
+        node: Node<'a>,
+        source: &str,
+        parent_context: Option<&str>,
+    ) -> SemanticNode<'a> {
         let name_node = node.child_by_field_name("name");
         let type_node = node.child_by_field_name("type");
         let visibility = self.descriptor.extract_visibility(node, source);
@@ -366,6 +406,9 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
             },
             Vec::new(),
         );
+        semantic_node.qualified_name = identifier
+            .as_deref()
+            .map(|name| qualify(parent_context, name));
         semantic_node.identifier = identifier;
         semantic_node
     }

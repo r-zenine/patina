@@ -68,6 +68,12 @@ pub struct SemanticNode<'a> {
     /// Identifier/name text extracted during parsing (populated for the 4 core languages).
     /// Used by `OwnedNodeData` to carry identifier information after the live tree is dropped.
     pub identifier: Option<String>,
+
+    /// Container-qualified name (e.g. `"Type::name"`, `"mod::name"`), populated for
+    /// units built with a known container path. Unit identity for old/new pairing is
+    /// (qualified_name, unit type) rather than bare name, so changes to a method on
+    /// `impl A` never pair against a same-named method on `impl B`.
+    pub qualified_name: Option<String>,
 }
 
 /// Universal semantic unit types that work across programming languages
@@ -259,6 +265,7 @@ impl<'a> SemanticNode<'a> {
             name_node,
             unit_type,
             identifier: None,
+            qualified_name: None,
         }
     }
 

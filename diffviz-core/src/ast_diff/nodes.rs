@@ -26,6 +26,8 @@ pub struct OwnedNodeData {
     pub kind: String,
     /// Identifier/name for the node, populated for semantic boundary nodes in the 4 core languages.
     pub identifier: Option<String>,
+    /// Container-qualified name (e.g. `"Type::name"`), mirrored from `SemanticNode::qualified_name`.
+    pub qualified_name: Option<String>,
 }
 
 impl fmt::Debug for OwnedNodeData {
@@ -47,6 +49,7 @@ impl OwnedNodeData {
             end_byte: node.end_byte(),
             kind: node.kind().to_string(),
             identifier: None,
+            qualified_name: None,
         }
     }
 
@@ -57,7 +60,14 @@ impl OwnedNodeData {
             end_byte: node.end_byte(),
             kind: node.kind().to_string(),
             identifier,
+            qualified_name: None,
         }
+    }
+
+    /// Attach a container-qualified name (see `SemanticNode::qualified_name`).
+    pub fn with_qualified_name(mut self, qualified_name: Option<String>) -> Self {
+        self.qualified_name = qualified_name;
+        self
     }
 }
 
