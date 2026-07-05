@@ -1,0 +1,117 @@
+commit: "113007cb1c8b4ee3d3e7d78a99a0eb14eafb9c76"
+
+decisions:
+  - number: 1
+    title: "LineIndex is a new, general-purpose module — it does not reuse Phase 2's line_byte_spans internals"
+    rationale: >
+      Phase 2's `line_utils::line_byte_spans` returns content-only spans (terminator
+      excluded) for a single string, built for the renderer's line-splitting need. This
+      phase's `LineIndex` needs byte->line lookup via `partition_point` and half-open
+      inclusive-line-range conversion, which `line_byte_spans` does not provide and
+      would need to grow into. Rather than overload one small helper with two different
+      contracts (content-only spans vs. index-owning conversions), `LineIndex` was built
+      as the more general replacement, owned by `SourceCode` and constructed once at
+      `SourceCode::new`. `line_byte_spans` is left as-is — it still owns its narrower
+      job (content-only spans for line splitting) and Phase 2 already verified it works
+      correctly for CRLF; unifying the two was not attempted since they answer different
+      questions (content-only spans vs. line<->byte index) and forcing one into the
+      other's contract would be premature abstraction for a single caller.
+    alternatives_considered:
+      - "Extend line_byte_spans with byte_to_line/byte_range_of_lines: rejected — it
+        operates over an ephemeral Vec<Range<usize>> with no persistent lookup
+        structure, and none of its callers need line<->byte conversion, only content
+        spans."
+    code_impacts: []
+
+  - number: 2
+    title: "LineIndex's line_start(a) panics on an invalid start_line; byte_range_of_lines(_, b) falls back to EOF only for b+1"
+    rationale: >
+      Per the roadmap's own arithmetic (`line_start(a) .. line_start(b+1).unwrap_or(EOF)`),
+      `b+1` legitimately exceeds the last valid line whenever the caller asks for the
+      range through the file's last line — that is the expected, common case, not a bug.
+      An invalid `start_line`, by contrast, is a genuine precondition violation by the
+      caller (this crate's CLAUDE.md mandates fail-fast, no defensive fallbacks): callers
+      must validate line numbers against `line_count()` before calling
+      `byte_range_of_lines`, which `decision_based_diff.rs`'s new
+      `byte_range_for_lines` helper does (returning `Option` so the crate's own
+      `DecisionDiffError::NoUnitAtRange` still surfaces to external callers, rather than
+      panicking on external/decision-supplied line numbers).
+    code_impacts:
+      - file: "diffviz-core/src/ast_diff/line_index.rs"
+        reasoning: >
+          [Behavioral - Invariant mutation] byte_range_of_lines panics on an out-of-bounds
+          start_line rather than clamping or returning a sentinel — any new caller of
+          LineIndex must validate line numbers itself first (see
+          decision_based_diff.rs::byte_range_for_lines for the pattern) rather than
+          relying on LineIndex to absorb bad input silently.
+        line_ranges:
+          - start: 60
+            end: 71
+
+  - number: 3
+    title: "end_byte now covers the full end line (end of end_line, not its start) — the invariant find_contained_units_recursive relies on changed"
+    rationale: >
+      This is the direct fix for the end-line-exclusion bug (bug_range_end_line_excluded.rs):
+      `LineIndex::byte_range_of_lines` is now the only place an inclusive line range
+      converts to a half-open byte range, and `decision_based_diff.rs` uses it via
+      `byte_range_for_lines` in place of the old `line_to_byte_offset` pair-of-calls. A
+      unit whose last line is the range's end line is now correctly "contained" (its
+      `node_range.end` can reach the true end of that line) where before it was silently
+      dropped.
+    code_impacts:
+      - file: "diffviz-core/src/decision_based_diff.rs"
+        reasoning: >
+          [Behavioral - Invariant mutation] `find_contained_units_recursive`'s
+          `node_range.end <= end_byte` containment check now evaluates against a
+          larger, corrected `end_byte` for the same input line range. A reviewer
+          extending the decompose path should verify any new containment logic uses
+          `byte_range_for_lines`/`LineIndex` rather than reintroducing a
+          start-of-end-line assumption.
+        line_ranges:
+          - start: 455
+            end: 500
+
+  - number: 4
+    title: "find_units_touching_range_recursive is kept — proven reachable, not dead, under the corrected end_byte semantics"
+    rationale: >
+      The roadmap flagged this fallback as "likely removable" and asked for proof before
+      deleting. Investigated by temporarily instrumenting the call site and running the
+      full suite including ignored bug reproductions
+      (`cargo test -- --include-ignored --nocapture`): the fallback fires for
+      `bug_class_bodies_have_no_semantic_children`'s
+      `range_over_python_method_resolves_to_method_not_class` (a Phase 5 concern, still
+      `#[ignore]`d). Root cause: the corrected `end_byte` now extends to the true end of
+      the range's last line (up to EOF when that line is the file's last), but a
+      container's tree-sitter span frequently stops short of a trailing newline that
+      lies outside it — so for a range ending on the file's last line with a trailing
+      newline present, no unit's byte range reaches `end_byte`, `find_contained_units_recursive`
+      returns empty, and this fallback is what recovers a result. This is a legitimate,
+      generalizable case (not the old single-line empty-interval workaround it was
+      originally written for), so it was kept and its doc comment updated to record the
+      new reachability proof rather than removed.
+    code_impacts: []
+
+  - number: 5
+    title: "Byte ranges retyped to Range<usize> throughout diffviz-core; ranges_overlap takes &Range<usize>"
+    rationale: >
+      Mechanical per decision D006 — LineInfo, NodeAnnotation, ByteRangeAnnotation,
+      RenderableLine.byte_range, and the Phase-1-consolidated ranges_overlap all moved
+      from (usize, usize) tuples to std::ops::Range<usize>. No external crate
+      (diffviz-review/-cli/-git) reads these fields directly (verified by grep), so this
+      stayed internal to diffviz-core plus one test file
+      (bug_crlf_byte_offset_drift.rs) that read RenderableLine.byte_range.0 and needed
+      updating to .start. The two remaining (usize, usize) tuples in the crate
+      (clamp_line_range's and changed_line_range's return types) are line-number pairs,
+      not byte ranges, and are out of this phase's scope.
+    code_impacts:
+      - file: "diffviz-core/src/renderable_diff/mod.rs"
+        reasoning: >
+          [Structural - Core entity shape change] RenderableLine.byte_range and
+          ByteRangeAnnotation.byte_range changed from (usize, usize) to Range<usize>.
+          RenderableLine is a public type; any downstream code pattern-matching or
+          field-accessing byte_range as a tuple (`.0`/`.1`) will now fail to compile
+          and must switch to `.start`/`.end` — verified no such external consumer
+          exists today via grep across diffviz-review/-cli/-git.
+        line_ranges:
+          - start: 40
+            end: 105
