@@ -1,0 +1,171 @@
+commit: "16024ab"
+
+decisions:
+  - number: 1
+    title: Deletion of the legacy semantic-pairing API verified zero-user with a workspace-wide grep, not just diffviz-core/src
+    rationale: >
+      The roadmap's "verified zero users outside diffviz-core/src" claim was
+      re-checked directly rather than trusted: grepped every deleted symbol
+      (is_semantically_identical, unit_types_are_identical,
+      compare_optional_nodes, can_pair_with, filtered_units,
+      collect_filtered_units, should_include_unit, estimate_node_size,
+      find_units_by_type, SemanticTree.source_ranges,
+      ChangeClassification::Deletion, create_deletion_diff, _node_has_keyword,
+      extract_expanded_source_text) across the whole workspace (diffviz-review,
+      diffviz-cli, diffviz-git included), both before and after deletion. Only
+      hit after deletion: a doc-comment mention in
+      bug_deleted_boundary_reads_new_source.rs, which was prose, not code, and
+      has since been rewritten (decision 3).
+    code_impacts:
+      - file: diffviz-core/src/decision_based_diff.rs
+        reasoning: >
+          [Structural - Public API] Removed the ChangeClassification::Deletion
+          variant and its handling arm in
+          build_reviewable_diff_from_unit_with_data. The variant was never
+          constructed by create_reviewable_diff_from_range and its arm read
+          new_unit for a deletion (wrong data), so removal deletes an
+          unreachable-but-incorrect code path rather than changing behavior.
+          Any future caller that matches exhaustively on ChangeClassification
+          must drop the Deletion arm.
+        line_ranges:
+          - start: 55
+            end: 64
+
+  - number: 2
+    title: DecisionDiffError::ParseError/SemanticError now carry the real source error instead of a formatted String
+    rationale: >
+      Root CLAUDE.md's error-handling standard requires #[source]/#[from]
+      chains, not stringified messages. try_parse returns
+      common::ASTError and build_semantic_tree returns
+      semantic_ast::SemanticError — both already implement std::error::Error
+      via thiserror — so the three call sites that used to `format!("...: {e}")`
+      now pass the error straight through
+      (`.map_err(DecisionDiffError::ParseError)` /
+      `.map_err(DecisionDiffError::SemanticError)`). SemanticError itself was
+      migrated from a hand-rolled Display impl to #[derive(thiserror::Error)]
+      in the same pass so its #[source] chain is preserved end-to-end.
+    code_impacts:
+      - file: diffviz-core/src/decision_based_diff.rs
+        reasoning: >
+          [Structural - Public API] DecisionDiffError::ParseError and
+          ::SemanticError changed from tuple(String) to tuple(source error).
+          Any caller that pattern-matches on these variants expecting a String
+          payload (verified: none outside this crate) must be updated to
+          handle the typed source error; callers that only Display/log the
+          error are unaffected since the #[error] message text is preserved.
+        line_ranges:
+          - start: 27
+            end: 34
+      - file: diffviz-core/src/semantic_ast.rs
+        reasoning: >
+          [Structural - Public API] SemanticError's Display impl is now
+          thiserror-derived instead of hand-rolled; message text is unchanged
+          but the type now implements std::error::Error via derive rather than
+          a manual impl, and downstream code that relied on the manual
+          std::error::Error impl block being present (none found) would need
+          updating.
+        line_ranges:
+          - start: 612
+            end: 630
+
+  - number: 3
+    title: get_display_node consolidated onto NodeChangeStatus::display_node/display_node_with_source; the source-aware variant becomes canonical everywhere, incidentally fixing the deleted-boundary-reads-wrong-source bug
+    rationale: >
+      Three copies of get_display_node existed (renderable_diff/mod.rs,
+      line_utils.rs, name_extractors.rs), plus one source-aware variant
+      (line_utils::get_display_node_with_source) that only line_utils used.
+      Per decision D009, moved both onto `impl NodeChangeStatus` as
+      `display_node(&self) -> &OwnedNodeData` (source-agnostic, for callers
+      that don't need Deleted-correctness) and
+      `display_node_with_source<'a>(&'a self, old, new) -> (&'a OwnedNodeData,
+      &'a dyn SourceProvider)` (the Deleted-aware variant). All three original
+      call sites were replaced; two of them — name_extractors::extract_boundary_name
+      and mod.rs's overall_line_range computation in RenderableDiff::try_from —
+      previously called the source-blind copy and always read new_source, which
+      is exactly the bug bug_deleted_boundary_reads_new_source.rs pinned
+      (D009 predicted this as a side effect of the consolidation). Both call
+      sites now use display_node_with_source, so the test now passes; it was
+      un-ignored and bugs.md updated to Fixed. This is a deliberate, anticipated
+      consequence of the consolidation, not scope creep — D009 explicitly
+      named it as the mechanism that would defuse the landmine.
+    code_impacts:
+      - file: diffviz-core/src/reviewable_diff.rs
+        reasoning: >
+          [Structural - Core entity shape change] NodeChangeStatus gained two
+          inherent methods (display_node, display_node_with_source) that are
+          now the sole way to extract a display node from the enum; the three
+          deleted free-function copies are no longer available under their old
+          names/locations.
+        line_ranges:
+          - start: 71
+            end: 97
+      - file: diffviz-core/src/renderable_diff/name_extractors.rs
+        reasoning: >
+          [Behavioral - Error path / correctness fix] extract_boundary_name now
+          reads old_source for Deleted boundaries instead of unconditionally
+          reading new_source. A Deleted function's boundary_name now correctly
+          resolves to the deleted function's real name instead of falling back
+          to the semantic-kind debug string.
+        line_ranges:
+          - start: 6
+            end: 12
+      - file: diffviz-core/src/renderable_diff/mod.rs
+        reasoning: >
+          [Behavioral - Error path / correctness fix] overall_line_range is now
+          computed against the correct source (old_source for Deleted
+          boundaries) instead of always new_source, fixing the same landmine
+          for line-range metadata.
+        line_ranges:
+          - start: 436
+            end: 440
+
+  - number: 4
+    title: ranges_overlap consolidated to a single pub(super) function in line_utils.rs; kept tuple-based (no retyping this phase)
+    rationale: >
+      Two byte-for-byte-identical copies existed (mod.rs, line_utils.rs).
+      Kept the line_utils.rs copy as canonical (mod.rs already declares
+      `mod line_utils;` so `pub(super)` visibility is sufficient — no need to
+      re-export through lib.rs) and made mod.rs call it via
+      `line_utils::ranges_overlap`. Left the signature as
+      `(usize, usize)` tuples per the roadmap's explicit phase split — Phase 3
+      retypes byte ranges to `Range<usize>` crate-wide; doing it piecemeal here
+      would conflict with that phase's "no (usize, usize) tuples remain"
+      acceptance criterion by creating a partial migration to clean up twice.
+    code_impacts: []
+
+  - number: 5
+    title: determine_line_relevance_with_precedence collapsed to a single min() chain; unwrap_or(ESSENTIAL) kept unchanged per D011
+    rationale: >
+      The two-pass "ESSENTIAL wins, else min" logic is mathematically just
+      min() because ESSENTIAL == 0 is the domain minimum — collapsed to
+      `.filter(overlaps).map(relevance).min().unwrap_or(ESSENTIAL)` exactly as
+      D011 specified. The unwrap_or(ESSENTIAL) default was deliberately left
+      untouched (it prevents lines overlapping no annotation from ever folding
+      in the TUI) with a comment now pointing at D011 so a future reader
+      doesn't mistake it for an oversight.
+    code_impacts: []
+
+  - number: 6
+    title: parameter_count switched from child_count()-2 to named_child_count(), fixing the filed comma-counting bug
+    rationale: >
+      `parameters_node.child_count().saturating_sub(2)` counted `,` separator
+      tokens along with real parameters (`fn f(a, b)` reported 3, not 2).
+      `named_child_count()` only counts named (non-punctuation) grammar nodes,
+      which is exactly parameter count for every language's `parameters`/
+      `formal_parameters` node shape used here. The filed reproduction
+      (bug_parameter_count_includes_commas.rs) was un-ignored as part of this
+      fix and bugs.md updated to Fixed.
+    code_impacts:
+      - file: diffviz-core/src/parsers/generic_builder.rs
+        reasoning: >
+          [Behavioral - Invariant mutation] Callable.parameter_count now
+          reports the true parameter count instead of parameter-count-plus-
+          commas for every multi-parameter function/method across all 8
+          supported languages built on GenericSemanticTreeBuilder. Previously
+          harmless only because both sides of any comparison used the same
+          wrong formula; any future code that reads parameter_count as an
+          absolute value (e.g. Phase 4's qualified-name matching, if it ever
+          disambiguates overloads by arity) now gets the correct number.
+        line_ranges:
+          - start: 202
+            end: 202
