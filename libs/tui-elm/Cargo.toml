@@ -1,0 +1,11 @@
+[package]
+name = "tui-elm"
+version = "0.1.0"
+edition = "2024"
+description = "Keybinding registry, leader-key state machine, and registry-driven overlays for ELM TUIs"
+
+[dependencies]
+ratatui = { workspace = true }
+crossterm = { workspace = true }
+tui-harness = { workspace = true }
+tui-design = { workspace = true }

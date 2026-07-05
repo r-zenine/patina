@@ -18,6 +18,24 @@ members = [
 ]
 
 [workspace.dependencies]
+# internal crates
+diffviz-core = { path = "diffviz-core" }
+diffviz-review = { path = "diffviz-review" }
+diffviz-review-tui = { path = "diffviz-review-tui" }
+fsutils = { path = "libs/fsutils" }
+gitkit = { path = "libs/gitkit" }
+tui-design = { path = "libs/tui-design" }
+tui-elm = { path = "libs/tui-elm" }
+tui-harness = { path = "libs/tui-harness" }
+sam-cli = { path = "sam-cli" }
+sam-config = { path = "sam-config" }
+sam-core = { path = "sam-core" }
+sam-mcp = { path = "sam-mcp" }
+sam-persistence = { path = "sam-persistence" }
+sam-readers = { path = "sam-readers" }
+sam-terminals = { path = "sam-terminals" }
+sam-tui = { path = "sam-tui" }
+
 tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

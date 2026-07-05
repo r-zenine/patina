@@ -9,13 +9,13 @@ name = "sam"
 path = "src/main.rs"
 
 [dependencies]
-sam-core = {path="../sam-core"}
-sam-config = {path="../sam-config"}
-fsutils = {path="../libs/fsutils"}
-sam-tui = {path="../sam-tui"}
-sam-readers = {path="../sam-readers"}
-sam-persistence = {path="../sam-persistence"}
-sam-terminals = {path="../sam-terminals"}
+sam-core = { workspace = true }
+sam-config = { workspace = true }
+fsutils = { workspace = true }
+sam-tui = { workspace = true }
+sam-readers = { workspace = true }
+sam-persistence = { workspace = true }
+sam-terminals = { workspace = true }
 clap = "2.34.0"
 thiserror = "2.0.12"
 termion = "4.0.5"

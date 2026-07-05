@@ -8,9 +8,9 @@ name = "diffviz"
 path = "src/main.rs"
 
 [dependencies]
-diffviz-review = { path = "../diffviz-review" }
-diffviz-review-tui = { path = "../diffviz-review-tui" }
-diffviz-core = { path = "../diffviz-core" }
+diffviz-review = { workspace = true }
+diffviz-review-tui = { workspace = true }
+diffviz-core = { workspace = true }
 tokio = { workspace = true }
 clap = { version = "4.0", features = ["derive"] }
 anyhow = { workspace = true }

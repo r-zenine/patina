@@ -2,13 +2,13 @@ use sam_core::algorithms::resolver::ErrorsResolver;
 use sam_core::algorithms::resolver::Resolver;
 use sam_core::algorithms::resolver::ResolverContext;
 
+use fsutils::ErrorsFS;
 use sam_core::entities::aliases::AliasAndDependencies;
 use sam_core::entities::choices::Choice;
 use sam_core::entities::commands::Command;
 use sam_core::entities::vars::Var;
 use sam_readers::read_choices;
 use sam_terminals::processes::ShellCommand;
-use fsutils::ErrorsFS;
 use std::collections::{HashMap, HashSet};
 
 use thiserror::Error;

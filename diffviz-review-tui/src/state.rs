@@ -5,7 +5,8 @@
 
 use diffviz_review::ReviewableDiffId;
 use std::collections::HashSet;
-use std::time::{Duration, Instant};
+use std::time::Duration;
+use tui_elm::LeaderState;
 
 /// Timeout duration for leader key mode (seconds)
 const LEADER_TIMEOUT: Duration = Duration::from_secs(2);
@@ -109,10 +110,8 @@ pub struct UiState {
     /// Whether to show inline reasoning annotations in the diff view
     pub show_reasoning: bool,
 
-    /// Leader key state tracking
-    pub leader_active: bool,
-    pub leader_pressed_at: Option<Instant>,
-    pub leader_submenu: Option<char>,
+    /// Leader key state machine (activation, submenu, display timeout)
+    pub leader: LeaderState,
 
     /// Whether to show help overlay
     pub show_help: bool,
@@ -137,9 +136,7 @@ impl Default for UiState {
             input_cursor: 0,
             should_quit: false,
             show_reasoning: false,
-            leader_active: false,
-            leader_pressed_at: None,
-            leader_submenu: None,
+            leader: LeaderState::new(LEADER_TIMEOUT),
             show_help: false,
             drill_nav: DrillNavState::default(),
             drill_index: DrillIndex::default(),
@@ -270,47 +267,22 @@ impl UiState {
 
     /// Activate leader key mode
     pub fn activate_leader(&mut self) {
-        self.leader_active = true;
-        self.leader_pressed_at = Some(Instant::now());
-        self.leader_submenu = None;
+        self.leader.activate();
     }
 
     /// Enter a leader submenu (a, c, i, t, etc.)
     pub fn enter_leader_submenu(&mut self, submenu: char) {
-        self.leader_submenu = Some(submenu);
-        // Reset timeout
-        self.leader_pressed_at = Some(Instant::now());
+        self.leader.enter_submenu(submenu);
     }
 
     /// Deactivate leader key mode
     pub fn deactivate_leader(&mut self) {
-        self.leader_active = false;
-        self.leader_pressed_at = None;
-        self.leader_submenu = None;
+        self.leader.deactivate();
     }
 
     /// Check if leader key has timed out
     pub fn is_leader_timed_out(&self) -> bool {
-        if let Some(pressed_at) = self.leader_pressed_at {
-            pressed_at.elapsed() > LEADER_TIMEOUT
-        } else {
-            false
-        }
-    }
-
-    /// Get remaining timeout duration for display
-    pub fn leader_timeout_remaining(&self) -> Option<Duration> {
-        if let Some(pressed_at) = self.leader_pressed_at {
-            let timeout = LEADER_TIMEOUT;
-            let elapsed = pressed_at.elapsed();
-            if elapsed < timeout {
-                Some(timeout - elapsed)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
+        self.leader.is_timed_out()
     }
 
     // ── DrillNav state machine ────────────────────────────────────────────

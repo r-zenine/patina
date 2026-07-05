@@ -14,11 +14,11 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 schemars = "1"
 thiserror = "1"
-sam-config = { path = "../sam-config" }
-sam-core = { path = "../sam-core" }
-sam-persistence = { path = "../sam-persistence" }
-sam-readers = { path = "../sam-readers" }
-sam-terminals = { path = "../sam-terminals" }
+sam-config = { workspace = true }
+sam-core = { workspace = true }
+sam-persistence = { workspace = true }
+sam-readers = { workspace = true }
+sam-terminals = { workspace = true }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 fuzzy-matcher = "0.3"

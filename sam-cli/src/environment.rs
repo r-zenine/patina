@@ -5,7 +5,6 @@ use crate::executors::make_executor;
 use crate::history_engine::HistoryEngine;
 use crate::logger::{ErrorLogger, FileLogger, SilentLogger};
 use crate::session_engine::SessionEngine;
-use fsutils;
 use sam_core::engines::{SamEngine, SamExecutor, SamLogger, VarsDefaultValuesSetter};
 use sam_core::entities::discover::generate_discover_aliases;
 use sam_persistence::repositories::{

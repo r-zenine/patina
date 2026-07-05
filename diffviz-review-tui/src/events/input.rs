@@ -3,9 +3,10 @@
 //! This module handles keyboard input and maps it to UI events that affect
 //! navigation, display, and input modes.
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use crossterm::event::KeyEvent;
+use tui_elm::KeyDispatch;
 
-use super::bindings::{self, BindingScope};
+use super::bindings;
 use crate::state::InputMode;
 
 /// UI events that handle navigation and display changes
@@ -69,9 +70,10 @@ pub enum UiEvent {
 
 /// Handle keyboard input and convert to UI events.
 ///
-/// Dispatch is a lookup in the keybinding registry (`super::bindings`), plus
-/// two coded fallbacks for behavior that cannot be a finite table row (both
-/// documented by the registry's catch-all docs):
+/// Dispatch is `Registry::dispatch` on the keybinding registry
+/// (`super::bindings`): a table lookup plus two coded fallbacks for
+/// behavior that cannot be a finite row (both documented by the registry's
+/// catch-all docs):
 /// - leader scopes: any key without a row silently deactivates the leader
 /// - input scope: any plain/shifted character becomes text input
 pub fn handle_key_event(
@@ -82,22 +84,9 @@ pub fn handle_key_event(
 ) -> Option<UiEvent> {
     let scope = bindings::scope_of(input_mode, leader_active, leader_submenu);
 
-    if let Some(binding) = bindings::lookup(scope, key) {
-        return Some(binding.event.clone());
-    }
-
-    match scope {
-        BindingScope::LeaderRoot | BindingScope::LeaderSubmenu(_) => {
-            Some(UiEvent::DeactivateLeader)
-        }
-        BindingScope::Input => match key {
-            KeyEvent {
-                code: KeyCode::Char(c),
-                modifiers: KeyModifiers::NONE | KeyModifiers::SHIFT,
-                ..
-            } => Some(UiEvent::InputChar(c)),
-            _ => None,
-        },
-        BindingScope::Navigation => None,
+    match bindings::REGISTRY.dispatch(scope, key)? {
+        KeyDispatch::Bound(binding) => Some(binding.event.clone()),
+        KeyDispatch::DismissLeader => Some(UiEvent::DeactivateLeader),
+        KeyDispatch::TextChar(c) => Some(UiEvent::InputChar(c)),
     }
 }
