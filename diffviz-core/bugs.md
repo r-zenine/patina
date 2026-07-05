@@ -87,24 +87,27 @@ fixed by this phase.
 
 ---
 
-## 🐛 Bug: Python Module-Level Assignments Never Become Variable Units
+## ✅ Fixed: Python Module-Level Assignments Never Become Variable Units
 
-**Issue**: In tree-sitter-python, `X = 1` at module level parses as
+**Issue (historical)**: In tree-sitter-python, `X = 1` at module level parses as
 `expression_statement → assignment`. `GenericSemanticTreeBuilder::build_typed_node`
-classifies `expression_statement` as `Statement` and drops it **without recursing into
-children**, so the `("assignment", Variable)` entry in `PYTHON_SEMANTIC_KIND_MAP` is
+classified `expression_statement` as `Statement` and dropped it **without recursing into
+children**, so the `("assignment", Variable)` entry in `PYTHON_SEMANTIC_KIND_MAP` was
 unreachable dead code.
 
-**Impact**:
-- Ranges over module-level constants fail with `NoUnitsInRange` instead of yielding diffs
-- Same non-recursion pattern hides anything nested under classification-only kinds
+**Impact (historical)**:
+- Ranges over module-level constants failed with `NoUnitsInRange` instead of yielding diffs
+- Same non-recursion pattern hid anything nested under classification-only kinds
 
 **Affected Languages**: Python (same mechanism affects other languages' wrapped constructs)
 
 **Test Location**: `tests/bug_python_module_level_assignment_invisible.rs`
-- `range_over_module_level_constants_yields_variable_units()` — [FAILING, #[ignore]] 🐛
+- `range_over_module_level_constants_yields_variable_units()` — [PASSING] ✅
 
-**Plan**: `plan-core-hardening` Phase 5 (container recursion mechanism + core 4 languages).
+**Fixed by**: `plan-core-hardening` Phase 5 — a new `LanguageDescriptor::statement_wrapper_kinds()`
+hook lists node kinds with no semantic value of their own (Python's `expression_statement`);
+`build_container_children` splices such a wrapper's children directly into the enclosing
+container instead of classifying (and dropping) the wrapper.
 
 ---
 
@@ -131,24 +134,38 @@ the `str::lines().count()` undercount.
 
 ---
 
-## 🐛 Bug: Class Bodies Have No Semantic Children — Methods Invisible to Range Lookup
+## ✅ Fixed (Python, TypeScript): Class Bodies Have No Semantic Children — Methods Invisible to Range Lookup
 
-**Issue**: `GenericSemanticTreeBuilder::build_data_structure` never collects children, so
-for class-based languages every method inside a class is absent from the semantic tree.
-Rust escapes only because methods live in `impl` blocks, special-cased as Module containers
-that recurse. The unused `container_body_field` descriptor hook exists to fix exactly this.
+**Issue (historical)**: `GenericSemanticTreeBuilder::build_data_structure` never collected
+children, so for class-based languages every method inside a class was absent from the
+semantic tree. Rust escaped only because methods live in `impl` blocks, special-cased as
+Module containers that recurse. The unused `container_body_field` descriptor hook existed
+to fix exactly this.
 
-**Impact**:
-- A range over one Python/TypeScript/Java method resolves to the entire class —
-  one-method changes produce whole-class diffs, defeating step-by-step review
+**Impact (historical)**:
+- A range over one Python/TypeScript method resolved to the entire class —
+  one-method changes produced whole-class diffs, defeating step-by-step review
 
-**Affected Languages**: Python, TypeScript, JavaScript, Java, C++ (all class-based)
+**Affected Languages**: Python, TypeScript (fixed this phase) — JavaScript, Java, C++ still
+affected, tracked for Phase 6
 
 **Test Location**: `tests/bug_class_bodies_have_no_semantic_children.rs`
-- `range_over_python_method_resolves_to_method_not_class()` — [FAILING, #[ignore]] 🐛
+- `range_over_python_method_resolves_to_method_not_class()` — [PASSING] ✅
+- `tests/container_recursion_core_languages.rs` —
+  `typescript_method_inside_class_resolves_to_method_not_class()` — [PASSING] ✅
 
-**Plan**: `plan-core-hardening` Phases 5–6 (container recursion mechanism, core 4
-languages then the remaining 4).
+**Fixed by**: `plan-core-hardening` Phase 5 — `build_data_structure` now recurses into the
+container body via `container_body_field` (wired for Python's `class_definition` and
+TypeScript's `class_declaration`/`interface_declaration`), passing the data structure's own
+qualified path as `parent_context` for its members. The decompose-path trigger in
+`decision_based_diff.rs` (previously hardcoded to `Module` only) now also recognizes a
+`DataStructure` with populated children as a recursable container
+(`is_recursable_container`) — without this, classes would build children but the range
+lookup would still resolve to the whole class. A childless `DataStructure` (Rust struct/enum,
+Go struct/interface — kinds that don't wire `container_body_field`) is unaffected, preserving
+existing single-unit expand behavior exactly.
+
+**Plan**: `plan-core-hardening` Phase 6 (remaining 4 languages: JavaScript, Java, C, C++).
 
 ---
 

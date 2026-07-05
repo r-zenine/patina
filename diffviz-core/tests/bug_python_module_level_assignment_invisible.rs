@@ -20,7 +20,6 @@ mod bug_python_module_level_assignment_invisible {
     use diffviz_core::parsers::PythonParser;
 
     #[test]
-    #[ignore = "bug: expression_statement dropped without recursion, assignment→Variable unreachable"]
     fn range_over_module_level_constants_yields_variable_units() {
         let source = SourceCode::new("MAX_SIZE = 100\nTIMEOUT = 30\n".to_string());
         let parser = PythonParser::new();

@@ -30,7 +30,6 @@ mod bug_class_bodies_have_no_semantic_children {
 "#;
 
     #[test]
-    #[ignore = "bug: build_data_structure collects no children, class methods invisible"]
     fn range_over_python_method_resolves_to_method_not_class() {
         let provider = SourceCode::new(SOURCE.to_string());
         let parser = PythonParser::new();

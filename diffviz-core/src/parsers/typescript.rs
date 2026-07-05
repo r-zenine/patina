@@ -83,8 +83,11 @@ impl LanguageDescriptor for TypeScriptDescriptor {
         TYPESCRIPT_TRIVIAL_KINDS
     }
 
-    fn container_body_field(&self, _kind: &str) -> Option<&'static str> {
-        None
+    fn container_body_field(&self, kind: &str) -> Option<&'static str> {
+        match kind {
+            "class_declaration" | "interface_declaration" => Some("body"),
+            _ => None,
+        }
     }
 
     fn metadata_kind(&self) -> Option<&'static str> {

@@ -62,7 +62,22 @@ pub enum ChangeClassification {
     Modification,
 }
 
-/// Collect all non-Module semantic units whose byte range is fully contained within
+/// Whether a unit is a pass-through container during decompose-path traversal —
+/// always `Module` (impl/mod wrappers), and `DataStructure` only when the
+/// container-recursion mechanism actually populated children for it (e.g. a
+/// Python/TypeScript class with methods). A childless `DataStructure` (Rust
+/// struct/enum, Go struct/interface — languages/kinds that don't wire
+/// `container_body_field` for them) keeps its original single-unit
+/// expand/decompose-leaf behavior: reported as a leaf, never recursed through.
+fn is_recursable_container(unit: &SemanticNode) -> bool {
+    match unit.unit_type {
+        SemanticUnitType::Module { .. } => true,
+        SemanticUnitType::DataStructure { .. } => !unit.children.is_empty(),
+        _ => false,
+    }
+}
+
+/// Collect all non-container semantic units whose byte range is fully contained within
 /// [start_byte, end_byte]. Stops recursing into a node once the node itself is collected
 /// (children are implicitly included in the collected unit).
 fn find_contained_units_recursive<'a>(
@@ -73,7 +88,7 @@ fn find_contained_units_recursive<'a>(
 ) {
     let node_range = node.tree_sitter_node.byte_range();
 
-    if !matches!(node.unit_type, SemanticUnitType::Module { .. })
+    if !is_recursable_container(node)
         && node_range.start >= start_byte
         && node_range.end <= end_byte
     {
@@ -86,7 +101,7 @@ fn find_contained_units_recursive<'a>(
     }
 }
 
-/// Collect all non-Module semantic units that overlap with (touch) the range [start_byte, end_byte].
+/// Collect all non-container semantic units that overlap with (touch) the range [start_byte, end_byte].
 /// This is used as a fallback when no units are strictly contained within the range.
 ///
 /// Confirmed still reachable after `plan-core-hardening` Phase 3's `end_byte` fix (verified
@@ -110,13 +125,13 @@ fn find_units_touching_range_recursive<'a>(
     // Check if this node overlaps with the target range
     let overlaps = node_range.start < end_byte && node_range.end > start_byte;
 
-    if !matches!(node.unit_type, SemanticUnitType::Module { .. }) && overlaps {
+    if !is_recursable_container(node) && overlaps {
         result.push(node);
         return;
     }
 
-    // Only recurse if we haven't found a matching non-Module unit
-    if matches!(node.unit_type, SemanticUnitType::Module { .. }) || !overlaps {
+    // Only recurse if we haven't found a matching non-container unit
+    if is_recursable_container(node) || !overlaps {
         for child in &node.children {
             find_units_touching_range_recursive(child, start_byte, end_byte, result);
         }
@@ -510,8 +525,9 @@ pub fn create_reviewable_diff_from_range(
         },
     )?;
 
-    // Decompose path: expansion hit the Module root
-    if matches!(new_unit.unit_type, SemanticUnitType::Module { .. }) {
+    // Decompose path: expansion hit a container root (Module, or a DataStructure
+    // whose body was recursed into — see `is_recursable_container`)
+    if is_recursable_container(new_unit) {
         let mut contained: Vec<&SemanticNode> = Vec::new();
         find_contained_units_recursive(&new_tree.root, start_byte, end_byte, &mut contained);
 

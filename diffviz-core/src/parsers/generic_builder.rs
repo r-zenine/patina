@@ -113,6 +113,14 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
                 continue;
             }
 
+            // Statement wrappers (e.g. Python's `expression_statement`) have no
+            // semantic value themselves; splice their children directly into this
+            // container instead of classifying (and dropping) the wrapper.
+            if self.descriptor.statement_wrapper_kinds().contains(&kind) {
+                children.extend(self.build_container_children(child, source, parent_context));
+                continue;
+            }
+
             if let Some(node) = self.build_node(child, source, Some(container), parent_context) {
                 children.push(node);
             }
@@ -273,6 +281,24 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
         });
 
         let identifier = self.descriptor.extract_identifier(node, source);
+        let qualified_name = identifier
+            .as_deref()
+            .map(|name| qualify(parent_context, name));
+
+        // Recurse into the container body via the descriptor hook so methods
+        // nested in class-like bodies become visible semantic children, qualified
+        // by this data structure's own path. Languages whose container kind has no
+        // named body field (e.g. Go's struct_type/interface_type) get `None` here
+        // and simply produce no children, unchanged from before this mechanism.
+        let children = self
+            .descriptor
+            .container_body_field(node.kind())
+            .and_then(|field| node.child_by_field_name(field))
+            .map(|body_node| {
+                self.build_container_children(body_node, source, qualified_name.as_deref())
+            })
+            .unwrap_or_default();
+
         let mut semantic_node = SemanticNode::new(
             node,
             name_node,
@@ -285,9 +311,8 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
             },
             metadata_nodes,
         );
-        semantic_node.qualified_name = identifier
-            .as_deref()
-            .map(|name| qualify(parent_context, name));
+        semantic_node.children = children;
+        semantic_node.qualified_name = qualified_name;
         semantic_node.identifier = identifier;
         semantic_node
     }
@@ -309,8 +334,10 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
             .unwrap_or("Unknown");
         let own_path = qualify(parent_context, target_type);
 
-        let children = node
-            .child_by_field_name("body")
+        let children = self
+            .descriptor
+            .container_body_field(node.kind())
+            .and_then(|field| node.child_by_field_name(field))
             .map(|body| self.build_container_children(body, source, Some(&own_path)))
             .unwrap_or_default();
 
@@ -339,8 +366,10 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
         let module_name = name_node.and_then(|n| n.utf8_text(source.as_bytes()).ok());
         let own_path = module_name.map(|name| qualify(parent_context, name));
 
-        let children = node
-            .child_by_field_name("body")
+        let children = self
+            .descriptor
+            .container_body_field(node.kind())
+            .and_then(|field| node.child_by_field_name(field))
             .map(|body| self.build_container_children(body, source, own_path.as_deref()))
             .unwrap_or_default();
 

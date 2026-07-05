@@ -84,8 +84,15 @@ impl LanguageDescriptor for PythonDescriptor {
         PYTHON_TRIVIAL_KINDS
     }
 
-    fn container_body_field(&self, _kind: &str) -> Option<&'static str> {
-        None
+    fn container_body_field(&self, kind: &str) -> Option<&'static str> {
+        match kind {
+            "class_definition" => Some("body"),
+            _ => None,
+        }
+    }
+
+    fn statement_wrapper_kinds(&self) -> &[&'static str] {
+        &["expression_statement"]
     }
 
     fn metadata_kind(&self) -> Option<&'static str> {

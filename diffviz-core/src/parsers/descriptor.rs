@@ -44,6 +44,19 @@ pub trait LanguageDescriptor: Send + Sync {
     /// direct (e.g. `"source_file"`).
     fn container_body_field(&self, kind: &str) -> Option<&'static str>;
 
+    /// Statement-wrapper node kinds whose children should be spliced directly into
+    /// the enclosing container's children, rather than classified themselves.
+    ///
+    /// E.g. Python's `expression_statement` wraps `assignment` with no semantic
+    /// value of its own; without this hook the classification-only `Statement`
+    /// kind causes `build_typed_node` to drop the whole subtree, hiding
+    /// module-level assignments from range lookups.
+    ///
+    /// Default: no wrapper kinds (most languages classify constructs directly).
+    fn statement_wrapper_kinds(&self) -> &[&'static str] {
+        &[]
+    }
+
     /// The node kind that represents metadata / annotations
     /// (e.g. `"attribute_item"` in Rust, `"decorator"` in Python).
     ///
