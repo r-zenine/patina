@@ -1,0 +1,80 @@
+commit: "0d273dff57a51731a500a9d47f055fe33717d022"
+
+decisions:
+  - number: 1
+    title: "Use similar::capture_diff_slices (range-based ops) rather than TextDiff::diff_lines (string retokenization)"
+    rationale: >
+      The roadmap suggested `TextDiff::configure().diff_lines(old, new)`, but that API
+      re-tokenizes raw strings internally (splitting on its own newline rules) and its
+      `old_index`/`new_index` refer to its own internal token list, not necessarily the
+      exact `old_lines`/`new_lines` vectors the renderer already built via `.lines()`.
+      `capture_diff_slices(Algorithm::Patience, old: &[&str], new: &[&str]) -> Vec<similar::DiffOp>`
+      operates directly on the same line slices the caller already split, eliminating any
+      retokenization mismatch risk, and its `Replace` variant already groups contiguous
+      delete+insert runs — exactly the "adjacent Delete-run/Add-run pair" shape the anchor
+      post-pass needs, so no separate run-detection logic was needed at the similar-API
+      boundary (run detection is still done generically over our own flattened DiffOp list
+      in `align_by_anchors`, so it works whether or not ops originated from one Replace).
+    alternatives_considered:
+      - "TextDiff::diff_lines as roadmap-suggested: rejected after reading similar's source
+        (registry cache) — confirmed diff_lines tokenizes raw text and keeps line
+        terminators attached to token values, which is unnecessary work when the caller
+        already has clean &[&str] slices."
+    code_impacts: []
+
+  - number: 2
+    title: "align_by_anchors operates as a generic post-pass over the flattened DiffOp list, not over similar's Replace ranges directly"
+    rationale: >
+      Expanding every similar::DiffOp variant (Equal/Delete/Insert/Replace) into individual
+      Keep/Add/Delete DiffOp entries first, then re-scanning for contiguous Delete-run/Add-run
+      pairs, keeps align_by_anchors decoupled from similar's API and independently
+      unit-testable (anchored pair -> Modify; mismatch -> untouched; no anchors -> untouched),
+      matching the roadmap's explicit acceptance criteria for the post-pass.
+    code_impacts:
+      - file: "diffviz-core/src/renderable_diff/line_diff.rs"
+        reasoning: >
+          [Structural - Core entity shape change] DiffOp's shape changed from owning String
+          content (old myers_diff.rs) to carrying only line indices (old_idx/new_idx). This
+          is the seam every consumer in mod.rs now reads through — a reviewer should verify
+          content is always looked up via the same old_lines/new_lines slices the indices
+          were produced from (no cross-referencing a different split of the source).
+        line_ranges:
+          - start: 16
+            end: 28
+
+  - number: 3
+    title: "CRLF fix applies to both the single-source and Modified rendering paths via one shared line_byte_spans helper"
+    rationale: >
+      The filed bug reproduction (bug_crlf_byte_offset_drift.rs) exercises the single-source
+      (Added-boundary) rendering path, not the Modified path the roadmap's Phase 2 text
+      focuses on — both paths shared the same "+1 for newline" defect independently. Rather
+      than fix the Modified path only and leave the already-filed, already-ignored CRLF test
+      failing, added line_utils::line_byte_spans (terminator-width-accurate content-only byte
+      spans, matching str::lines() exactly for both \n and \r\n) and used it from both
+      split_into_lines_with_positions (single-source) and the rewritten
+      create_line_by_line_diff_for_modified (Modified path). RenderableLine.byte_range's
+      existing contract in the Modified path (relative (0, content.len()), not absolute) was
+      deliberately left unchanged — unifying that with the single-source path's absolute
+      byte_range would be the coordinate-frame unification decision D012 explicitly defers to
+      its own plan; only the internal line-offset bookkeeping used for relevance/anchor
+      lookups was fixed.
+    code_impacts:
+      - file: "diffviz-core/src/renderable_diff/line_utils.rs"
+        reasoning: >
+          [Behavioral - Error path / arithmetic change] split_into_lines_with_positions no
+          longer assumes a 1-byte line terminator; a reviewer touching CRLF-related rendering
+          later should build on line_byte_spans rather than reintroducing ad hoc "+1" offset
+          arithmetic.
+        line_ranges:
+          - start: 86
+            end: 118
+
+  - number: 4
+    title: "similar added as a runtime dependency at the workspace level (mirrors proptest's Phase-0 wiring)"
+    rationale: >
+      Matches decision D002 (accepted in the strategy phase): similar is mature,
+      MIT-licensed, and exposes per-change old_index/new_index directly usable as the
+      index-carrying DiffOp shape. Added to [workspace.dependencies] and referenced via
+      similar.workspace = true in diffviz-core/Cargo.toml, the same pattern proptest
+      established in Phase 0.
+    code_impacts: []
