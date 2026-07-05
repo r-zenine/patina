@@ -56,7 +56,7 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, engine: &ReviewEngi
 pub fn render(f: &mut Frame, area: Rect, ui_state: &mut UiState, engine: &ReviewEngine)
 ```
 
-**Verification**: `rg "ui_state: &mut UiState" diffviz-review-tui/src/ui/`
+**Verification**: `rg "ui_state: &mut UiState" apps/diffviz/review-tui/src/ui/`
 
 ### V2: Command System for Side Effects
 
@@ -226,9 +226,9 @@ Reject contributions that:
 
 ```bash
 # Architecture compliance checks
-rg "ui_state: &mut UiState" diffviz-review-tui/src/ui/
-rg "std::fs::|eprintln!|println!" diffviz-review-tui/src/app.rs
-rg "\.drill_nav\b" diffviz-review-tui/src/ --glob '!state.rs'
+rg "ui_state: &mut UiState" apps/diffviz/review-tui/src/ui/
+rg "std::fs::|eprintln!|println!" apps/diffviz/review-tui/src/app.rs
+rg "\.drill_nav\b" apps/diffviz/review-tui/src/ --glob '!state.rs'
 
 # Run tests
 cargo test --package diffviz-review-tui --features test-harness
@@ -259,6 +259,6 @@ BusinessEvent::ToggleApprove { reviewable_id } => {
 For detailed information, see:
 - **Architecture principles**: [references/elm-architecture.md](references/elm-architecture.md)
 - **Test harness guide**: [references/testing-guide.md](references/testing-guide.md)
-- **Onboarding**: `diffviz-review-tui/onboarding.md`
-- **Architecture audit**: `diffviz-review-tui/ARCHITECTURE_AUDIT.md`
-- **Test harness**: `diffviz-review-tui/TEST_HARNESS.md`
+- **Onboarding**: `apps/diffviz/review-tui/onboarding.md`
+- **Architecture audit**: `apps/diffviz/review-tui/ARCHITECTURE_AUDIT.md`
+- **Test harness**: `apps/diffviz/review-tui/TEST_HARNESS.md`

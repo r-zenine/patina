@@ -1,25 +1,40 @@
 [workspace]
 resolver = "2"
 members = [
-  "diffviz-cli",
-  "diffviz-review",
-  "diffviz-core",
-  "diffviz-review-tui",
+  "apps/diffviz/cli",
+  "apps/diffviz/review",
+  "apps/diffviz/core",
+  "apps/diffviz/review-tui",
   "libs/*",
   # sam
-  "sam-cli",
-  "sam-core",
-  "sam-mcp",
-  "sam-persistence",
-  "sam-settings",
-  "sam-tui",
+  "apps/sam/cli",
+  "apps/sam/core",
+  "apps/sam/mcp",
+  "apps/sam/persistence",
+  "apps/sam/settings",
+  "apps/sam/tui",
+  "maintenance/depcheck",
+]
+
+default-members = [
+  "apps/diffviz/cli",
+  "apps/diffviz/review",
+  "apps/diffviz/core",
+  "apps/diffviz/review-tui",
+  "libs/*",
+  "apps/sam/cli",
+  "apps/sam/core",
+  "apps/sam/mcp",
+  "apps/sam/persistence",
+  "apps/sam/settings",
+  "apps/sam/tui",
 ]
 
 [workspace.dependencies]
 # internal crates
-diffviz-core = { path = "diffviz-core" }
-diffviz-review = { path = "diffviz-review" }
-diffviz-review-tui = { path = "diffviz-review-tui" }
+diffviz-core = { path = "apps/diffviz/core" }
+diffviz-review = { path = "apps/diffviz/review" }
+diffviz-review-tui = { path = "apps/diffviz/review-tui" }
 fsutils = { path = "libs/fsutils" }
 gitkit = { path = "libs/gitkit" }
 tui-design = { path = "libs/tui-design" }
@@ -27,12 +42,12 @@ tui-elm = { path = "libs/tui-elm" }
 tui-harness = { path = "libs/tui-harness" }
 termkit = { path = "libs/termkit" }
 persistkit = { path = "libs/persistkit" }
-sam-cli = { path = "sam-cli" }
-sam-core = { path = "sam-core" }
-sam-mcp = { path = "sam-mcp" }
-sam-persistence = { path = "sam-persistence" }
-sam-settings = { path = "sam-settings" }
-sam-tui = { path = "sam-tui" }
+sam-cli = { path = "apps/sam/cli" }
+sam-core = { path = "apps/sam/core" }
+sam-mcp = { path = "apps/sam/mcp" }
+sam-persistence = { path = "apps/sam/persistence" }
+sam-settings = { path = "apps/sam/settings" }
+sam-tui = { path = "apps/sam/tui" }
 
 tokio = { version = "1.0", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }

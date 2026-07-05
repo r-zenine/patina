@@ -311,7 +311,7 @@ diff baseline.txt current.txt
 
 ### Location
 
-Test fixtures in `diffviz-review/tests/fixtures/`:
+Test fixtures in `apps/diffviz/review/tests/fixtures/`:
 - Realistic code samples
 - Pre-analyzed diffs
 - Mock ReviewEngine data
