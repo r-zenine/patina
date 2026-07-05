@@ -1,3 +1,5 @@
+//! Review-domain icon vocabulary for the DrillNav views.
+
 pub struct Icons;
 
 impl Icons {

@@ -1,6 +1,7 @@
 //! UI rendering and component modules
 
 pub mod components;
+pub mod icons;
 pub mod layout;
 
 use crate::state::UiState;

@@ -14,13 +14,14 @@ use diffviz_core::renderable_diff::ChangeType;
 use diffviz_review::engines::ReviewEngine;
 use ratatui::prelude::*;
 use ratatui::widgets::Paragraph;
-use tui_design::{CardTier, HierarchicalCard, Icons, Theme, render_drill_header, scroll_into_view};
+use tui_design::{CardTier, HierarchicalCard, Theme, render_drill_header, scroll_into_view};
 
 use super::drillnav_common::{
     ReasoningAnnotation, annotations_for, content_rect, dot_pagination_line, line_change_type,
     line_has_change, make_card, note_for, note_rows, wrap_text,
 };
 use crate::state::UiState;
+use crate::ui::icons::Icons;
 use diffviz_review::{Instruction, ReviewableDiffId};
 
 /// Render the Drill view. Must only be called while `UiState` is drilled in.

@@ -8,10 +8,11 @@
 use diffviz_review::engines::ReviewEngine;
 use ratatui::prelude::*;
 use ratatui::widgets::Paragraph;
-use tui_design::{CardTier, Icons, Theme, scroll_into_view, separator_line};
+use tui_design::{CardTier, Theme, scroll_into_view, separator_line};
 
 use super::drillnav_common::{content_rect, make_card, plural_s, wrap_text};
 use crate::state::UiState;
+use crate::ui::icons::Icons;
 
 /// Render the Browse view. Must only be called while `UiState` is browsing.
 pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, engine: &ReviewEngine) {
