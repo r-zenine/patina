@@ -1,5 +1,6 @@
-//! Phase 5 contract tests: sam's modal view is discoverable through the
-//! same generic surface as diffviz-review-tui (plan-tui-harness-agent-discovery).
+//! Contract tests: sam's modal view is discoverable through the same
+//! generic surface as diffviz-review-tui, while staying registry-free
+//! (docs/adr/0001-sam-tui-stays-registry-free.md).
 
 use sam_tui::modal_view::{HeadlessModalView, MockValue, OptionToggle};
 use tui_harness::{build_manifest, describe_output, ELMApp};

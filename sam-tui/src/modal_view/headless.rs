@@ -22,7 +22,7 @@ pub struct SamSnapshot {
 }
 
 /// One hand-written discovery row (sam is registry-free by design — see
-/// plan-tui-harness-agent-discovery D006). This single list feeds BOTH
+/// docs/adr/0001-sam-tui-stays-registry-free.md). This single list feeds BOTH
 /// `describe()` and `affordances()` so sam's two discovery surfaces cannot
 /// disagree with each other; it must be kept in sync with `key_transformer`.
 struct SamBinding {
@@ -249,5 +249,79 @@ impl<V: Value> ELMApp for HeadlessModalView<V> {
             description: description.to_owned(),
         });
         affordances
+    }
+}
+
+/// SAM_BINDINGS ↔ key_transformer consistency (ADR 0001): the doc list is
+/// hand-written with no structural tie to dispatch, so these tests are the
+/// only guard against `--describe`/affordances lying to agents.
+#[cfg(test)]
+mod tests {
+    use super::super::state::Event;
+    use super::*;
+    use tui_harness::{parse_input_sequence, InputStep};
+
+    fn key_event(notation: &str) -> KeyEvent {
+        let steps = parse_input_sequence(notation)
+            .unwrap_or_else(|e| panic!("notation {notation:?} does not parse: {e}"));
+        match steps.as_slice() {
+            [InputStep::Key(key)] => *key,
+            other => panic!("notation {notation:?} is not a single key: {other:?}"),
+        }
+    }
+
+    /// With all gates satisfied, every documented key dispatches to exactly
+    /// the event its row advertises.
+    #[test]
+    fn every_documented_binding_matches_dispatch() {
+        for binding in SAM_BINDINGS {
+            for notation in binding.keys {
+                let dispatched = key_transformer(key_event(notation), true, true)
+                    .unwrap_or_else(|| panic!("{notation:?} is documented but dispatches nothing"));
+                assert_eq!(
+                    format!("{dispatched:?}"),
+                    binding.event,
+                    "{notation:?}: documented event differs from dispatch"
+                );
+            }
+        }
+    }
+
+    /// A gated row's keys must not produce its event when the gate is off —
+    /// otherwise affordance filtering advertises less than dispatch does.
+    #[test]
+    fn gated_bindings_do_not_dispatch_when_gated_off() {
+        for binding in SAM_BINDINGS {
+            if !binding.requires_options && !binding.requires_multi_select {
+                continue;
+            }
+            for notation in binding.keys {
+                let dispatched = key_transformer(
+                    key_event(notation),
+                    !binding.requires_options,
+                    !binding.requires_multi_select,
+                );
+                assert_ne!(
+                    dispatched.as_ref().map(|e| format!("{e:?}")),
+                    Some(binding.event.to_string()),
+                    "{notation:?} dispatches {} despite its gate being off",
+                    binding.event
+                );
+            }
+        }
+    }
+
+    /// The advertised catch-all is real (typing filters), and finite rows
+    /// win over it (j/k navigate, they do not type).
+    #[test]
+    fn input_catch_all_is_honest() {
+        assert_eq!(
+            key_transformer(key_event("x"), true, true),
+            Some(Event::InputChar('x'))
+        );
+        assert_eq!(
+            key_transformer(key_event("j"), true, true),
+            Some(Event::Down)
+        );
     }
 }
