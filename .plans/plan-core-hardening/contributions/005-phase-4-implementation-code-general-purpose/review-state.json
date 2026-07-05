@@ -1,0 +1,12 @@
+{
+  "approvals": [],
+  "instructions": {
+    "_meta": {
+      "description": "DiffViz instruction export for coding agents",
+      "format_version": "1.3"
+    },
+    "decision_instructions": [],
+    "instructions": []
+  },
+  "decision_approvals": []
+}
