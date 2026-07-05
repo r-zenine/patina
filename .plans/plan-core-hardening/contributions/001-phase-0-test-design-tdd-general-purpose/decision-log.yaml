@@ -1,0 +1,77 @@
+commit: "a78d74b"
+
+decisions:
+  - number: 1
+    title: Reconstruction property test drives the diffing pipeline through wrapped Rust source, not the private myers_diff module
+    rationale: >
+      `myers_diff_semantic` lives in a private (`mod`, not `pub mod`) module of
+      diffviz-core and is unreachable from integration tests. The only public
+      entry point for two arbitrary line sequences is
+      `create_reviewable_diff_from_range` + `RenderableDiff::try_from`, so the
+      property test wraps generated line sequences inside a single
+      `fn f() { ... }` to give tree-sitter one unambiguous top-level unit.
+      Generated line content is restricted to a small alphabet without braces
+      or parens: unbalanced parens made tree-sitter's error recovery split the
+      wrapper into more than one semantic node, which surfaced as
+      `NoUnitsInRange` — a parser artifact, not the diff-engine bug under test.
+      With parens removed the property held over 256 random cases without ever
+      exercising the known duplicate-line trigger, so the alphabet was further
+      narrowed to a handful of colliding tokens (`a`, `b`, `stmt`, empty) to
+      make duplicate lines common instead of rare. This reproduces the actual
+      Myers reconstruction failure (verified: fails today with a genuine
+      assertion mismatch, not a setup error).
+    code_impacts: []
+
+  - number: 2
+    title: proptest added as a workspace-level dev-dependency
+    rationale: >
+      Matches the existing workspace convention (shared deps declared once in
+      root `Cargo.toml` under `[workspace.dependencies]`, consumed via
+      `{ workspace = true }`). Dev-dependency only — no runtime surface, per
+      the top-level plan's decision D010.
+    code_impacts: []
+
+  - number: 3
+    title: Added-boundary rendering pin covers line numbering, annotations, and should_fold — not a should_fold-is-true case
+    rationale: >
+      Traced how annotations are built for single-source (non-Modified)
+      rendering (`create_single_source_lines` / `collect_all_annotations` in
+      line_utils.rs): a wholly new top-level unit produces a DiffNode
+      annotation spanning its entire byte range with `change_type: Added`, so
+      every line in an Added boundary — including blank ones — always has
+      `has_changes() == true` and therefore `should_fold() == false`. There is
+      no line within a pure Addition that can exercise the fold-true branch;
+      that requires unchanged context lines, which only single-source
+      Unchanged/Deleted boundaries or the Modified path can supply. The pin
+      test therefore asserts the real, always-false behavior for Added
+      boundaries (proving blank lines still carry an annotation and never
+      fold) rather than fabricating a should-fold-true scenario that doesn't
+      occur on this path.
+    code_impacts: []
+
+  - number: 4
+    title: No new tests for boundary_name extraction, decompose-path identical-unit skipping, or single-unit-range expansion — already pinned
+    rationale: >
+      Checked existing coverage before writing anything (avoiding padding per
+      the sufficient-implementation principle): `name_extractors.rs` already
+      has inline unit tests for fn/struct/enum boundary-name extraction
+      (`test_extract_function_name/struct_name/enum_name`);
+      `bug_decompose_path_unchanged_units.rs` already asserts identical-content
+      sibling units are excluded from the decompose path's output; every
+      existing bug/anchor test that drives a single-function range already
+      implicitly proves the expand path returns exactly that unit
+      (`diffs.len() == 1`). Adding parallel tests for these would be
+      duplicate coverage, not a new pin.
+    code_impacts: []
+
+  - number: 5
+    title: bugs.md cross-referenced with the plan phase (or scope decision) that resolves each filed bug
+    rationale: >
+      12 bugs are filed; only 5 are the roadmap's headline Phase-0 list. Added
+      a one-line "Plan" pointer to all 12 entries so a reader of bugs.md alone
+      knows which phase fixes each one, and — for
+      `bug_mixed_line_number_coordinate_systems.rs` — that it is explicitly
+      out of scope (decision D012: coordinate-frame unification is a
+      TUI-affecting behavior change needing its own plan). Documentation only,
+      no test or production changes.
+    code_impacts: []
