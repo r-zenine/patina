@@ -134,7 +134,7 @@ the `str::lines().count()` undercount.
 
 ---
 
-## ✅ Fixed (Python, TypeScript): Class Bodies Have No Semantic Children — Methods Invisible to Range Lookup
+## ✅ Fixed (all 8 languages): Class Bodies Have No Semantic Children — Methods Invisible to Range Lookup
 
 **Issue (historical)**: `GenericSemanticTreeBuilder::build_data_structure` never collected
 children, so for class-based languages every method inside a class was absent from the
@@ -143,27 +143,37 @@ Module containers that recurse. The unused `container_body_field` descriptor hoo
 to fix exactly this.
 
 **Impact (historical)**:
-- A range over one Python/TypeScript method resolved to the entire class —
-  one-method changes produced whole-class diffs, defeating step-by-step review
+- A range over one method resolved to the entire class — one-method changes produced
+  whole-class diffs, defeating step-by-step review
 
-**Affected Languages**: Python, TypeScript (fixed this phase) — JavaScript, Java, C++ still
-affected, tracked for Phase 6
+**Affected Languages**: Python, TypeScript (Phase 5); JavaScript, Java, C++ (Phase 6). C has
+no methods (structs are fields-only) — unaffected, verified by regression test. Go has no
+class bodies (methods are top-level with a receiver) — unaffected, verified in Phase 5.
 
 **Test Location**: `tests/bug_class_bodies_have_no_semantic_children.rs`
 - `range_over_python_method_resolves_to_method_not_class()` — [PASSING] ✅
 - `tests/container_recursion_core_languages.rs` —
   `typescript_method_inside_class_resolves_to_method_not_class()` — [PASSING] ✅
+- `tests/container_recursion_remaining_languages.rs` —
+  `javascript_method_inside_class_resolves_to_method_not_class()`,
+  `java_method_inside_class_resolves_to_method_not_class()`,
+  `cpp_method_inside_class_resolves_to_method_not_class()`,
+  `cpp_function_inside_namespace_resolves_to_function_not_namespace()` — [PASSING] ✅
 
 **Fixed by**: `plan-core-hardening` Phase 5 — `build_data_structure` now recurses into the
-container body via `container_body_field` (wired for Python's `class_definition` and
-TypeScript's `class_declaration`/`interface_declaration`), passing the data structure's own
-qualified path as `parent_context` for its members. The decompose-path trigger in
-`decision_based_diff.rs` (previously hardcoded to `Module` only) now also recognizes a
-`DataStructure` with populated children as a recursable container
-(`is_recursable_container`) — without this, classes would build children but the range
-lookup would still resolve to the whole class. A childless `DataStructure` (Rust struct/enum,
-Go struct/interface — kinds that don't wire `container_body_field`) is unaffected, preserving
-existing single-unit expand behavior exactly.
+container body via `container_body_field`, passing the data structure's own qualified path
+as `parent_context` for its members. The decompose-path trigger in `decision_based_diff.rs`
+(previously hardcoded to `Module` only) now also recognizes a `DataStructure` with populated
+children as a recursable container (`is_recursable_container`) — without this, classes would
+build children but the range lookup would still resolve to the whole class. A childless
+`DataStructure` (Rust struct/enum, Go struct/interface — kinds that don't wire
+`container_body_field`) is unaffected, preserving existing single-unit expand behavior
+exactly. Phase 6 wires the same mechanism for JavaScript (`class_declaration`), Java
+(`class_declaration`/`interface_declaration`/`enum_declaration`), and C++
+(`class_specifier`/`struct_specifier`, newly classified as `Struct` alongside the pre-existing
+`Class`, plus `namespace_definition` newly classified as `Module` — previously C++ namespaces
+fell through to an unclassified `Unknown`-wrapper fallback that worked by accident for the
+expand path but not for decompose). C is verified unaffected (no methods to hide).
 
 **Plan**: `plan-core-hardening` Phase 6 (remaining 4 languages: JavaScript, Java, C, C++).
 

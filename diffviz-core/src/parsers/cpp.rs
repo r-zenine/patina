@@ -17,6 +17,8 @@ static CPP_SEMANTIC_KIND_MAP: &[(&str, SemanticNodeKind)] = &[
     // ── Construction kinds ────────────────────────────────────────────────
     ("function_definition", SemanticNodeKind::Function),
     ("class_specifier", SemanticNodeKind::Class),
+    ("struct_specifier", SemanticNodeKind::Struct),
+    ("namespace_definition", SemanticNodeKind::Module),
     // ── Classification-only: signature components ─────────────────────────
     ("parameter_list", SemanticNodeKind::SignatureComponent),
     (
@@ -99,8 +101,11 @@ impl LanguageDescriptor for CppDescriptor {
         CPP_TRIVIAL_KINDS
     }
 
-    fn container_body_field(&self, _kind: &str) -> Option<&'static str> {
-        None
+    fn container_body_field(&self, kind: &str) -> Option<&'static str> {
+        match kind {
+            "namespace_definition" | "class_specifier" | "struct_specifier" => Some("body"),
+            _ => None,
+        }
     }
 
     fn metadata_kind(&self) -> Option<&'static str> {
