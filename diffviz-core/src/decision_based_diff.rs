@@ -27,11 +27,11 @@ use tree_sitter::Node;
 /// Errors that can occur during decision-based diff creation
 #[derive(Debug, Error)]
 pub enum DecisionDiffError {
-    #[error("Failed to parse source code: {0}")]
-    ParseError(String),
+    #[error("Failed to parse source code")]
+    ParseError(#[source] crate::common::ASTError),
 
-    #[error("Failed to build semantic tree: {0}")]
-    SemanticError(String),
+    #[error("Failed to build semantic tree")]
+    SemanticError(#[source] crate::semantic_ast::SemanticError),
 
     #[error("Target range {start_line}-{end_line} is invalid")]
     InvalidRange { start_line: usize, end_line: usize },
@@ -57,8 +57,6 @@ pub enum DecisionDiffError {
 pub enum ChangeClassification {
     /// Unit exists only in new file
     Addition,
-    /// Unit exists only in old file
-    Deletion,
     /// Unit exists in both files (may have content changes)
     Modification,
 }
@@ -254,13 +252,6 @@ fn build_reviewable_diff_from_unit_with_data(
             let unit = context.new_unit.expect("Addition must have new_unit");
             create_addition_diff(unit, context.parser, new_source_text, context.start_time)
         }
-        ChangeClassification::Deletion => {
-            // For deletion, we would need the old_unit, but we're not supporting this path
-            // in the current implementation. This would require holding a reference to the old tree.
-            // For now, create from new_unit marked as deleted
-            let unit = context.new_unit.expect("Deletion must have new_unit");
-            create_deletion_diff(unit, context.parser, new_source_text, context.start_time)
-        }
         ChangeClassification::Modification => {
             let new = context.new_unit.expect("Modification must have new_unit");
             let old = context
@@ -298,38 +289,6 @@ fn create_addition_diff(
         node_type: get_unit_type_name(&unit.unit_type).to_string(),
         semantic_kind,
         change_status: NodeChangeStatus::Added {
-            node: OwnedNodeData::with_identifier(&unit.tree_sitter_node, unit.identifier.clone()),
-        },
-        relevance: calculate_relevance(&unit.unit_type),
-        children: build_child_nodes_with_context(&unit.tree_sitter_node, parser, source),
-    };
-
-    let mut change_summary = HashMap::new();
-    change_summary.insert(ASTChangeType::Structural, 1);
-
-    let metadata = DiffMetadata {
-        total_changes: 1,
-        change_summary,
-        essential_node_count: count_essential_nodes(&boundary),
-        analysis_duration_ms: start_time.elapsed().as_millis() as u64,
-    };
-
-    (boundary, metadata)
-}
-
-/// Helper: Create diff for deleted unit
-fn create_deletion_diff(
-    unit: &SemanticNode,
-    parser: &dyn LanguageParser,
-    source: &str,
-    start_time: Instant,
-) -> (DiffNode, DiffMetadata) {
-    let semantic_kind = unit_type_to_semantic_kind(&unit.unit_type);
-
-    let boundary = DiffNode {
-        node_type: get_unit_type_name(&unit.unit_type).to_string(),
-        semantic_kind,
-        change_status: NodeChangeStatus::Deleted {
             node: OwnedNodeData::with_identifier(&unit.tree_sitter_node, unit.identifier.clone()),
         },
         relevance: calculate_relevance(&unit.unit_type),
@@ -523,13 +482,11 @@ pub fn create_reviewable_diff_from_range(
 
     let new_ast = parser
         .try_parse(new_source_str)
-        .map_err(|e| DecisionDiffError::ParseError(format!("Failed to parse new file: {e}")))?;
+        .map_err(DecisionDiffError::ParseError)?;
 
     let new_tree = parser
         .build_semantic_tree(&new_ast, new_source_str)
-        .map_err(|e| {
-            DecisionDiffError::SemanticError(format!("Failed to build new semantic tree: {e}"))
-        })?;
+        .map_err(DecisionDiffError::SemanticError)?;
 
     let start_byte = line_to_byte_offset(
         new_tree.root.tree_sitter_node,
@@ -582,16 +539,12 @@ pub fn create_reviewable_diff_from_range(
         // Look up old counterparts for all contained units in one pass while old_tree is alive
         let old_nodes: Vec<Option<OwnedNodeData>> = if let Some(old_source_provider) = old_source {
             let old_source_str = old_source_provider.full_source();
-            let old_ast = parser.try_parse(old_source_str).map_err(|e| {
-                DecisionDiffError::ParseError(format!("Failed to parse old file: {e}"))
-            })?;
+            let old_ast = parser
+                .try_parse(old_source_str)
+                .map_err(DecisionDiffError::ParseError)?;
             let old_tree = parser
                 .build_semantic_tree(&old_ast, old_source_str)
-                .map_err(|e| {
-                    DecisionDiffError::SemanticError(format!(
-                        "Failed to build old semantic tree: {e}"
-                    ))
-                })?;
+                .map_err(DecisionDiffError::SemanticError)?;
             contained
                 .iter()
                 .map(|unit| {
@@ -663,12 +616,10 @@ pub fn create_reviewable_diff_from_range(
         let old_source_str = old_source_provider.full_source();
         let old_ast = parser
             .try_parse(old_source_str)
-            .map_err(|e| DecisionDiffError::ParseError(format!("Failed to parse old file: {e}")))?;
+            .map_err(DecisionDiffError::ParseError)?;
         let old_tree = parser
             .build_semantic_tree(&old_ast, old_source_str)
-            .map_err(|e| {
-                DecisionDiffError::SemanticError(format!("Failed to build old semantic tree: {e}"))
-            })?;
+            .map_err(DecisionDiffError::SemanticError)?;
         find_semantic_unit_by_name(
             &old_tree,
             old_source_str,
@@ -713,7 +664,6 @@ mod tests {
     fn test_change_classification_enum() {
         // Test that ChangeClassification enum is properly defined
         assert_eq!(format!("{:?}", ChangeClassification::Addition), "Addition");
-        assert_eq!(format!("{:?}", ChangeClassification::Deletion), "Deletion");
         assert_eq!(
             format!("{:?}", ChangeClassification::Modification),
             "Modification"

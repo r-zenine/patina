@@ -163,28 +163,27 @@ from real line offsets instead of `+1 for newline`).
 
 ---
 
-## 🐛 Bug: Deleted Boundaries Read the Wrong Source
+## ✅ Fixed: Deleted Boundaries Read the Wrong Source
 
 **Issue**: `extract_boundary_name` (name_extractors.rs) and the `overall_line_range`
 computation in `RenderableDiff::try_from` always read `new_source`, even for `Deleted`
-boundaries whose byte ranges belong to the old file. `line_utils` handles this correctly
-via `get_display_node_with_source`; the other two call sites don't. Currently a landmine —
-`ChangeClassification::Deletion` is never constructed by the production path — but any
-code building a Deleted boundary gets a garbage name and nonsense line range.
+boundaries whose byte ranges belong to the old file. `line_utils` handled this correctly
+via `get_display_node_with_source`; the other two call sites didn't.
 
-**Impact**:
-- Deleted function renders with fallback name ("function") instead of its actual name
+**Impact (historical)**:
+- Deleted function rendered with fallback name ("function") instead of its actual name
 - `overall_line_range` computed against the wrong file
 
 **Affected Languages**: All
 
 **Test Location**: `tests/bug_deleted_boundary_reads_new_source.rs`
-- `deleted_function_boundary_name_comes_from_old_source()` — [FAILING, #[ignore]] 🐛
+- `deleted_function_boundary_name_comes_from_old_source()` — [PASSING] ✅
 
-**Plan**: `plan-core-hardening` Phase 1 (decision D009) — deleting the unreachable
-`Deletion` classification path removes the landmine; the `get_display_node`
-consolidation onto `NodeChangeStatus` keeps `line_utils`'s source-aware variant
-(the one that gets Deleted right) as the sole implementation.
+**Fixed by**: `plan-core-hardening` Phase 1 (decision D009) — the `get_display_node`
+consolidation onto `NodeChangeStatus::display_node_with_source` made every call site
+(line_utils, name_extractors, mod.rs's `overall_line_range`) use the correct
+Deleted-aware source; the unreachable `ChangeClassification::Deletion` path was
+deleted in the same phase.
 
 ---
 
@@ -210,23 +209,22 @@ fix, and needs its own plan with `diffviz-review` involvement. Left filed and
 
 ---
 
-## 🐛 Bug: Callable parameter_count Counts Comma Tokens
+## ✅ Fixed: Callable parameter_count Counted Comma Tokens
 
-**Issue**: `build_callable` computes `parameters_node.child_count() - 2`, which removes the
-parens but counts `,` separators. `fn f(a: i32, b: i32)` reports parameter_count = 3.
+**Issue**: `build_callable` computed `parameters_node.child_count() - 2`, which removed the
+parens but counted `,` separators. `fn f(a: i32, b: i32)` reported parameter_count = 3.
 
-**Impact**:
-- Wrong metadata on every multi-parameter Callable (harmless today only because both
-  sides of comparisons are computed the same wrong way)
+**Impact (historical)**:
+- Wrong metadata on every multi-parameter Callable (harmless in practice only because both
+  sides of comparisons were computed the same wrong way)
 
 **Affected Languages**: All
 
 **Test Location**: `tests/bug_parameter_count_includes_commas.rs`
-- `two_parameter_function_reports_parameter_count_two()` — [FAILING, #[ignore]] 🐛
+- `two_parameter_function_reports_parameter_count_two()` — [PASSING] ✅
 
-**Suggested Fix**: Use `named_child_count()`.
-
-**Plan**: `plan-core-hardening` Phase 1 (micro-simplification).
+**Fixed by**: `plan-core-hardening` Phase 1 (micro-simplification) — switched to
+`named_child_count()`.
 
 ---
 

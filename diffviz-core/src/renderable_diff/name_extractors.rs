@@ -1,16 +1,16 @@
 //! Utilities for extracting readable names from AST nodes
 
-use crate::{
-    common::SemanticNodeKind,
-    reviewable_diff::{NodeChangeStatus, ReviewableDiff},
-};
+use crate::{common::SemanticNodeKind, reviewable_diff::ReviewableDiff};
 
 /// Extract a readable name for the boundary
 pub fn extract_boundary_name(reviewable: &ReviewableDiff) -> String {
-    let display_node =
-        get_display_node(&reviewable.boundary.change_status).expect("Should have display node");
+    let (display_node, source_provider) =
+        reviewable.boundary.change_status.display_node_with_source(
+            reviewable.old_source.as_ref(),
+            reviewable.new_source.as_ref(),
+        );
 
-    if let Ok(source_text) = reviewable.new_source.node_text(display_node) {
+    if let Ok(source_text) = source_provider.node_text(display_node) {
         let first_line = source_text.lines().next().unwrap_or("").trim();
 
         match reviewable.boundary.semantic_kind {
@@ -76,16 +76,6 @@ fn extract_enum_name(line: &str) -> Option<String> {
         }
     }
     None
-}
-
-/// Get the display node from a NodeChangeStatus (helper function)
-fn get_display_node(change_status: &NodeChangeStatus) -> Option<&crate::ast_diff::OwnedNodeData> {
-    match change_status {
-        NodeChangeStatus::Unchanged { node, .. } => Some(node),
-        NodeChangeStatus::Added { node, .. } => Some(node),
-        NodeChangeStatus::Deleted { node, .. } => Some(node),
-        NodeChangeStatus::Modified { new_node, .. } => Some(new_node),
-    }
 }
 
 #[cfg(test)]

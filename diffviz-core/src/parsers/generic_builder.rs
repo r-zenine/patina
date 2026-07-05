@@ -199,9 +199,7 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
         let return_type_node = node.child_by_field_name("return_type");
         let type_parameters = node.child_by_field_name("type_parameters");
 
-        let parameter_count = parameters_node
-            .map(|p| p.child_count().saturating_sub(2))
-            .unwrap_or(0);
+        let parameter_count = parameters_node.map(|p| p.named_child_count()).unwrap_or(0);
 
         let return_type = return_type_node
             .and_then(|n| n.utf8_text(source.as_bytes()).ok())

@@ -24,9 +24,6 @@ pub struct SemanticTree<'a> {
 
     /// Programming language this tree represents
     pub language: ProgrammingLanguage,
-
-    /// Mapping from semantic nodes back to source ranges
-    pub source_ranges: Vec<SourceRange>,
 }
 
 /// Represents a metadata node (attribute, decorator, annotation) and its position
@@ -222,11 +219,7 @@ pub struct SourceRange {
 impl<'a> SemanticTree<'a> {
     /// Create a new semantic tree
     pub fn new(root: SemanticNode<'a>, language: ProgrammingLanguage) -> Self {
-        Self {
-            root,
-            language,
-            source_ranges: Vec::new(),
-        }
+        Self { root, language }
     }
 
     /// Get all semantic units in the tree (flattened) - NO FILTERING for exhaustive coverage
@@ -248,81 +241,6 @@ impl<'a> SemanticTree<'a> {
         for child in &node.children {
             Self::collect_all_units(child, units);
         }
-    }
-
-    /// Get filtered semantic units for UI display (maintains existing filtering behavior)
-    /// Excludes root nodes and applies size/type filtering to prevent oversized ReviewableDiffs
-    pub fn filtered_units(&'a self) -> Vec<&'a SemanticNode<'a>> {
-        let mut units = Vec::new();
-
-        // Start with root's children, excluding the root itself to avoid full-file diffs
-        for child in &self.root.children {
-            self.collect_filtered_units(child, &mut units, false);
-        }
-
-        units
-    }
-
-    /// Recursively collect semantic units with filtering rules
-    fn collect_filtered_units(
-        &self,
-        node: &'a SemanticNode<'a>,
-        units: &mut Vec<&'a SemanticNode<'a>>,
-        _is_root_call: bool,
-    ) {
-        // Apply filtering rules to prevent problematic ReviewableDiffs
-        if self.should_include_unit(node) {
-            units.push(node);
-        }
-
-        // Continue recursion through children
-        for child in &node.children {
-            self.collect_filtered_units(child, units, false);
-        }
-    }
-
-    /// Determine if a semantic unit should be included based on filtering rules
-    fn should_include_unit(&self, node: &'a SemanticNode<'a>) -> bool {
-        // Rule 1: Size filtering with type-specific thresholds
-        let node_size = self.estimate_node_size(node);
-
-        match &node.unit_type {
-            // Imports can be small but meaningful - allow 1+ lines, max 10
-            SemanticUnitType::Import { .. } => (1..=10).contains(&node_size),
-
-            // Exclude module-level nodes that represent entire files
-            SemanticUnitType::Module { module_type, .. } => {
-                !matches!(module_type, ModuleType::File)
-            }
-
-            // Other semantic constructs use original size thresholds
-            SemanticUnitType::Callable { .. }
-            | SemanticUnitType::DataStructure { .. }
-            | SemanticUnitType::Variable { .. } => (3..=50).contains(&node_size),
-
-            // Unknown nodes are filtered like other constructs for now
-            // TODO: Consider if we want different filtering for unknown nodes
-            SemanticUnitType::Unknown { .. } => {
-                (1..=50).contains(&node_size) // Slightly more lenient
-            }
-        }
-    }
-
-    /// Estimate the size of a semantic unit in lines
-    fn estimate_node_size(&self, node: &'a SemanticNode<'a>) -> usize {
-        let start_line = node.tree_sitter_node.start_position().row;
-        let end_line = node.tree_sitter_node.end_position().row;
-
-        // Add 1 because tree-sitter uses 0-based line numbers
-        end_line.saturating_sub(start_line) + 1
-    }
-
-    /// Find all units of a specific type
-    pub fn find_units_by_type(&'a self, unit_type: &str) -> Vec<&'a SemanticNode<'a>> {
-        self.all_units()
-            .into_iter()
-            .filter(|unit| unit.unit_type_name() == unit_type)
-            .collect()
     }
 }
 
@@ -413,244 +331,30 @@ impl<'a> SemanticNode<'a> {
             end_line: end_node.end_position().row + 1,
         }
     }
-
-    /// Check if this unit can be meaningfully paired with another unit
-    pub fn can_pair_with(
-        &self,
-        other: &SemanticNode,
-        old_source: &dyn crate::ast_diff::SourceProvider,
-        new_source: &dyn crate::ast_diff::SourceProvider,
-    ) -> bool {
-        // Must be same unit type to be pairable
-        if self.unit_type_name() != other.unit_type_name() {
-            return false;
-        }
-
-        // Special handling for Import units - they should be paired based on their full content
-        if let (
-            SemanticUnitType::Import {
-                source_module: old_mod,
-                imported_items: old_items,
-                ..
-            },
-            SemanticUnitType::Import {
-                source_module: new_mod,
-                imported_items: new_items,
-                ..
-            },
-        ) = (&self.unit_type, &other.unit_type)
-        {
-            return old_mod == new_mod && old_items == new_items;
-        }
-
-        // For other units, must have the same name to be pairable
-        let old_name = self
-            .name_node
-            .and_then(|node| old_source.node_text(&node).ok());
-        let new_name = other
-            .name_node
-            .and_then(|node| new_source.node_text(&node).ok());
-
-        match (old_name, new_name) {
-            (Some(old), Some(new)) => old == new,
-            // If either doesn't have a name, they can't be paired
-            _ => false,
-        }
-    }
-
-    /// Check if this semantic node is structurally identical to another
-    /// This performs a deep comparison of the semantic structure without expensive text parsing
-    pub fn is_semantically_identical(
-        &self,
-        other: &SemanticNode,
-        old_source: &dyn crate::ast_diff::SourceProvider,
-        new_source: &dyn crate::ast_diff::SourceProvider,
-    ) -> bool {
-        // Must have the same semantic unit type (discriminant comparison)
-        if std::mem::discriminant(&self.unit_type) != std::mem::discriminant(&other.unit_type) {
-            return false;
-        }
-
-        // Must have the same name
-        let self_name = self
-            .name_node
-            .and_then(|node| old_source.node_text(&node).ok());
-        let other_name = other
-            .name_node
-            .and_then(|node| new_source.node_text(&node).ok());
-
-        if self_name != other_name {
-            return false;
-        }
-
-        // Must have the same number of children
-        if self.children.len() != other.children.len() {
-            return false;
-        }
-
-        // Must have the same number of metadata nodes
-        if self.metadata_nodes.len() != other.metadata_nodes.len() {
-            return false;
-        }
-
-        // Recursively check all children are identical
-        for (self_child, other_child) in self.children.iter().zip(other.children.iter()) {
-            if !self_child.is_semantically_identical(other_child, old_source, new_source) {
-                return false;
-            }
-        }
-
-        // Check metadata nodes are identical
-        for (self_meta, other_meta) in self.metadata_nodes.iter().zip(other.metadata_nodes.iter()) {
-            // Compare metadata positions
-            if self_meta.position != other_meta.position {
-                return false;
-            }
-
-            // Compare metadata text content
-            let self_meta_text = old_source.node_text(&self_meta.node).ok();
-            let other_meta_text = new_source.node_text(&other_meta.node).ok();
-            if self_meta_text != other_meta_text {
-                return false;
-            }
-        }
-
-        // For detailed unit type comparison, we need to check the specific fields
-        self.unit_types_are_identical(&other.unit_type, old_source, new_source)
-    }
-
-    /// Compare the detailed fields of two semantic unit types
-    fn unit_types_are_identical(
-        &self,
-        other_unit_type: &SemanticUnitType,
-        old_source: &dyn crate::ast_diff::SourceProvider,
-        new_source: &dyn crate::ast_diff::SourceProvider,
-    ) -> bool {
-        use SemanticUnitType::*;
-
-        match (&self.unit_type, other_unit_type) {
-            (
-                Callable {
-                    is_generic: self_generic,
-                    parameter_count: self_params,
-                    return_type: self_ret,
-                    is_async: self_async,
-                    visibility: self_vis,
-                    is_method: self_method,
-                    signature_node: self_sig,
-                    ..
-                },
-                Callable {
-                    is_generic: other_generic,
-                    parameter_count: other_params,
-                    return_type: other_ret,
-                    is_async: other_async,
-                    visibility: other_vis,
-                    is_method: other_method,
-                    signature_node: other_sig,
-                    ..
-                },
-            ) => {
-                self_generic == other_generic
-                    && self_params == other_params
-                    && self_ret == other_ret
-                    && self_async == other_async
-                    && self_vis == other_vis
-                    && self_method == other_method
-                    && self.compare_optional_nodes(*self_sig, *other_sig, old_source, new_source)
-            }
-            (
-                DataStructure {
-                    is_generic: self_generic,
-                    field_count: self_fields,
-                    visibility: self_vis,
-                    signature_node: self_sig,
-                    metadata: self_meta,
-                    ..
-                },
-                DataStructure {
-                    is_generic: other_generic,
-                    field_count: other_fields,
-                    visibility: other_vis,
-                    signature_node: other_sig,
-                    metadata: other_meta,
-                    ..
-                },
-            ) => {
-                self_generic == other_generic
-                    && self_fields == other_fields
-                    && self_vis == other_vis
-                    && self_meta == other_meta
-                    && self.compare_optional_nodes(*self_sig, *other_sig, old_source, new_source)
-            }
-            // For other unit types, we rely on discriminant comparison
-            // which we already checked above
-            _ => true,
-        }
-    }
-
-    /// Helper to compare optional TreeSitter nodes
-    fn compare_optional_nodes(
-        &self,
-        self_node: Option<tree_sitter::Node>,
-        other_node: Option<tree_sitter::Node>,
-        old_source: &dyn crate::ast_diff::SourceProvider,
-        new_source: &dyn crate::ast_diff::SourceProvider,
-    ) -> bool {
-        match (self_node, other_node) {
-            (Some(self_n), Some(other_n)) => {
-                let self_text = old_source.node_text(&self_n).ok();
-                let other_text = new_source.node_text(&other_n).ok();
-                self_text == other_text
-            }
-            (None, None) => true,
-            _ => false, // One has node, other doesn't
-        }
-    }
 }
 
 /// Errors that can occur during semantic AST operations
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum SemanticError {
     /// Attempting to compare trees from different programming languages
+    #[error("Cannot compare semantic trees from different languages: {old:?} vs {new:?}")]
     LanguageMismatch {
         old: ProgrammingLanguage,
         new: ProgrammingLanguage,
     },
 
     /// Error during semantic tree construction
+    #[error("Semantic tree build error: {0}")]
     TreeBuildError(String),
 
     /// Language not supported for semantic tree building
+    #[error("Unsupported language: {0}")]
     UnsupportedLanguage(String),
 
     /// Error during similarity calculation
+    #[error("Similarity calculation error: {0}")]
     SimilarityError(String),
 }
-
-impl std::fmt::Display for SemanticError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            SemanticError::LanguageMismatch { old, new } => {
-                write!(
-                    f,
-                    "Cannot compare semantic trees from different languages: {old:?} vs {new:?}"
-                )
-            }
-            SemanticError::TreeBuildError(msg) => {
-                write!(f, "Semantic tree build error: {msg}")
-            }
-            SemanticError::UnsupportedLanguage(msg) => {
-                write!(f, "Unsupported language: {msg}")
-            }
-            SemanticError::SimilarityError(msg) => {
-                write!(f, "Similarity calculation error: {msg}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for SemanticError {}
 
 #[cfg(test)]
 mod tests {
@@ -739,41 +443,6 @@ mod tests {
         let semantic_tree = SemanticTree::new(module_unit, ProgrammingLanguage::Rust);
         assert_eq!(semantic_tree.language, ProgrammingLanguage::Rust);
         assert_eq!(semantic_tree.all_units().len(), 2); // Should find the module root + function child
-    }
-
-    #[test]
-    fn test_all_units_vs_filtered_units() {
-        use crate::parsers::RustParser;
-        use tree_sitter::Parser;
-
-        let parser_impl = RustParser::new();
-        let mut ts_parser = Parser::new();
-        ts_parser.set_language(&parser_impl.get_language()).unwrap();
-
-        let code = "fn test() { let x = 1; }";
-        let tree = ts_parser.parse(code, None).unwrap();
-        let semantic_tree = parser_impl.build_semantic_tree(&tree, code).unwrap();
-
-        let all_units = semantic_tree.all_units();
-        let filtered_units = semantic_tree.filtered_units();
-
-        // all_units should return more nodes than filtered_units
-        assert!(
-            all_units.len() >= filtered_units.len(),
-            "all_units ({}) should be >= filtered_units ({})",
-            all_units.len(),
-            filtered_units.len()
-        );
-
-        // all_units should include the root node
-        assert!(
-            all_units
-                .iter()
-                .any(|node| matches!(node.unit_type, SemanticUnitType::Module { .. }))
-        );
-
-        println!("All units: {}", all_units.len());
-        println!("Filtered units: {}", filtered_units.len());
     }
 
     #[test]

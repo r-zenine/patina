@@ -68,6 +68,36 @@ pub enum NodeChangeStatus {
     },
 }
 
+impl NodeChangeStatus {
+    /// Get the display node from a NodeChangeStatus, ignoring source correctness.
+    /// Prefer `display_node_with_source` when the change status may be `Deleted`
+    /// (its byte ranges belong to `old_source`, not `new_source`).
+    pub fn display_node(&self) -> &OwnedNodeData {
+        match self {
+            NodeChangeStatus::Unchanged { node } => node,
+            NodeChangeStatus::Added { node } => node,
+            NodeChangeStatus::Deleted { node } => node,
+            NodeChangeStatus::Modified { new_node, .. } => new_node,
+        }
+    }
+
+    /// Get the display node together with the source provider it belongs to.
+    /// `Deleted` nodes are backed by `old_source`; every other variant is backed
+    /// by `new_source`.
+    pub fn display_node_with_source<'a>(
+        &'a self,
+        old_source: &'a dyn SourceProvider,
+        new_source: &'a dyn SourceProvider,
+    ) -> (&'a OwnedNodeData, &'a dyn SourceProvider) {
+        match self {
+            NodeChangeStatus::Unchanged { node } => (node, new_source),
+            NodeChangeStatus::Added { node } => (node, new_source),
+            NodeChangeStatus::Deleted { node } => (node, old_source),
+            NodeChangeStatus::Modified { new_node, .. } => (new_node, new_source),
+        }
+    }
+}
+
 /// Metadata about the diff for UI feedback and statistics
 #[derive(Clone)]
 pub struct DiffMetadata {

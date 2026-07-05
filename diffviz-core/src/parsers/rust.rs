@@ -286,23 +286,6 @@ impl LanguageParser for RustParser {
 // we must NOT delegate to `self.0` for that method — the delegation above is
 // intentionally limited to the four methods that have no language-specific logic.
 
-// ── Unused node helper — kept for tree-sitter traversal parity ───────────────
-
-/// Walk `node.children()` looking for `keyword` (including inside
-/// `function_modifiers` children).
-fn _node_has_keyword(node: Node<'_>, keyword: &str) -> bool {
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        if child.kind() == keyword {
-            return true;
-        }
-        if child.kind() == "function_modifiers" && _node_has_keyword(child, keyword) {
-            return true;
-        }
-    }
-    false
-}
-
 // ── Unit tests ────────────────────────────────────────────────────────────────
 
 #[cfg(test)]

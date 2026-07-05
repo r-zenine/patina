@@ -17,7 +17,6 @@ mod bug_parameter_count_includes_commas {
     use diffviz_core::semantic_ast::SemanticUnitType;
 
     #[test]
-    #[ignore = "bug: child_count()-2 counts comma tokens; should be named_child_count()"]
     fn two_parameter_function_reports_parameter_count_two() {
         let parser = RustParser::new();
         let source = "fn f(a: i32, b: i32) -> i32 { a + b }\n";

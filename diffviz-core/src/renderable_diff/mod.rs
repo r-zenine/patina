@@ -114,13 +114,12 @@ fn build_byte_range_annotations(
         node: &crate::reviewable_diff::DiffNode,
         annotations: &mut Vec<ByteRangeAnnotation>,
     ) {
-        // Add annotation for this node if it has a valid node reference
-        if let Some(node_ref) = get_display_node(&node.change_status) {
-            annotations.push(ByteRangeAnnotation {
-                byte_range: (node_ref.start_byte, node_ref.end_byte),
-                relevance: node.relevance,
-            });
-        }
+        // Add annotation for this node
+        let node_ref = node.change_status.display_node();
+        annotations.push(ByteRangeAnnotation {
+            byte_range: (node_ref.start_byte, node_ref.end_byte),
+            relevance: node.relevance,
+        });
 
         // Recurse into children
         for child in &node.children {
@@ -358,32 +357,23 @@ fn create_line_by_line_diff_for_modified<'source>(
     Ok(result_lines)
 }
 
-/// Determine relevance for a line with precedence rule:
-/// - If ANY overlapping annotation is ESSENTIAL, line is ESSENTIAL
-/// - Otherwise, use minimum (most important) relevance
+/// Determine relevance for a line: the minimum (most important) relevance among
+/// annotations overlapping the line. ESSENTIAL == 0 is the domain minimum, so
+/// "ESSENTIAL wins over any other relevance" falls out of `min()` for free.
+///
+/// Lines overlapping no annotation default to ESSENTIAL (decision D011,
+/// plan-core-hardening) — a deliberate choice that prevents such lines from ever
+/// folding in the TUI; do not change this default without a TUI-driven decision.
 fn determine_line_relevance_with_precedence(
     line_byte_range: (usize, usize),
     annotations: &[ByteRangeAnnotation],
 ) -> RelevanceScore {
-    // First pass: check for ESSENTIAL (takes precedence)
-    for ann in annotations {
-        if ann.relevance == ESSENTIAL && ranges_overlap(ann.byte_range, line_byte_range) {
-            return ESSENTIAL;
-        }
-    }
-
-    // Second pass: find minimum (most important) relevance among overlapping annotations
     annotations
         .iter()
-        .filter(|ann| ranges_overlap(ann.byte_range, line_byte_range))
+        .filter(|ann| line_utils::ranges_overlap(ann.byte_range, line_byte_range))
         .map(|ann| ann.relevance)
         .min()
         .unwrap_or(ESSENTIAL)
-}
-
-/// Check if two byte ranges overlap
-fn ranges_overlap(range1: (usize, usize), range2: (usize, usize)) -> bool {
-    range1.0 < range2.1 && range2.0 < range1.1
 }
 
 /// Find the original line content with proper lifetime from the source slices
@@ -435,9 +425,12 @@ impl<'source> TryFrom<&'source ReviewableDiff> for RenderableDiff<'source> {
             .count();
 
         // Calculate overall line range from boundary node
-        let boundary_node = get_display_node(&reviewable.boundary.change_status)
-            .expect("ReviewableDiff should have a valid display node");
-        let overall_line_range = reviewable.new_source.as_ref().line_range(boundary_node);
+        let (boundary_node, boundary_source) =
+            reviewable.boundary.change_status.display_node_with_source(
+                reviewable.old_source.as_ref(),
+                reviewable.new_source.as_ref(),
+            );
+        let overall_line_range = boundary_source.line_range(boundary_node);
 
         // Collect line numbers that have changes
         let changed_line_numbers: Vec<usize> = lines
@@ -544,16 +537,6 @@ impl<'source> RenderableDiff<'source> {
     /// Count the number of lines with changes
     pub fn changed_line_count(&self) -> usize {
         self.metadata.changed_line_numbers.len()
-    }
-}
-
-/// Get the display node from a NodeChangeStatus (legacy function)
-fn get_display_node(change_status: &NodeChangeStatus) -> Option<&crate::ast_diff::OwnedNodeData> {
-    match change_status {
-        NodeChangeStatus::Unchanged { node, .. } => Some(node),
-        NodeChangeStatus::Added { node, .. } => Some(node),
-        NodeChangeStatus::Deleted { node, .. } => Some(node),
-        NodeChangeStatus::Modified { new_node, .. } => Some(new_node),
     }
 }
 

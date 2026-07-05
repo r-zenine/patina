@@ -1,21 +1,18 @@
-//! Bug: Deleted boundaries read the wrong source in name extraction and line ranges
+//! Fixed: Deleted boundaries used to read the wrong source in name extraction and
+//! line ranges.
 //!
 //! `extract_boundary_name` (renderable_diff/name_extractors.rs) and the
-//! `overall_line_range` computation in `RenderableDiff::try_from` always read from
-//! `new_source`, even when the boundary is `Deleted` and its byte ranges belong to the
-//! OLD file. `line_utils::get_display_node_with_source` handles this correctly for
-//! content extraction; the other two call sites don't.
+//! `overall_line_range` computation in `RenderableDiff::try_from` used to always read
+//! from `new_source`, even when the boundary is `Deleted` and its byte ranges belong to
+//! the OLD file. `line_utils` handled this correctly for content extraction; the other
+//! two call sites didn't.
 //!
-//! Currently a landmine rather than a live bug — `ChangeClassification::Deletion` is
-//! never constructed by `create_reviewable_diff_from_range` — but any code path that
-//! builds a Deleted boundary (as the review layer legitimately may) gets a garbage
-//! name and, if the old byte range exceeds the new source, a nonsense line range.
+//! Fixed in `plan-core-hardening` Phase 1: consolidating `get_display_node` onto
+//! `NodeChangeStatus::display_node_with_source` made every call site pick the correct
+//! source for `Deleted` nodes.
 //!
-//! Expected: for a Deleted function boundary, boundary_name is the deleted function's
-//! name, extracted from old_source.
-//!
-//! Actual: node_text against new_source fails (or reads unrelated bytes) and the name
-//! falls back to the debug string of the semantic kind ("function").
+//! Expected (and now actual): for a Deleted function boundary, boundary_name is the
+//! deleted function's name, extracted from old_source.
 
 #[cfg(test)]
 mod bug_deleted_boundary_reads_new_source {
@@ -26,7 +23,6 @@ mod bug_deleted_boundary_reads_new_source {
     use std::collections::HashMap;
 
     #[test]
-    #[ignore = "bug: extract_boundary_name/overall_line_range use new_source for Deleted nodes"]
     fn deleted_function_boundary_name_comes_from_old_source() {
         let old_source = "fn deleted_one() {\n    1;\n}\n";
         let new_source = ""; // the function was deleted; new file is empty
