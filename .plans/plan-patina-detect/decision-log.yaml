@@ -1,0 +1,185 @@
+commit: "[placeholder]"
+decisions:
+  - id: D001
+    title: Execution strategy — TDD, one detector/infra-slice per phase
+    status: accepted
+    rationale: >
+      The spec is unusually precise for a design doc: every detector carries
+      numeric FP-control thresholds (min clone size ~30 nodes, complexity
+      ≥25, Jaccard ≥0.7, ≥3 sites/≥2 files, etc.) and an explicit evidence
+      shape. That precision makes each detector's acceptance criteria a set of
+      assertions before any code is written — TDD's red-green pattern fits
+      directly, and matches this repo's existing convention
+      (plan-core-hardening). Phases are deliberately kept small (1-3 sessions
+      each, ~16 phases total) rather than bundling multiple detectors per
+      phase, per explicit user instruction — small phases keep the "workspace
+      green at every phase boundary" bar cheap across a plan this long.
+    alternatives_considered:
+      - Core-then-Integrate: viable for the lspkit transport layer in
+        isolation, but the detectors themselves are independent verifiable
+        units, not a system that needs standalone-then-wired treatment.
+      - Steel Thread: rejected as the primary strategy — no single end-to-end
+        slice would de-risk requirement uncertainty here, the spec already
+        resolved that. (Phase 3, the TUI bootstrap, is Steel-Thread-shaped in
+        miniature — real findings from 2 detectors driving UI design — but
+        that is a property of one phase, not the whole plan.)
+
+  - id: D002
+    title: Phase 0 — generalize diffviz-tui-contribution into a framework-wide skill
+    status: accepted
+    rationale: >
+      The skill's rejection criteria (pure views, Command system for I/O,
+      registry-only key matching, no direct field access outside state.rs)
+      are framework law, not diffviz-review-tui-specific, but the skill file
+      hardcodes diffviz-review-tui paths and types. Generalizing it first
+      (before any code moves) means the extraction work in the same phase is
+      held to rules that already state they apply to both TUIs, rather than
+      writing the rules after the fact.
+    consequences:
+      - New skill (name TBD at implementation time, e.g.
+        tui-framework-contribution) supersedes diffviz-tui-contribution as
+        the mandatory skill for both diffviz-review-tui and
+        patina-detect-tui.
+
+  - id: D003
+    title: Phase 0 — extraction scope is narrower than the spec implies
+    status: accepted
+    rationale: >
+      Working-tree audit (2026-07-05) found tui-harness/tui-elm/tui-design
+      already exist as separate libs, and diffviz-review-tui already depends
+      on them — the low-level framework split (registry, leader state,
+      which-key/help logic in tui-elm; card/scroll/theme in tui-design)
+      already happened. What remains domain-coupled: the drillnav pattern
+      (drillnav_browse.rs/drillnav_common.rs/drillnav_drill.rs, coupled to
+      Reviewable/Decision) and the render halves of
+      which_key.rs/help_overlay.rs/status_bar.rs/input_modal.rs (logic
+      already lives in tui-elm, only rendering is stuck in the domain crate).
+      Scoping Phase 0 to exactly this, generalized over a trait rather than
+      Reviewable/Decision types, avoids redoing already-done work.
+    alternatives_considered:
+      - Re-extract the framework from scratch as the spec's "Delivery"
+        section implies: rejected, contradicted by current repo state.
+
+  - id: D004
+    title: lspkit implementation — incremental, method-by-method, gated by detector need
+    status: accepted
+    rationale: >
+      libs/lspkit is a complete skeleton: every method in native.rs is
+      todo!(), and LspClient::start doesn't perform the LSP initialize
+      handshake — no JSON-RPC transport exists. Five of nine detectors (3, 4,
+      6, 7, 9) plus cross-cutting design rule 1 ("tree-sitter surfaces, LSP
+      confirms") depend on it, but not all at once and not on the same
+      methods. Building it incrementally (transport + handshake + one method
+      group per phase, immediately before the detector phase that consumes
+      it) avoids a large upfront infrastructure phase with no detector to
+      validate it against, and keeps each phase's test surface small.
+    alternatives_considered:
+      - One big lspkit phase before any LSP-dependent detector: rejected by
+        user — front-loads the highest-uncertainty, highest-effort piece with
+        no detector present yet to prove the API shape is right.
+    consequences:
+      - lspkit work is spread across Phases 7, 9, 12, 14 (transport+
+        references; call hierarchy; definition+hover; implementations),
+        interleaved with the detector phases that consume each.
+
+  - id: D005
+    title: ast-grep integration — adapter module inside patina-detect, no new crate
+    status: accepted
+    rationale: >
+      ast-grep-core/ast-grep-config/ast-grep-language aren't yet workspace
+      dependencies. Given detector 1 is the only consumer and the spec's own
+      design rule 6 already requires ast-grep's tree-sitter world stay
+      isolated from diffviz-core, a dedicated crate would be pure ceremony —
+      an adapter module inside patina-detect (loading YAML rule packs at
+      runtime, same files usable by the ast-grep CLI in editors/CI) is
+      sufficient isolation.
+    alternatives_considered:
+      - Separate ast-grep-adapter crate: rejected by user as unnecessary
+        given single-consumer status.
+
+  - id: D006
+    title: Audit-mode rendering confirmed working; no diffviz-core prerequisite phase
+    status: accepted
+    rationale: >
+      Spec open question 2 asked whether create_reviewable_diff_from_range()
+      handles "current tree, no old side" (audit mode, not diffed against a
+      commit). Investigation (fork agent, 2026-07-05) confirmed
+      old_source: Option<&dyn SourceProvider> already supports None as a
+      real, tested path — diffviz-core/tests/pin_added_boundary_rendering.rs:
+      17-36 passes None and asserts correct Addition-classified rendering
+      with sequential numbering. No diffviz-core change needed for
+      single-unit audit rendering.
+    consequences:
+      - Caveat carried into Phase 4 (Type-2 clones), not resolved as a
+        separate spike: side-by-side rendering of two independent clone
+        members is a different call shape (two separate new_source calls,
+        neither "old" for the other) than the single-old_source=None case,
+        and isn't covered by the existing test. Phase 4 verifies this with a
+        small fixture test before building clone-group site rendering.
+
+  - id: D007
+    title: Fingerprint design (spec open question 1) — per-detector deliverable, not a separate phase
+    status: accepted
+    rationale: >
+      SymptomId must hash detector id + a normalized fingerprint that
+      survives re-runs/rebases/code-motion — never line numbers. Some
+      fingerprints are obvious (clone group subtree hash), some need real
+      design thought (data clump identity under parameter rename; complexity
+      finding identity when a function is split). Rather than a dedicated
+      "design all fingerprints" phase up front (which would either be
+      premature for detectors not yet built, or duplicate work done again per
+      detector), each detector's own phase must define and test its
+      fingerprint as part of that phase's acceptance criteria. Phase 1 only
+      defines the SymptomId type and the general hashing contract
+      (detector_id + fingerprint bytes -> content-addressed id).
+    consequences:
+      - Every detector phase (2, 4, 5, 6, 8, 10, 11, 13, 15) lists fingerprint
+        design explicitly in its acceptance criteria, not just "detect and
+        report."
+
+  - id: D008
+    title: Instruction cascade (spec open question 3) — deferred, not a blocker
+    status: accepted
+    rationale: >
+      Auto-resolve-vs-confirm semantics for a Fix verdict whose symptom
+      disappears on re-run only matters once patina-detect-tui supports Fix
+      verdicts at all. No phase in this plan is blocked on resolving it now;
+      revisit when the TUI's verdict UI is built out enough to make the UX
+      choice concrete instead of hypothetical.
+
+  - id: D009
+    title: Per-crate binaries, no umbrella "patina" CLI
+    status: accepted
+    rationale: >
+      The spec's command sketch (`patina detect`, `patina triage`,
+      `patina export`) reads as an umbrella CLI, but nothing in the spec's
+      crate list (patina-detect, patina-detect-tui) actually names such a
+      binary, and the existing repo convention is per-crate binaries
+      (diffviz-review-tui ships its own review-tui bin rather than routing
+      through diffviz-cli). Follow that convention: patina-detect ships a
+      binary exposing detect/export subcommands (Phase 2), patina-detect-tui
+      ships its own triage binary (Phase 3). Revisit only if a real need for
+      one unified entry point surfaces.
+    alternatives_considered:
+      - Add detect/triage/export as new diffviz-cli subcommands: rejected,
+        diffviz-cli composes diffviz-review/diffviz-core dependencies
+        specifically; patina-detect explicitly must not depend on
+        diffviz-review.
+
+  - id: D010
+    title: Sequencing after Phase 0/1 — tree-sitter-only detectors first, then interleave lspkit-incremental with its consumers
+    status: accepted
+    rationale: >
+      Follows the spec's own "Sequencing rationale" section directly:
+      ast-grep pack (1) pays off immediately; clones (2) and complexity (5)
+      exercise LanguageDescriptor outside diff-building; data clumps (8) is
+      also tree-sitter-only and slots in as a third quick win before the
+      lspkit-dependent stretch begins. The TUI bootstrap (3) lands right
+      after detector 2, once two detectors' worth of real findings exist to
+      design triage views against — matches the spec's explicit call-out.
+      Remaining detectors follow lspkit's incremental maturity, cheapest-
+      safest method first: references -> dead exports (3); call hierarchy ->
+      middleman delegation (4); near-duplicate structs (6) reuses references
+      with no new lspkit method; definition/hover -> parallel dispatch (7);
+      implementations -> single-impl traits (9), last per the spec's own
+      note that its FP controls (test-double exclusion) rank it last.
