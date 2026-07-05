@@ -1,0 +1,49 @@
+# Third-party crates confirmed (via `cargo tree -i <name>@<version>`) to be
+# resolved at more than one version because of transitive-locked, unrelated
+# dependency trees -- not fixable by changing anything in this workspace
+# without patching or waiting on an upstream crate.
+#
+# `depcheck check-all` skips these names when reporting
+# duplicate-dependency-version. It also warns if an entry here no longer has
+# a duplicate (the fix landed upstream) so the list doesn't rot -- remove it
+# when that happens.
+accepted = [
+  "base64",
+  "bit-set",
+  "bit-vec",
+  "bitflags",
+  "compact_str",
+  "crossterm",
+  "fixedbitset",
+  "foldhash",
+  "getrandom",
+  "hashbrown",
+  "itertools",
+  "linux-raw-sys",
+  "lru",
+  "ordered-float",
+  "quick-error",
+  "r-efi",
+  "rand",
+  "rand_core",
+  "ratatui",
+  "redox_syscall",
+  "rustix",
+  "strum",
+  "strum_macros",
+  "syn",
+  "thiserror",
+  "thiserror-impl",
+  "unicode-truncate",
+  "unicode-width",
+  "windows-sys",
+  "windows-targets",
+  "windows_aarch64_gnullvm",
+  "windows_aarch64_msvc",
+  "windows_i686_gnu",
+  "windows_i686_gnullvm",
+  "windows_i686_msvc",
+  "windows_x86_64_gnu",
+  "windows_x86_64_gnullvm",
+  "windows_x86_64_msvc",
+]

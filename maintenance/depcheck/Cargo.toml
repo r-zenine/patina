@@ -7,6 +7,7 @@ publish = false
 [dependencies]
 guppy = "0.17"
 camino = "1"
+toml = "0.8"
 anyhow = { workspace = true }
 
 [dev-dependencies]

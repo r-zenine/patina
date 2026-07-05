@@ -8,10 +8,10 @@ edition = "2021"
 [dependencies]
 lazy_static = "1.4.0"
 regex = "1.5.5"
-serde = { version = "1.0.136", features = ["derive"] }
-thiserror = "2.0.12"
+serde = { workspace = true }
+thiserror = { workspace = true }
 comma = "1.0.0"
 
 [dev-dependencies]
-serde_yaml = "0.8.23"
+serde_yaml = { workspace = true }
 maplit = "1.0.2"

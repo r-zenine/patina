@@ -9,7 +9,7 @@ sam-persistence = { workspace = true }
 fsutils = { workspace = true }
 sam-settings = { workspace = true }
 termkit = { workspace = true }
-thiserror = "2.0.12"
+thiserror = { workspace = true }
 ratatui = { workspace = true }
 crossterm = { workspace = true }
 tui-harness = { workspace = true }

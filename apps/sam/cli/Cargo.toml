@@ -16,13 +16,13 @@ sam-settings = { workspace = true }
 sam-persistence = { workspace = true }
 termkit = { workspace = true }
 clap = "4.6"
-thiserror = "2.0.12"
+thiserror = { workspace = true }
 termion = "4.0.5"
 toml = "0.8.23"
-serde = { version = "1.0.136", features = ["derive"] }
-dirs = "6.0.0"
+serde = { workspace = true }
+dirs = { workspace = true }
 tmux_interface = "0.3.2"
-log = "0.4.16"
+log = { workspace = true }
 flexi_logger = "0.31.2"
 
 [dev-dependencies]

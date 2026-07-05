@@ -9,8 +9,8 @@ edition = "2021"
 fsutils = { workspace = true }
 sam-core = { workspace = true }
 persistkit = { workspace = true }
-thiserror = "2.0.12"
-serde = { version = "1.0.136", features = ["derive"] }
+thiserror = { workspace = true }
+serde = { workspace = true }
 lazy_static = "1.4.0"
 rustbreak = { version = "2.0.0", features = ["ron_enc"] }
 regex = "1.5.5"

@@ -24,12 +24,16 @@ DiffViz is an LLM-powered code review guide tool that transforms overwhelming co
 - `cargo clippy --workspace` - Lint all workspace crates
 - `cargo clippy --package <crate-name>` - Lint specific crate
 
-### Bounded-Context Dependency Policy
-- `cargo run -p depcheck -- check-deps` - Fails if any crate under `apps/<context>/` depends (directly or transitively) on a crate in a *different* `apps/<context>/`, or if any `libs/*` crate depends on an `apps/*` crate. Run this after adding any new internal dependency. Backed by [cargo-guppy](https://github.com/facebookincubator/cargo-guppy); policy logic lives in `maintenance/depcheck/src/main.rs`.
+### Repo Maintenance Checks (depcheck)
+- `cargo run -p depcheck -- check-all` - Runs all maintenance checks (no fail-fast; all checks run and report together):
+  - `bounded-context-isolation` - a crate under `apps/<context>/` depends (directly or transitively) on a crate in a *different* `apps/<context>/`, or a `libs/*` crate depends on an `apps/*` crate.
+  - `duplicate-dependency-version` - a third-party dependency is resolved at more than one version across the workspace.
+  - `workspace-dependency-drift` - a crate's `Cargo.toml` re-declares its own version for a dependency that's already in root `[workspace.dependencies]` instead of using `{ workspace = true }`.
+  - Run this after adding any new dependency (internal or third-party). Backed by [cargo-guppy](https://github.com/facebookincubator/cargo-guppy); logic lives in `maintenance/depcheck/src/main.rs`.
 
 ### Pre-commit Hook
 - One-time setup per clone: `cargo test -p depcheck` (installs the git hook via `cargo-husky`, a dev-dependency of `maintenance/depcheck`).
-- The hook (`.cargo-husky/hooks/pre-commit`, copied to `.git/hooks/pre-commit`) runs on every `git commit`: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, then `cargo run -p depcheck -- check-deps`. Edit `.cargo-husky/hooks/pre-commit` to change it — the copy in `.git/hooks/` is regenerated automatically next time `depcheck`'s dev-dependencies are built.
+- The hook (`.cargo-husky/hooks/pre-commit`, copied to `.git/hooks/pre-commit`) runs on every `git commit`: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, then `cargo run -p depcheck -- check-all`. Edit `.cargo-husky/hooks/pre-commit` to change it — the copy in `.git/hooks/` is regenerated automatically next time `depcheck`'s dev-dependencies are built.
 
 ## Clean Architecture Structure
 

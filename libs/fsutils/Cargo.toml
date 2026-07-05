@@ -6,5 +6,5 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-thiserror = "2.0.12"
-dirs = "6.0.0"
+thiserror = { workspace = true }
+dirs = { workspace = true }

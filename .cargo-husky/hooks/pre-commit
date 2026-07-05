@@ -7,5 +7,5 @@ cargo fmt --all -- --check
 echo "pre-commit: cargo clippy"
 cargo clippy --workspace --all-targets -- -D warnings
 
-echo "pre-commit: depcheck (bounded-context dependency policy)"
-cargo run -p depcheck -- check-deps
+echo "pre-commit: depcheck (repo maintenance checks)"
+cargo run -p depcheck -- check-all
