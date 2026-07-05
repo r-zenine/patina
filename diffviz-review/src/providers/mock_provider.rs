@@ -94,29 +94,37 @@ impl MockDiffProvider {
         let mut fixtures = HashMap::new();
         let mut changed_files = Vec::new();
 
-        // Load all JSON fixtures from the directory
-        for entry in
-            std::fs::read_dir(&fixture_dir).map_err(|e| MockProviderError::FixtureRead {
+        // Load all JSON fixtures from the directory, in filename order:
+        // read_dir order is filesystem-dependent, and changed_files order
+        // flows into decision/chunk ordering downstream — sorting keeps
+        // fixture-driven runs reproducible across machines and sessions.
+        let mut paths: Vec<PathBuf> = std::fs::read_dir(&fixture_dir)
+            .map_err(|e| MockProviderError::FixtureRead {
                 path: fixture_dir.display().to_string(),
                 source: e,
             })?
-        {
-            let entry = entry.map_err(|e| MockProviderError::FixtureRead {
-                path: fixture_dir.display().to_string(),
-                source: e,
-            })?;
-
-            if entry.path().extension().and_then(|s| s.to_str()) == Some("json") {
-                let content = std::fs::read_to_string(entry.path()).map_err(|e| {
-                    MockProviderError::FixtureRead {
-                        path: entry.path().display().to_string(),
+            .map(|entry| {
+                entry
+                    .map(|e| e.path())
+                    .map_err(|e| MockProviderError::FixtureRead {
+                        path: fixture_dir.display().to_string(),
                         source: e,
-                    }
-                })?;
+                    })
+            })
+            .collect::<Result<_, _>>()?;
+        paths.sort();
+
+        for path in paths {
+            if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                let content =
+                    std::fs::read_to_string(&path).map_err(|e| MockProviderError::FixtureRead {
+                        path: path.display().to_string(),
+                        source: e,
+                    })?;
 
                 let fixture: ReviewFixture = serde_json::from_str(&content).map_err(|e| {
                     MockProviderError::FixtureParse {
-                        path: entry.path().display().to_string(),
+                        path: path.display().to_string(),
                         source: e,
                     }
                 })?;
