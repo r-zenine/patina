@@ -1,0 +1,69 @@
+commit: "d819790"
+
+decisions:
+  - number: 1
+    title: "Unit pairing identity changes from bare name to container-qualified name"
+    rationale: >
+      find_semantic_unit_by_name matched old-tree counterparts by (unit-type
+      discriminant, bare name text) over a flat scan, ignoring container context.
+      impl A { fn get } and impl B { fn get } produced the same match key, so a
+      change to B::get paired against A::get and the rendered diff was fiction
+      (verified bug, tests/bug_same_name_cross_container_pairing.rs). Per decision
+      D007, unit identity becomes (container-qualified name, unit type): a new
+      qualified_match_key helper prefers SemanticNode.qualified_name and falls
+      back to the bare name only for nameless units (source_file, impl-as-module
+      wrappers), preserving the existing (None, None) nameless-match case exactly.
+      Same qualified name + same unit type at the same nesting level (e.g. TS
+      declaration merging) still first-matches — accepted per D007, not fixed here.
+    code_impacts:
+      - file: "diffviz-core/src/decision_based_diff.rs"
+        reasoning: >
+          [Behavioral - Invariant mutation] Old/new unit pairing now requires
+          qualified-name equality, not just bare-name equality. A reviewer must
+          verify no legitimate same-bare-name-different-container pairing that
+          previously "worked" (by accident, on single-container fixtures) is
+          expected to keep matching — it will now correctly NOT match unless the
+          container path is unchanged too.
+        line_ranges:
+          - start: 178
+            end: 224
+
+  - number: 2
+    title: "qualified_name is a new field on SemanticNode/OwnedNodeData, computed from a chained parent_context"
+    rationale: >
+      The builder already threaded the impl target as parent_context: Option<&str>
+      (used only for is_method). Extended build_impl_container and
+      build_module_container to also accept and chain parent_context (so nested
+      containers, e.g. a module containing an impl, compose their paths instead of
+      each starting fresh), and added a qualify(parent_context, name) helper used by
+      build_callable/build_data_structure/build_variable to compute
+      "Type::name"/"mod::name" strings. Mirrored onto OwnedNodeData via a new
+      with_qualified_name builder method (additive, existing with_identifier call
+      sites unaffected) per the roadmap's instruction to carry qualified_name the
+      same way identifier already flows across tree lifetimes.
+    code_impacts:
+      - file: "diffviz-core/src/semantic_ast.rs"
+        reasoning: >
+          [Structural - Core entity shape change] SemanticNode gains a
+          qualified_name: Option<String> field, defaulted to None in the
+          constructor and populated explicitly at three call sites in
+          generic_builder.rs (Callable, DataStructure, Variable) — Module/Import/
+          Unknown units intentionally do not set it, they fall back to bare-name
+          matching via qualified_match_key.
+        line_ranges:
+          - start: 62
+            end: 77
+      - file: "diffviz-core/src/parsers/generic_builder.rs"
+        reasoning: >
+          [Structural - Public API] build_data_structure and build_variable gained
+          a parent_context parameter; build_impl_container and
+          build_module_container gained a parent_context parameter and now chain
+          it into their own qualified path before passing it to children (a
+          behavior change from the prior hardcoded None passed to module-container
+          children — nested modules now compose qualified paths instead of each
+          resetting to no container).
+        line_ranges:
+          - start: 22
+            end: 29
+          - start: 300
+            end: 345
