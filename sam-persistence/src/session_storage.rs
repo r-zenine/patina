@@ -4,8 +4,8 @@ use std::path::Path;
 use std::time::Duration;
 use thiserror::Error;
 
-use crate::associative_state::AssociativeStateWithTTL;
-use crate::associative_state::ErrorAssociativeState;
+use persistkit::AssociativeStateWithTTL;
+use persistkit::ErrorAssociativeState;
 use sam_core::entities::choices::Choice;
 use sam_core::entities::identifiers::Identifier;
 

@@ -5,8 +5,8 @@ use std::time::Duration;
 use std::time::SystemTimeError;
 use thiserror::Error;
 
-use crate::associative_state::AssociativeStateWithTTL;
-use crate::associative_state::ErrorAssociativeState;
+use persistkit::AssociativeStateWithTTL;
+use persistkit::ErrorAssociativeState;
 
 pub trait VarsCache {
     fn put(

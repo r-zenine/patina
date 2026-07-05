@@ -6,8 +6,8 @@ use log::debug;
 use sam_core::engines::{ErrorSamEngine, SamExecutor};
 use sam_core::entities::aliases::ResolvedAlias;
 
-use sam_terminals::processes::ShellCommand;
-use sam_terminals::tmux::{Tmux, TmuxError};
+use termkit::processes::ShellCommand;
+use termkit::tmux::{Tmux, TmuxError};
 
 pub fn make_executor(dry: bool) -> Result<Rc<dyn SamExecutor>, Box<dyn std::error::Error>> {
     if dry {
@@ -71,10 +71,10 @@ impl SamExecutor for TmuxExecutor {
                 debug!("execute_resolved_alias: running command {cmd:?}");
                 t.run_command_in_new_pane(&window_name, command, directory.to_str().unwrap_or("."))
                     .map_err(|err| ErrorSamEngine::ExecutorFailure(Box::new(err)))?;
-                t.set_layout(sam_terminals::tmux::WindowLayout::Tiled, &window_name)
+                t.set_layout(termkit::tmux::WindowLayout::Tiled, &window_name)
                     .map_err(|err| ErrorSamEngine::ExecutorFailure(Box::new(err)))?;
             }
-            t.set_layout(sam_terminals::tmux::WindowLayout::Tiled, &window_name)
+            t.set_layout(termkit::tmux::WindowLayout::Tiled, &window_name)
                 .map_err(|err| ErrorSamEngine::ExecutorFailure(Box::new(err)))?;
             Ok(0)
         }

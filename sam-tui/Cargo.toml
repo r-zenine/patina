@@ -7,8 +7,8 @@ edition = "2021"
 sam-core = { workspace = true }
 sam-persistence = { workspace = true }
 fsutils = { workspace = true }
-sam-readers = { workspace = true }
-sam-terminals = { workspace = true }
+sam-settings = { workspace = true }
+termkit = { workspace = true }
 thiserror = "2.0.12"
 ratatui = { workspace = true }
 crossterm = { workspace = true }

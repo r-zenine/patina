@@ -14,10 +14,10 @@ use sam_persistence::{
     AliasHistory, CacheError, ErrorAliasHistory, NoopVarsCache, RustBreakCache, SessionError,
     VarsCache,
 };
-use sam_readers::read_aliases_from_path;
-use sam_readers::read_vars_repository;
-use sam_readers::ErrorsAliasRead;
-use sam_readers::ErrorsVarRead;
+use sam_settings::read_aliases_from_path;
+use sam_settings::read_vars_repository;
+use sam_settings::ErrorsAliasRead;
+use sam_settings::ErrorsVarRead;
 use sam_tui::{ErrorsUIV2, UserInterfaceV2};
 use std::cell::RefCell;
 use std::collections::HashMap;

@@ -1,0 +1,12 @@
+[package]
+name = "persistkit"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+thiserror = { workspace = true }
+serde = { workspace = true }
+rustbreak = { version = "2.0.0", features = ["ron_enc"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }

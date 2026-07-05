@@ -3,10 +3,10 @@ use sam_core::entities::aliases::AliasAndDependencies;
 use sam_core::entities::choices::Choice;
 use sam_core::entities::vars::Var;
 use sam_persistence::VarsCache;
-use sam_readers::read_choices;
-use sam_terminals::processes::ShellCommand;
+use sam_settings::read_choices;
 use std::collections::HashMap;
 use std::time::Instant;
+use termkit::processes::ShellCommand;
 
 /// MCP-aware resolver: runs dynamic commands (with caching) and returns all
 /// available choices. For input vars it signals `NoInputWasProvided` so the

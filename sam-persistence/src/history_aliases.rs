@@ -7,7 +7,7 @@ use sam_core::{
     entities::aliases::ResolvedAlias,
 };
 
-use crate::sequential_state::{ErrorSequentialState, SequentialState};
+use persistkit::{ErrorSequentialState, SequentialState};
 
 #[derive(Clone)]
 pub struct AliasHistory {

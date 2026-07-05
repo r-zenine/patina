@@ -36,8 +36,6 @@ where
 use lazy_static::lazy_static;
 use regex::Regex;
 
-use sam_core::entities::aliases::Alias;
-
 lazy_static! {
     static ref ENVVARRE: Regex = Regex::new(r#"\$\{(?P<var>[a-zA-Z0-9_]+)\}"#).unwrap();
 }
@@ -71,18 +69,6 @@ impl From<&'_ str> for ShellCommand<String> {
 impl From<String> for ShellCommand<String> {
     fn from(s: String) -> Self {
         Self::new(s)
-    }
-}
-
-impl From<Alias> for ShellCommand<String> {
-    fn from(alias: Alias) -> Self {
-        ShellCommand::from(alias.alias())
-    }
-}
-
-impl From<&'_ Alias> for ShellCommand<String> {
-    fn from(alias: &Alias) -> Self {
-        ShellCommand::from(alias.alias())
     }
 }
 

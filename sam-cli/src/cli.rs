@@ -3,7 +3,8 @@ use crate::config_engine::ConfigCommand;
 use crate::history_engine::HistoryCommand;
 use crate::session_engine::SessionCommand;
 use crate::HashMap;
-use clap::{App, Arg, ArgMatches, Values};
+use clap::parser::ValuesRef;
+use clap::{Arg, ArgAction, ArgMatches, Command};
 use sam_core::engines::SamCommand;
 use sam_core::entities::choices::Choice;
 use sam_core::entities::identifiers;
@@ -53,21 +54,21 @@ pub struct CLISettings {
     pub default_choices: DefaultChoices,
 }
 
-impl TryFrom<ArgMatches<'_>> for CLISettings {
+impl TryFrom<ArgMatches> for CLISettings {
     type Error = CLIError;
     fn try_from(matches: ArgMatches) -> Result<Self, Self::Error> {
-        let dry = matches.is_present("dry");
-        let silent = matches.is_present("silent");
-        let no_cache = matches.is_present("no-cache");
+        let dry = matches.get_flag("dry");
+        let silent = matches.get_flag("silent");
+        let no_cache = matches.get_flag("no-cache");
 
         let defaults_extractor = |subcommand: &str| {
             matches
                 .subcommand_matches(subcommand)
-                .and_then(|e| e.values_of("choices"))
+                .and_then(|e| e.get_many::<String>("choices"))
         };
 
         let defaults_values = matches
-            .values_of("choices")
+            .get_many::<String>("choices")
             .or_else(|| defaults_extractor("alias"))
             .or_else(|| defaults_extractor("run"));
 
@@ -82,39 +83,45 @@ impl TryFrom<ArgMatches<'_>> for CLISettings {
     }
 }
 
-fn app_init() -> App<'static, 'static> {
-    let arg_choices = Arg::with_name("choices")
-        .short("c")
+fn app_init() -> Command {
+    let arg_choices = Arg::new("choices")
+        .short('c')
         .long("choices")
-        .takes_value(true)
-        .multiple(true)
+        .action(ArgAction::Append)
         .help("provide choices for vars. example '-c ns::var=choice'");
 
-    let arg_dry = Arg::with_name("dry")
+    let arg_dry = Arg::new("dry")
         .long("dry")
-        .short("d")
+        .short('d')
+        .action(ArgAction::SetTrue)
         .help("dry run, don't execute the final command.");
 
-    let arg_silent = Arg::with_name("silent")
+    let arg_silent = Arg::new("silent")
         .long("silent")
-        .short("s")
+        .short('s')
+        .action(ArgAction::SetTrue)
         .help("don't cache the output of `from_command` vars.");
 
-    let arg_no_cache = Arg::with_name("no-cache")
+    let arg_no_cache = Arg::new("no-cache")
         .long("no-cache")
-        .short("-n")
+        .short('n')
+        .action(ArgAction::SetTrue)
         .help("avoid relying of the vars cache.");
 
-    let subc_run = App::new("run")
+    let subc_run = Command::new("run")
         .arg(arg_choices.clone())
         .about(ABOUT_SUB_RUN);
 
-    let subc_interract_history = App::new("history").about(ABOUT_SUB_SHOW_HISTORY);
-    let subc_rerun_last = App::new("run-last").alias("%").about(ABOUT_SUB_RUN_LAST);
-    let subc_show_last = App::new("show-last").alias("s").about(ABOUT_SUB_SHOW_LAST);
-    let subc_alias = App::new("alias")
+    let subc_interract_history = Command::new("history").about(ABOUT_SUB_SHOW_HISTORY);
+    let subc_rerun_last = Command::new("run-last")
+        .alias("%")
+        .about(ABOUT_SUB_RUN_LAST);
+    let subc_show_last = Command::new("show-last")
+        .alias("s")
+        .about(ABOUT_SUB_SHOW_LAST);
+    let subc_alias = Command::new("alias")
         .arg(
-            Arg::with_name("alias")
+            Arg::new("alias")
                 .help("the alias to run.")
                 .required(true)
                 .index(1),
@@ -122,20 +129,20 @@ fn app_init() -> App<'static, 'static> {
         .arg(arg_choices.clone())
         .about(ABOUT_SUB_ALIAS);
 
-    let subc_session_set = App::new("session-set")
+    let subc_session_set = Command::new("session-set")
         .arg(
-            Arg::with_name("variable")
+            Arg::new("variable")
                 .help("the variable assignment in format 'var=value'")
                 .required(true)
                 .index(1),
         )
         .about(ABOUT_SUB_SESSION_SET);
 
-    let subc_session_clear = App::new("session-clear").about(ABOUT_SUB_SESSION_CLEAR);
+    let subc_session_clear = Command::new("session-clear").about(ABOUT_SUB_SESSION_CLEAR);
 
-    let subc_session_list = App::new("session-list").about(ABOUT_SUB_SESSION_LIST);
+    let subc_session_list = Command::new("session-list").about(ABOUT_SUB_SESSION_LIST);
 
-    App::new("sam")
+    Command::new("sam")
         .version(VERSION)
         .author(AUTHORS)
         .about(ABOUT)
@@ -148,16 +155,16 @@ fn app_init() -> App<'static, 'static> {
         .subcommand(subc_rerun_last)
         .subcommand(subc_show_last)
         .subcommand(subc_interract_history)
-        .subcommand(App::new("check-config").about(ABOUT_SUB_CHECK_CONFIG))
-        .subcommand(App::new("cache-clear").about(ABOUT_SUB_CACHE_CLEAR))
-        .subcommand(App::new("cache-keys").about(ABOUT_SUB_CACHE_KEYS))
-        .subcommand(App::new("cache-keys-delete").about(ABOUT_SUB_CACHE_DELETE))
+        .subcommand(Command::new("check-config").about(ABOUT_SUB_CHECK_CONFIG))
+        .subcommand(Command::new("cache-clear").about(ABOUT_SUB_CACHE_CLEAR))
+        .subcommand(Command::new("cache-keys").about(ABOUT_SUB_CACHE_KEYS))
+        .subcommand(Command::new("cache-keys-delete").about(ABOUT_SUB_CACHE_DELETE))
         .subcommand(subc_session_set)
         .subcommand(subc_session_clear)
         .subcommand(subc_session_list)
 }
 
-fn make_cli_request<'a, T, I>(app: App<'a, 'a>, args: I) -> Result<CLIRequest, CLIError>
+fn make_cli_request<T, I>(app: Command, args: I) -> Result<CLIRequest, CLIError>
 where
     I: IntoIterator<Item = T>,
     T: Into<OsString> + Clone,
@@ -167,24 +174,25 @@ where
     let settings = CLISettings::try_from(matches.clone())?;
 
     let command: SubCommand = match matches.subcommand() {
-        ("alias", Some(e)) => {
-            let alias = parse_alias(e.value_of("alias"))?;
+        Some(("alias", e)) => {
+            let alias = parse_alias(e.get_one::<String>("alias").map(|s| s.as_str()))?;
             SubCommand::SamCommand(SamCommand::ExecuteAlias { alias })
         }
-        ("run-last", Some(_)) => {
+        Some(("run-last", _)) => {
             SubCommand::HistoryCommand(HistoryCommand::ExecuteLastExecutedAlias)
         }
-        ("show-last", Some(_)) => {
+        Some(("show-last", _)) => {
             SubCommand::HistoryCommand(HistoryCommand::DisplayLastExecutedAlias)
         }
-        ("history", Some(_)) => SubCommand::HistoryCommand(HistoryCommand::InterractWithHistory),
-        ("check-config", Some(_)) => SubCommand::ConfigCheck(ConfigCommand::All),
-        ("cache-clear", Some(_)) => SubCommand::CacheCommand(CacheCommand::Clear),
-        ("cache-keys", Some(_)) => SubCommand::CacheCommand(CacheCommand::PrintKeys),
-        ("cache-keys-delete", Some(_)) => SubCommand::CacheCommand(CacheCommand::DeleteEntries),
-        ("session-set", Some(e)) => {
+        Some(("history", _)) => SubCommand::HistoryCommand(HistoryCommand::InterractWithHistory),
+        Some(("check-config", _)) => SubCommand::ConfigCheck(ConfigCommand::All),
+        Some(("cache-clear", _)) => SubCommand::CacheCommand(CacheCommand::Clear),
+        Some(("cache-keys", _)) => SubCommand::CacheCommand(CacheCommand::PrintKeys),
+        Some(("cache-keys-delete", _)) => SubCommand::CacheCommand(CacheCommand::DeleteEntries),
+        Some(("session-set", e)) => {
             let variable_assignment = e
-                .value_of("variable")
+                .get_one::<String>("variable")
+                .map(|s| s.as_str())
                 .ok_or(CLIError::MissingSessionVariable)?;
             let (var_name, choice_value) = parse_session_assignment(variable_assignment)?;
             SubCommand::SessionCommand(SessionCommand::Set {
@@ -192,10 +200,10 @@ where
                 choice_value,
             })
         }
-        ("session-clear", Some(_)) => SubCommand::SessionCommand(SessionCommand::Clear),
-        ("session-list", Some(_)) => SubCommand::SessionCommand(SessionCommand::List),
+        Some(("session-clear", _)) => SubCommand::SessionCommand(SessionCommand::Clear),
+        Some(("session-list", _)) => SubCommand::SessionCommand(SessionCommand::List),
 
-        (&_, _) => SubCommand::SamCommand(SamCommand::ChooseAndExecuteAlias),
+        _ => SubCommand::SamCommand(SamCommand::ChooseAndExecuteAlias),
     };
     Ok(CLIRequest { command, settings })
 }
@@ -208,9 +216,9 @@ pub fn read_cli_request() -> Result<CLIRequest, CLIError> {
 #[derive(Clone, Debug, PartialEq)]
 pub struct DefaultChoices(pub HashMap<Identifier, Vec<Choice>>);
 
-impl TryFrom<Option<Values<'_>>> for DefaultChoices {
+impl TryFrom<Option<ValuesRef<'_, String>>> for DefaultChoices {
     type Error = CLIError;
-    fn try_from(values_o: Option<Values<'_>>) -> Result<Self, Self::Error> {
+    fn try_from(values_o: Option<ValuesRef<'_, String>>) -> Result<Self, Self::Error> {
         let mut default_h = HashMap::default();
         if let Some(values) = values_o {
             for value in values {

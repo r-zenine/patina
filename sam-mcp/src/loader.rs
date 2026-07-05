@@ -1,9 +1,9 @@
-use sam_config::AppSettings;
 use sam_core::engines::VarsDefaultValuesSetter;
 use sam_core::entities::discover::generate_discover_aliases;
 use sam_persistence::repositories::{AliasesRepository, ErrorsAliasesRepository, VarsRepository};
 use sam_persistence::{CacheError, NoopVarsCache, RustBreakCache, VarsCache};
-use sam_readers::{read_aliases_from_path, read_vars_repository, ErrorsAliasRead, ErrorsVarRead};
+use sam_settings::AppSettings;
+use sam_settings::{read_aliases_from_path, read_vars_repository, ErrorsAliasRead, ErrorsVarRead};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use thiserror::Error;
@@ -18,7 +18,7 @@ pub struct SamContext {
 #[derive(Debug, Error)]
 pub enum LoadError {
     #[error("config error: {0}")]
-    Config(#[from] sam_config::ErrorsSettings),
+    Config(#[from] sam_settings::ErrorsSettings),
     #[error("cache error: {0}")]
     Cache(#[from] CacheError),
     #[error("alias read error: {0}")]

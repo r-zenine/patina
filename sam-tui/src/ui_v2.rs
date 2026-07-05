@@ -7,9 +7,9 @@ use sam_core::entities::aliases::AliasAndDependencies;
 use sam_core::entities::choices::Choice;
 use sam_core::entities::commands::Command;
 use sam_core::entities::vars::Var;
-use sam_readers::read_choices;
-use sam_terminals::processes::ShellCommand;
+use sam_settings::read_choices;
 use std::collections::{HashMap, HashSet};
+use termkit::processes::ShellCommand;
 
 use thiserror::Error;
 

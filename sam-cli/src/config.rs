@@ -1,5 +1,5 @@
 use crate::cli::CLISettings;
-pub use sam_config::{AppSettings, ErrorsSettings};
+pub use sam_settings::{AppSettings, ErrorsSettings};
 
 pub type Result<T> = std::result::Result<T, ErrorsSettings>;
 

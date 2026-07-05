@@ -1,7 +1,5 @@
-mod associative_state;
 mod history_aliases;
 pub mod repositories;
-mod sequential_state;
 mod session_storage;
 mod vars_cache;
 pub use history_aliases::AliasHistory;

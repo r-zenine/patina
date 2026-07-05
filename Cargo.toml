@@ -8,12 +8,10 @@ members = [
   "libs/*",
   # sam
   "sam-cli",
-  "sam-config",
   "sam-core",
   "sam-mcp",
   "sam-persistence",
-  "sam-readers",
-  "sam-terminals",
+  "sam-settings",
   "sam-tui",
 ]
 
@@ -27,13 +25,13 @@ gitkit = { path = "libs/gitkit" }
 tui-design = { path = "libs/tui-design" }
 tui-elm = { path = "libs/tui-elm" }
 tui-harness = { path = "libs/tui-harness" }
+termkit = { path = "libs/termkit" }
+persistkit = { path = "libs/persistkit" }
 sam-cli = { path = "sam-cli" }
-sam-config = { path = "sam-config" }
 sam-core = { path = "sam-core" }
 sam-mcp = { path = "sam-mcp" }
 sam-persistence = { path = "sam-persistence" }
-sam-readers = { path = "sam-readers" }
-sam-terminals = { path = "sam-terminals" }
+sam-settings = { path = "sam-settings" }
 sam-tui = { path = "sam-tui" }
 
 tokio = { version = "1.0", features = ["full"] }
