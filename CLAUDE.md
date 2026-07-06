@@ -31,9 +31,16 @@ DiffViz is an LLM-powered code review guide tool that transforms overwhelming co
   - `workspace-dependency-drift` - a crate's `Cargo.toml` re-declares its own version for a dependency that's already in root `[workspace.dependencies]` instead of using `{ workspace = true }`.
   - Run this after adding any new dependency (internal or third-party). Backed by [cargo-guppy](https://github.com/facebookincubator/cargo-guppy); logic lives in `maintenance/depcheck/src/main.rs`.
 
+### Custom Lint: no-string-parsing-in-core (dylint)
+- Enforces diffviz-core's "Tree-sitter only, no string/regex parsing" rule at compile time. Lives in `maintenance/diffviz-core-lints/` (a standalone crate, not a workspace member — it links against unstable `rustc_private` APIs and needs a pinned nightly toolchain, unlike the rest of the workspace which builds on stable).
+- One-time setup per clone: `cargo install cargo-dylint dylint-link`, then `rustup toolchain install nightly-2026-04-16 --component llvm-tools-preview --component rustc-dev` (exact date pinned in `maintenance/diffviz-core-lints/rust-toolchain`; dylint lints build against rustc's internal, unversioned APIs, so the pin has to match exactly).
+- Run manually: `cargo dylint --path maintenance/diffviz-core-lints --all -- -p diffviz-core`.
+- Tests (`cargo +nightly-2026-04-16 test` from `maintenance/diffviz-core-lints/`) run the lint against nested fixture crates in `ui_fixtures/` and assert on stderr substrings — not a full snapshot, and not `dylint_testing`'s `ui_test_example`, because that infers crate name from the fixture's file name rather than its declared package name, which doesn't work for a lint that gates on crate name.
+- If a site is flagged but isn't actually code-content parsing (e.g. sniffing a file extension off a path string) or the fix would require deeper architectural changes (e.g. `generic_builder.rs`'s `parse_use_declaration`, which is generic infrastructure shared by all 6 language parsers and can't be trivially rewritten per-language), use a documented `#[allow(unknown_lints, no_string_parsing_in_core)]` rather than silently disabling the lint.
+
 ### Pre-commit Hook
 - One-time setup per clone: `cargo test -p depcheck` (installs the git hook via `cargo-husky`, a dev-dependency of `maintenance/depcheck`).
-- The hook (`.cargo-husky/hooks/pre-commit`, copied to `.git/hooks/pre-commit`) runs on every `git commit`: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, then `cargo run -p depcheck -- check-all`. Edit `.cargo-husky/hooks/pre-commit` to change it — the copy in `.git/hooks/` is regenerated automatically next time `depcheck`'s dev-dependencies are built.
+- The hook (`.cargo-husky/hooks/pre-commit`, copied to `.git/hooks/pre-commit`) runs on every `git commit`: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo dylint` (see above), then `cargo run -p depcheck -- check-all`. Edit `.cargo-husky/hooks/pre-commit` to change it — the copy in `.git/hooks/` is regenerated automatically next time `depcheck`'s dev-dependencies are built.
 
 ## Clean Architecture Structure
 
@@ -42,10 +49,10 @@ The project follows clean architecture principles with clear separation of conce
 ```
 apps/diffviz/                 # diffviz bounded context
 ├── cli/                     # CLI entry point, command orchestration
-├── core/                    # Semantic analysis, ReviewableDiff, RenderableDiff (THE CORE)
 ├── review/                  # Review orchestration, workflows, review processes
 └── review-tui/              # TUI interface
 libs/                         # Generic subdomains shared across bounded contexts
+├── diffviz-core/            # Semantic analysis, ReviewableDiff, RenderableDiff (THE CORE)
 ├── gitkit/                  # Git operations and diff parsing
 ├── fsutils/                 # Filesystem helpers
 └── ...
@@ -97,7 +104,7 @@ crate: diffviz-core
 ## Key Architectural Patterns
 
 ### Entity-Centric Design
-- Core semantic models in `apps/diffviz/core/src/` (`ReviewableDiff`, `RenderableDiff`, etc.)
+- Core semantic models in `libs/diffviz-core/src/` (`ReviewableDiff`, `RenderableDiff`, etc.)
 - Review entities in `apps/diffviz/review/src/entities/`
 - Business engines in `apps/diffviz/review/src/engines/`
 - Core algorithms in `apps/diffviz/review/src/algorithms/`

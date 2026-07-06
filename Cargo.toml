@@ -3,8 +3,9 @@ resolver = "2"
 members = [
   "apps/diffviz/cli",
   "apps/diffviz/review",
-  "apps/diffviz/core",
   "apps/diffviz/review-tui",
+  "apps/patina-detect/detect",
+  "apps/patina-detect/detect-tui",
   "libs/*",
   # sam
   "apps/sam/cli",
@@ -19,8 +20,9 @@ members = [
 default-members = [
   "apps/diffviz/cli",
   "apps/diffviz/review",
-  "apps/diffviz/core",
   "apps/diffviz/review-tui",
+  "apps/patina-detect/detect",
+  "apps/patina-detect/detect-tui",
   "libs/*",
   "apps/sam/cli",
   "apps/sam/core",
@@ -32,11 +34,14 @@ default-members = [
 
 [workspace.dependencies]
 # internal crates
-diffviz-core = { path = "apps/diffviz/core" }
+diffviz-core = { path = "libs/diffviz-core" }
 diffviz-review = { path = "apps/diffviz/review" }
 diffviz-review-tui = { path = "apps/diffviz/review-tui" }
+patina-detect = { path = "apps/patina-detect/detect" }
+patina-detect-tui = { path = "apps/patina-detect/detect-tui" }
 fsutils = { path = "libs/fsutils" }
 gitkit = { path = "libs/gitkit" }
+lspkit = { path = "libs/lspkit" }
 tui-design = { path = "libs/tui-design" }
 tui-elm = { path = "libs/tui-elm" }
 tui-harness = { path = "libs/tui-harness" }
