@@ -3,7 +3,5 @@
 pub mod drillnav_browse;
 pub mod drillnav_common;
 pub mod drillnav_drill;
-pub mod help_overlay;
 pub mod input_modal;
 pub mod status_bar;
-pub mod which_key;

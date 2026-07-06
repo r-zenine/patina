@@ -5,15 +5,14 @@
 //! Browse advertises drill-in and decision approval progress; Drill
 //! advertises h/l only with multiple sibling files, the note toggle only
 //! when the focused chunk has a note, and per-file chunk approval progress.
+//!
+//! The chrome (message-preempts-hints styling, the fixed input-mode status
+//! line) is generic and lives in `tui_design::status_bar`; this module only
+//! computes the review-domain hint text.
 
-use ratatui::{
-    Frame,
-    layout::Rect,
-    style::Modifier,
-    text::{Line, Span},
-    widgets::Paragraph,
-};
-use tui_design::{Theme, stylesheet};
+use ratatui::{Frame, layout::Rect};
+use tui_design::Theme;
+use tui_design::status_bar as generic;
 
 use super::drillnav_common::note_for;
 use crate::state::{InputMode, UiState};
@@ -24,14 +23,14 @@ pub fn render(f: &mut Frame, area: Rect, ui_state: &UiState, review_engine: &Rev
     let theme = Theme::mocha();
     match &ui_state.input_mode {
         InputMode::Navigation => render_navigation_status(f, area, ui_state, review_engine, &theme),
-        InputMode::Instruction { .. } => render_input_status(
+        InputMode::Instruction { .. } => generic::render_input_status(
             f,
             area,
             "Instruction",
             "Enter to submit, Esc to cancel",
             &theme,
         ),
-        InputMode::DecisionInstruction { .. } => render_input_status(
+        InputMode::DecisionInstruction { .. } => generic::render_input_status(
             f,
             area,
             "Decision Instruction",
@@ -48,24 +47,12 @@ fn render_navigation_status(
     review_engine: &ReviewEngine,
     theme: &Theme,
 ) {
-    // An error message preempts the keybinding hints until the next keypress.
-    let (status, status_style) = if let Some(msg) = ui_state.status_message() {
-        (
-            msg.to_string(),
-            stylesheet::error(theme).patch(stylesheet::terminal_floor(theme)),
-        )
+    let hints = if ui_state.browse_cursor().is_some() {
+        browse_hints(review_engine)
     } else {
-        let hints = if ui_state.browse_cursor().is_some() {
-            browse_hints(review_engine)
-        } else {
-            drill_hints(ui_state, review_engine)
-        };
-        (
-            hints,
-            stylesheet::status_bar(theme).patch(stylesheet::terminal_floor(theme)),
-        )
+        drill_hints(ui_state, review_engine)
     };
-    f.render_widget(Paragraph::new(status).style(status_style), area);
+    generic::render_hints(f, area, ui_state.status_message(), &hints, theme);
 }
 
 fn browse_hints(review_engine: &ReviewEngine) -> String {
@@ -116,18 +103,4 @@ fn drill_hints(ui_state: &UiState, review_engine: &ReviewEngine) -> String {
     format!(
         "{files_hint}j/k chunks    Ctrl-d/u page    Tab {ctx_label}    {note_hint}n note    a approve ({approved_count}/{total_chunks})    Esc back    q quit",
     )
-}
-
-fn render_input_status(f: &mut Frame, area: Rect, mode_name: &str, help_text: &str, theme: &Theme) {
-    let status_line = Line::from(vec![
-        Span::styled(
-            format!("{mode_name}: "),
-            stylesheet::keybind_key(theme).add_modifier(Modifier::BOLD),
-        ),
-        Span::styled(help_text, stylesheet::muted(theme)),
-    ]);
-
-    let paragraph = Paragraph::new(status_line)
-        .style(stylesheet::status_bar(theme).patch(stylesheet::terminal_floor(theme)));
-    f.render_widget(paragraph, area);
 }

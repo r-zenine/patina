@@ -1,6 +1,9 @@
 pub mod card;
+pub mod drillnav;
+pub mod input_modal;
 pub mod palette;
 pub mod scroll;
+pub mod status_bar;
 pub mod stylesheet;
 pub mod tokens;
 
