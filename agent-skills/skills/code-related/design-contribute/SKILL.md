@@ -61,7 +61,7 @@ To create a robust design contribution, three outcomes must be achieved:
 - Context is handed off (< 30 lines)
 - Contribution folder exists with sequential numbering
 
-For the canonical execution requirements template with design-contribute specifics, see [`contribution-system/references/execution-template.md`](../contribution-system/references/execution-template.md).
+These criteria are owned here; references restate them for execution convenience only. For the generic outcome pattern shared by all skills, see [`contribution-system/references/execution-template.md`](../contribution-system/references/execution-template.md).
 
 ## Key Outputs
 

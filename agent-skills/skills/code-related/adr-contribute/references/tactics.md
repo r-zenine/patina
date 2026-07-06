@@ -78,7 +78,7 @@ Accept the answer and proceed. Don't debate the user's choices.
 Done when:
 - Selected ADRs are written to docs/adr/ with correct sequential numbering
 - Wrap-up contribution folder exists with wrap-summary.md
-- All new files are committed to git
+- New ADR files under docs/adr/ are committed to git; the `.plans/` wrap-up folder is not
 
 ### Tactic: Scan Existing ADRs
 
@@ -172,21 +172,21 @@ Omit the "ADRs Written" section if no ADRs were written. Omit the "Candidates No
 
 ---
 
-### Tactic: Commit Everything
+### Tactic: Commit the ADRs
 
 **When to use**: All ADR files and wrap-summary.md are written and reviewed.
 
-Stage and commit in one commit:
+Only `docs/adr/` is part of the codebase history — commit it. `.plans/plan-[FEATURE-NAME]/contributions/NNN-plan-wrap-adr-contribute/` is planning scratch; leave it uncommitted like every other contribution folder.
 
 ```bash
 git add docs/adr/
-git add .plans/plan-[FEATURE-NAME]/contributions/NNN-plan-wrap-adr-contribute/
 git commit -m "wrap(NNN): [plan-name] — [N] ADR(s) written"
 ```
 
 **Rules:**
 - Do NOT use `git add -A` or `git add .`
-- Stage only the new ADR files and the wrap contribution folder
+- Stage only the new ADR files under `docs/adr/`
+- Never stage or commit anything under `.plans/`
 - Commit message format: `wrap(NNN): [plan-name] — [N] ADR(s) written`
   - NNN is the contribution folder number
   - If no ADRs were written: `wrap(NNN): [plan-name] — plan complete, no ADRs`

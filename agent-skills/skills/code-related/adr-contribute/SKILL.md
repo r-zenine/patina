@@ -57,7 +57,7 @@ To wrap a plan with durable ADRs, three outcomes must be achieved:
 **Outcome 3 (DOCUMENTATION)**: Plan is wrapped and committed
 - Selected ADRs written to `docs/adr/` with correct sequential numbering
 - Wrap-up contribution folder created with `wrap-summary.md`
-- Everything committed to git
+- ADRs under `docs/adr/` committed to git; the wrap-up contribution folder under `.plans/` stays uncommitted (planning scratch)
 
 ## Key Outputs
 

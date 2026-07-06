@@ -37,11 +37,10 @@ Enables any agent to contribute to a dev-strategy by:
 To make a robust contribution to a dev-strategy plan, three outcomes must be achieved:
 
 **Outcome 1 (FOUNDATION)**: Context is clear and phase is ready
-- Roadmap is understood (current phase objectives, what comes next)
-- Prior decisions are known (what was decided in earlier phases, constraints they impose)
-- Strategy is clear (TDD/Steel-Thread/Core-then-Integrate approach for this phase)
-- Success criteria are identified (what deliverables complete this phase?)
-- Phase is not blocked by prior decisions
+- Phase objective, success criteria, and constraints inherited from prior decision-logs are stated to the user before work begins ("none" is a valid constraint list)
+- Strategy for this phase is identified from the plan's decision-log.yaml (TDD/Steel-Thread/Core-then-Integrate)
+- Phase is not blocked by prior decisions or unaddressed review feedback
+- Baseline is clean: zero build errors, zero linter warnings, zero test failures
 
 **Outcome 2 (EXECUTION)**: Work is complete and quality bar is met
 - Phase deliverables are complete (all objectives for this phase achieved)
@@ -53,9 +52,9 @@ To make a robust contribution to a dev-strategy plan, three outcomes must be ach
 - Code is committed (all code changes committed before documentation is written)
 - Decisions are recorded (decision-log.yaml populated with code_impacts and commit hash)
 - Context is handed off (context-handoff.md tells next phase what to focus on)
-- Contribution folder is committed (staged and committed to git)
+- Contribution folder is left uncommitted (`.plans/` is planning scratch, never staged or committed to git)
 
-For the canonical execution requirements template with dev-contribute specifics, see [`contribution-system/references/execution-template.md`](../contribution-system/references/execution-template.md).
+These criteria are owned here; [references/guide.md](references/guide.md) restates them for execution convenience only. For the generic outcome pattern shared by all skills, see [`contribution-system/references/execution-template.md`](../contribution-system/references/execution-template.md).
 
 ## Key Outputs
 

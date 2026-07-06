@@ -3,26 +3,22 @@
 Tactics available for reaching each dev-strategy outcome.
 The agent chooses which tactics to apply and in what order based on context.
 
+Done-when criteria are owned by [SKILL.md](../SKILL.md) — restated here for convenience; do not add or alter them here.
+
 ---
 
 ## UNDERSTANDING Outcome
 
 Done when:
 - Behavioral spec is confirmed by the user
-- Codebase architecture is understood (relevant classes/functions identified)
-- Technology knowledge is sufficient
-- Constraints are discovered and confirmed
+- Draft `code-context.md` exists, naming the files/functions the change will touch, with line references
+- Constraint list is recorded in `context-document.md` and explicitly confirmed by the user
 
 ### Tactic: Clarify Behavioral Specification
 
 **When to use**: Requirements are ambiguous, vague, or leave key behaviors undefined.
 
-Ask clarifying questions to surface unclear aspects:
-- "What should happen when [edge case]?"
-- "Who are the main users of this feature?"
-- "What's the expected outcome?"
-
-Then produce a 2–3 sentence plain description of what to build. Focus on WHAT, not HOW. Avoid technical jargon.
+Ask clarifying questions to surface unclear aspects (edge cases, users, expected outcomes). Then produce a 2–3 sentence plain description of what to build. Focus on WHAT, not HOW. Avoid technical jargon.
 
 **Example output:**
 ```
@@ -94,26 +90,7 @@ Use templates from [`contribution-system/assets/templates/`](../contribution-sys
 
 **When to use**: Constraints are unclear after codebase analysis, or codebase analysis surfaced ambiguous choices.
 
-Ask specific questions based on codebase findings:
-
-**Framework choices:**
-- "I found both React and Vue components — which patterns should I follow?"
-- "I see Express and FastAPI endpoints — which style should I use?"
-
-**Database/Storage:**
-- "I see both MongoDB and PostgreSQL — which should I use for new data?"
-- "I notice existing migration scripts — are schema changes allowed?"
-
-**Authentication:**
-- "Multiple authentication methods found — which should I extend?"
-
-**Integration compatibility:**
-- "Should this integrate with existing user accounts/data?"
-- "Must this work with current API formats?"
-
-**Open-ended:**
-- "Any specific technologies you want to use or avoid?"
-- "Anything else I should know about your setup or requirements?"
+Ask specific questions grounded in what codebase analysis actually found — ambiguous framework/storage/auth choices, integration compatibility, technologies to use or avoid ("I see both X and Y — which should new code follow?"). Close with an open-ended catch-all.
 
 For interactive questioning patterns, see [`contribution-system/references/constraint-discovery.md`](../contribution-system/references/constraint-discovery.md).
 
@@ -122,10 +99,8 @@ For interactive questioning patterns, see [`contribution-system/references/const
 ## STRATEGY Outcome
 
 Done when:
-- Best strategy is chosen based on project characteristics
-- Strategy aligns with constraints and requirements
-- Trade-offs are understood and documented in the decision log
-- User has confirmed the choice
+- User selected a strategy
+- `decision-log.yaml` records the choice, rationale, and rejected alternatives with one-line reasons
 
 ### Tactic: Strategy Selection
 
@@ -155,7 +130,7 @@ For full strategy definitions, selection criteria, execution phases, and contrib
 Done when:
 - All 4 core artifacts exist and respect the templates documented below (`code-context.md`, `context-document.md`, `decision-log.yaml`, `implementation-roadmap.md`)
 - Roadmap is phased appropriately (each phase is a complete deliverable)
-- First phase has sufficient detail to begin work
+- First phase lists concrete file paths and testing criteria
 - Future phases are deferred appropriately per Last Responsible Moment principle
 
 ### Tactic: Create Plan Artifacts
@@ -212,14 +187,11 @@ Use clear, descriptive feature names with `plan-` prefix:
 
 ---
 
-### Tactic: Commit the Plan
+### Tactic: Leave the Plan Uncommitted
 
 **When to use**: All 4 core artifacts are written and the PLANNING outcome is met.
 
-```bash
-git add .plans/plan-<feature-name>/
-git commit -m "plan: <feature name>"
-```
+`.plans/plan-<feature-name>/` is planning scratch, not part of the codebase history — do not `git add` or `git commit` it. Leave it as local, uncommitted files. Contributions made later under `dev-contribute` will commit source code changes, but never the `.plans/` tree itself.
 
 ---
 
@@ -251,26 +223,3 @@ git commit -m "plan: <feature name>"
 - Provide clear success criteria
 - Consider dependencies between phases
 - Separate **Implementation** objectives (ready to execute) from **Design** objectives (require further design decisions)
-
-### Common Patterns
-
-**For new features:**
-1. Setup/Infrastructure — Add necessary dependencies, config
-2. Core Logic — Implement main functionality
-3. Integration — Connect to existing systems
-4. UI/API — Add user-facing interfaces
-5. Testing & Polish — Sufficient testing, error handling
-
-**For refactoring:**
-1. Preparation — Add tests for existing behavior
-2. Extract — Move code to new structure
-3. Replace — Update callers to use new structure
-4. Cleanup — Remove old code
-5. Validation — Ensure no regressions
-
-**For bug fixes:**
-1. Reproduce — Create test that reproduces the bug
-2. Investigate — Understand root cause
-3. Fix — Implement solution
-4. Test — Verify fix and no regressions
-5. Monitor — Plan for monitoring in production

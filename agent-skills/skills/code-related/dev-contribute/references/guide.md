@@ -15,7 +15,6 @@ This document provides instructions for contributing to dev-strategy implementat
   - [What You Must Verify (Outcome 3)](#what-you-must-verify-2)
   - [How to Achieve This Outcome (Outcome 3)](#how-to-achieve-this-outcome-2)
 - [Reference: Common Patterns by Strategy](#reference-common-patterns-by-strategy)
-- [Reference: Research Integration Examples](#reference-research-integration-examples)
 
 ## Overview
 
@@ -32,13 +31,12 @@ You understand the current roadmap state, the constraints from previous decision
 
 ### What You Must Verify
 
-Before proceeding to execution work, confirm all of these:
+Before proceeding to execution work, confirm all of these (criteria owned by [SKILL.md](../SKILL.md)):
 
-- [ ] Can you articulate the current phase objective without looking at the roadmap?
-- [ ] Can you explain how this phase depends on previous decisions?
-- [ ] Can you identify what success looks like for this phase?
-- [ ] Can you confirm this phase is not blocked by prior work?
-- [ ] Does the codebase baseline have zero build errors, zero linter warnings, zero test failures?
+- [ ] Phase objective and success criteria have been stated to the user before work begins
+- [ ] Constraints inherited from prior decision-logs are listed ("none" is a valid list)
+- [ ] Phase is not blocked by prior work or unaddressed review feedback
+- [ ] Codebase baseline has zero build errors, zero linter warnings, zero test failures
 
 ### How to Achieve This Outcome
 
@@ -230,10 +228,10 @@ Focus on making it work correctly, not perfectly. Avoid over-polishing, excessiv
 
 **Goal:** Persist code changes with a commit hash for decision documentation.
 
-After implementing changes and passing all quality checks:
+After implementing changes and passing all quality checks, stage each modified source file explicitly by path (never `git add .` or `-A` — that would sweep in `.plans/`, which must never be committed):
 
 ```bash
-git add .
+git add <each modified source file by explicit path>
 git commit -m "Implementation of phase..."
 ```
 
@@ -246,6 +244,8 @@ git rev-parse HEAD
 **Important:** You will write this commit hash to `decision-log.yaml` in the next outcome phase. The commit hash references the exact commit containing your code changes, so diffviz can analyze the permanent diff correctly.
 
 **Mandatory Requirement:** Commit all code changes before creating `decision-log.yaml`. Do not document decisions until code is committed.
+
+**Do not commit `.plans/`:** the contribution folder (decision-log.yaml, context-handoff.md, etc.) is planning scratch, not part of the codebase history. It stays local and uncommitted — only source code changes get committed.
 
 ---
 
@@ -434,23 +434,15 @@ If any check fails: fix all issues before completing the contribution.
    - Are assumptions and limitations clearly documented?
    - Is guidance provided for next contributors?
 
-#### Commit the Contribution
+#### Leave the Contribution Artifacts Uncommitted
 
-**Goal:** Persist all contribution artifacts to git with clear commit message.
+**Goal:** Ensure contribution artifacts (decision-log.yaml, context-handoff.md) remain local documentation without polluting git history.
 
-After all validation checks pass (build, lint, tests green):
-
-```bash
-git add .plans/plan-[FEATURE-NAME]/contributions/<contribution-folder>/ <each modified source file by explicit path>
-git commit -m "contrib(NNN): <description matching contribution folder name>"
-```
+The contribution folder `.plans/plan-[FEATURE-NAME]/contributions/<contribution-folder>/` is planning scratch, not part of the codebase — do not `git add` or `git commit` it, now or later. Source code changes were already committed in the previous step (Commit Code and Record Commit Hash); nothing further needs to be committed here.
 
 **Rules:**
-- Do NOT use `git add -A` or `git add .`
-- Use the full path `.plans/plan-[FEATURE-NAME]/contributions/<contribution-folder>/` when staging
-- Stage each changed source file explicitly by its full path
-- The commit message number (NNN) must match the contribution folder number
-- The description must match the contribution folder name (e.g., `phase-2-implementation-code-general-purpose`)
+- Never stage or commit anything under `.plans/`
+- Do NOT use `git add -A` or `git add .` anywhere in this workflow, precisely because it would sweep `.plans/` into a commit
 
 ---
 
@@ -489,12 +481,3 @@ git commit -m "contrib(NNN): <description matching contribution folder name>"
 005-phase-Y-test-validation-tdd-[agent]
 ```
 
-## Reference: Research Integration Examples
-
-**Early Phase (Research Relevant):**
-- Contribution 001 implementing GraphQL for first time → Review research/technology-research.md
-- Contribution 002 setting up Redis caching → Reference research/implementation-examples.md
-
-**Later Phase (Research Less Relevant):**
-- Contribution 012 adding another CRUD endpoint → Skip research review, focus on established patterns
-- Contribution 015 refining existing UI components → Research likely not needed

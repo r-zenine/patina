@@ -23,45 +23,25 @@ Creates sufficient implementation plans by:
 
 To produce a sufficient implementation plan, this skill progresses through three outcomes:
 
+Each criterion below is either confirmed by the user or checkable against an artifact. These criteria are owned here; references restate them for execution convenience only.
+
 **Outcome 1 (UNDERSTANDING)**: Context is clear
-- Behavioral spec is clear (user confirms what to build)
-- Codebase architecture is understood
-- Technology knowledge is sufficient
-- Constraints are discovered
+- Behavioral spec is confirmed by the user
+- Draft `code-context.md` exists, naming the files/functions the change will touch, with line references
+- Constraint list is recorded in `context-document.md` and explicitly confirmed by the user
+- (Technical research is governed by the trigger conditions in [references/tactics.md](references/tactics.md) — there is no standing "research done" criterion)
 
 **Outcome 2 (STRATEGY)**: Approach is selected
-- Best strategy is chosen based on project characteristics
-- Strategy aligns with constraints and requirements
-- Trade-offs between strategies are understood
+- User selected a strategy (consult [`execution-strategies` skill](../execution-strategies/SKILL.md))
+- `decision-log.yaml` records the choice, rationale, and rejected alternatives with one-line reasons
 
 **Outcome 3 (PLANNING)**: Execution is clear
-- All 4 core artifacts exist and are ready
+- All 4 core artifacts exist (code-context.md, context-document.md, decision-log.yaml, implementation-roadmap.md) and respect their templates
 - Roadmap is phased appropriately (each phase is a complete deliverable)
-- First phase has sufficient detail to begin work
+- First phase lists concrete file paths and testing criteria
 - Future phases are deferred appropriately per Last Responsible Moment principle
 
-For the canonical execution requirements template with skill-specific variations, see [`contribution-system/references/execution-template.md`](../contribution-system/references/execution-template.md).
-
-## Detailed Execution Requirements
-
-To produce a sufficient implementation plan, ensure these outcomes are achieved:
-
-**UNDERSTANDING PHASE** (outcome: context is clear)
-- Behavioral spec is clear (user confirms what to build)
-- Codebase architecture is understood (relevant classes/functions identified)
-- Technology knowledge is sufficient (research done only if unfamiliar tech is involved)
-- Constraints are discovered (user confirms project boundaries, dependencies, deadlines)
-
-**STRATEGY PHASE** (outcome: approach is selected)
-- Best strategy is chosen based on project characteristics (consult [`execution-strategies` skill](../execution-strategies/SKILL.md))
-- Strategy aligns with constraints and requirements
-- Trade-offs between strategies are understood
-
-**PLANNING PHASE** (outcome: execution is clear)
-- All 4 core artifacts exist (code-context.md, context-document.md, decision-log.yaml, implementation-roadmap.md)
-- Roadmap is phased appropriately (each phase is a complete deliverable)
-- First phase has sufficient detail to begin work
-- Future phases are deferred appropriately per Last Responsible Moment principle
+For the generic outcome pattern shared by all skills, see [`contribution-system/references/execution-template.md`](../contribution-system/references/execution-template.md).
 
 ## Key Outputs
 

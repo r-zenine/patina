@@ -37,71 +37,13 @@ The third outcome ensures documentation and continuity for the next phase.
 - [ ] All work is documented
 - [ ] Decisions are recorded
 - [ ] Context is clear for next phase
-- [ ] Contributions are committed
+- [ ] Contribution artifacts are left uncommitted (`.plans/` is planning scratch, not part of git history)
 
-## Skill-Specific Variations
+## Criteria Ownership
 
-### Dev-Strategy Skill
+Each skill's `SKILL.md` is the **sole owner** of its skill-specific done-criteria. This template defines only the generic three-outcome pattern above — it does not restate per-skill criteria, so there is exactly one place per skill to read or change them. References within a skill (tactics.md, guide.md) may restate the criteria for execution convenience but must not add to or alter them.
 
-**Outcome 1: UNDERSTANDING PHASE** (context is clear)
-- Behavioral spec is clear (user confirms what to build)
-- Codebase architecture is understood (relevant classes/functions identified)
-- Technology knowledge is sufficient (research done only if unfamiliar tech is involved)
-- Constraints are discovered (user confirms project boundaries, dependencies, deadlines)
-
-**Outcome 2: STRATEGY PHASE** (approach is selected)
-- Best strategy is chosen based on project characteristics
-- Strategy aligns with constraints and requirements
-- Trade-offs between strategies are understood
-
-**Outcome 3: PLANNING PHASE** (execution is clear)
-- All 4 core artifacts exist (code-context.md, context-document.md, decision-log.yaml, implementation-roadmap.md)
-- Roadmap is phased appropriately (each phase is a complete deliverable)
-- First phase has sufficient detail to begin work
-- Future phases are deferred appropriately per Last Responsible Moment principle
-
-### Design-Contribute Skill
-
-**Outcome 1: UNDERSTANDING PHASE** (context is clear)
-- Current plan state is understood (roadmap, prior decisions, constraints visible)
-- Implementation learnings are captured (what did prior phases reveal?)
-- Design objective is clear and scoped (what specifically needs designing?)
-- Assumptions about design are validated (don't assume, ask)
-
-**Outcome 2: EXPLORATION PHASE** (design is validated with user)
-- Options are presented (2-3 approaches, simplest first)
-- Trade-offs are explicit (why each option exists, what you give up)
-- User validates choice explicitly (confirmation of preference, not inference)
-- Design decision is sufficiently detailed for implementation handoff
-- Design follows simplicity principles (YAGNI, Sufficient Design, KISS)
-
-**Outcome 3: DOCUMENTATION PHASE** (design is durable and transferable)
-- Design doc exists (< 100 lines target, clear enough for implementers)
-- Decisions are recorded (decision-log.yaml populated with reasoning)
-- Context is handed off (context-handoff.md < 30 lines, tells next phase what was solved)
-- Contribution folder exists with sequential numbering (NNN-phase-X-design-[topic]-design-contribute)
-
-### Dev-Contribute Skill
-
-**Outcome 1: FOUNDATION** (context is clear and phase is ready)
-- Roadmap is understood (current phase objectives, what comes next)
-- Prior decisions are known (what was decided in earlier phases, constraints they impose)
-- Strategy is clear (TDD/Steel-Thread/Core-then-Integrate approach for this phase)
-- Success criteria are identified (what deliverables complete this phase?)
-- Phase is not blocked by prior decisions
-
-**Outcome 2: EXECUTION** (work is complete and quality bar is met)
-- Phase deliverables are complete (all objectives for this phase achieved)
-- Quality bar is met (code passes tests, reviews pass, security/performance requirements met)
-- Decisions are captured (what trade-offs were made, why this approach was chosen?)
-- Prior decisions still hold (no contradictions discovered with earlier choices)
-- If prior decisions need revisiting, a revision contribution is created with reasoning
-
-**Outcome 3: KNOWLEDGE TRANSFER** (next phase is unblocked)
-- Code is committed (all code changes committed before documentation is written — decision-log.yaml references commit hash)
-- Decisions are recorded (decision-log.yaml with code_impacts marking only the critical impacts a reviewer must scrutinize, commit field populated with git hash)
-- Context is handed off (context-handoff.md tells next phase what to focus on and why)
-- Contribution folder is committed (contribution folder with decision-log.yaml and context-handoff.md staged and committed)
+Criteria must be written so each one is either **confirmed by the user** or **checkable against an artifact** (a file that exists with required content, a validator that passes, a statement visible in the transcript). Avoid self-assessed criteria ("X is understood", "knowledge is sufficient") — an outcome without an observable trace didn't happen.
 
 ## How to Apply This Template
 

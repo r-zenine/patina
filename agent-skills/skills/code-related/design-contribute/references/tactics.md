@@ -243,20 +243,15 @@ Document three things only:
 
 ---
 
-### Tactic: Commit the Design Contribution
+### Tactic: Leave the Design Contribution Uncommitted
 
 **When to use**: All 3 files are written and quality checks pass.
 
-```bash
-git add .plans/plan-[FEATURE-NAME]/contributions/<contribution-folder>/
-git commit -m "design(NNN): <description matching contribution folder name>"
-```
+`.plans/plan-[FEATURE-NAME]/contributions/<contribution-folder>/` is planning scratch, not part of the codebase history — do not `git add` or `git commit` it. Leave it as local, uncommitted files.
 
 **Rules:**
-- Do NOT use `git add -A` or `git add .`
-- Use the full path when staging
-- The commit message number (NNN) must match the contribution folder number
-- The description must match the contribution folder name
+- Never stage or commit anything under `.plans/`
+- Do NOT use `git add -A` or `git add .` anywhere in this workflow, precisely because it would sweep `.plans/` into a commit
 
 ---
 
