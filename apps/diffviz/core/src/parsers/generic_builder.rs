@@ -471,6 +471,13 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
         false
     }
 
+    // Deliberately generic: shared by 6 languages (Rust use_declaration,
+    // TS/JS import_statement+export_statement, Python import forms,
+    // Go/Java import_declaration, C preproc_include/def) whose grammars
+    // differ too much for one tree-sitter walk to handle uniformly. A correct
+    // fix requires a per-language `LanguageDescriptor` hook, not a drop-in
+    // string->AST rewrite here.
+    #[allow(unknown_lints, no_string_parsing_in_core)]
     fn parse_use_declaration(
         &self,
         node: Node<'_>,

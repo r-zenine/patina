@@ -105,6 +105,9 @@ impl std::fmt::Display for ProgrammingLanguage {
 impl ProgrammingLanguage {
     /// Detect programming language from file extension
     pub fn from_file_path(path: &str) -> Self {
+        // Sniffing a file extension off a path is not code-content parsing;
+        // exempt from the crate's no-string-parsing lint.
+        #[allow(unknown_lints, no_string_parsing_in_core)]
         if let Some(extension) = path.split('.').next_back() {
             match extension.to_lowercase().as_str() {
                 "rs" => Self::Rust,
