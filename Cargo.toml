@@ -84,7 +84,7 @@ tree-sitter-java = "0.23"
 tree-sitter-cpp = "0.23"
 ast-grep-core = "0.44.1"
 ast-grep-config = "0.44.1"
-ast-grep-language = "0.44.1"
+ast-grep-language = { version = "0.44.1", default-features = false }
 proptest = "1.5"
 similar = "2.6"
 

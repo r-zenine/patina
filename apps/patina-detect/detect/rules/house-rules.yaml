@@ -1,0 +1,106 @@
+# House-rule violations rule pack (patina-detect, detector 1).
+#
+# Mirrors CLAUDE.md's diffviz-core dev rules (see docs/patina-detect/spec.md:116-132):
+# fallbacks, stringly-typed errors, swallowed Results, and dead-code/todo
+# suppressions. Loaded at runtime by patina-detect's ast-grep adapter, and
+# equally usable standalone with the `ast-grep` CLI (`ast-grep scan -r
+# rules/house-rules.yaml libs/diffviz-core`).
+#
+# `paths.include` scopes each rule to diffviz-core, per spec.md: "some rules
+# apply only to diffviz-core paths".
+
+id: no-unwrap-or-default
+language: Rust
+severity: warning
+message: "unwrap_or_default() silently discards an error/None instead of failing fast"
+files:
+  - "libs/diffviz-core/**/*.rs"
+rule:
+  pattern: $EXPR.unwrap_or_default()
+---
+id: no-ok-discarding-errors
+language: Rust
+severity: warning
+message: ".ok() discards the error instead of propagating or handling it"
+files:
+  - "libs/diffviz-core/**/*.rs"
+rule:
+  pattern: $EXPR.ok()
+---
+id: no-catchall-default-arm
+language: Rust
+severity: warning
+message: "catch-all `_` match arm returns a default instead of handling the case explicitly"
+files:
+  - "libs/diffviz-core/**/*.rs"
+rule:
+  pattern:
+    context: "match x { _ => $DEFAULT }"
+    selector: match_arm
+---
+id: no-stringly-typed-map-err
+language: Rust
+severity: warning
+message: "map_err converts the error to a plain string, losing the structured error type"
+files:
+  - "libs/diffviz-core/**/*.rs"
+rule:
+  pattern: $EXPR.map_err(|$ERR| $ERR.to_string())
+---
+id: no-format-in-error-value
+language: Rust
+severity: warning
+message: "format! builds a stringly-typed error value instead of a structured error variant"
+files:
+  - "libs/diffviz-core/**/*.rs"
+rule:
+  all:
+    - pattern: format!($$$ARGS)
+    - inside:
+        kind: field_initializer
+        stopBy: end
+---
+id: no-let-underscore-result
+language: Rust
+severity: warning
+message: "let _ = ...; swallows a Result without checking or propagating it"
+files:
+  - "libs/diffviz-core/**/*.rs"
+rule:
+  kind: let_declaration
+  pattern: let _ = $EXPR;
+---
+id: no-allow-dead-code
+language: Rust
+severity: warning
+message: "#[allow(dead_code)] suppresses the dead-code lint instead of removing the code"
+files:
+  - "libs/diffviz-core/**/*.rs"
+rule:
+  kind: attribute_item
+  regex: dead_code
+  not:
+    inside:
+      kind: mod_item
+      stopBy: end
+      has:
+        kind: attribute_item
+        regex: "cfg\\(test\\)"
+---
+id: no-todo-unimplemented
+language: Rust
+severity: warning
+message: "todo!()/unimplemented!() left outside tests instead of a real implementation"
+files:
+  - "libs/diffviz-core/**/*.rs"
+rule:
+  any:
+    - pattern: todo!($$$ARGS)
+    - pattern: unimplemented!($$$ARGS)
+  not:
+    inside:
+      kind: mod_item
+      stopBy: end
+      has:
+        kind: attribute_item
+        regex: "cfg\\(test\\)"

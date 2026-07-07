@@ -3,10 +3,12 @@
 //! and `lspkit`; never depends on `diffviz-review` (see
 //! `.plans/plan-patina-detect/context-document.md`).
 //!
-//! This crate currently provides the entity model, `SymptomId` content
-//! addressing, baseline persistence, and symptom-log export. No detector
-//! ships yet — that starts with house-rule violations (ast-grep).
+//! This crate provides the entity model, `SymptomId` content addressing,
+//! baseline persistence, symptom-log export, and the first real detector:
+//! house-rule violations (`detectors::house_rules`), via an embedded
+//! ast-grep rule pack.
 
+pub mod detectors;
 pub mod engines;
 pub mod entities;
 pub mod export;

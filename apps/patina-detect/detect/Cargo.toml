@@ -3,7 +3,16 @@ name = "patina-detect"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "patina-detect"
+path = "src/main.rs"
+
 [dependencies]
+anyhow = { workspace = true }
+ast-grep-config = { workspace = true }
+ast-grep-core = { workspace = true }
+ast-grep-language = { workspace = true, features = ["tree-sitter-rust"] }
+clap = { version = "4.6", features = ["derive"] }
 diffviz-core = { workspace = true }
 lspkit = { workspace = true }
 persistkit = { workspace = true }
