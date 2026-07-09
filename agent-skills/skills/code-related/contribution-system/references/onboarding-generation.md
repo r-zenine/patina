@@ -28,12 +28,13 @@ Use the Explore agent to generate/update onboarding guides before analyzing a cr
 
 ## Explore Agent Invocation Template
 
-Use the Explore agent with `thoroughness: "medium"` (standard codebase exploration, not deep analysis):
+Use the Explore agent with `thoroughness: "medium"` (standard codebase exploration, not deep analysis) and `model: "haiku"` — this is bounded retrieval/extraction against a fixed output structure, not open-ended judgment:
 
 ### Generate Mode
 
 ```
 subagent_type: "Explore"
+model: "haiku"
 description: "Generate onboarding guide"
 prompt: """
 Create an onboarding guide for the [CRATE_NAME] crate that prevents code agents from reinventing existing patterns and missing reusable abstractions.
@@ -61,6 +62,7 @@ thoroughness: "medium"
 
 ```
 subagent_type: "Explore"
+model: "haiku"
 description: "Update onboarding guide"
 prompt: """
 Review and update the onboarding guide for the [CRATE_NAME] crate. Here is the current guide:

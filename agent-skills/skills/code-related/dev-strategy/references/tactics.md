@@ -33,7 +33,7 @@ integrate with existing user profiles and respect current security requirements.
 
 **When to use**: Architecture and relevant code are not yet understood.
 
-Use the Explore agent to generate or update the crate's `onboarding.md` — see [`contribution-system/references/onboarding-generation.md`](../contribution-system/references/onboarding-generation.md) for invocation details.
+Use the Explore agent (`model: "haiku"` — bounded retrieval, not judgment) to generate or update the crate's `onboarding.md` — see [`contribution-system/references/onboarding-generation.md`](../contribution-system/references/onboarding-generation.md) for invocation details.
 
 Request analysis focused on:
 - Architecture patterns and frameworks in use

@@ -44,7 +44,7 @@ Before proceeding to execution work, confirm all of these (criteria owned by [SK
 
 **Goal:** Understand the context and strategic direction before contributing.
 
-**Preferred: delegate this step to an Explore agent.** The plan artifacts plus prior handoffs are typically thousands of lines that would otherwise sit in your context for the whole session but are only needed distilled. Spawn an Explore agent with the plan directory path and ask it to apply the process below (including progressive disclosure per [`contribution-system/references/progressive-disclosure.md`](../../contribution-system/references/progressive-disclosure.md)) and return a compact brief containing exactly:
+**Preferred: delegate this step to an Explore agent.** The plan artifacts plus prior handoffs are typically thousands of lines that would otherwise sit in your context for the whole session but are only needed distilled. Spawn an Explore agent (`model: "haiku"` — this is retrieval against a fixed brief format, not open-ended judgment) with the plan directory path and ask it to apply the process below (including progressive disclosure per [`contribution-system/references/progressive-disclosure.md`](../../contribution-system/references/progressive-disclosure.md)) and return a compact brief containing exactly:
 
 - Phase to work on (number, objective, success criteria, files to modify)
 - Execution strategy and where this contribution sits in its sequence
@@ -236,7 +236,7 @@ If the crate/module you're modifying has an `onboarding.md` (typically generated
 Focus on making it work correctly, not perfectly. Avoid over-polishing, excessive error handling for edge cases that won't occur, or adding features not required for the current phase. See [`design-principles` skill](../design-principles/SKILL.md) for full principles.
 
 **Delegating Work Items (use sparingly):**
-Keep coupled implementation work in the main agent — design choices, error propagation, and call-site consistency need one head. Delegate an item to a sub-agent only when its brief fits in a paragraph and it shares no design state with other items (e.g. repeating an established fixture-test pattern across languages, mechanical migrations with a worked example). During the edit-test loop, apply the same log hygiene as baseline validation: redirect verbose build/test output to a file and surface only failures.
+Keep coupled implementation work in the main agent — design choices, error propagation, and call-site consistency need one head. Delegate an item to a sub-agent only when its brief fits in a paragraph and it shares no design state with other items (e.g. repeating an established fixture-test pattern across languages, mechanical migrations with a worked example). Use `model: "haiku"` for these — the scoping rule above already restricts them to mechanical, pattern-following work with no design judgment required. During the edit-test loop, apply the same log hygiene as baseline validation: redirect verbose build/test output to a file and surface only failures.
 
 **When Research Artifacts Are Most Valuable:**
 - First implementation of new technologies mentioned in research/

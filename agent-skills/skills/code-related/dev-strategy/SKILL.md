@@ -64,7 +64,7 @@ For principles applied during planning (YAGNI, Last Responsible Moment, Kent Bec
 
 **Token Efficiency** — a plan's cost is not just the planning session; every artifact is re-read by every downstream contribution:
 
-- **Delegate bulk reading.** Codebase analysis and technical research go through sub-agents (Explore for code, general-purpose for research) that return distilled findings — raw file contents and web-search transcripts must not accumulate in the planning session.
+- **Delegate bulk reading.** Codebase analysis and technical research go through sub-agents (Explore for code, `model: "haiku"` — bounded retrieval; general-purpose for research, default model — synthesis feeds artifacts every later phase relies on) that return distilled findings — raw file contents and web-search transcripts must not accumulate in the planning session.
 - **Artifacts are paid for once per phase.** A line in `context-document.md` or `code-context.md` is re-read by every contribution, so an N-phase plan pays for it N times. Write artifacts lean: distill, don't transcribe; link to code by path and line range instead of quoting it.
 - **Size phases for a single fresh session.** Each phase must be completable by one dev-contribute invocation in a fresh context window without approaching the context limit (~100k tokens of working room). A phase that needs more is two phases.
 - **Make phases self-contained in the roadmap.** Each phase entry should carry the file paths, constraints, and success criteria the implementer needs, so a contribution can start from a compact brief instead of re-reading the whole plan.
