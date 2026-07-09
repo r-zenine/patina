@@ -2,6 +2,7 @@ use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use patina_detect::detectors::cognitive_complexity::run_cognitive_complexity;
 use patina_detect::detectors::data_clumps::run_data_clumps;
+use patina_detect::detectors::dead_exports::run_dead_exports;
 use patina_detect::detectors::house_rules::run_house_rules;
 use patina_detect::detectors::type2_clones::run_type2_clones;
 use patina_detect::engines::DetectorEngine;
@@ -109,6 +110,10 @@ fn detect_symptoms(
         run_data_clumps(path)
             .with_context(|| format!("running data-clumps detector against {}", path.display()))?,
     );
+    symptoms
+        .extend(run_dead_exports(path).with_context(|| {
+            format!("running dead-exports detector against {}", path.display())
+        })?);
 
     if audit {
         return Ok(symptoms);

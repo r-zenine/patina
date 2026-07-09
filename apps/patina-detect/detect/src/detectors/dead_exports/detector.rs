@@ -28,6 +28,13 @@ pub const DETECTOR_ID: &str = "dead-exports";
 
 #[derive(Debug, Error)]
 pub enum DeadExportsError {
+    #[error("failed to resolve {path} to an absolute path")]
+    Canonicalize {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
     #[error("failed to walk directory {path}")]
     Walk {
         path: PathBuf,
@@ -73,6 +80,17 @@ struct Candidate {
 /// whose only references live in test code is tagged `test_only` rather
 /// than dropped.
 pub fn run_dead_exports(root: &Path) -> Result<Vec<Symptom>, DeadExportsError> {
+    // `LspClient::start` builds a `file://` URI directly from `root`
+    // (`libs/lspkit/src/native.rs`'s `to_file_uri`), which is malformed for
+    // a relative path (e.g. the CLI's own default, `libs/diffviz-core`) —
+    // canonicalize once up front so every downstream file path (candidates,
+    // LSP query positions) is absolute.
+    let root = fs::canonicalize(root).map_err(|source| DeadExportsError::Canonicalize {
+        path: root.to_path_buf(),
+        source,
+    })?;
+    let root = root.as_path();
+
     let mut candidates = Vec::new();
     for file in collect_rust_files(root)? {
         let content = fs::read_to_string(&file).map_err(|source| DeadExportsError::Read {
