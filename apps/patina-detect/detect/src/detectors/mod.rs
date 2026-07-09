@@ -4,4 +4,5 @@ pub mod dead_exports;
 pub mod house_rules;
 pub mod middleman_delegation;
 pub mod near_duplicate_structs;
+pub mod parallel_dispatch;
 pub mod type2_clones;

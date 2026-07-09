@@ -101,4 +101,17 @@ pub enum Evidence {
         conversion_sites: Vec<String>,
         footprint_file_count: usize,
     },
+    /// Detector 7 (parallel dispatch, spec.md:212-224): an enum whose value
+    /// is matched at `>= 3` sites across `>= 2` files, resolved via
+    /// lspkit's `definition`/`hover` on each match's scrutinee type.
+    /// `enum_name` is the enum's container-qualified name, `site_count`/
+    /// `file_count` are the thresholds' numerator/denominator that produced
+    /// the finding, and `arm_counts` lists each match site's arm count (one
+    /// entry per site, same order as `Symptom::sites`).
+    ParallelDispatch {
+        enum_name: String,
+        site_count: usize,
+        file_count: usize,
+        arm_counts: Vec<usize>,
+    },
 }
