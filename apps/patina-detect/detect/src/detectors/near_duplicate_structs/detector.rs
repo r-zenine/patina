@@ -117,9 +117,36 @@ pub fn run_near_duplicate_structs(root: &Path) -> Result<Vec<Symptom>, NearDupli
             path: a.file.clone(),
             position,
         };
-        let references = references_settled(&client, &at, warmup_deadline)?;
+        // A single candidate pair's `references()` call failing (e.g. a
+        // dependency's stale rust-analyzer-side build metadata, unrelated
+        // to the pair itself — observed against `catppuccin`'s generated
+        // output on a full-workspace run) must not abort every other
+        // pair's evidence gathering. Skip and continue rather than `?`.
+        let references = match references_settled(&client, &at, warmup_deadline) {
+            Ok(references) => references,
+            Err(err) => {
+                eprintln!(
+                    "near-duplicate-structs: skipping {} / {} — references() failed: {err}",
+                    a.qualified_name, b.qualified_name
+                );
+                continue;
+            }
+        };
 
-        let conversion_sites = conversion_sites(&references, &b.qualified_name, &mut file_cache)?;
+        let conversion_sites = match conversion_sites(
+            &references,
+            &b.qualified_name,
+            &mut file_cache,
+        ) {
+            Ok(sites) => sites,
+            Err(err) => {
+                eprintln!(
+                    "near-duplicate-structs: skipping {} / {} — conversion-site resolution failed: {err}",
+                    a.qualified_name, b.qualified_name
+                );
+                continue;
+            }
+        };
         if conversion_sites.is_empty() {
             // No real conversion code between the pair — not a finding
             // (the conversion-evidence gate).
