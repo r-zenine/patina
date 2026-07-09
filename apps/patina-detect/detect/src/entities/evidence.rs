@@ -81,4 +81,24 @@ pub enum Evidence {
         caller_count: usize,
         body_shape: String,
     },
+    /// Detector 6 (near-duplicate data structures, spec.md:194-210): a pair
+    /// of structs whose normalized `(name, type)` field sets overlap at or
+    /// above the Jaccard threshold (>= 0.7) with >= 4 shared fields,
+    /// promoted only once lspkit's `references` confirms real conversion
+    /// code exists between them (the conversion-evidence gate).
+    /// `shared_field_count`/`total_field_count` are the Jaccard ratio's
+    /// numerator/denominator (union size), `overlap_percent` the same ratio
+    /// as a rounded percentage, `conversion_sites` the qualified names of
+    /// the functions/impls found referencing both types, and
+    /// `footprint_file_count` the number of distinct files touching either
+    /// struct's declaration or a conversion site.
+    NearDuplicateStructs {
+        struct_a: String,
+        struct_b: String,
+        shared_field_count: usize,
+        total_field_count: usize,
+        overlap_percent: u8,
+        conversion_sites: Vec<String>,
+        footprint_file_count: usize,
+    },
 }
