@@ -2,7 +2,7 @@
 
 > **Purpose**: Guide next agents with essential context and specific next steps
 >
-> ⚠️ **Be Concise**: Only include information the next agent actually needs. Skip obvious details or lengthy explanations.
+> ⚠️ **Be Concise**: Target < 50 lines. Only include information the next agent actually needs. Skip obvious details or lengthy explanations — every handoff is re-read by later contributions.
 
 ## 🎯 Core Result (What agents get from this work)
 **Built**: [Main deliverable with key insight]
@@ -21,10 +21,6 @@
 ## 🔗 Integration Points (Technical context)
 **Expects**: [Key assumptions/dependencies this work relies on]
 **Provides**: [What this work makes available to others]
-
-## 📋 Reference Links
-- [decision-log.md](decision-log.md) - Technical choices made
-- [changelog.md](changelog.md) - Phase completion summary
 
 ## Example
 ```markdown

@@ -55,7 +55,7 @@ The skill generates only the following structured artifacts in `.plans/plan-[FEA
 
 **Research Artifacts** (when research tactic is applied):
 - **Research Summary** - Key findings and recommendations
-- **Technology Research** - Deep-dive analysis of new technologies
+- **Technology Research** - Focused integration analysis of new technologies
 - **Implementation Examples** - Code patterns and usage examples
 
 ## Guiding Principles

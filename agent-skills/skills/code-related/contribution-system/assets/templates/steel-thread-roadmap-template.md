@@ -105,28 +105,5 @@ Example: "Full authentication with proper error messages, session management, se
 
 ---
 
-## Steel Thread Principles
+<!-- Steel Thread principles and refactor guidance live in execution-strategies/references/steel-thread.md — do not copy them into the generated artifact. Add or remove phase blocks as needed. -->
 
-**Always Working**: Each phase maintains a fully functional end-to-end system
-**Incremental Value**: Each phase adds meaningful capability
-**User-Focused**: Every phase delivers something observable to users
-**Minimal Viable Slices**: Build the thinnest version that works, then expand
-
-## Steel Thread Architecture Pattern
-
-**Phase Structure**: Implement → Refactor → Next Phase
-- **Implement**: Build minimal working functionality for this phase
-- **Refactor**: Prepare architecture for next phase capabilities
-- **Validate**: Ensure all previous functionality still works
-
-**Why Refactor Between Phases?**
-- Only when the current structure actually blocks the next phase
-- Keeps changes minimal and necessary rather than speculative
-- Maintains "always working" principle while enabling actual growth needs
-
-**Just-In-Time Refactor Guidelines**:
-- **Do**: Only refactor when the next phase actually requires it
-- **Don't**: Prepare for hypothetical futures or add unused abstractions
-- **Focus**: Keep current functionality working while making minimal necessary changes
-
-**Typical Timeline**: 5-6 contribution cycles total (includes refactor steps)

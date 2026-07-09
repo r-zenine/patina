@@ -1,5 +1,7 @@
 # Code Context for [FEATURE NAME]
 
+> ⚠️ Omit any section that doesn't apply to this feature. Reference code by path and line — never quote it.
+
 ## Relevant Classes and Functions
 
 - **ClassName.methodName** (`file_path:line_number`) - Brief description of functionality

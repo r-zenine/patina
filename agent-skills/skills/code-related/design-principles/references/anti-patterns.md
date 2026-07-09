@@ -57,7 +57,7 @@
 ## Documentation Anti-Patterns (dev-contribute)
 
 - Creating code files in contribution folders (documentation only)
-- Writing code examples in changelog, decision-log, or context-handoff when description suffices
+- Writing code examples in decision-log or context-handoff when description suffices
 - Over-explaining obvious choices in the decision log
 - Vague "What's fragile" entries that don't tell the next contributor what to actually watch out for
 - Missing decision rationale — next contributor cannot understand why choices were made

@@ -76,44 +76,5 @@
 
 ---
 
-## Implementation Notes
+<!-- Writer guidance (objectives, testing criteria, phase sizing) lives in dev-strategy/references/tactics.md "Quality Reference" — do not copy it into the generated artifact. Add or remove phase blocks as needed. -->
 
-### Common Patterns for Phases:
-
-**For New Features**:
-1. Setup/Infrastructure - Dependencies, config, database setup
-2. Core Logic - Main business logic implementation
-3. Integration - Connect to existing systems
-4. UI/API - User-facing interfaces
-5. Testing & Polish - Sufficient testing, error handling
-
-**For Refactoring**:
-1. Preparation - Add tests for existing behavior
-2. Extract - Move code to new structure
-3. Replace - Update callers to use new structure
-4. Cleanup - Remove old code
-5. Validation - Ensure no regressions
-
-### Writing Good Objectives:
-
-**Implementation Objectives** (clear execution following existing patterns):
-- ✅ "Add JWT refresh token endpoint to AuthController"
-- ✅ "Update frontend login form to handle refresh tokens"
-- ❌ "Improve authentication"
-
-**Design Objectives** (require design decisions to be refined later):
-- ✅ "Design error handling strategy for auth failures"
-- ✅ "Determine optimal session management approach"
-- ❌ "Make it better"
-
-### Essential Testing Criteria:
-- ✅ "User can log in and receive both access and refresh tokens"
-- ✅ "Expired access token automatically refreshes without user action"
-- ❌ "Authentication works"
-- ❌ "No bugs"
-
-### File Modification Guidelines:
-- Be specific about what changes (add function, update class, etc.)
-- Include test files that need updates
-- Consider configuration files that might need changes
-- Include migration files if database changes are needed

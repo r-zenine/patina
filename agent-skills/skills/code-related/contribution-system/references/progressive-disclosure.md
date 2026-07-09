@@ -6,15 +6,10 @@
 
 ## When to Read Additional Artifacts
 
-**Read `decision-log.md` if:**
+**Read `decision-log.yaml` if:**
 - You need to understand WHY specific technical choices were made
 - You're implementing similar functionality and need precedent
 - You're reviewing architectural consistency across contributions
-
-**Read `changelog.md` if:**
-- You need to verify what phase objectives were completed
-- You're tracking project progress across multiple contributions
-- You're preparing status updates or reports
 
 **Read optional artifacts if:**
 - You need specialized analysis (performance, security, architecture)
@@ -29,8 +24,7 @@
 
 **Reading order:**
 1. `context-handoff.md` — focus on "What's fragile" and "For next contributors"
-2. `decision-log.md` — only if you need technical patterns established
-3. Skip `changelog.md` unless verifying phase completion
+2. `decision-log.yaml` — only if you need technical patterns established
 
 **Key questions to answer:**
 - What patterns should I follow?
@@ -46,9 +40,8 @@
 
 **Reading order:**
 1. `context-handoff.md` — focus on "What works" patterns and architectural decisions
-2. `decision-log.md` — critical: understand rationale behind choices
-3. `changelog.md` — verify claimed accomplishments match evidence
-4. Optional artifacts — if specialized review needed (security, performance)
+2. `decision-log.yaml` — critical: understand rationale behind choices; verify claims against the diff at its recorded `commit`
+3. Optional artifacts — if specialized review needed (security, performance)
 
 **Key questions to answer:**
 - Are patterns consistent with the dev-strategy plan?
@@ -64,10 +57,9 @@
 
 **Reading order:**
 1. `context-handoff.md` — understand scope and approach
-2. `decision-log.md` — document all technical choices for audit trail
-3. `changelog.md` — verify completion claims
-4. All optional artifacts — essential for focused analysis
-5. Cross-reference with dev-strategy plan and other contributions
+2. `decision-log.yaml` — document all technical choices for audit trail; verify completion claims against the diff at its recorded `commit`
+3. All optional artifacts — essential for focused analysis
+4. Cross-reference with dev-strategy plan and other contributions
 
 **Key questions to answer:**
 - Does this comply with organizational standards?
@@ -85,7 +77,7 @@ contributions/NNN-phase-X-design-[topic]-design-contribute/
 └── decision-log.md        ← Design decisions and rationale
 ```
 
-**Note**: Design contributions have NO `changelog.md` and NO `context-handoff.md`.
+**Note**: Design contributions have NO `context-handoff.md`.
 
 **For implementation agents:**
 1. Read `design-doc.md` in full (< 100 lines)
