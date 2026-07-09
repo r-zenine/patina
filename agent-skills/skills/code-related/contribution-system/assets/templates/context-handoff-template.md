@@ -1,6 +1,8 @@
 # Context Handoff - Phase X [Contribution Type]
 
-> **Purpose**: Guide next agents with essential context and specific next steps
+**Status**: Phase X [complete | partial — remaining: what's left] · **Next**: [phase Y objective, or "address review feedback"]
+
+> **Purpose**: Guide next agents with essential context and specific next steps. The latest handoff is the authoritative record of plan state — its Status line is how the next contribution finds its phase without reading the full history.
 >
 > ⚠️ **Be Concise**: Target < 50 lines. Only include information the next agent actually needs. Skip obvious details or lengthy explanations — every handoff is re-read by later contributions.
 
@@ -25,6 +27,8 @@
 ## Example
 ```markdown
 # Context Handoff - Phase 2 Test Design
+
+**Status**: Phase 2 partial — tests written, not yet validated · **Next**: Phase 2 test validation
 
 ## 🎯 Core Result
 **Built**: Layered auth test suite with custom matchers

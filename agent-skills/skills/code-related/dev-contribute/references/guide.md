@@ -77,9 +77,8 @@ Read the target source files yourself during Outcome 2 as needed — the brief r
    - For later-phase work, research may be less relevant — use judgment
 
 5. **Review existing contributions:**
-   - Check `.plans/plan-[FEATURE-NAME]/contributions/` directory for previous work
-   - Read recent `context-handoff.md` files to understand current state
-   - Identify the next logical contribution number
+   - `ls` the `.plans/plan-[FEATURE-NAME]/contributions/` directory — folder names (`NNN-phase-X-type`) give the phase history and the next contribution number for free
+   - Read **only the most recent** `context-handoff.md` — it is authoritative for current state, and its **Status** line names the phase to work on. Read older handoffs only when the latest one points you to them
 
 6. **Check for review feedback (review-state.json):**
    After reading existing contributions, look in the most recent contribution folder for `review-state.json`.
@@ -119,7 +118,7 @@ Read the target source files yourself during Outcome 2 as needed — the brief r
 
 **Process:**
 
-1. **Identify the next incomplete phase** in `implementation-roadmap.md`
+1. **Identify the next incomplete phase** — the latest handoff's **Status** line names it; confirm it against `implementation-roadmap.md`
 2. **Confirm no previous contributions exist** for later phases
 3. **Limit all work to this single phase** — do not proceed into subsequent phases
 4. **If the phase is blocked**, communicate the blocker rather than skipping to the next phase
@@ -143,6 +142,8 @@ Read the target source files yourself during Outcome 2 as needed — the brief r
 3. **Run test suite:** All tests must pass with zero failures
 
 **Log hygiene:** Run these as a single chained command with full output redirected to a file (e.g. `> /tmp/baseline.log 2>&1`); inspect only the exit status, and grep the log for errors/warnings only when a check fails. Verbose build/test output pasted into the conversation is paid for on every subsequent turn.
+
+**Run in parallel with context assembly:** launch this check as a background command at the same time you spawn the Outcome-1 Explore agent — the two are independent prerequisites, so neither should wait for the other.
 
 **If Validation Fails:**
 - STOP immediately
@@ -220,6 +221,9 @@ For complete folder naming convention, contribution type definitions, and specia
 - **TDD** → [`execution-strategies/references/tdd.md`](../execution-strategies/references/tdd.md)
 - **Steel Thread** → [`execution-strategies/references/steel-thread.md`](../execution-strategies/references/steel-thread.md)
 - **Core-then-Integrate** → [`execution-strategies/references/core-then-integrate.md`](../execution-strategies/references/core-then-integrate.md)
+
+**Orient with `onboarding.md` first:**
+If the crate/module you're modifying has an `onboarding.md` (typically generated during dev-strategy — see [`contribution-system/references/onboarding-generation.md`](../../contribution-system/references/onboarding-generation.md)), read it before exploring the codebase yourself. Spawn an Explore agent only for questions it doesn't answer, and update it if you find it stale — don't re-derive orientation that a previous session already paid for.
 
 **Quality Standards — All Contributions Must:**
 - Follow existing code patterns from `context-document.md`
@@ -372,7 +376,7 @@ diffviz validate decision-log decision-log.yaml
 
 Use [context-handoff-template.md](../contribution-system/assets/templates/context-handoff-template.md)
 
-Lead with what you built and key insights. Structure as:
+Populate the **Status** line first (phase complete/partial + what's next) — the next contribution identifies its phase from this line without reading the plan history, so it must be accurate. Then lead with what you built and key insights. Structure as:
 - **What works:** What was successfully completed
 - **What's fragile:** What areas need care in next phase
 - **What's missing:** What's intentionally deferred
