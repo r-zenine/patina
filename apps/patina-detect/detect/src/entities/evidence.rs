@@ -52,4 +52,18 @@ pub enum Evidence {
         forwarding_chain: Vec<String>,
         subset_of_struct: Option<String>,
     },
+    /// Detector 3 (dead exports and write-only code, spec.md:150-163): a
+    /// `pub` function or struct field with no reference found outside its
+    /// own declaration via lspkit's `references`. `qualified_name` is the
+    /// symbol's dotted/`::`-joined path (identifies which candidate this
+    /// finding is about, since a detector run reports many). `reference_count`
+    /// is the number of non-declaration references found (0 for a genuinely
+    /// dead symbol). `test_only` distinguishes "production code only tests
+    /// exercise" (spec.md's explicit non-drop case: tagged, not excluded)
+    /// from a symbol with zero references anywhere.
+    DeadExport {
+        qualified_name: String,
+        reference_count: usize,
+        test_only: bool,
+    },
 }
