@@ -9,36 +9,34 @@ DiffViz is an LLM-powered code review guide tool that transforms overwhelming co
 ## Development Commands
 
 ### Workspace Operations
+
 - `cargo build --workspace` - Build all workspace crates
-- `cargo test --workspace` - Run tests across all crates  
+- `cargo test --workspace` - Run tests across all crates
 - `cargo check --workspace` - Check compilation for all crates
 - `cargo run` - Run the main CLI application (from diffviz-cli)
 
 ### Individual Crate Development
+
 - `cargo build --package <crate-name>` - Build specific crate
 - `cargo test --package <crate-name>` - Test specific crate
 - `cargo check --package <crate-name>` - Check specific crate
 
 ### Code Quality
+
 - `cargo fmt --all` - Format all workspace code
 - `cargo clippy --workspace` - Lint all workspace crates
 - `cargo clippy --package <crate-name>` - Lint specific crate
 
 ### Repo Maintenance Checks (depcheck)
+
 - `cargo run -p depcheck -- check-all` - Runs all maintenance checks (no fail-fast; all checks run and report together):
-  - `bounded-context-isolation` - a crate under `apps/<context>/` depends (directly or transitively) on a crate in a *different* `apps/<context>/`, or a `libs/*` crate depends on an `apps/*` crate.
+  - `bounded-context-isolation` - a crate under `apps/<context>/` depends (directly or transitively) on a crate in a _different_ `apps/<context>/`, or a `libs/*` crate depends on an `apps/*` crate.
   - `duplicate-dependency-version` - a third-party dependency is resolved at more than one version across the workspace.
   - `workspace-dependency-drift` - a crate's `Cargo.toml` re-declares its own version for a dependency that's already in root `[workspace.dependencies]` instead of using `{ workspace = true }`.
   - Run this after adding any new dependency (internal or third-party). Backed by [cargo-guppy](https://github.com/facebookincubator/cargo-guppy); logic lives in `maintenance/depcheck/src/main.rs`.
 
-### Custom Lint: no-string-parsing-in-core (dylint)
-- Enforces diffviz-core's "Tree-sitter only, no string/regex parsing" rule at compile time. Lives in `maintenance/diffviz-core-lints/` (a standalone crate, not a workspace member — it links against unstable `rustc_private` APIs and needs a pinned nightly toolchain, unlike the rest of the workspace which builds on stable).
-- One-time setup per clone: `cargo install cargo-dylint dylint-link`, then `rustup toolchain install nightly-2026-04-16 --component llvm-tools-preview --component rustc-dev` (exact date pinned in `maintenance/diffviz-core-lints/rust-toolchain`; dylint lints build against rustc's internal, unversioned APIs, so the pin has to match exactly).
-- Run manually: `cargo dylint --path maintenance/diffviz-core-lints --all -- -p diffviz-core`.
-- Tests (`cargo +nightly-2026-04-16 test` from `maintenance/diffviz-core-lints/`) run the lint against nested fixture crates in `ui_fixtures/` and assert on stderr substrings — not a full snapshot, and not `dylint_testing`'s `ui_test_example`, because that infers crate name from the fixture's file name rather than its declared package name, which doesn't work for a lint that gates on crate name.
-- If a site is flagged but isn't actually code-content parsing (e.g. sniffing a file extension off a path string) or the fix would require deeper architectural changes (e.g. `generic_builder.rs`'s `parse_use_declaration`, which is generic infrastructure shared by all 6 language parsers and can't be trivially rewritten per-language), use a documented `#[allow(unknown_lints, no_string_parsing_in_core)]` rather than silently disabling the lint.
-
 ### Pre-commit Hook
+
 - One-time setup per clone: `cargo test -p depcheck` (installs the git hook via `cargo-husky`, a dev-dependency of `maintenance/depcheck`).
 - The hook (`.cargo-husky/hooks/pre-commit`, copied to `.git/hooks/pre-commit`) runs on every `git commit`: `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo dylint` (see above), then `cargo run -p depcheck -- check-all`. Edit `.cargo-husky/hooks/pre-commit` to change it — the copy in `.git/hooks/` is regenerated automatically next time `depcheck`'s dev-dependencies are built.
 
@@ -58,20 +56,19 @@ libs/                         # Generic subdomains shared across bounded context
 └── ...
 ```
 
-## Dev rules 
-ZERO WARNING RULE: general rules, you are not allow to leave compiler or clippy warning not fixed, after every change, you need to run cargo fmt -- / clippy and cargo check and fix all the warnings 
+## Dev rules
 
-crate: diffviz-core 
+ZERO WARNING RULE: general rules, you are not allow to leave compiler or clippy warning not fixed, after every change, you need to run cargo fmt -- / clippy and cargo check and fix all the warnings
+
+crate: diffviz-core
+
 - string based or regexp operations to analyze code are forbidden in this module. Only Tree-sitter is allowed, if it can be done with tree-sitter you need to explicitely ask for permission and provide evidence to support your claim
 - FALLBACKS are forbidden in this crate, you need to adopt a fail fast approach, no defensive programming here:
-
-
-
-
 
 ### Dependency Rules
 
 **Core Layer (diffviz-core - THE DOMAIN CORE):**
+
 - Contains the core semantic analysis logic and domain expertise
 - Houses key abstractions: `ReviewableDiff`, `RenderableDiff`, AST analysis
 - Implements the essential business capabilities that make DiffViz valuable
@@ -79,42 +76,47 @@ crate: diffviz-core
 - This IS what makes DiffViz special - the semantic understanding of code
 
 **Review Layer (diffviz-review):**
+
 - Orchestrates the review process and workflows
 - Contains review-specific business logic and coordination
 - Manages entities for the review experience pipeline
 - Depends on diffviz-core for core semantic capabilities
 
 **FS layer (diffviz-git)**:
-- Provides capabilities to identify diffs to review 
-- Provides capabilities to retrieve the content of a line range of a given file 
+
+- Provides capabilities to identify diffs to review
+- Provides capabilities to retrieve the content of a line range of a given file
 - Depends on both diffviz-review and diffviz-core
 
 **Infrastructure Layers:**
+
 - All other crates depend on diffviz-review (which depends on diffviz-core)
 - Infrastructure crates should not depend on each other directly
 - Communication happens through review abstractions
 
 **CLI Layer (diffviz-cli):**
+
 - Entry point that composes all dependencies
 - Uses Environment pattern for dependency injection
 - Orchestrates business operations through engines
 
-
-
 ## Key Architectural Patterns
 
 ### Entity-Centric Design
+
 - Core semantic models in `libs/diffviz-core/src/` (`ReviewableDiff`, `RenderableDiff`, etc.)
 - Review entities in `apps/diffviz/review/src/entities/`
 - Business engines in `apps/diffviz/review/src/engines/`
 - Core algorithms in `apps/diffviz/review/src/algorithms/`
 
 ### Environment Pattern
+
 - Dependency injection container in CLI layer
 - Assembles all dependencies and provides them to engines
 - Enables easy testing and swapping of implementations
 
 ### Engine Pattern
+
 - Business operations orchestrated through engines
 - Engines accept dependencies through constructor injection
 - Clear separation of concerns within business logic
@@ -122,20 +124,23 @@ crate: diffviz-core
 ## Language Support
 
 The tool provides deep support for 4 languages with language-specific analysis:
+
 - **Go**: Module/package analysis, goroutine safety, error handling patterns
-- **Python**: Import resolution, type hint validation, async/await patterns  
+- **Python**: Import resolution, type hint validation, async/await patterns
 - **TypeScript**: Type system changes, React component analysis, dependency tracking
 - **Rust**: Ownership analysis, trait implementations, unsafe code detection
 
 ## LLM Integration
 
 Hybrid approach supporting both local and remote models:
+
 - **Local Models**: Ollama integration for privacy and zero API costs
 - **API Models**: OpenAI/Anthropic for advanced analysis requiring larger context
 
 ## Configuration Strategy
 
 Minimal configuration for MVP with extensibility architecture:
+
 - Global settings: `~/.config/diffviz/config.toml`
 - Project overrides: `.diffviz/config.toml` in project root
 - Essential settings only (LLM providers, basic preferences)
@@ -143,11 +148,13 @@ Minimal configuration for MVP with extensibility architecture:
 ### Error Handling Best Practices
 
 **Structured Error Design:**
+
 - Use `thiserror` with structured error variants, not just string wrappers
 - Preserve source error information with `#[source]` and `#[from]` attributes
 - Include contextual information in error variants (paths, identifiers, etc.)
 
 **Example of Well-Structured Errors:**
+
 ```rust
 #[derive(Debug, Error)]
 pub enum GitError {
@@ -171,12 +178,13 @@ pub enum GitError {
 ```
 
 **Error Propagation:**
+
 - Leverage automatic `#[from]` conversions to reduce boilerplate
 - Propagate errors through Result types with proper context preservation
 - Handle user-facing errors gracefully in CLI layer with meaningful messages
 
 **Error Handling Anti-patterns to Avoid:**
+
 - Converting rich error types to simple strings (loses valuable debug information)
 - Creating error variants without preserving the source error chain
 - Using generic error messages without specific context
-

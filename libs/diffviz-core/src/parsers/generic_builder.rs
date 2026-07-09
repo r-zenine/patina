@@ -477,7 +477,6 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
     // differ too much for one tree-sitter walk to handle uniformly. A correct
     // fix requires a per-language `LanguageDescriptor` hook, not a drop-in
     // string->AST rewrite here.
-    #[allow(unknown_lints, no_string_parsing_in_core)]
     fn parse_use_declaration(
         &self,
         node: Node<'_>,

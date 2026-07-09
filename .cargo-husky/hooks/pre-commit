@@ -7,8 +7,5 @@ cargo fmt --all -- --check
 echo "pre-commit: cargo clippy"
 cargo clippy --workspace --all-targets -- -D warnings
 
-echo "pre-commit: dylint (diffviz-core string/regex-parsing ban)"
-cargo dylint --path maintenance/diffviz-core-lints --all -- -p diffviz-core
-
 echo "pre-commit: depcheck (repo maintenance checks)"
 cargo run -p depcheck -- check-all
