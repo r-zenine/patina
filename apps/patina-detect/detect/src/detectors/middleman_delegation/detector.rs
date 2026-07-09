@@ -128,11 +128,34 @@ pub fn run_middleman_delegation(root: &Path) -> Result<Vec<Symptom>, MiddlemanDe
             path: candidate.file.clone(),
             position,
         };
-        let items = prepare_call_hierarchy_settled(&client, &at, warmup_deadline)?;
+        // A single candidate's lspkit call failing (e.g. a dependency's stale
+        // rust-analyzer-side build metadata, unrelated to the candidate
+        // itself — see `near_duplicate_structs::detector`'s identical fix)
+        // must not abort every other candidate's evidence gathering. Skip
+        // and continue rather than `?`.
+        let items = match prepare_call_hierarchy_settled(&client, &at, warmup_deadline) {
+            Ok(items) => items,
+            Err(err) => {
+                eprintln!(
+                    "middleman-delegation: skipping {} — prepare_call_hierarchy() failed: {err}",
+                    candidate.qualified_name
+                );
+                continue;
+            }
+        };
         let Some(item) = items.into_iter().next() else {
             continue;
         };
-        let callers = incoming_calls_settled(&client, &item, warmup_deadline)?;
+        let callers = match incoming_calls_settled(&client, &item, warmup_deadline) {
+            Ok(callers) => callers,
+            Err(err) => {
+                eprintln!(
+                    "middleman-delegation: skipping {} — incoming_calls() failed: {err}",
+                    candidate.qualified_name
+                );
+                continue;
+            }
+        };
         let same_crate_callers: Vec<CallSite> = callers
             .into_iter()
             .filter(|call_site| call_site.item.location.path.starts_with(root))

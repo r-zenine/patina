@@ -121,7 +121,21 @@ pub fn run_dead_exports(root: &Path) -> Result<Vec<Symptom>, DeadExportsError> {
             path: candidate.file.clone(),
             position,
         };
-        let references = references_settled(&client, &at, warmup_deadline)?;
+        // A single candidate's `references()` call failing (e.g. a
+        // dependency's stale rust-analyzer-side build metadata, unrelated to
+        // the candidate itself — see `near_duplicate_structs::detector`'s
+        // identical fix) must not abort every other candidate's evidence
+        // gathering. Skip and continue rather than `?`.
+        let references = match references_settled(&client, &at, warmup_deadline) {
+            Ok(references) => references,
+            Err(err) => {
+                eprintln!(
+                    "dead-exports: skipping {} — references() failed: {err}",
+                    candidate.qualified_name
+                );
+                continue;
+            }
+        };
 
         let Some((reference_count, test_only)) = classify(&references, &mut file_cache)? else {
             // Referenced from production code outside its own declaration —

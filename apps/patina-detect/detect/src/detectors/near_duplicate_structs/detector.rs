@@ -94,7 +94,13 @@ pub fn run_near_duplicate_structs(root: &Path) -> Result<Vec<Symptom>, NearDupli
                 source,
             })?;
         let tree = parse_rust(&content, &file)?;
-        collect_structs(tree.root_node(), content.as_bytes(), &file, &mut candidates);
+        collect_structs(
+            tree.root_node(),
+            content.as_bytes(),
+            &file,
+            root,
+            &mut candidates,
+        );
     }
     candidates.sort_by(|a, b| a.qualified_name.cmp(&b.qualified_name));
 
@@ -136,6 +142,7 @@ pub fn run_near_duplicate_structs(root: &Path) -> Result<Vec<Symptom>, NearDupli
         let conversion_sites = match conversion_sites(
             &references,
             &b.qualified_name,
+            root,
             &mut file_cache,
         ) {
             Ok(sites) => sites,
@@ -284,6 +291,7 @@ struct ConversionSite {
 fn conversion_sites(
     references: &[Location],
     other_struct_name: &str,
+    root: &Path,
     file_cache: &mut HashMap<PathBuf, (String, tree_sitter::Tree)>,
 ) -> Result<Vec<ConversionSite>, NearDuplicateStructsError> {
     let other_leaf = other_struct_name
@@ -334,7 +342,7 @@ fn conversion_sites(
                 start: item.start_position().row + 1,
                 end: item.end_position().row + 1,
             },
-            qualified_name: qualified_name(item, content.as_bytes()),
+            qualified_name: qualify_with_crate(item, content.as_bytes(), &reference.path, root),
         });
     }
 
@@ -394,7 +402,13 @@ fn parse_rust(content: &str, path: &Path) -> Result<tree_sitter::Tree, NearDupli
 /// Walks `node`'s subtree collecting one `StructCandidate` per named-field
 /// struct (`struct Foo { ... }`) — tuple structs, unit structs, and enums
 /// carry no field multiset to compare, so they're not candidates.
-fn collect_structs(node: Node, source: &[u8], file: &Path, out: &mut Vec<StructCandidate>) {
+fn collect_structs(
+    node: Node,
+    source: &[u8],
+    file: &Path,
+    root: &Path,
+    out: &mut Vec<StructCandidate>,
+) {
     if node.kind() == "struct_item"
         && let Some(name_node) = node.child_by_field_name("name")
         && let Some(body) = node.child_by_field_name("body")
@@ -419,7 +433,7 @@ fn collect_structs(node: Node, source: &[u8], file: &Path, out: &mut Vec<StructC
 
         out.push(StructCandidate {
             file: file.to_path_buf(),
-            qualified_name: qualified_name(node, source),
+            qualified_name: qualify_with_crate(node, source, file, root),
             name_point: name_node.start_position(),
             line_range: LineRange {
                 start: node.start_position().row + 1,
@@ -431,7 +445,7 @@ fn collect_structs(node: Node, source: &[u8], file: &Path, out: &mut Vec<StructC
 
     let mut cursor = node.walk();
     for child in node.children(&mut cursor) {
-        collect_structs(child, source, file, out);
+        collect_structs(child, source, file, root, out);
     }
 }
 
@@ -449,6 +463,67 @@ fn normalize_type(text: &str) -> String {
         ty = rest.trim_start();
     }
     ty.to_string()
+}
+
+/// `qualified_name(node, source)` prefixed with the name of the crate
+/// containing `file`, so that two same-named structs in different crates
+/// (e.g. a workspace member vs. that crate's own generated-code output)
+/// never collide in a title or in `candidate_pairs`' comparisons — see
+/// contribution 007's flagged precision gap.
+fn qualify_with_crate(node: Node, source: &[u8], file: &Path, root: &Path) -> String {
+    let name = qualified_name(node, source);
+    match crate_name_for(file, root) {
+        Some(crate_name) => format!("{crate_name}::{name}"),
+        None => name,
+    }
+}
+
+/// The `[package] name` of the nearest ancestor directory of `file` (up to
+/// `root`) that has its own `Cargo.toml` — i.e. the crate `file` belongs to.
+/// Falls back to that directory's own name if the manifest has no
+/// parseable `name` (should not happen for a well-formed `Cargo.toml`, but
+/// this crate fails fast only on I/O/parse errors that block the whole
+/// run, not on a single candidate's crate-name lookup).
+fn crate_name_for(file: &Path, root: &Path) -> Option<String> {
+    let mut dir = file.parent();
+    while let Some(d) = dir {
+        let manifest = d.join("Cargo.toml");
+        if manifest.is_file() {
+            return fs::read_to_string(&manifest)
+                .ok()
+                .and_then(|content| package_name(&content))
+                .or_else(|| d.file_name().map(|n| n.to_string_lossy().into_owned()));
+        }
+        if d == root {
+            return None;
+        }
+        dir = d.parent();
+    }
+    None
+}
+
+/// The value of `name` under `Cargo.toml`'s `[package]` table. Plain line
+/// scanning (not a TOML parser) is intentional: this crate only needs one
+/// field, and no `toml` dependency exists in this workspace crate today.
+fn package_name(cargo_toml: &str) -> Option<String> {
+    let mut in_package = false;
+    for line in cargo_toml.lines() {
+        let trimmed = line.trim();
+        if let Some(section) = trimmed.strip_prefix('[') {
+            in_package = section.trim_end_matches(']') == "package";
+            continue;
+        }
+        if !in_package {
+            continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("name") {
+            let rest = rest.trim_start();
+            if let Some(value) = rest.strip_prefix('=') {
+                return Some(value.trim().trim_matches('"').to_string());
+            }
+        }
+    }
+    None
 }
 
 /// Container-qualified name (mod/impl/trait ancestor names + own name),
@@ -509,14 +584,11 @@ mod tests {
     use super::*;
 
     fn structs_for(content: &str) -> Vec<StructCandidate> {
-        let tree = parse_rust(content, Path::new("f.rs")).unwrap();
+        let root = Path::new("/nonexistent-test-root");
+        let file = root.join("f.rs");
+        let tree = parse_rust(content, &file).unwrap();
         let mut out = Vec::new();
-        collect_structs(
-            tree.root_node(),
-            content.as_bytes(),
-            Path::new("f.rs"),
-            &mut out,
-        );
+        collect_structs(tree.root_node(), content.as_bytes(), &file, root, &mut out);
         out
     }
 
