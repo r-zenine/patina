@@ -66,4 +66,19 @@ pub enum Evidence {
         reference_count: usize,
         test_only: bool,
     },
+    /// Detector 4 (middleman delegation chains, spec.md:165-177): a function
+    /// whose body is a single delegating call, confirmed via lspkit's
+    /// `incoming_calls` to have exactly one same-crate caller. `chain` is
+    /// the composed sequence of such functions' qualified names, in call
+    /// order (length 1 when no composition occurs, longer when middlemen
+    /// chain into each other, e.g. `[facade, inner_helper]`).
+    /// `caller_count` is always 1 for a reported finding (the gate that
+    /// produced it), kept explicit as evidence rather than implied.
+    /// `body_shape` names the detected body pattern (currently always
+    /// "single delegating call").
+    MiddlemanChain {
+        chain: Vec<String>,
+        caller_count: usize,
+        body_shape: String,
+    },
 }
