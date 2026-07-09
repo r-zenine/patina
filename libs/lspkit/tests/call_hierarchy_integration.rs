@@ -38,6 +38,24 @@ fn prepare_call_hierarchy_with_retry(
     }
 }
 
+/// `incoming_calls`/`outgoing_calls` immediately following a fresh
+/// `prepare_call_hierarchy` can still race rust-analyzer's indexing and come
+/// back with a transient `-32801 content modified` server error even though
+/// `prepare_call_hierarchy` itself already succeeded — same warm-up window,
+/// different request. Retry on that specific error only.
+fn retry_on_content_modified<T>(mut call: impl FnMut() -> lspkit::Result<Vec<T>>) -> Vec<T> {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        match call() {
+            Ok(value) => return value,
+            Err(lspkit::Error::ServerError { code: -32801, .. }) if Instant::now() < deadline => {
+                std::thread::sleep(Duration::from_millis(500));
+            }
+            Err(err) => panic!("call hierarchy request failed: {err}"),
+        }
+    }
+}
+
 fn chain_b_item(client: &LspClient, root: &std::path::Path) -> CallHierarchyItem {
     let at = FileLocation {
         path: root.join("src/lib.rs"),
@@ -73,9 +91,7 @@ fn incoming_calls_finds_the_known_caller() {
     let client = LspClient::start(&root).expect("initialize handshake should succeed");
     let item = chain_b_item(&client, &root);
 
-    let callers: Vec<CallSite> = client
-        .incoming_calls(&item)
-        .expect("incoming_calls should succeed");
+    let callers: Vec<CallSite> = retry_on_content_modified(|| client.incoming_calls(&item));
 
     assert_eq!(
         callers.len(),
@@ -92,9 +108,7 @@ fn outgoing_calls_finds_the_known_callee() {
     let client = LspClient::start(&root).expect("initialize handshake should succeed");
     let item = chain_b_item(&client, &root);
 
-    let callees: Vec<CallSite> = client
-        .outgoing_calls(&item)
-        .expect("outgoing_calls should succeed");
+    let callees: Vec<CallSite> = retry_on_content_modified(|| client.outgoing_calls(&item));
 
     assert_eq!(
         callees.len(),
