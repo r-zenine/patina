@@ -4,6 +4,7 @@
 
 mod composite;
 mod native;
+mod transport;
 
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
