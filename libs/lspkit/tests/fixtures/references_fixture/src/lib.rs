@@ -21,3 +21,15 @@ pub fn chain_b() -> i32 {
 pub fn chain_c() -> i32 {
     7
 }
+
+pub enum Shape {
+    Circle,
+    Square,
+}
+
+pub fn describe(shape: Shape) -> &'static str {
+    match shape {
+        Shape::Circle => "circle",
+        Shape::Square => "square",
+    }
+}

@@ -8,12 +8,32 @@ use crate::{
 use std::path::{Path, PathBuf};
 
 impl LspClient {
-    pub fn hover(&self, _at: &FileLocation) -> Result<Option<Hover>> {
-        todo!("wire textDocument/hover over the JSON-RPC transport")
+    pub fn hover(&self, at: &FileLocation) -> Result<Option<Hover>> {
+        let params = serde_json::json!({
+            "textDocument": {"uri": to_file_uri(&at.path)},
+            "position": to_lsp_position(at.position),
+        });
+        let result = self.call("textDocument/hover", params)?;
+        match result {
+            serde_json::Value::Null => Ok(None),
+            other => Ok(Some(from_lsp_hover(&other)?)),
+        }
     }
 
-    pub fn definition(&self, _at: &FileLocation) -> Result<Vec<Location>> {
-        todo!("wire textDocument/definition over the JSON-RPC transport")
+    pub fn definition(&self, at: &FileLocation) -> Result<Vec<Location>> {
+        let params = serde_json::json!({
+            "textDocument": {"uri": to_file_uri(&at.path)},
+            "position": to_lsp_position(at.position),
+        });
+        let result = self.call("textDocument/definition", params)?;
+        match result {
+            serde_json::Value::Null => Ok(Vec::new()),
+            serde_json::Value::Array(items) => items.iter().map(from_lsp_location).collect(),
+            object @ serde_json::Value::Object(_) => Ok(vec![from_lsp_location(&object)?]),
+            other => Err(Error::Protocol(format!(
+                "textDocument/definition: expected an array, object, or null result, got {other}"
+            ))),
+        }
     }
 
     pub fn references(
@@ -249,6 +269,57 @@ fn from_lsp_call_site(value: &serde_json::Value, item_field: &str) -> Result<Cal
         item: from_lsp_call_hierarchy_item(item)?,
         call_ranges: ranges.iter().map(from_lsp_range).collect::<Result<_>>()?,
     })
+}
+
+/// `Hover.contents` is either a plain string, a `MarkupContent { kind, value }`
+/// object, or (older protocol) a `MarkedString`/`MarkedString[]` — rust-analyzer
+/// only ever sends the `MarkupContent` object shape, so that and the plain
+/// string case are all this needs to handle.
+fn from_lsp_hover(value: &serde_json::Value) -> Result<Hover> {
+    let contents = value
+        .get("contents")
+        .ok_or_else(|| Error::Protocol(format!("expected a hover.contents, got {value}")))?;
+    let markdown = match contents {
+        serde_json::Value::String(s) => s.as_str(),
+        serde_json::Value::Object(_) => contents
+            .get("value")
+            .and_then(serde_json::Value::as_str)
+            .ok_or_else(|| {
+            Error::Protocol(format!("expected a hover.contents.value, got {value}"))
+        })?,
+        other => {
+            return Err(Error::Protocol(format!(
+                "expected hover.contents to be a string or object, got {other}"
+            )));
+        }
+    };
+    let (signature, docs) = split_hover_markdown(markdown);
+    Ok(Hover { signature, docs })
+}
+
+/// rust-analyzer's hover markdown is a ```rust fenced signature, optionally
+/// followed by a `---` separator and prose docs. Non-markdown (plaintext)
+/// responses fall back to using the whole body as the signature.
+fn split_hover_markdown(markdown: &str) -> (String, Option<String>) {
+    const FENCE_OPEN: &str = "```rust\n";
+    let Some(start) = markdown.find(FENCE_OPEN) else {
+        return (markdown.trim().to_string(), None);
+    };
+    let after_open = &markdown[start + FENCE_OPEN.len()..];
+    let Some(end) = after_open.find("```") else {
+        return (markdown.trim().to_string(), None);
+    };
+    let signature = after_open[..end].trim().to_string();
+    let rest = after_open[end + "```".len()..]
+        .trim()
+        .trim_start_matches("---")
+        .trim();
+    let docs = if rest.is_empty() {
+        None
+    } else {
+        Some(rest.to_string())
+    };
+    (signature, docs)
 }
 
 fn from_lsp_location(value: &serde_json::Value) -> Result<Location> {
