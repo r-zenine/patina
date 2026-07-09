@@ -44,6 +44,17 @@ Before proceeding to execution work, confirm all of these (criteria owned by [SK
 
 **Goal:** Understand the context and strategic direction before contributing.
 
+**Preferred: delegate this step to an Explore agent.** The plan artifacts plus prior handoffs are typically thousands of lines that would otherwise sit in your context for the whole session but are only needed distilled. Spawn an Explore agent with the plan directory path and ask it to apply the process below (including progressive disclosure per [`contribution-system/references/progressive-disclosure.md`](../../contribution-system/references/progressive-disclosure.md)) and return a compact brief containing exactly:
+
+- Phase to work on (number, objective, success criteria, files to modify)
+- Execution strategy and where this contribution sits in its sequence
+- Constraints inherited from prior decision-logs (or "none")
+- Outstanding review feedback from `diffviz display review` (or "none")
+- Blockers, fragile areas, and guidance flagged by the most recent context-handoff
+- Next contribution folder number
+
+Read the target source files yourself during Outcome 2 as needed — the brief replaces the plan artifacts, not the code. Fall back to reading the artifacts directly only when the plan is small (one or two prior contributions).
+
 **Process:**
 
 1. **Locate the dev-strategy plan** in `.plans/plan-[FEATURE-NAME]/`
@@ -131,6 +142,8 @@ Before proceeding to execution work, confirm all of these (criteria owned by [SK
 2. **Run linter:** All linting must pass with zero warnings
 3. **Run test suite:** All tests must pass with zero failures
 
+**Log hygiene:** Run these as a single chained command with full output redirected to a file (e.g. `> /tmp/baseline.log 2>&1`); inspect only the exit status, and grep the log for errors/warnings only when a check fails. Verbose build/test output pasted into the conversation is paid for on every subsequent turn.
+
 **If Validation Fails:**
 - STOP immediately
 - Document the failures found
@@ -217,6 +230,9 @@ For complete folder naming convention, contribution type definitions, and specia
 
 **Sufficient Implementation Principle:**
 Focus on making it work correctly, not perfectly. Avoid over-polishing, excessive error handling for edge cases that won't occur, or adding features not required for the current phase. See [`design-principles` skill](../design-principles/SKILL.md) for full principles.
+
+**Delegating Work Items (use sparingly):**
+Keep coupled implementation work in the main agent — design choices, error propagation, and call-site consistency need one head. Delegate an item to a sub-agent only when its brief fits in a paragraph and it shares no design state with other items (e.g. repeating an established fixture-test pattern across languages, mechanical migrations with a worked example). During the edit-test loop, apply the same log hygiene as baseline validation: redirect verbose build/test output to a file and surface only failures.
 
 **When Research Artifacts Are Most Valuable:**
 - First implementation of new technologies mentioned in research/
@@ -414,6 +430,8 @@ After reviewing a previous contribution's `decision-log.yaml`, if you discover a
 1. **Run compilation/build:** All compilation must succeed with zero errors
 2. **Run linter:** All linting must pass with zero warnings
 3. **Run test suite:** All tests must pass with zero failures
+
+Apply the same log hygiene as baseline validation: one chained command, output to a file, only failures surfaced in the conversation.
 
 If any check fails: fix all issues before completing the contribution.
 

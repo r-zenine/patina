@@ -62,6 +62,13 @@ The skill generates only the following structured artifacts in `.plans/plan-[FEA
 
 For principles applied during planning (YAGNI, Last Responsible Moment, Kent Beck's 4 Rules, Sufficient Planning), see [`design-principles` skill](../design-principles/SKILL.md).
 
+**Token Efficiency** — a plan's cost is not just the planning session; every artifact is re-read by every downstream contribution:
+
+- **Delegate bulk reading.** Codebase analysis and technical research go through sub-agents (Explore for code, general-purpose for research) that return distilled findings — raw file contents and web-search transcripts must not accumulate in the planning session.
+- **Artifacts are paid for once per phase.** A line in `context-document.md` or `code-context.md` is re-read by every contribution, so an N-phase plan pays for it N times. Write artifacts lean: distill, don't transcribe; link to code by path and line range instead of quoting it.
+- **Size phases for a single fresh session.** Each phase must be completable by one dev-contribute invocation in a fresh context window without approaching the context limit (~100k tokens of working room). A phase that needs more is two phases.
+- **Make phases self-contained in the roadmap.** Each phase entry should carry the file paths, constraints, and success criteria the implementer needs, so a contribution can start from a compact brief instead of re-reading the whole plan.
+
 ## How to Use This Skill
 
 For tactics available for each outcome, see [references/tactics.md](references/tactics.md).

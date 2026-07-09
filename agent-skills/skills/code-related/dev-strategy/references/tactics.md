@@ -49,6 +49,8 @@ Key information to extract:
 - **Key files** with line numbers for relevant code
 - **Technical constraints** (TypeScript usage, database limitations, etc.)
 
+**Keep the exploration out of the planning session:** work from the Explore agent's report. If a specific detail is missing, read only the targeted line range (or send a follow-up question to the same agent) — do not re-read whole files into the planning context to double-check findings.
+
 ---
 
 ### Tactic: Domain Grilling Session
@@ -83,6 +85,8 @@ See [`design-principles/references/anti-patterns.md`](../design-principles/refer
 - `implementation-examples.md` — code patterns and practical examples
 
 Use templates from [`contribution-system/assets/templates/`](../contribution-system/assets/templates/).
+
+**Delegate the research:** spawn a general-purpose sub-agent that performs the web searches and doc reading, writes the three research artifacts directly, and returns only its `research-summary.md` content. Search transcripts and fetched pages are the bulkiest content a planning session can accumulate and are worthless once distilled — they must not pass through the main context.
 
 ---
 
@@ -136,6 +140,8 @@ Done when:
 ### Tactic: Create Plan Artifacts
 
 **When to use**: STRATEGY outcome is met. Create all 4 core artifacts.
+
+**Write lean — every line is paid for once per phase.** Downstream, each dev-contribute invocation re-reads these artifacts, so an N-phase plan pays for their length N times. Distill instead of transcribing: reference code by path and line range rather than quoting it, and keep the behavioral spec and architecture summary to what an implementer actually needs.
 
 **Artifact 1 — Code Context** (`code-context.md`)
 
@@ -218,7 +224,8 @@ Use clear, descriptive feature names with `plan-` prefix:
 
 ### Making Phases Actionable
 
-- Each phase should be completable in 1–3 development sessions
+- Each phase must be completable in **one focused session with a fresh context window** — dev-contribute runs one contribution per session, and a phase that would push a session past ~100k tokens of working context should be split into two phases
+- Make each phase self-contained in the roadmap: its entry carries the file paths, relevant constraints, and success criteria the implementer needs, so a contribution can start from a compact brief instead of re-reading the whole plan
 - Include specific file paths that need modification
 - Provide clear success criteria
 - Consider dependencies between phases

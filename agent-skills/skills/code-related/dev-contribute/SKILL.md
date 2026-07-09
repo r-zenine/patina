@@ -88,6 +88,12 @@ For all applicable principles (YAGNI, Sufficient Implementation, KISS, Last Resp
 - In documentation artifacts, explain concepts through clear descriptions
 - Avoid code examples in documentation unless absolutely necessary
 
+**Token Efficiency**
+- **One contribution per session.** Start each contribution in a fresh session — never chain phases in one conversation. Context carried over from a previous phase is paid for on every subsequent turn and is mostly stale.
+- **Delegate context assembly, keep implementation.** Outcome 1 (reading plan artifacts and prior handoffs) is read-heavy and delegates well to an Explore agent that returns a compact brief. Outcome 2 (implementation) is coupled work — keep it in the main agent; fragmenting a phase across minimal-context sub-agents produces locally-reasonable, globally-inconsistent code.
+- **Delegate an item only if its brief fits in a paragraph.** Genuinely independent items (e.g. parallel fixture tests across languages) qualify; anything needing shared design state does not.
+- **Keep build/test/lint output out of context.** Run quality gates as a single command whose full log goes to a file; only the pass/fail summary and actual failures belong in the conversation. Repeated verbose cargo output across an edit-test loop is the main driver of oversized sessions.
+
 ## When to use the advisor 
 
 Use the advisor with caution, you'll find it usefull to request the help if the advisor in a couple of specific cases : 
