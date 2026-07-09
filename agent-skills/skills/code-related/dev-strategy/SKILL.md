@@ -68,6 +68,7 @@ For principles applied during planning (YAGNI, Last Responsible Moment, Kent Bec
 - **Artifacts are paid for once per phase.** A line in `context-document.md` or `code-context.md` is re-read by every contribution, so an N-phase plan pays for it N times. Write artifacts lean: distill, don't transcribe; link to code by path and line range instead of quoting it.
 - **Size phases for a single fresh session.** Each phase must be completable by one dev-contribute invocation in a fresh context window without approaching the context limit (~100k tokens of working room). A phase that needs more is two phases.
 - **Make phases self-contained in the roadmap.** Each phase entry should carry the file paths, constraints, and success criteria the implementer needs, so a contribution can start from a compact brief instead of re-reading the whole plan.
+- **Interactive replies: lead with the outcome, one level of detail.** No process narration, no options not chosen, no teaching material — the user asks if they want more. But keep decisions, trade-offs, and failures: omitting one triggers a follow-up round-trip over the full context, costlier than the sentence that preempts it. Conversation only — artifacts are read by fresh-context agents that can't ask, so they stay complete-but-lean.
 
 ## How to Use This Skill
 

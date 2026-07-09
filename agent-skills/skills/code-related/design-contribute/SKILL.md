@@ -39,6 +39,14 @@ Design is inherently collaborative and iterative. Use AskUserQuestion to:
 
 See [`contribution-system/references/constraint-discovery.md`](../contribution-system/references/constraint-discovery.md) for interactive techniques and patterns.
 
+### Token Efficiency in Dialogue
+
+Design sessions are conversation-heavy, and every reply is re-read on each subsequent turn:
+
+- **Interactive replies: lead with the outcome, one level of detail.** No process narration, no teaching material — the user asks if they want more. When presenting options, state each in a few lines with its trade-off; save depth for the option the user picks.
+- **Keep decisions, trade-offs, and failures in the reply.** Omitting one triggers a follow-up round-trip over the full context, costlier than the sentence that preempts it.
+- **Artifacts are the opposite case.** design-doc.md and context-handoff.md are read by fresh-context implementers that can't ask follow-ups — the < 100 / < 30 line targets mean complete-but-lean, not minimal.
+
 ## Execution Overview
 
 To create a robust design contribution, three outcomes must be achieved:

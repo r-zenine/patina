@@ -93,6 +93,7 @@ For all applicable principles (YAGNI, Sufficient Implementation, KISS, Last Resp
 - **Delegate context assembly, keep implementation.** Outcome 1 (reading plan artifacts and prior handoffs) is read-heavy and delegates well to an Explore agent that returns a compact brief. Outcome 2 (implementation) is coupled work — keep it in the main agent; fragmenting a phase across minimal-context sub-agents produces locally-reasonable, globally-inconsistent code.
 - **Delegate an item only if its brief fits in a paragraph.** Genuinely independent items (e.g. parallel fixture tests across languages) qualify; anything needing shared design state does not.
 - **Keep build/test/lint output out of context.** Run quality gates as a single command whose full log goes to a file; only the pass/fail summary and actual failures belong in the conversation. Repeated verbose cargo output across an edit-test loop is the main driver of oversized sessions.
+- **Interactive replies: lead with the outcome, one level of detail.** No process narration, no options not chosen, no teaching material — the user asks if they want more. But keep decisions, trade-offs, and failures: omitting one triggers a follow-up round-trip over the full context, costlier than the sentence that preempts it. Conversation only — handoffs and decision logs are read by fresh-context agents that can't ask, so they stay complete-but-lean.
 
 ## When to use the advisor 
 
