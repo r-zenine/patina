@@ -21,6 +21,9 @@ pub enum SiteRole {
     ConversionSite,
     Definition,
     Caller,
+    /// A call site that forwards a data clump intact to another call
+    /// (detector 8's precision gate).
+    ForwardingSite,
 }
 
 /// A single line-range location a triager should look at, with a role

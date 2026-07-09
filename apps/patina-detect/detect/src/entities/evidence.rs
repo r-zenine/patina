@@ -37,4 +37,19 @@ pub enum Evidence {
         function_length: usize,
         max_nesting_depth: usize,
     },
+    /// Detector 8 (data clumps, spec.md:226-248): a group of `>= 3`
+    /// normalized `(name, type)` parameters recurring together across
+    /// `>= 3` distinct signatures, promoted only once the precision gate
+    /// (forwarded intact to another call) holds. `members` is the clump's
+    /// sorted normalized parameter set, `occurrence_count` the number of
+    /// distinct signatures it recurred in (trait-impl-deduped),
+    /// `forwarding_chain` the qualified names of the functions that pass it
+    /// on unchanged, and `subset_of_struct` the bonus evidence naming an
+    /// existing struct whose fields already cover the clump, if any.
+    DataClump {
+        members: Vec<(String, String)>,
+        occurrence_count: usize,
+        forwarding_chain: Vec<String>,
+        subset_of_struct: Option<String>,
+    },
 }
