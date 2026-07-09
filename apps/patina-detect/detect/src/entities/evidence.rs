@@ -16,4 +16,15 @@ pub enum Evidence {
         rule_id: String,
         matched_snippet: String,
     },
+    /// Detector 2 (Type-2 clones, spec.md:134-148): a group of function-sized
+    /// subtrees whose normalized structure hashes identically. `group_size`
+    /// is the member count, `node_count` the shared subtree's semantic-node
+    /// count (proves the min-size gate held), `all_test_code` distinguishes
+    /// clones confined to `#[cfg(test)]`/`#[test]` code per the spec's FP
+    /// control.
+    CloneGroup {
+        group_size: usize,
+        node_count: usize,
+        all_test_code: bool,
+    },
 }
