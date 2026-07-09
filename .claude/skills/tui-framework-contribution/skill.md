@@ -312,6 +312,21 @@ of duplicating rule text above.
 
 ### `patina-detect-tui`
 
-- Not yet built — add its addendum here once its first phase lands
-  (binary name, package name, characterization test file, and how its
-  `Symptom`/`Site` model adapts to `DrillGroup`/`DrillChunk`).
+- Binary: `triage-tui` (`cargo run --bin triage-tui`)
+- Package: `patina-detect-tui` (`cargo test --package patina-detect-tui --features test-harness`)
+- No characterization test yet — `tests/triage_flow_tests.rs` is a behavioral
+  acceptance test (browse → drill → dismiss → verdict excluded on next run),
+  not a pinned-snapshot file; nothing currently blocks editing it when
+  behavior intentionally changes.
+- Its Browse/Drill views are generic `tui_design::drillnav` renderers behind
+  a `SymptomGroup`/`SiteAdapter` adapter
+  (`src/ui/components/drillnav_{browse,drill}.rs`) implementing
+  `DrillGroup`/`DrillChunk` over `patina-detect`'s `Symptom`/`Site` model;
+  `evidence_rationale`/`line_color` in `drillnav_common.rs` stay
+  domain-specific because they reach into `Symptom`/`Evidence`/`Site`.
+- Flat 2-level hierarchy (`Symptom -> Site`, no sibling-file cycling), unlike
+  `diffviz-review-tui`'s `Decision -> ReviewableDiff` — `render_drill` is
+  always called with `siblings: None`.
+- Scan path (`libs/diffviz-core`) and baseline path
+  (`patina-detect-baseline.json`) are hardcoded relative to cwd in `main.rs`,
+  no CLI override yet — run `triage-tui` from the repo root.
