@@ -183,3 +183,49 @@ decisions:
       with no new lspkit method; definition/hover -> parallel dispatch (7);
       implementations -> single-impl traits (9), last per the spec's own
       note that its FP controls (test-double exclusion) rank it last.
+
+  - id: D011
+    title: Detector 8 forwarding-gate refinement — closed-recursion exclusion via call hierarchy, deferred to a new Phase 16
+    status: accepted
+    rationale: >
+      Phase 6's own real-repo verification (a subagent review of the one
+      data-clump symptom found across the whole repo, 2026-07-09) surfaced
+      a genuine false-positive shape the forwarding gate doesn't guard
+      against: a private recursive-descent visitor's own helper functions
+      (`cognitive_complexity::score_node`/`score_if`/`score_match`),
+      confined to one module, forwarding `(node, accumulator...)` state to
+      each other. Two fixes were considered. A cheap tree-sitter-only
+      heuristic (require the forwarding chain to span >= 2 files/modules,
+      mirroring detector 2's cross-file clone ranking) was rejected by the
+      user as trading this false-positive shape for a new false-negative
+      one — a legitimate clump forwarded across genuinely distinct call
+      sites that happen to share one file would be wrongly excluded. The
+      chosen fix instead uses `incoming_calls` (Phase 9's lspkit
+      deliverable): a clump group is excluded only when it forms a *closed*
+      call graph (every caller of every occurrence is itself a group
+      member, i.e. no external caller reaches in) — precise regardless of
+      file layout, since it reasons about actual call structure rather than
+      source-tree location.
+    code_impacts: []
+    alternatives_considered:
+      - >
+        File/module-scope heuristic (forwarding chain must cross >= 2
+        files): rejected — cheaper (no lspkit dependency) but creates false
+        negatives for same-file clumps with genuinely distinct external
+        callers, which the user judged worse than leaving the known FP
+        unresolved a little longer.
+      - >
+        Fold the fix into Phase 9's own acceptance criteria (land it
+        immediately once call hierarchy exists, as a Phase 6 revision
+        contribution right after Phase 9): rejected in favor of a
+        standalone phase at the end of the roadmap, per explicit user
+        request — keeps Phase 9 scoped to its own lspkit-wiring deliverable
+        and gives the revision its own acceptance criteria and real-repo
+        regression check (the `cognitive_complexity` clump must stop being
+        reported).
+    consequences:
+      - >
+        Phase 16 (new, appended to the roadmap) depends on Phase 9's
+        `incoming_calls` despite running after Phases 10-15 in roadmap
+        order — implementers must not treat roadmap position as dependency
+        order for this one phase.

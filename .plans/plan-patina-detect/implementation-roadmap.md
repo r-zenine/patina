@@ -6,12 +6,15 @@ FP-control fixtures). Each phase is a complete, independently shippable
 deliverable; the workspace builds and is warning-free at every phase
 boundary.
 
-**Total phases**: 16 (0–15), deliberately small — favor more, smaller phases
+**Total phases**: 17 (0–16), deliberately small — favor more, smaller phases
 over few large ones per explicit instruction. Phases 0–2 are specified in
 full detail; phases 3–15 carry enough to start, deferring fine-grained
 decisions per Last Responsible Moment (thresholds/evidence shapes are already
 pinned in `docs/patina-detect/spec.md` — each phase cites its section instead
-of repeating it). Line references are in `code-context.md`.
+of repeating it). Phase 16 is a revision of Phase 6, added after Phase 6's
+own real-repo verification surfaced a false-positive shape (decision D011);
+it depends on Phase 9's call hierarchy and so must run after it despite its
+position at the end of this list. Line references are in `code-context.md`.
 
 **Standing acceptance criteria for every phase** (not repeated below):
 `cargo build --workspace` / `cargo test --workspace` green, `cargo clippy
@@ -451,6 +454,53 @@ See `docs/patina-detect/spec.md:250-259`.
 - A trait with one production impl and one test-double impl is correctly
   excluded (DI pattern); a trait with genuinely one impl and no test double
   is reported.
+
+---
+
+## Phase 16 — Detector 8 revision: call-hierarchy-based forwarding-gate refinement
+
+**Deliverable**: Data-clumps' forwarding-intact precision gate (Phase 6)
+additionally excludes closed recursive/mutually-recursive clusters (e.g. a
+private recursive-descent visitor's own helper functions forwarding
+`(node, accumulator...)` state to each other) using lspkit's call hierarchy
+— a false-positive shape found during Phase 6's own real-repo verification
+(a subagent review classified `cognitive_complexity/detector.rs`'s
+`score_node`/`score_if`/`score_match` `(node, nesting, max_nesting_depth)`
+clump as a dismissible false positive of exactly this shape, and flagged it
+as a systematic gap, not a one-off). See decision D011.
+
+### Objectives
+
+1. For each promoted clump group (Phase 6's existing threshold/forwarding
+   checks still apply first), call `incoming_calls` (Phase 9,
+   `lspkit::native::incoming_calls`) on every occurrence in the group.
+2. Closed-cluster check: if every caller of every occurrence in the group is
+   itself a member of the same group (no external caller anywhere), the
+   clump is a self-contained recursive/mutually-recursive family — exclude
+   it. If at least one occurrence has a caller outside the group, keep it
+   (real independent call sites are passing the clump around, regardless of
+   whether they all happen to live in the same file).
+3. This supersedes any file/module-scope heuristic as the FP control for
+   this shape — a same-file clump called from genuinely distinct external
+   sites must not be excluded, which a module-scope gate would incorrectly
+   do (this was the reason LSP was chosen over the cheaper heuristic,
+   decision D011).
+4. Land as a Phase 6 revision contribution
+   (`NNN-phase-6-revision-code-[agent]`, per the standard revision pattern),
+   not a new detector — `data_clumps`' existing entity shapes
+   (`Evidence::DataClump`, `SiteRole::ForwardingSite`) are unchanged.
+
+### Acceptance Criteria
+- A synthetic closed recursive-helper family (mirroring
+  `score_node`/`score_if`/`score_match`'s shape: private functions in one
+  module, forwarding a clump to each other, no caller from outside the
+  family) is excluded.
+- A synthetic clump forwarded across genuinely distinct call sites that
+  happen to share a file is still reported (proves the gate doesn't
+  regress to the rejected file/module heuristic).
+- Re-running detector 8 against this repo's own codebase no longer reports
+  the `cognitive_complexity` scorer's clump (the known false positive this
+  phase exists to fix).
 
 ---
 
