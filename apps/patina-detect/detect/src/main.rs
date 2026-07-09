@@ -1,6 +1,7 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use patina_detect::detectors::house_rules::run_house_rules;
+use patina_detect::detectors::type2_clones::run_type2_clones;
 use patina_detect::engines::DetectorEngine;
 use patina_detect::export_symptom_log;
 use patina_detect::persistence::Baseline;
@@ -90,8 +91,12 @@ fn detect_symptoms(
     baseline_path: &Path,
     audit: bool,
 ) -> Result<Vec<patina_detect::entities::Symptom>> {
-    let symptoms = run_house_rules(path)
+    let mut symptoms = run_house_rules(path)
         .with_context(|| format!("running house-rules detector against {}", path.display()))?;
+    symptoms
+        .extend(run_type2_clones(path).with_context(|| {
+            format!("running type2-clones detector against {}", path.display())
+        })?);
 
     if audit {
         return Ok(symptoms);

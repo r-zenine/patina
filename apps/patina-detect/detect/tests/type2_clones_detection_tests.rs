@@ -63,6 +63,46 @@ pub fn compute_rating(numbers: &[i32], limit: i32) -> i32 {
 /// be reported.
 const TRIVIAL: &str = "pub fn add_one(x: i32) -> i32 {\n    x + 1\n}\n";
 
+/// A clone pair with a *different* shape from `MEMBER_A`/`MEMBER_B` (a
+/// `while` loop instead of `for`, no `else if` branch) — used to build a
+/// same-file clone group that is structurally distinct from the cross-file
+/// group, so the two don't collapse into one 4-member equivalence class.
+const MEMBER_C: &str = r#"
+fn accumulate_totals(values: &[i32], step: i32, floor: i32) -> i32 {
+    let mut index = 0;
+    let mut total = 0;
+    while index < values.len() {
+        if values[index] > step {
+            total += values[index];
+        } else if values[index] < floor {
+            total -= 1;
+        } else {
+            total += 2;
+        }
+        index += 1;
+    }
+    total
+}
+"#;
+
+const MEMBER_D: &str = r#"
+fn accumulate_counts(numbers: &[i32], gap: i32, minimum: i32) -> i32 {
+    let mut cursor = 0;
+    let mut sum = 0;
+    while cursor < numbers.len() {
+        if numbers[cursor] > gap {
+            sum += numbers[cursor];
+        } else if numbers[cursor] < minimum {
+            sum -= 1;
+        } else {
+            sum += 2;
+        }
+        cursor += 1;
+    }
+    sum
+}
+"#;
+
 fn write_fixture(dir: &std::path::Path, relative: &str, content: &str) {
     let path = dir.join(relative);
     if let Some(parent) = path.parent() {
@@ -129,12 +169,9 @@ fn cross_file_clone_group_is_ranked_above_a_same_file_clone_group() {
     // Cross-file group: MEMBER_A / MEMBER_B split across two files.
     write_fixture(dir.path(), "cross_a.rs", MEMBER_A);
     write_fixture(dir.path(), "cross_b.rs", MEMBER_B);
-    // Same-file group: two near-identical members in a single file.
-    let same_file_source = format!(
-        "{}\n{}",
-        MEMBER_A.replace("compute_score", "compute_score_v1"),
-        MEMBER_B.replace("compute_rating", "compute_score_v2")
-    );
+    // Same-file group: a structurally distinct pair (MEMBER_C/MEMBER_D) so
+    // it doesn't collapse into the same equivalence class as MEMBER_A/B.
+    let same_file_source = format!("{MEMBER_C}\n{MEMBER_D}");
     write_fixture(dir.path(), "same_file.rs", &same_file_source);
 
     let symptoms = run_type2_clones(dir.path()).expect("detector run failed");
