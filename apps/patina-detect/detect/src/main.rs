@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
+use patina_detect::detectors::cognitive_complexity::run_cognitive_complexity;
 use patina_detect::detectors::house_rules::run_house_rules;
 use patina_detect::detectors::type2_clones::run_type2_clones;
 use patina_detect::engines::DetectorEngine;
@@ -97,6 +98,12 @@ fn detect_symptoms(
         .extend(run_type2_clones(path).with_context(|| {
             format!("running type2-clones detector against {}", path.display())
         })?);
+    symptoms.extend(run_cognitive_complexity(path).with_context(|| {
+        format!(
+            "running cognitive-complexity detector against {}",
+            path.display()
+        )
+    })?);
 
     if audit {
         return Ok(symptoms);
