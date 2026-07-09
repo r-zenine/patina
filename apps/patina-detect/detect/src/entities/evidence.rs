@@ -27,4 +27,14 @@ pub enum Evidence {
         node_count: usize,
         all_test_code: bool,
     },
+    /// Detector 5 (cognitive complexity extremes, spec.md:179-192): a
+    /// function scoring at or above the threshold (≥25) under the Sonar
+    /// cognitive-complexity spec (+1 per branch, +1 extra per nesting
+    /// level). `function_length` is the function's line span,
+    /// `max_nesting_depth` the deepest nesting level reached.
+    ComplexityScore {
+        score: usize,
+        function_length: usize,
+        max_nesting_depth: usize,
+    },
 }
