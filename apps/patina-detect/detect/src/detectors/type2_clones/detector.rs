@@ -75,7 +75,7 @@ pub fn run_type2_clones(root: &Path) -> Result<Vec<Symptom>, Type2ClonesError> {
                 continue;
             }
             let mut signature = String::new();
-            structural_signature(function, &mut signature);
+            structural_signature(function, false, content.as_bytes(), &mut signature);
 
             groups.entry(signature).or_default().push(FunctionUnit {
                 file: file.clone(),
@@ -162,21 +162,68 @@ fn collect_function_items<'a>(node: Node<'a>, out: &mut Vec<Node<'a>>) {
 /// skipping comments. Because tree-sitter node kinds for identifiers and
 /// literals (`identifier`, `integer_literal`, ...) never carry the actual
 /// text, this already collapses "compute_score"/"compute_rating" and
-/// "0"/"100" to the same signature — no separate placeholder substitution
-/// step is needed.
-fn structural_signature(node: Node, out: &mut String) {
+/// "0"/"100" to the same signature for *local, renamable* names — no
+/// separate placeholder-substitution step is needed for those.
+///
+/// It is deliberately *not* blanket-blind to identifier text, though: a
+/// leaf sitting in a [`is_reference_position`] — a method/field name, a
+/// macro name, or a `Type::name` path segment — names something defined
+/// elsewhere (an external API surface), not a locally renamable binding, so
+/// its text is kept as part of the signature. Two functions that share
+/// control-flow shape but call different APIs (`get_file_hash()` vs.
+/// `get_content_snapshot()`, `JavaParser::new()` vs. `CParser::new()`,
+/// `assert!` vs. `assert_eq!`) no longer collapse into one false clone
+/// match; a genuinely renamed local variable used repeatedly through a
+/// function body (e.g. `values`/`numbers` as the receiver of `.len()`)
+/// still does, because receiver/argument positions aren't reference
+/// positions.
+fn structural_signature(node: Node, retain_text: bool, source: &[u8], out: &mut String) {
     if matches!(
         node.kind(),
         "line_comment" | "block_comment" | "doc_comment"
     ) {
         return;
     }
+    let is_identifier_leaf = matches!(
+        node.kind(),
+        "identifier" | "field_identifier" | "type_identifier"
+    );
     out.push_str(node.kind());
-    out.push('|');
-    let mut cursor = node.walk();
-    for child in node.named_children(&mut cursor) {
-        structural_signature(child, out);
+    if is_identifier_leaf && retain_text {
+        out.push(':');
+        if let Ok(text) = node.utf8_text(source) {
+            out.push_str(text);
+        }
     }
+    out.push('|');
+
+    let mut cursor = node.walk();
+    if cursor.goto_first_child() {
+        loop {
+            let child = cursor.node();
+            if child.is_named() {
+                let child_retain = is_reference_position(node.kind(), cursor.field_name());
+                structural_signature(child, child_retain, source, out);
+            }
+            if !cursor.goto_next_sibling() {
+                break;
+            }
+        }
+    }
+}
+
+/// Whether a child in `field_name` position under a `parent_kind` node
+/// names something defined outside the function being fingerprinted (a
+/// method/field name, a macro name, or a `Type`/`variant` path segment)
+/// rather than a locally renamable variable/parameter/loop binding.
+fn is_reference_position(parent_kind: &str, field_name: Option<&str>) -> bool {
+    matches!(
+        (parent_kind, field_name),
+        ("field_expression", Some("field"))
+            | ("macro_invocation", Some("macro"))
+            | ("scoped_identifier", Some("path"))
+            | ("scoped_identifier", Some("name"))
+    )
 }
 
 /// Counts named nodes in `node`'s subtree that carry real structural
@@ -273,7 +320,7 @@ mod tests {
         let mut functions = Vec::new();
         collect_function_items(tree.root_node(), &mut functions);
         let mut signature = String::new();
-        structural_signature(functions[0], &mut signature);
+        structural_signature(functions[0], false, content.as_bytes(), &mut signature);
         signature
     }
 
@@ -290,6 +337,46 @@ mod tests {
         let a = "fn f(x: i32) -> i32 { if x > 0 { x } else { 0 } }";
         let b = "fn f(x: i32) -> i32 { let mut y = x; while y > 0 { y -= 1; } y }";
         assert_ne!(first_function_signature(a), first_function_signature(b));
+    }
+
+    #[test]
+    fn calling_a_different_method_on_a_same_shaped_receiver_produces_a_different_signature() {
+        let a = "fn f(values: &[i32]) -> usize { values.len() }";
+        let b = "fn f(values: &[i32]) -> usize { values.count() }";
+        assert_ne!(
+            first_function_signature(a),
+            first_function_signature(b),
+            "different method names on an otherwise identical shape must not collapse to one clone"
+        );
+    }
+
+    #[test]
+    fn a_renamed_receiver_calling_the_same_method_still_produces_the_same_signature() {
+        let a = "fn f(values: &[i32]) -> usize { values.len() }";
+        let b = "fn f(numbers: &[i32]) -> usize { numbers.len() }";
+        assert_eq!(
+            first_function_signature(a),
+            first_function_signature(b),
+            "a renamed local receiver calling the same method must still match (true Type-2 clone)"
+        );
+    }
+
+    #[test]
+    fn different_macro_names_produce_a_different_signature() {
+        let a = "fn f(x: i32) { assert!(x > 0); }";
+        let b = "fn f(x: i32) { assert_eq!(x, 0); }";
+        assert_ne!(first_function_signature(a), first_function_signature(b));
+    }
+
+    #[test]
+    fn different_scoped_type_paths_produce_a_different_signature() {
+        let a = "fn f() -> Foo { Foo::new() }";
+        let b = "fn f() -> Foo { Bar::new() }";
+        assert_ne!(
+            first_function_signature(a),
+            first_function_signature(b),
+            "JavaParser::new() vs CParser::new()-shaped calls must not collapse to one clone"
+        );
     }
 
     #[test]
