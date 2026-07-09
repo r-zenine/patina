@@ -107,6 +107,16 @@ fn middleman_delegation_detector_finds_and_excludes_correctly() {
         "Thing::greet is a trait-impl method and must be excluded even with exactly one \
          caller, found: {symptoms:#?}"
     );
+
+    // `summarize` has exactly one caller and presents a single top-level
+    // `call_expression` (`.min()`), the same shape `facade` has — but it's
+    // a combinator chain doing real work, not a pass-through delegation
+    // (revision 005 / decision 1's regression case).
+    assert!(
+        !has_chain_containing(&symptoms, "summarize"),
+        "summarize is a combinator chain, not a delegating call, and must not be reported, \
+         found: {symptoms:#?}"
+    );
 }
 
 #[test]

@@ -68,3 +68,18 @@ impl Greeter for Thing {
 pub fn use_greeter(t: &Thing) -> String {
     t.greet()
 }
+
+/// Sole caller of `summarize` below — same single-caller shape as
+/// `entry_point`/`facade`.
+pub fn only_caller_of_summarizer(xs: &[i32]) -> Option<i32> {
+    summarize(xs)
+}
+
+/// Combinator chain, not a real delegating call, despite having exactly one
+/// caller and presenting a single top-level `call_expression`
+/// (`.min()`) — the whole reason revision 005 exists (a real-repo run found
+/// this exact shape, e.g. `determine_line_relevance_with_precedence`, being
+/// misreported). Must not be reported.
+fn summarize(xs: &[i32]) -> Option<i32> {
+    xs.iter().filter(|x| **x > 0).map(|x| *x).min()
+}

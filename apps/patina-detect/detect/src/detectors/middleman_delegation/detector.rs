@@ -350,9 +350,15 @@ fn collect_candidates(
 }
 
 /// Whether `body` (a function's `block`) consists of exactly one statement —
-/// a bare call expression tail, a `return <call>;`, or `<call>;` — and if
-/// so, the simple name of the function/method it calls (spec.md:170: "body
-/// is a single delegating call").
+/// a bare call expression tail, a `return <call>;`, or `<call>;` — and, if
+/// so, whether that call's own subtree (receiver/arguments, including
+/// inside any closures they carry) contains no *other* call — i.e. the body
+/// is a single, unadorned pass-through, not a combinator/builder chain
+/// (`.iter().filter(f).map(g).collect()`) that merely happens to present
+/// one `call_expression` at the top. Revision (contribution 005, decision
+/// 1): the original check only looked at the outer node's kind and missed
+/// this whole FP class, confirmed against real code in this repo (not just
+/// a synthetic case) — see spec.md:170's "single delegating call".
 fn body_delegate_target(body: Node, source: &[u8]) -> Option<String> {
     let mut cursor = body.walk();
     let named: Vec<Node> = body.named_children(&mut cursor).collect();
@@ -370,10 +376,32 @@ fn body_delegate_target(body: Node, source: &[u8]) -> Option<String> {
     if call.kind() != "call_expression" {
         return None;
     }
+    if count_calls(call) != 1 {
+        return None;
+    }
 
     let function = call.child_by_field_name("function")?;
     let text = function.utf8_text(source).ok()?;
     Some(simple_call_name(text))
+}
+
+/// Counts `call_expression` nodes in `node`'s subtree, `node` included —
+/// used to tell a genuine single pass-through call (count 1) from a
+/// combinator/builder chain whose receiver or arguments are themselves
+/// built from further calls (count > 1). Descends into closure bodies too,
+/// since a computed predicate/mapper (`.filter(|x| x.is_valid())`) is
+/// exactly the kind of real work a delegating wrapper shouldn't be doing.
+fn count_calls(node: Node) -> usize {
+    let mut count = if node.kind() == "call_expression" {
+        1
+    } else {
+        0
+    };
+    let mut cursor = node.walk();
+    for child in node.named_children(&mut cursor) {
+        count += count_calls(child);
+    }
+    count
 }
 
 /// Reduces a call target's text (`bar`, `self.inner.bar`, `Type::bar`) to
@@ -491,6 +519,41 @@ mod tests {
     fn a_function_doing_real_work_is_not_a_delegate() {
         let candidates = candidates_for("fn foo() -> i32 { 42 }");
         assert_eq!(candidates[0].delegate_target, None);
+    }
+
+    #[test]
+    fn a_combinator_chain_is_not_a_delegate() {
+        // Real FP shape found during Phase 10 real-repo verification
+        // (contribution 005, decision 1): `determine_line_relevance_with_precedence`
+        // -shaped body — one top-level `call_expression` (`.unwrap_or(...)`)
+        // whose receiver is itself built from `.iter().filter().map().min()`.
+        let candidates = candidates_for(
+            "fn foo(xs: &[i32]) -> i32 { \
+             xs.iter().filter(|x| **x > 0).map(|x| *x).min().unwrap_or(0) }",
+        );
+        assert_eq!(candidates[0].delegate_target, None);
+    }
+
+    #[test]
+    fn a_builder_chain_is_not_a_delegate() {
+        // Real FP shape found during Phase 10 real-repo verification:
+        // `PathBuf::from(...).join(...)`-shaped body.
+        let candidates = candidates_for("fn foo() -> String { String::from(\"a\").add(\"b\") }");
+        assert_eq!(candidates[0].delegate_target, None);
+    }
+
+    #[test]
+    fn a_call_whose_argument_is_itself_a_call_is_not_a_delegate() {
+        let candidates = candidates_for("fn foo() { bar(baz()) }");
+        assert_eq!(candidates[0].delegate_target, None);
+    }
+
+    #[test]
+    fn a_lone_method_call_on_a_field_with_a_simple_argument_is_still_a_delegate() {
+        // Must not regress the genuine hits found in the real-repo run
+        // (e.g. `self.state.get_reviewable_diff(id)`).
+        let candidates = candidates_for("fn foo(id: u32) -> i32 { self.state.bar(id) }");
+        assert_eq!(candidates[0].delegate_target.as_deref(), Some("bar"));
     }
 
     #[test]
