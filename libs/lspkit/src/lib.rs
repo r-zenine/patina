@@ -6,8 +6,15 @@ mod composite;
 mod native;
 mod transport;
 
+use std::collections::HashMap;
+use std::io::{BufReader, BufWriter};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicI64, Ordering};
+use std::sync::mpsc::{self, Sender};
+use std::sync::{Arc, Mutex};
+use std::thread::JoinHandle;
+use std::time::Duration;
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -134,31 +141,148 @@ pub struct BlastRadius {
 
 // ---- LspClient ----
 
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
+
+type PendingRequests = Mutex<HashMap<i64, Sender<serde_json::Value>>>;
+
 pub struct LspClient {
     #[allow(dead_code)]
     workspace_root: PathBuf,
     process: Child,
+    stdin: Mutex<BufWriter<std::process::ChildStdin>>,
+    next_id: AtomicI64,
+    pending: Arc<PendingRequests>,
+    _reader_thread: JoinHandle<()>,
 }
 
 impl LspClient {
     /// Spawns the server and blocks through the initialize handshake.
     pub fn start(workspace_root: &Path) -> Result<Self> {
-        let process = Command::new("rust-analyzer")
+        let mut process = Command::new("rust-analyzer")
             .current_dir(workspace_root)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null())
             .spawn()?;
 
-        // TODO: perform the `initialize`/`initialized` handshake over the
-        // process's stdio and start the background reader thread that
-        // dispatches responses by request id.
+        let stdin = process.stdin.take().ok_or(Error::ServerExited)?;
+        let stdout = process.stdout.take().ok_or(Error::ServerExited)?;
+
+        let pending: Arc<PendingRequests> = Arc::new(Mutex::new(HashMap::new()));
+        let reader_thread = {
+            let pending = Arc::clone(&pending);
+            let mut reader = BufReader::new(stdout);
+            std::thread::spawn(move || {
+                while let Ok(message) = transport::read_message(&mut reader) {
+                    let Some(id) = message.get("id").and_then(serde_json::Value::as_i64) else {
+                        // Notifications and server-initiated requests (e.g.
+                        // window/logMessage, client/registerCapability) carry
+                        // no response we need to dispatch — dropped, not
+                        // answered. Only response messages (matched by id
+                        // against a pending request) are wired to a waiter.
+                        continue;
+                    };
+                    if let Some(sender) = pending.lock().unwrap().remove(&id) {
+                        let _ = sender.send(message);
+                    }
+                }
+            })
+        };
+
+        let stdin = Mutex::new(BufWriter::new(stdin));
+        let next_id = AtomicI64::new(0);
+
+        let root_uri = format!("file://{}", workspace_root.display());
+        let init_id = next_id.fetch_add(1, Ordering::SeqCst);
+        send_request(
+            &stdin,
+            &pending,
+            init_id,
+            "initialize",
+            serde_json::json!({
+                "processId": std::process::id(),
+                "rootUri": root_uri,
+                "capabilities": {},
+            }),
+        )?;
+
+        {
+            let mut writer = stdin.lock().unwrap();
+            transport::write_message(
+                &mut *writer,
+                &serde_json::json!({
+                    "jsonrpc": "2.0",
+                    "method": "initialized",
+                    "params": {},
+                }),
+            )?;
+        }
 
         Ok(Self {
             workspace_root: workspace_root.to_path_buf(),
             process,
+            stdin,
+            next_id,
+            pending,
+            _reader_thread: reader_thread,
         })
     }
+
+    /// Send a JSON-RPC request and block for its response (or a timeout).
+    pub(crate) fn call(
+        &self,
+        method: &str,
+        params: serde_json::Value,
+    ) -> Result<serde_json::Value> {
+        let id = self.next_id.fetch_add(1, Ordering::SeqCst);
+        send_request(&self.stdin, &self.pending, id, method, params)
+    }
+}
+
+/// Send one JSON-RPC request over `stdin` and block until its response
+/// arrives via the background reader thread (or `REQUEST_TIMEOUT` elapses).
+fn send_request(
+    stdin: &Mutex<BufWriter<std::process::ChildStdin>>,
+    pending: &PendingRequests,
+    id: i64,
+    method: &str,
+    params: serde_json::Value,
+) -> Result<serde_json::Value> {
+    let (tx, rx) = mpsc::channel();
+    pending.lock().unwrap().insert(id, tx);
+
+    let request = serde_json::json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "method": method,
+        "params": params,
+    });
+    {
+        let mut writer = stdin.lock().unwrap();
+        transport::write_message(&mut *writer, &request)?;
+    }
+
+    let response = rx
+        .recv_timeout(REQUEST_TIMEOUT)
+        .map_err(|_| Error::Timeout(REQUEST_TIMEOUT))?;
+
+    if let Some(error) = response.get("error") {
+        return Err(Error::ServerError {
+            code: error
+                .get("code")
+                .and_then(serde_json::Value::as_i64)
+                .unwrap_or(0),
+            message: error
+                .get("message")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or_default()
+                .to_string(),
+        });
+    }
+    Ok(response
+        .get("result")
+        .cloned()
+        .unwrap_or(serde_json::Value::Null))
 }
 
 impl Drop for LspClient {

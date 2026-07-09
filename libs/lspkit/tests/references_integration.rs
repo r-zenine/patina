@@ -6,11 +6,35 @@
 //! cargo test -p lspkit --test references_integration -- --ignored
 //! ```
 
-use lspkit::{FileLocation, LspClient, Position};
+use lspkit::{FileLocation, Location, LspClient, Position};
 use std::path::PathBuf;
+use std::time::{Duration, Instant};
 
 fn fixture_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/references_fixture")
+}
+
+/// rust-analyzer answers `initialize` before it has finished loading the
+/// crate graph, so the first `references` call after a fresh `start()` can
+/// race indexing and come back with a transient "file not found" server
+/// error. Retrying (test-only — production code stays fail-fast) is the
+/// standard way LSP integration tests ride out this warm-up window.
+fn references_with_retry(client: &LspClient, at: &FileLocation) -> Vec<Location> {
+    let deadline = Instant::now() + Duration::from_secs(30);
+    loop {
+        let outcome = client.references(at, false);
+        let past_deadline = Instant::now() >= deadline;
+        match outcome {
+            Ok(locations) if !locations.is_empty() => return locations,
+            Ok(locations) if past_deadline => {
+                panic!("references stayed empty until the deadline: {locations:?}")
+            }
+            Err(err) if past_deadline => {
+                panic!("references never resolved before the deadline: {err}")
+            }
+            _ => std::thread::sleep(Duration::from_millis(500)),
+        }
+    }
 }
 
 #[test]
@@ -27,9 +51,7 @@ fn references_finds_known_call_sites() {
         },
     };
 
-    let mut locations = client
-        .references(&at, false)
-        .expect("references should resolve for a real symbol");
+    let mut locations = references_with_retry(&client, &at);
     locations.sort_by_key(|loc| loc.range.start.line);
 
     assert_eq!(

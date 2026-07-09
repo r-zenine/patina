@@ -3,29 +3,56 @@
 //! particular request/response semantics). See `lib.rs` for the
 //! initialize/initialized handshake and request-id dispatch built on top.
 
-use crate::Result;
+use crate::{Error, Result};
 use std::io::{BufRead, Write};
 
-// `#[allow(dead_code)]`: these two functions have no non-test caller yet —
-// wiring them into `LspClient::start`'s handshake and `native`'s request
-// methods is this phase's implementation contribution. Test-design lands the
-// framing contract's compile surface and its own unit tests (runtime red via
-// `unimplemented!()`) only; the allow comes off once the implementation
-// contribution wires a real call path.
-
 /// Frame `value` as `Content-Length: <n>\r\n\r\n<json>` and write it to `writer`.
-#[allow(dead_code)]
 pub(crate) fn write_message<W: Write>(writer: &mut W, value: &serde_json::Value) -> Result<()> {
-    let _ = (writer, value);
-    unimplemented!("encode Content-Length header + JSON body, write to the stream")
+    let body = serde_json::to_vec(value).map_err(|e| Error::Protocol(e.to_string()))?;
+    write!(writer, "Content-Length: {}\r\n\r\n", body.len())
+        .map_err(|e| Error::Protocol(e.to_string()))?;
+    writer
+        .write_all(&body)
+        .map_err(|e| Error::Protocol(e.to_string()))?;
+    writer.flush().map_err(|e| Error::Protocol(e.to_string()))
 }
 
 /// Read one framed JSON-RPC message from `reader`, blocking until a full
 /// message (headers + body) has arrived.
-#[allow(dead_code)]
 pub(crate) fn read_message<R: BufRead>(reader: &mut R) -> Result<serde_json::Value> {
-    let _ = reader;
-    unimplemented!("parse Content-Length header(s), read exactly that many body bytes, parse JSON")
+    let mut content_length: Option<usize> = None;
+    loop {
+        let mut line = String::new();
+        let bytes_read = reader
+            .read_line(&mut line)
+            .map_err(|e| Error::Protocol(e.to_string()))?;
+        if bytes_read == 0 {
+            return Err(Error::ServerExited);
+        }
+        let header = line.trim_end_matches(['\r', '\n']);
+        if header.is_empty() {
+            break;
+        }
+        if let Some(value) = header
+            .strip_prefix("Content-Length:")
+            .or_else(|| header.strip_prefix("Content-Length :"))
+        {
+            let value = value.trim();
+            content_length = Some(value.parse::<usize>().map_err(|_| {
+                Error::Protocol(format!("invalid Content-Length header: {value:?}"))
+            })?);
+        }
+        // Other headers (e.g. Content-Type) are part of the base protocol but
+        // carry no information this crate needs — ignored, not rejected.
+    }
+
+    let content_length =
+        content_length.ok_or_else(|| Error::Protocol("missing Content-Length header".into()))?;
+    let mut body = vec![0u8; content_length];
+    reader
+        .read_exact(&mut body)
+        .map_err(|e| Error::Protocol(e.to_string()))?;
+    serde_json::from_slice(&body).map_err(|e| Error::Protocol(e.to_string()))
 }
 
 #[cfg(test)]
