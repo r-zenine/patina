@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use clap::{Parser, Subcommand};
 use patina_detect::detectors::cognitive_complexity::run_cognitive_complexity;
-use patina_detect::detectors::data_clumps::run_data_clumps;
+use patina_detect::detectors::data_clumps::run_data_clumps_refined;
 use patina_detect::detectors::dead_exports::run_dead_exports;
 use patina_detect::detectors::house_rules::run_house_rules;
 use patina_detect::detectors::middleman_delegation::run_middleman_delegation;
@@ -111,7 +111,7 @@ fn detect_symptoms(
         )
     })?);
     symptoms.extend(
-        run_data_clumps(path)
+        run_data_clumps_refined(path)
             .with_context(|| format!("running data-clumps detector against {}", path.display()))?,
     );
     symptoms

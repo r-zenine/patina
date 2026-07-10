@@ -1,9 +1,19 @@
 use crate::entities::{DetectorId, Evidence, LineRange, Site, SiteRole, Symptom, SymptomId};
+use lspkit::{CallHierarchyItem, CallSite, FileLocation, LspClient, Position};
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 use thiserror::Error;
-use tree_sitter::{Node, Parser};
+use tree_sitter::{Node, Parser, Point};
+
+/// Same rust-analyzer indexing-warmup concern as `middleman_delegation` (see
+/// its `INDEXING_WARMUP_BUDGET` doc) — `run_data_clumps_refined` issues many
+/// `prepare_call_hierarchy`/`incoming_calls` requests and must ride out
+/// warm-up itself, bounded by one shared deadline per run.
+const INDEXING_WARMUP_BUDGET: Duration = Duration::from_secs(30);
+
+const INDEXING_POLL_INTERVAL: Duration = Duration::from_millis(300);
 
 /// The detector id every data-clump `Symptom`/`SymptomId` is tagged with.
 pub const DETECTOR_ID: &str = "data-clumps";
@@ -16,8 +26,25 @@ pub const MIN_CLUMP_SIZE: usize = 3;
 /// many distinct signatures.
 pub const MIN_OCCURRENCES: usize = 3;
 
+/// A clump's normalized member set: (parameter name, normalized type) pairs.
+type MemberSet = Vec<(String, String)>;
+
+/// Occurrences sharing one normalized member set, keyed by that set.
+type GroupsByMembers = BTreeMap<MemberSet, Vec<Occurrence>>;
+
+/// A struct's name and its normalized field set, for the bonus
+/// subset-of-struct evidence.
+type StructFieldSets = Vec<(String, HashSet<(String, String)>)>;
+
 #[derive(Debug, Error)]
 pub enum DataClumpsError {
+    #[error("failed to resolve {path} to an absolute path")]
+    Canonicalize {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+
     #[error("failed to walk directory {path}")]
     Walk {
         path: PathBuf,
@@ -37,6 +64,9 @@ pub enum DataClumpsError {
 
     #[error("failed to parse {path} as Rust")]
     Parse { path: PathBuf },
+
+    #[error("language server error")]
+    Lsp(#[from] lspkit::Error),
 }
 
 /// A single function/method signature carrying a candidate clump (>= 3
@@ -48,6 +78,11 @@ struct Occurrence {
     members: Vec<(String, String)>,
     line_range: LineRange,
     forwarding: Option<LineRange>,
+    /// 0-based tree-sitter position of the occurrence's own name
+    /// identifier — the position `lspkit::LspClient::prepare_call_hierarchy`
+    /// is queried against by `run_data_clumps_refined`'s closed-cluster
+    /// check. Unused by the plain tree-sitter-only `run_data_clumps`.
+    name_point: Point,
 }
 
 /// Runs the data-clumps detector (spec.md:226-248) against every `.rs` file
@@ -59,8 +94,76 @@ struct Occurrence {
 /// intact to another call (spec.md:238's precision gate — non-traveling
 /// clumps are dropped).
 pub fn run_data_clumps(root: &Path) -> Result<Vec<Symptom>, DataClumpsError> {
+    let (groups, structs) = promoted_groups(root)?;
+    Ok(build_symptoms(groups, &structs))
+}
+
+/// Phase 16 revision (decision D011): runs the same tree-sitter clump
+/// extraction and promotion gates as `run_data_clumps`, then additionally
+/// excludes any promoted group whose call graph is *closed* — at most one
+/// distinct call site anywhere outside the group ever reaches in (see
+/// [`is_closed_cluster`] for why "at most one", not strictly zero). This is
+/// the false-positive shape a private recursive-descent visitor's own
+/// helper functions produce when they forward `(node, accumulator...)`
+/// state to each other (e.g. `cognitive_complexity::score_node`/
+/// `score_if`/`score_match`, whose only external caller is
+/// `run_cognitive_complexity`'s single entry-point invocation) — confined
+/// to one module, never genuinely reused from more than one outside call
+/// site. A group reached from >= 2 distinct external call sites is kept
+/// regardless of whether all its members happen to share a file (spec.md/
+/// D011: a file/module-scope heuristic was rejected precisely because it
+/// would wrongly exclude that case too).
+pub fn run_data_clumps_refined(root: &Path) -> Result<Vec<Symptom>, DataClumpsError> {
+    // Same rationale as every other lspkit-backed detector in this crate:
+    // `LspClient::start` builds a `file://` URI directly from `root`, which
+    // is malformed for a relative path.
+    let root = fs::canonicalize(root).map_err(|source| DataClumpsError::Canonicalize {
+        path: root.to_path_buf(),
+        source,
+    })?;
+    let root = root.as_path();
+
+    let (groups, structs) = promoted_groups(root)?;
+
+    let client = LspClient::start(root)?;
+    let warmup_deadline = Instant::now() + INDEXING_WARMUP_BUDGET;
+
+    let mut kept: GroupsByMembers = BTreeMap::new();
+    for (members, group) in groups {
+        match is_closed_cluster(&client, root, &group, warmup_deadline) {
+            Ok(true) => continue,
+            Ok(false) => {
+                kept.insert(members, group);
+            }
+            // A group whose call-hierarchy resolution failed outright
+            // (e.g. a dependency's stale rust-analyzer-side build
+            // metadata, unrelated to this group — see
+            // `single_impl_traits::detector`'s identical fix) must not
+            // abort every other group's evidence gathering, and must not
+            // be silently dropped either: keep it, since failing to prove
+            // "closed" is not the same as proving it.
+            Err(err) => {
+                eprintln!(
+                    "data-clumps: keeping group {:?} — closed-cluster check failed: {err}",
+                    members
+                );
+                kept.insert(members, group);
+            }
+        }
+    }
+
+    Ok(build_symptoms(kept, &structs))
+}
+
+/// Shared by `run_data_clumps` and `run_data_clumps_refined`: walks every
+/// `.rs` file under `root`, collects candidate occurrences and struct field
+/// sets, groups occurrences by normalized member set, and applies the
+/// standard Phase 6 promotion gates (`>= MIN_OCCURRENCES` members, at least
+/// one forwarding occurrence). Callers apply any further filtering (e.g.
+/// the Phase 16 closed-cluster check) before building symptoms.
+fn promoted_groups(root: &Path) -> Result<(GroupsByMembers, StructFieldSets), DataClumpsError> {
     let mut occurrences: Vec<Occurrence> = Vec::new();
-    let mut structs: Vec<(String, HashSet<(String, String)>)> = Vec::new();
+    let mut structs: StructFieldSets = Vec::new();
 
     for file in collect_rust_files(root)? {
         let content = fs::read_to_string(&file).map_err(|source| DataClumpsError::Read {
@@ -83,25 +186,24 @@ pub fn run_data_clumps(root: &Path) -> Result<Vec<Symptom>, DataClumpsError> {
         collect_structs(tree.root_node(), content.as_bytes(), &mut structs);
     }
 
-    let mut groups: BTreeMap<Vec<(String, String)>, Vec<&Occurrence>> = BTreeMap::new();
-    for occurrence in &occurrences {
+    let mut groups: GroupsByMembers = BTreeMap::new();
+    for occurrence in occurrences {
         groups
             .entry(occurrence.members.clone())
             .or_default()
             .push(occurrence);
     }
 
+    groups.retain(|_, group| {
+        group.len() >= MIN_OCCURRENCES && group.iter().any(|o| o.forwarding.is_some())
+    });
+
+    Ok((groups, structs))
+}
+
+fn build_symptoms(groups: GroupsByMembers, structs: &StructFieldSets) -> Vec<Symptom> {
     let mut symptoms = Vec::new();
     for (members, group) in groups {
-        if group.len() < MIN_OCCURRENCES {
-            continue;
-        }
-        let forwarding: Vec<&&Occurrence> =
-            group.iter().filter(|o| o.forwarding.is_some()).collect();
-        if forwarding.is_empty() {
-            continue;
-        }
-
         let member_set: HashSet<(String, String)> = members.iter().cloned().collect();
         let subset_of_struct = structs
             .iter()
@@ -120,6 +222,9 @@ pub fn run_data_clumps(root: &Path) -> Result<Vec<Symptom>, DataClumpsError> {
             .map(|(name, _)| name.as_str())
             .collect::<Vec<_>>()
             .join(", ");
+
+        let forwarding: Vec<&Occurrence> =
+            group.iter().filter(|o| o.forwarding.is_some()).collect();
 
         let mut sites = Vec::new();
         for occurrence in &group {
@@ -166,7 +271,112 @@ pub fn run_data_clumps(root: &Path) -> Result<Vec<Symptom>, DataClumpsError> {
     }
 
     symptoms.sort_by_key(|s| s.id.to_string());
-    Ok(symptoms)
+    symptoms
+}
+
+/// Whether `group`'s call graph is *closed*: at most one distinct call site
+/// from outside the group reaches in anywhere. Zero external callers is the
+/// textbook closed recursive/mutually-recursive family; exactly one is a
+/// private algorithm's own single driver/entry point (e.g.
+/// `run_cognitive_complexity`'s one call into `score_node` to kick off the
+/// visitor) — still not the "clump travels between independent call sites"
+/// smell this detector exists to find. Two or more distinct external
+/// callers means the clump genuinely is being passed around from separate
+/// places, so the group is kept regardless of whether those callers happen
+/// to share a file with the group (decision D011 — this is exactly the
+/// shape the rejected file/module heuristic would have wrongly excluded).
+/// `root` resolves each occurrence's absolute file path for both the
+/// `prepare_call_hierarchy` query and for matching a caller's location back
+/// against group membership.
+fn is_closed_cluster(
+    client: &LspClient,
+    root: &Path,
+    group: &[Occurrence],
+    deadline: Instant,
+) -> Result<bool, DataClumpsError> {
+    let members: Vec<(PathBuf, LineRange)> = group
+        .iter()
+        .map(|o| (root.join(&o.file), o.line_range))
+        .collect();
+
+    let mut external_callers: HashSet<(PathBuf, usize)> = HashSet::new();
+    for occurrence in group {
+        let position = Position {
+            line: occurrence.name_point.row as u32 + 1,
+            character: occurrence.name_point.column as u32 + 1,
+        };
+        let at = FileLocation {
+            path: root.join(&occurrence.file),
+            position,
+        };
+        let items = prepare_call_hierarchy_settled(client, &at, deadline)?;
+        for item in &items {
+            let callers = incoming_calls_settled(client, item, deadline)?;
+            for caller in &callers {
+                let caller_start_line = caller.item.location.range.start.line as usize;
+                let is_member = members.iter().any(|(path, range)| {
+                    *path == caller.item.location.path
+                        && range.start <= caller_start_line
+                        && caller_start_line <= range.end
+                });
+                if !is_member {
+                    external_callers.insert((caller.item.location.path.clone(), caller_start_line));
+                }
+            }
+        }
+    }
+
+    Ok(external_callers.len() <= 1)
+}
+
+/// Polls `client.prepare_call_hierarchy(at)` until two consecutive reads
+/// agree or `deadline` passes — same stability rationale as
+/// `middleman_delegation::detector::prepare_call_hierarchy_settled`.
+fn prepare_call_hierarchy_settled(
+    client: &LspClient,
+    at: &FileLocation,
+    deadline: Instant,
+) -> lspkit::Result<Vec<CallHierarchyItem>> {
+    let mut previous: Option<Vec<CallHierarchyItem>> = None;
+    loop {
+        match client.prepare_call_hierarchy(at) {
+            Ok(items) => {
+                let past_deadline = Instant::now() >= deadline;
+                if previous.as_ref() == Some(&items) || past_deadline {
+                    return Ok(items);
+                }
+                previous = Some(items);
+            }
+            Err(err) if Instant::now() >= deadline => return Err(err),
+            Err(_) => {}
+        }
+        std::thread::sleep(INDEXING_POLL_INTERVAL);
+    }
+}
+
+/// Polls `client.incoming_calls(item)` until two consecutive reads agree or
+/// `deadline` passes — same stability rationale as
+/// `middleman_delegation::detector::incoming_calls_settled`.
+fn incoming_calls_settled(
+    client: &LspClient,
+    item: &CallHierarchyItem,
+    deadline: Instant,
+) -> lspkit::Result<Vec<CallSite>> {
+    let mut previous: Option<Vec<CallSite>> = None;
+    loop {
+        match client.incoming_calls(item) {
+            Ok(call_sites) => {
+                let past_deadline = Instant::now() >= deadline;
+                if previous.as_ref() == Some(&call_sites) || past_deadline {
+                    return Ok(call_sites);
+                }
+                previous = Some(call_sites);
+            }
+            Err(err) if Instant::now() >= deadline => return Err(err),
+            Err(_) => {}
+        }
+        std::thread::sleep(INDEXING_POLL_INTERVAL);
+    }
 }
 
 fn parse_rust(content: &str, path: &Path) -> Result<tree_sitter::Tree, DataClumpsError> {
@@ -234,6 +444,10 @@ fn build_occurrence(node: Node, source: &[u8], file: &Path) -> Option<Occurrence
     }
 
     let qualified_name = qualified_name(node, source);
+    let name_point = node
+        .child_by_field_name("name")
+        .map(|n| n.start_position())
+        .unwrap_or_else(|| node.start_position());
     let line_range = LineRange {
         start: node.start_position().row + 1,
         end: node.end_position().row + 1,
@@ -248,6 +462,7 @@ fn build_occurrence(node: Node, source: &[u8], file: &Path) -> Option<Occurrence
         members,
         line_range,
         forwarding,
+        name_point,
     })
 }
 
