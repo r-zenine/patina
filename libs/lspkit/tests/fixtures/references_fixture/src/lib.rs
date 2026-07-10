@@ -33,3 +33,15 @@ pub fn describe(shape: Shape) -> &'static str {
         Shape::Square => "square",
     }
 }
+
+pub trait Greeter {
+    fn greet(&self) -> String;
+}
+
+pub struct EnglishGreeter;
+
+impl Greeter for EnglishGreeter {
+    fn greet(&self) -> String {
+        "hello".to_string()
+    }
+}

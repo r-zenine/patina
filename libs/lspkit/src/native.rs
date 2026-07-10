@@ -56,8 +56,20 @@ impl LspClient {
         }
     }
 
-    pub fn implementations(&self, _at: &FileLocation) -> Result<Vec<Location>> {
-        todo!("wire textDocument/implementation over the JSON-RPC transport")
+    pub fn implementations(&self, at: &FileLocation) -> Result<Vec<Location>> {
+        let params = serde_json::json!({
+            "textDocument": {"uri": to_file_uri(&at.path)},
+            "position": to_lsp_position(at.position),
+        });
+        let result = self.call("textDocument/implementation", params)?;
+        match result {
+            serde_json::Value::Null => Ok(Vec::new()),
+            serde_json::Value::Array(items) => items.iter().map(from_lsp_location).collect(),
+            object @ serde_json::Value::Object(_) => Ok(vec![from_lsp_location(&object)?]),
+            other => Err(Error::Protocol(format!(
+                "textDocument/implementation: expected an array, object, or null result, got {other}"
+            ))),
+        }
     }
 
     pub fn document_symbols(&self, _path: &Path) -> Result<Vec<DocumentSymbol>> {
