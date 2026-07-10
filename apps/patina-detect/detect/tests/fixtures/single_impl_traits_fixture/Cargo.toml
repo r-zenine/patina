@@ -1,0 +1,7 @@
+[workspace]
+
+[package]
+name = "single_impl_traits_fixture"
+version = "0.1.0"
+edition = "2021"
+publish = false

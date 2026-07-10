@@ -114,4 +114,19 @@ pub enum Evidence {
         file_count: usize,
         arm_counts: Vec<usize>,
     },
+    /// Detector 9 (single-impl traits, spec.md:250-259): a trait with
+    /// exactly one production implementor found via lspkit's
+    /// `implementations`, surviving the marker/sealed-trait exclusion and
+    /// the DI/Environment-pattern exclusion (a trait with a test-double
+    /// impl alongside its one production impl is never reported —
+    /// `test_doubles_present` is therefore always `false` on a symptom that
+    /// actually exists; the field is kept for schema symmetry with the
+    /// exclusion it documents). `impl_locations` are `path:line` strings
+    /// for the production implementor(s) found.
+    SingleImplTrait {
+        trait_name: String,
+        impl_count: usize,
+        impl_locations: Vec<String>,
+        test_doubles_present: bool,
+    },
 }

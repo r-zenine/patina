@@ -7,6 +7,7 @@ use patina_detect::detectors::house_rules::run_house_rules;
 use patina_detect::detectors::middleman_delegation::run_middleman_delegation;
 use patina_detect::detectors::near_duplicate_structs::run_near_duplicate_structs;
 use patina_detect::detectors::parallel_dispatch::run_parallel_dispatch;
+use patina_detect::detectors::single_impl_traits::run_single_impl_traits;
 use patina_detect::detectors::type2_clones::run_type2_clones;
 use patina_detect::engines::DetectorEngine;
 use patina_detect::export_symptom_log;
@@ -132,6 +133,12 @@ fn detect_symptoms(
     symptoms.extend(run_parallel_dispatch(path).with_context(|| {
         format!(
             "running parallel-dispatch detector against {}",
+            path.display()
+        )
+    })?);
+    symptoms.extend(run_single_impl_traits(path).with_context(|| {
+        format!(
+            "running single-impl-traits detector against {}",
             path.display()
         )
     })?);
