@@ -108,6 +108,32 @@ fn middleman_delegation_detector_finds_and_excludes_correctly() {
          caller, found: {symptoms:#?}"
     );
 
+    // Phase 5 (plan-patina-detect-fp-fixes): `Gadget::activate_leader` and
+    // `OpenGadget::activate_leader` forward into an owned field (private
+    // and `pub` respectively) — composition facades, the audit's dominant
+    // FP family (`UiState::activate_leader` sits over a *pub* field, which
+    // is why the exclusion is visibility-independent). Neither may be
+    // reported.
+    for name in ["Gadget::activate_leader", "OpenGadget::activate_leader"] {
+        assert!(
+            !symptoms.iter().any(|s| matches!(&s.evidence,
+                Evidence::MiddlemanChain { chain, .. }
+                    if chain.iter().any(|n| n == name))),
+            "{name} wraps an owned field (composition facade) and must not be reported, \
+             found: {symptoms:#?}"
+        );
+    }
+
+    // Phase 5: `Machine::process` forwards `(&mut self.counter, &self.label,
+    // key)` — it adapts `self` into field borrows for a trait-impl caller
+    // with a fixed signature (trait-signature adapter) and must not be
+    // reported.
+    assert!(
+        !has_chain_containing(&symptoms, "Machine::process"),
+        "Machine::process adapts arguments for a trait-signature caller and must not be \
+         reported, found: {symptoms:#?}"
+    );
+
     // `summarize` has exactly one caller and presents a single top-level
     // `call_expression` (`.min()`), the same shape `facade` has — but it's
     // a combinator chain doing real work, not a pass-through delegation

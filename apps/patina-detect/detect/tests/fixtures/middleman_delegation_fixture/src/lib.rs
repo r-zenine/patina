@@ -83,3 +83,102 @@ pub fn only_caller_of_summarizer(xs: &[i32]) -> Option<i32> {
 fn summarize(xs: &[i32]) -> Option<i32> {
     xs.iter().filter(|x| **x > 0).map(|x| *x).min()
 }
+
+// ── Phase 5 (plan-patina-detect-fp-fixes) regression cases ──────────────────
+
+/// Does real work (2 statements) so it is never itself a candidate.
+pub struct LeaderState {
+    active: bool,
+}
+
+impl LeaderState {
+    pub fn activate(&mut self) {
+        let next = true;
+        self.active = next;
+    }
+
+    pub fn is_active(&self) -> bool {
+        !self.active
+    }
+}
+
+/// Composition facade over a *private* field — the audit's dominant FP
+/// (`UiState::activate_leader` → `self.leader.activate()`). Must NOT be
+/// reported even though `activate_leader` is a single delegating call with
+/// exactly one caller.
+pub struct Gadget {
+    leader: LeaderState,
+}
+
+impl Gadget {
+    pub fn new() -> Gadget {
+        Gadget {
+            leader: LeaderState { active: false },
+        }
+    }
+
+    pub fn activate_leader(&mut self) {
+        self.leader.activate();
+    }
+}
+
+impl Default for Gadget {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Sole caller of `Gadget::activate_leader`.
+pub fn drive_gadget(g: &mut Gadget) {
+    g.activate_leader();
+}
+
+/// Same wrapper shape over a `pub` field — the real `UiState::activate_leader`
+/// FP sits over a pub field, so the facade exclusion is deliberately
+/// visibility-independent and this must NOT be reported either.
+pub struct OpenGadget {
+    pub leader: LeaderState,
+}
+
+impl OpenGadget {
+    pub fn activate_leader(&mut self) {
+        self.leader.activate();
+    }
+}
+
+/// Sole caller of `OpenGadget::activate_leader`.
+pub fn drive_open_gadget(g: &mut OpenGadget) {
+    g.activate_leader();
+}
+
+/// Trait-signature adapter — the audit's second FP family
+/// (`TriageApp::process_key_event`): the trait impl has a fixed signature
+/// and forwards to an inherent method that adapts `self` into field
+/// borrows. `Machine::process` must NOT be reported even though its body is
+/// a single call with exactly one caller (`dispatch`).
+pub trait Dispatcher {
+    fn dispatch(&mut self, key: u32) -> u32;
+}
+
+pub struct Machine {
+    counter: u32,
+    label: String,
+}
+
+impl Machine {
+    pub fn process(&mut self, key: u32) -> u32 {
+        process_impl(&mut self.counter, &self.label, key)
+    }
+}
+
+impl Dispatcher for Machine {
+    fn dispatch(&mut self, key: u32) -> u32 {
+        self.process(key)
+    }
+}
+
+/// Does real work; the adapter's target.
+fn process_impl(counter: &mut u32, label: &str, key: u32) -> u32 {
+    *counter += key;
+    *counter + label.len() as u32
+}

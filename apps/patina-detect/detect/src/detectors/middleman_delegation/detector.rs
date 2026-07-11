@@ -63,8 +63,11 @@ struct Candidate {
 
 /// Runs the middleman-delegation detector (spec.md:165-177) against the Rust
 /// crate rooted at `root`: tree-sitter finds functions whose body is a
-/// single delegating call (excluding trait-impl and trait-declared methods,
-/// which may be satisfying an interface); `lspkit::LspClient::incoming_calls`
+/// single *pure pass-through* delegating call (excluding trait-impl and
+/// trait-declared methods, which may be satisfying an interface; wrappers
+/// that adapt arguments — see `delegate_call`; and encapsulation facades
+/// over a private field of their own type — see `is_encapsulation_facade`);
+/// `lspkit::LspClient::incoming_calls`
 /// confirms each has exactly one same-crate caller. Confirmed middlemen that
 /// delegate into one another are composed into a single chain per
 /// spec.md:176 ("the chain (A → B → C) when middlemen compose").
@@ -290,9 +293,6 @@ fn collect_candidates(
         && let Some(name_node) = node.child_by_field_name("name")
         && let Ok(name) = name_node.utf8_text(source)
     {
-        let delegate_target = node
-            .child_by_field_name("body")
-            .and_then(|body| body_delegate_target(body, source));
         out.push(Candidate {
             file: file.to_path_buf(),
             qualified_name: qualified_name(node, source),
@@ -302,7 +302,7 @@ fn collect_candidates(
                 start: node.start_position().row + 1,
                 end: node.end_position().row + 1,
             },
-            delegate_target,
+            delegate_target: delegate_call(node, source),
         });
     }
 
@@ -322,7 +322,7 @@ fn collect_candidates(
 /// 1): the original check only looked at the outer node's kind and missed
 /// this whole FP class, confirmed against real code in this repo (not just
 /// a synthetic case) — see spec.md:170's "single delegating call".
-fn body_delegate_target(body: Node, source: &[u8]) -> Option<String> {
+fn body_single_call(body: Node<'_>) -> Option<Node<'_>> {
     let mut cursor = body.walk();
     let named: Vec<Node> = body.named_children(&mut cursor).collect();
     let [only] = named[..] else {
@@ -342,10 +342,109 @@ fn body_delegate_target(body: Node, source: &[u8]) -> Option<String> {
     if count_calls(call) != 1 {
         return None;
     }
+    Some(call)
+}
+
+/// Analyzes `function_item`'s body for a *pure* pass-through delegation and
+/// returns the callee's simple name. Two Phase 5
+/// (plan-patina-detect-fp-fixes) exclusions apply after `body_single_call`
+/// finds the lone call:
+///
+/// - **Adaptation check**: every argument must be a bare identifier naming
+///   one of the wrapper's own parameters (or `self`). Any other argument —
+///   a field borrow (`&self.data`), a literal, an expression — means the
+///   wrapper *adapts* the call site (e.g. a trait-signature adapter like
+///   `TriageApp::process_key_event` forwarding
+///   `(&self.data, &mut self.baseline, key)`, or partial application like
+///   `serialize_phase_6` pinning `"code_impact"`), which is real value, not
+///   a pointless middleman.
+/// - **Composition-facade check**: a call rooted at a `self` field
+///   (`self.leader.activate()`, `self.0.push(c)`) is the ordinary Rust
+///   composition idiom — the method presents an owned component's behavior
+///   as the type's own API. The audit found this pattern (e.g.
+///   `UiState::activate_leader`) dominating the false positives, on `pub`
+///   fields as much as private ones, so field visibility deliberately plays
+///   no part (the roadmap's initial visibility-based sketch would have kept
+///   flagging the audit's own canonical examples).
+fn delegate_call(function_item: Node, source: &[u8]) -> Option<String> {
+    let body = function_item.child_by_field_name("body")?;
+    let call = body_single_call(body)?;
+
+    let params = parameter_names(function_item, source);
+    let arguments = call.child_by_field_name("arguments")?;
+    let mut cursor = arguments.walk();
+    for argument in arguments.named_children(&mut cursor) {
+        let pure_forward = match argument.kind() {
+            "self" => true,
+            "identifier" => argument
+                .utf8_text(source)
+                .is_ok_and(|name| params.iter().any(|p| p == name)),
+            _ => false,
+        };
+        if !pure_forward {
+            return None;
+        }
+    }
 
     let function = call.child_by_field_name("function")?;
+    if is_self_field_receiver(function) {
+        return None;
+    }
     let text = function.utf8_text(source).ok()?;
     Some(simple_call_name(text))
+}
+
+/// Names bound by `function_item`'s parameter patterns (`x` for `x: u32`
+/// or `mut x: u32`), the only values a pure pass-through may forward.
+fn parameter_names(function_item: Node, source: &[u8]) -> Vec<String> {
+    let mut names = Vec::new();
+    let Some(parameters) = function_item.child_by_field_name("parameters") else {
+        return names;
+    };
+    let mut cursor = parameters.walk();
+    for parameter in parameters.named_children(&mut cursor) {
+        if parameter.kind() != "parameter" {
+            continue;
+        }
+        let Some(pattern) = parameter.child_by_field_name("pattern") else {
+            continue;
+        };
+        let identifier = match pattern.kind() {
+            "identifier" => Some(pattern),
+            "mut_pattern" => pattern.named_child(0).filter(|n| n.kind() == "identifier"),
+            _ => None,
+        };
+        if let Some(identifier) = identifier
+            && let Ok(name) = identifier.utf8_text(source)
+        {
+            names.push(name.to_string());
+        }
+    }
+    names
+}
+
+/// Whether a method-call target is rooted at `self` through at least one
+/// field (`self.state.leader.activate`) — the composition-facade shape.
+/// `false` for plain `self.method()` calls, free-function and `Type::`
+/// targets.
+fn is_self_field_receiver(function: Node) -> bool {
+    if function.kind() != "field_expression" {
+        return false;
+    }
+    let mut current = function;
+    loop {
+        let Some(value) = current.child_by_field_name("value") else {
+            return false;
+        };
+        match value.kind() {
+            // `current` is the field expression directly on `self`; when
+            // it's the call target itself (`self.method()`) there is no
+            // intermediate field.
+            "self" => return current.id() != function.id(),
+            "field_expression" => current = value,
+            _ => return false,
+        }
+    }
 }
 
 /// Counts `call_expression` nodes in `node`'s subtree, `node` included —
@@ -458,9 +557,13 @@ mod tests {
     }
 
     #[test]
-    fn a_method_call_delegate_resolves_to_its_final_segment() {
+    fn a_method_call_through_a_self_field_is_a_composition_facade_not_a_delegate() {
+        // Phase 5 (plan-patina-detect-fp-fixes): presenting an owned
+        // component's behavior as the type's own API is ordinary
+        // composition, the audit's dominant FP family (e.g.
+        // `UiState::activate_leader` over the pub `leader` field).
         let candidates = candidates_for("fn foo() { self.inner.bar() }");
-        assert_eq!(candidates[0].delegate_target.as_deref(), Some("bar"));
+        assert_eq!(candidates[0].delegate_target, None);
     }
 
     #[test]
@@ -503,11 +606,12 @@ mod tests {
     }
 
     #[test]
-    fn a_lone_method_call_on_a_field_with_a_simple_argument_is_still_a_delegate() {
-        // Must not regress the genuine hits found in the real-repo run
-        // (e.g. `self.state.get_reviewable_diff(id)`).
+    fn a_lone_method_call_on_a_field_with_a_simple_argument_is_a_facade_too() {
+        // Reverses contribution 005's expectation: the Phase 5 audit
+        // reclassified `self.state.get_reviewable_diff(id)`-shaped wrappers
+        // as composition facades, not middlemen.
         let candidates = candidates_for("fn foo(id: u32) -> i32 { self.state.bar(id) }");
-        assert_eq!(candidates[0].delegate_target.as_deref(), Some("bar"));
+        assert_eq!(candidates[0].delegate_target, None);
     }
 
     #[test]
@@ -531,5 +635,87 @@ mod tests {
         let candidates = candidates_for("struct Thing;\nimpl Thing { fn make() { bar() } }");
         assert_eq!(candidates[0].qualified_name, "Thing::make");
         assert_eq!(candidates[0].delegate_target.as_deref(), Some("bar"));
+    }
+
+    #[test]
+    fn forwarding_own_parameters_in_order_is_a_delegate() {
+        let candidates = candidates_for("fn foo(a: i32, b: i32) -> i32 { bar(a, b) }");
+        assert_eq!(candidates[0].delegate_target.as_deref(), Some("bar"));
+    }
+
+    #[test]
+    fn an_argument_borrowing_a_self_field_is_an_adapter_not_a_delegate() {
+        // Real FP shape from the Phase 5 audit: `TriageApp::process_key_event`
+        // forwarding `(&self.data, &mut self.baseline, &mut self.ui_state, key)`
+        // to a free `_impl` fn — the wrapper adapts `self` into field borrows
+        // so a trait-impl caller with a fixed signature can use it.
+        let candidates = candidates_for(
+            "struct App; impl App { fn process(&mut self, key: u32) -> u32 { \
+             imp(&self.data, key) } }",
+        );
+        assert_eq!(candidates[0].delegate_target, None);
+    }
+
+    #[test]
+    fn a_literal_argument_is_partial_application_not_a_delegate() {
+        // Real FP shape from the Phase 5 audit: `serialize_phase_6` pinning
+        // `"code_impact"` before forwarding.
+        let candidates = candidates_for("fn foo(x: u32) { bar(\"code_impact\", x) }");
+        assert_eq!(candidates[0].delegate_target, None);
+    }
+
+    #[test]
+    fn an_identifier_argument_that_is_not_a_parameter_is_not_a_delegate() {
+        let candidates = candidates_for("fn foo() { bar(global) }");
+        assert_eq!(candidates[0].delegate_target, None);
+    }
+
+    #[test]
+    fn a_macro_argument_is_not_a_delegate() {
+        // Real FP shape from the Phase 5 audit: `create_help_line` passing
+        // `vec![Span::styled(..)]` — calls inside macro token trees are
+        // invisible to `count_calls`, so the argument check must catch it.
+        let candidates = candidates_for("fn foo() -> L { L::from(vec![1, 2]) }");
+        assert_eq!(candidates[0].delegate_target, None);
+    }
+
+    #[test]
+    fn passing_self_through_is_still_a_delegate() {
+        let candidates =
+            candidates_for("struct S; impl S { fn to_json(&self) -> J { ser(self) } }");
+        assert_eq!(candidates[0].delegate_target.as_deref(), Some("ser"));
+    }
+
+    #[test]
+    fn a_delegate_through_a_self_field_is_a_composition_facade() {
+        let candidates =
+            candidates_for("struct S; impl S { fn go(&mut self) { self.leader.activate() } }");
+        assert_eq!(candidates[0].delegate_target, None);
+    }
+
+    #[test]
+    fn a_deep_self_field_receiver_chain_is_a_composition_facade() {
+        let candidates = candidates_for(
+            "struct S; impl S { fn go(&mut self) { self.state.leader.activate() } }",
+        );
+        assert_eq!(candidates[0].delegate_target, None);
+    }
+
+    #[test]
+    fn a_plain_self_method_call_is_still_a_delegate() {
+        // No intermediate field — forwarding to another method of the same
+        // type is genuine middleman shape, not composition.
+        let candidates = candidates_for("struct S; impl S { fn go(&self) { self.raw_go() } }");
+        assert_eq!(candidates[0].delegate_target.as_deref(), Some("raw_go"));
+    }
+
+    #[test]
+    fn a_tuple_field_receiver_is_a_composition_facade() {
+        // Real FP shape from the Phase 5 audit: `ListFilter::push_back` →
+        // `self.0.push(c)`.
+        let candidates = candidates_for(
+            "struct F(String); impl F { fn push_back(&mut self, c: char) { self.0.push(c) } }",
+        );
+        assert_eq!(candidates[0].delegate_target, None);
     }
 }
