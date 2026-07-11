@@ -90,8 +90,59 @@ fn passes_post_filter<D: Doc>(rule_id: &str, m: &NodeMatch<D>) -> bool {
     match rule_id {
         "no-format-in-error-value" => format_in_error_value_is_true_positive(m),
         "no-let-underscore-result" => let_underscore_result_is_true_positive(m),
+        "no-catchall-default-arm" => catchall_default_arm_is_true_positive(m),
+        "no-ok-discarding-errors" | "no-unwrap-or-default" => !receiver_is_infallible_decode(m),
         _ => true,
     }
+}
+
+/// `.ok()` / `.unwrap_or_default()` on tree-sitter's `Node::utf8_text()` is
+/// not a real error-swallow: `utf8_text` only fails on non-UTF8 byte
+/// boundaries, which cannot happen for nodes carved from already-valid-UTF8
+/// parsed source. Cosmetic name-extraction helpers use this pervasively.
+fn receiver_is_infallible_decode<D: Doc>(m: &NodeMatch<D>) -> bool {
+    m.get_env()
+        .get_match("EXPR")
+        .is_some_and(|expr| expr.text().contains(".utf8_text("))
+}
+
+/// A catch-all arm is only a silent default when its value is a *bare*
+/// default: a literal, unit, a plain path (e.g. a unit enum variant), or a
+/// constructor call fed nothing but literals (`Vec::new()`,
+/// `Default::default()`, `String::from("x")`). Arms that carry captured
+/// information forward (`Category::Other(reason)`) or do real fallback work
+/// (blocks, returns, dispatch on non-literal values) are excluded.
+fn catchall_default_arm_is_true_positive<D: Doc>(m: &NodeMatch<D>) -> bool {
+    let Some(value) = m.field("value") else {
+        return true;
+    };
+    is_bare_default_expression(&value)
+}
+
+fn is_bare_default_expression<D: Doc>(node: &ast_grep_core::Node<D>) -> bool {
+    match node.kind().as_ref() {
+        // Real fallback work, not a silent default.
+        "block" | "return_expression" | "if_expression" | "match_expression" | "try_expression"
+        | "await_expression" | "closure_expression" => false,
+        // A call is a bare default only if nothing non-literal flows into it:
+        // `Vec::new()` / `String::from("x")` yes, `Other(reason)` / `e.into()` no.
+        "call_expression" => {
+            let function_is_plain_path = node
+                .field("function")
+                .is_some_and(|f| matches!(f.kind().as_ref(), "identifier" | "scoped_identifier"));
+            let args_are_literals = node
+                .field("arguments")
+                .is_none_or(|args| args.children().all(|a| is_literal_or_punct(&a)));
+            function_is_plain_path && args_are_literals
+        }
+        // Literals, unit, plain paths, empty collections, macros like vec![].
+        _ => true,
+    }
+}
+
+fn is_literal_or_punct<D: Doc>(node: &ast_grep_core::Node<D>) -> bool {
+    let kind = node.kind();
+    kind.ends_with("_literal") || !node.is_named()
 }
 
 /// `format!` inside a `field_initializer` is only a stringly-typed error
@@ -238,6 +289,81 @@ mod tests {
                 .iter()
                 .all(|s| !matches!(&s.evidence, Evidence::RuleMatch { rule_id, .. } if rule_id == "no-catchall-default-arm")),
             "expected no no-catchall-default-arm symptom for an explicit named-variant catch-all, found: {:#?}",
+            symptoms
+        );
+    }
+
+    #[test]
+    fn still_flags_catchall_zero_arg_constructor_default() {
+        let dir = write_fixture(
+            "fn f(x: i32) -> Vec<i32> { match x { 1 => vec![1], _ => Vec::new() } }\nfn g(x: i32) -> String { match x { 1 => \"a\".into(), _ => Default::default() } }",
+        );
+        let symptoms = run_house_rules(dir.path()).expect("detector run failed");
+        let count = symptoms
+            .iter()
+            .filter(|s| matches!(&s.evidence, Evidence::RuleMatch { rule_id, .. } if rule_id == "no-catchall-default-arm"))
+            .count();
+        assert_eq!(
+            count, 2,
+            "expected both Vec::new() and Default::default() catch-alls flagged, found: {:#?}",
+            symptoms
+        );
+    }
+
+    #[test]
+    fn does_not_flag_catchall_doing_fallback_work() {
+        let dir = write_fixture(
+            "fn f(x: i32) -> i32 { match x { 1 => 1, _ => { let y = x * 2; y } } }\nfn g(x: i32) -> Result<i32, String> { match x { 1 => Ok(1), _ => Err(format!(\"bad: {x}\")) } }",
+        );
+        let symptoms = run_house_rules(dir.path()).expect("detector run failed");
+        assert!(
+            symptoms
+                .iter()
+                .all(|s| !matches!(&s.evidence, Evidence::RuleMatch { rule_id, .. } if rule_id == "no-catchall-default-arm")),
+            "expected no no-catchall-default-arm symptom for arms doing real fallback work, found: {:#?}",
+            symptoms
+        );
+    }
+
+    #[test]
+    fn does_not_flag_ok_on_utf8_text() {
+        let dir = write_fixture(
+            "fn name(node: tree_sitter::Node, src: &[u8]) -> Option<String> { node.utf8_text(src).ok().map(str::to_string) }",
+        );
+        let symptoms = run_house_rules(dir.path()).expect("detector run failed");
+        assert!(
+            symptoms
+                .iter()
+                .all(|s| !matches!(&s.evidence, Evidence::RuleMatch { rule_id, .. } if rule_id == "no-ok-discarding-errors")),
+            "expected no no-ok-discarding-errors symptom for utf8_text().ok(), found: {:#?}",
+            symptoms
+        );
+    }
+
+    #[test]
+    fn does_not_flag_unwrap_or_default_on_utf8_text() {
+        let dir = write_fixture(
+            "fn name(node: tree_sitter::Node, src: &[u8]) -> String { node.utf8_text(src).unwrap_or_default().to_string() }",
+        );
+        let symptoms = run_house_rules(dir.path()).expect("detector run failed");
+        assert!(
+            symptoms
+                .iter()
+                .all(|s| !matches!(&s.evidence, Evidence::RuleMatch { rule_id, .. } if rule_id == "no-unwrap-or-default")),
+            "expected no no-unwrap-or-default symptom for utf8_text().unwrap_or_default(), found: {:#?}",
+            symptoms
+        );
+    }
+
+    #[test]
+    fn still_flags_ok_on_genuine_fallible_call() {
+        let dir = write_fixture("fn f() -> Option<Vec<u8>> { std::fs::read(\"config\").ok() }");
+        let symptoms = run_house_rules(dir.path()).expect("detector run failed");
+        assert!(
+            symptoms
+                .iter()
+                .any(|s| matches!(&s.evidence, Evidence::RuleMatch { rule_id, .. } if rule_id == "no-ok-discarding-errors")),
+            "expected a no-ok-discarding-errors symptom for a genuine I/O Result, found: {:#?}",
             symptoms
         );
     }

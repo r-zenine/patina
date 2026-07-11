@@ -46,16 +46,10 @@ rule:
           - pattern:
               context: "match x { _ => unreachable!($$$) }"
               selector: match_arm
-constraints:
-  DEFAULT:
-    # Excludes catch-alls that construct an explicit named variant
-    # (e.g. `_ => Category::Other(reason)`) — only a bare default
-    # value/unit silently discards information.
-    not:
-      kind: call_expression
-      has:
-        field: function
-        kind: scoped_identifier
+# Arms that carry information forward (`_ => Category::Other(reason)`) or do
+# real fallback work (blocks, returns, dispatch on captured values) are
+# excluded by a Rust-side post-filter in rule_pack.rs — argument-level
+# inspection is beyond this YAML matcher language.
 ---
 id: no-stringly-typed-map-err
 language: Rust
