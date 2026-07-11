@@ -52,6 +52,11 @@ pub enum Error {
         git_additions: u32,
         git_deletions: u32,
     },
+
+    #[error(
+        "Unexpected delta status '{status}' for file '{file}': a diff foreach should only ever report changed entries"
+    )]
+    UnexpectedDeltaStatus { file: String, status: String },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
@@ -422,35 +427,114 @@ fn count_additions_deletions(git_diff: &git2::Diff, file_path: &str) -> (u32, u3
 
 fn collect_diff_files(git_diff: &git2::Diff) -> Result<Vec<(String, RawFileStatus)>> {
     let mut files = Vec::new();
-    git_diff
-        .foreach(
-            &mut |delta, _progress| {
-                let status = match delta.status() {
-                    git2::Delta::Added => RawFileStatus::Added,
-                    git2::Delta::Deleted => RawFileStatus::Deleted,
-                    git2::Delta::Modified => RawFileStatus::Modified,
-                    git2::Delta::Renamed => RawFileStatus::Renamed,
-                    git2::Delta::Copied => RawFileStatus::Copied,
-                    git2::Delta::Untracked => RawFileStatus::Untracked,
-                    _ => RawFileStatus::Modified,
-                };
+    let mut unexpected_status: Option<Error> = None;
+    let foreach_result = git_diff.foreach(
+        &mut |delta, _progress| {
+            let path = if let Some(new_file) = delta.new_file().path() {
+                new_file.to_string_lossy().to_string()
+            } else if let Some(old_file) = delta.old_file().path() {
+                old_file.to_string_lossy().to_string()
+            } else {
+                "<unknown>".to_string()
+            };
 
-                let path = if let Some(new_file) = delta.new_file().path() {
-                    new_file.to_string_lossy().to_string()
-                } else if let Some(old_file) = delta.old_file().path() {
-                    old_file.to_string_lossy().to_string()
-                } else {
-                    "<unknown>".to_string()
-                };
+            let status = match delta.status() {
+                git2::Delta::Added => RawFileStatus::Added,
+                git2::Delta::Deleted => RawFileStatus::Deleted,
+                git2::Delta::Modified => RawFileStatus::Modified,
+                git2::Delta::Renamed => RawFileStatus::Renamed,
+                git2::Delta::Copied => RawFileStatus::Copied,
+                git2::Delta::Untracked => RawFileStatus::Untracked,
+                // A type change (e.g. regular file <-> symlink) is still one
+                // changed path from a review's point of view; there's no
+                // separate `RawFileStatus` variant for it, so it's folded
+                // into `Modified` — a deliberate simplification, not a
+                // silent default, since every other `Delta` variant below is
+                // rejected outright.
+                git2::Delta::Typechange => RawFileStatus::Modified,
+                // `Unmodified`/`Ignored`/`Unreadable`/`Conflicted` should
+                // never appear in a diff's `foreach` — it only visits
+                // changed entries — so seeing one here means an assumption
+                // about `git_diff`'s construction (e.g. options passed to
+                // `diff_tree_to_workdir`) no longer holds. Abort instead of
+                // guessing a status.
+                other => {
+                    unexpected_status = Some(Error::UnexpectedDeltaStatus {
+                        file: path,
+                        status: format!("{other:?}"),
+                    });
+                    return false;
+                }
+            };
 
-                files.push((path, status));
-                true
-            },
-            None,
-            None,
-            None,
-        )
-        .map_err(Error::Git)?;
+            files.push((path, status));
+            true
+        },
+        None,
+        None,
+        None,
+    );
+
+    if let Some(err) = unexpected_status {
+        return Err(err);
+    }
+    foreach_result.map_err(Error::Git)?;
 
     Ok(files)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// `create_git_diff` doesn't set `include_typechange`, so a regular
+    /// file <-> symlink swap is never actually seen as `Delta::Typechange`
+    /// through the public API today (git2 reports it as delete+add
+    /// instead) — this test exercises `collect_diff_files` directly against
+    /// a diff built with `include_typechange(true)` to prove the explicit
+    /// `Typechange => Modified` arm behaves as documented, regardless of
+    /// whether any current caller's `DiffOptions` happen to surface it.
+    #[test]
+    fn collect_diff_files_maps_typechange_to_modified() {
+        let dir =
+            std::env::temp_dir().join(format!("gitkit-typechange-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("failed to create scratch dir");
+        let repo = Repository::init(&dir).expect("failed to init scratch repo");
+
+        let old_blob = repo.blob(b"just a file\n").expect("failed to write blob");
+        let mut old_builder = repo
+            .treebuilder(None)
+            .expect("failed to create treebuilder");
+        old_builder
+            .insert("a.txt", old_blob, 0o100644)
+            .expect("failed to insert regular file entry");
+        let old_tree = repo
+            .find_tree(old_builder.write().expect("failed to write old tree"))
+            .expect("failed to find old tree");
+
+        let new_blob = repo.blob(b"/dev/null").expect("failed to write blob");
+        let mut new_builder = repo
+            .treebuilder(None)
+            .expect("failed to create treebuilder");
+        new_builder
+            .insert("a.txt", new_blob, 0o120000)
+            .expect("failed to insert symlink entry");
+        let new_tree = repo
+            .find_tree(new_builder.write().expect("failed to write new tree"))
+            .expect("failed to find new tree");
+
+        let mut diff_options = DiffOptions::new();
+        diff_options.include_typechange(true);
+        let git_diff = repo
+            .diff_tree_to_tree(Some(&old_tree), Some(&new_tree), Some(&mut diff_options))
+            .expect("failed to diff the two trees");
+
+        let files = collect_diff_files(&git_diff).expect("collect_diff_files should succeed");
+
+        std::fs::remove_dir_all(&dir).ok();
+
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].0, "a.txt");
+        assert!(matches!(files[0].1, RawFileStatus::Modified));
+    }
 }

@@ -72,12 +72,36 @@ impl LspClient {
         }
     }
 
-    pub fn document_symbols(&self, _path: &Path) -> Result<Vec<DocumentSymbol>> {
-        todo!("wire textDocument/documentSymbol over the JSON-RPC transport")
+    pub fn document_symbols(&self, path: &Path) -> Result<Vec<DocumentSymbol>> {
+        let params = serde_json::json!({
+            "textDocument": {"uri": to_file_uri(path)},
+        });
+        let result = self.call("textDocument/documentSymbol", params)?;
+        match result {
+            serde_json::Value::Null => Ok(Vec::new()),
+            serde_json::Value::Array(items) => items.iter().map(from_lsp_document_symbol).collect(),
+            other => Err(Error::Protocol(format!(
+                "textDocument/documentSymbol: expected an array or null result, got {other}"
+            ))),
+        }
     }
 
-    pub fn workspace_symbols(&self, _query: &str) -> Result<Vec<DocumentSymbol>> {
-        todo!("wire workspace/symbol over the JSON-RPC transport")
+    /// rust-analyzer's `workspace/symbol` returns flat `SymbolInformation`
+    /// entries (a `location`, no nesting) rather than the hierarchical
+    /// `DocumentSymbol` shape `textDocument/documentSymbol` uses — each result
+    /// is mapped in with empty `children` since there is nothing to nest.
+    pub fn workspace_symbols(&self, query: &str) -> Result<Vec<DocumentSymbol>> {
+        let params = serde_json::json!({"query": query});
+        let result = self.call("workspace/symbol", params)?;
+        match result {
+            serde_json::Value::Null => Ok(Vec::new()),
+            serde_json::Value::Array(items) => {
+                items.iter().map(from_lsp_symbol_information).collect()
+            }
+            other => Err(Error::Protocol(format!(
+                "workspace/symbol: expected an array or null result, got {other}"
+            ))),
+        }
     }
 
     pub fn prepare_call_hierarchy(&self, at: &FileLocation) -> Result<Vec<CallHierarchyItem>> {
@@ -345,6 +369,81 @@ fn from_lsp_location(value: &serde_json::Value) -> Result<Location> {
     Ok(Location {
         path: from_file_uri(uri)?,
         range: from_lsp_range(range)?,
+    })
+}
+
+/// Parses one hierarchical `DocumentSymbol` (name, kind, optional detail,
+/// `range`, nested `children`) — the shape rust-analyzer sends for
+/// `textDocument/documentSymbol`. `selectionRange` (just the name span) is
+/// dropped; `range` (the whole declaration) is what this crate's
+/// `DocumentSymbol` keeps, matching `CallHierarchyItem`'s choice above.
+fn from_lsp_document_symbol(value: &serde_json::Value) -> Result<DocumentSymbol> {
+    let name = value
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| Error::Protocol(format!("expected a document symbol.name, got {value}")))?
+        .to_string();
+    let kind = value
+        .get("kind")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| Error::Protocol(format!("expected a document symbol.kind, got {value}")))?;
+    let range = value
+        .get("range")
+        .ok_or_else(|| Error::Protocol(format!("expected a document symbol.range, got {value}")))?;
+    let detail = value
+        .get("detail")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_string);
+    let children = match value.get("children") {
+        None | Some(serde_json::Value::Null) => Vec::new(),
+        Some(serde_json::Value::Array(items)) => items
+            .iter()
+            .map(from_lsp_document_symbol)
+            .collect::<Result<_>>()?,
+        Some(other) => {
+            return Err(Error::Protocol(format!(
+                "expected document symbol.children to be an array, got {other}"
+            )));
+        }
+    };
+    Ok(DocumentSymbol {
+        name,
+        kind: from_lsp_symbol_kind(kind),
+        detail,
+        range: from_lsp_range(range)?,
+        children,
+    })
+}
+
+/// Parses one flat `SymbolInformation` entry — `workspace/symbol`'s response
+/// shape. `containerName` is dropped; this crate has no field for it and
+/// `children` stays empty since `SymbolInformation` carries no nesting.
+fn from_lsp_symbol_information(value: &serde_json::Value) -> Result<DocumentSymbol> {
+    let name = value
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(|| Error::Protocol(format!("expected a symbol information.name, got {value}")))?
+        .to_string();
+    let kind = value
+        .get("kind")
+        .and_then(serde_json::Value::as_u64)
+        .ok_or_else(|| {
+            Error::Protocol(format!("expected a symbol information.kind, got {value}"))
+        })?;
+    let range = value
+        .get("location")
+        .and_then(|location| location.get("range"))
+        .ok_or_else(|| {
+            Error::Protocol(format!(
+                "expected a symbol information.location.range, got {value}"
+            ))
+        })?;
+    Ok(DocumentSymbol {
+        name,
+        kind: from_lsp_symbol_kind(kind),
+        detail: None,
+        range: from_lsp_range(range)?,
+        children: Vec::new(),
     })
 }
 

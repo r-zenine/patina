@@ -37,6 +37,11 @@ impl From<GitError> for DiffVizError {
             }) => DiffVizError::ProcessingFailed(format!(
                 "Level 1 validation failed for file '{file}': hunks show +{hunk_additions}/{hunk_deletions} but git stats show +{git_additions}/{git_deletions}"
             )),
+            GitError::Core(gitkit::Error::UnexpectedDeltaStatus { file, status }) => {
+                DiffVizError::Git(format!(
+                    "Unexpected delta status '{status}' for file '{file}'"
+                ))
+            }
         }
     }
 }

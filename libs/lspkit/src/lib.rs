@@ -238,6 +238,14 @@ impl LspClient {
                 "rootUri": root_uri,
                 "capabilities": {
                     "experimental": { "serverStatusNotification": true },
+                    // Without this, rust-analyzer answers
+                    // `textDocument/documentSymbol` with flat `SymbolInformation`
+                    // entries instead of nested `DocumentSymbol` trees, and
+                    // `sibling_methods` needs the nesting to find an impl
+                    // block's children.
+                    "textDocument": {
+                        "documentSymbol": { "hierarchicalDocumentSymbolSupport": true },
+                    },
                 },
                 // Analyze with every cargo feature enabled: code behind a
                 // non-default feature gate (e.g. a `#[cfg(feature = "...")]`
