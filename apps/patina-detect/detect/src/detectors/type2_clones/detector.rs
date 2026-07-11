@@ -15,6 +15,11 @@ pub const DETECTOR_ID: &str = "type2-clones";
 /// (e.g. `fn add_one(x: i32) -> i32 { x + 1 }`).
 const MIN_SEMANTIC_NODES: usize = 30;
 
+/// Stricter min-size gate applied to clone groups whose members are *all*
+/// test-only code (spec.md:143's base gate, doubled). See the `all_test_code`
+/// check in [`run_type2_clones`] for why.
+const ALL_TEST_MIN_SEMANTIC_NODES: usize = MIN_SEMANTIC_NODES * 2;
+
 #[derive(Debug, Error)]
 pub enum Type2ClonesError {
     #[error("failed to walk directory {path}")]
@@ -98,6 +103,16 @@ pub fn run_type2_clones(root: &Path) -> Result<Vec<Symptom>, Type2ClonesError> {
         let all_test_code = members.iter().all(|m| m.is_test);
         let group_size = members.len();
         let node_count = members[0].node_count;
+
+        // Parametrized-style test cases (table-driven scenarios sharing
+        // control-flow shape, differing only in literal values/assertions)
+        // dominate this detector's false positives and cluster near the
+        // base MIN_SEMANTIC_NODES gate — genuine test-helper duplication
+        // worth extracting tends to be substantially larger. Hold
+        // all-test-code groups to a higher bar instead of the base gate.
+        if all_test_code && node_count < ALL_TEST_MIN_SEMANTIC_NODES {
+            continue;
+        }
 
         let sites = members
             .iter()

@@ -197,14 +197,90 @@ fn cross_file_clone_group_is_ranked_above_a_same_file_clone_group() {
     );
 }
 
+/// A pair of large, structurally-identical test-only functions (each body
+/// repeats `MEMBER_A`'s loop/branch shape three times) — well above the
+/// raised `ALL_TEST_MIN_SEMANTIC_NODES` gate applied to all-test-code
+/// groups, to represent genuine test-helper duplication that should still
+/// be flagged.
+const LARGE_MEMBER_A: &str = r#"
+fn compute_score_thrice(values: &[i32], threshold: i32) -> i32 {
+    let mut total = 0;
+    for value in values {
+        if *value > threshold {
+            total += value * 2;
+        } else if *value < 0 {
+            total -= value;
+        } else {
+            total += 1;
+        }
+    }
+    for value in values {
+        if *value > threshold {
+            total += value * 2;
+        } else if *value < 0 {
+            total -= value;
+        } else {
+            total += 1;
+        }
+    }
+    for value in values {
+        if *value > threshold {
+            total += value * 2;
+        } else if *value < 0 {
+            total -= value;
+        } else {
+            total += 1;
+        }
+    }
+    if total > 100 {
+        total = 100;
+    }
+    total
+}
+"#;
+
+const LARGE_MEMBER_B: &str = r#"
+fn compute_rating_thrice(numbers: &[i32], limit: i32) -> i32 {
+    let mut sum = 0;
+    for number in numbers {
+        if *number > limit {
+            sum += number * 2;
+        } else if *number < 0 {
+            sum -= number;
+        } else {
+            sum += 1;
+        }
+    }
+    for number in numbers {
+        if *number > limit {
+            sum += number * 2;
+        } else if *number < 0 {
+            sum -= number;
+        } else {
+            sum += 1;
+        }
+    }
+    for number in numbers {
+        if *number > limit {
+            sum += number * 2;
+        } else if *number < 0 {
+            sum -= number;
+        } else {
+            sum += 1;
+        }
+    }
+    if sum > 100 {
+        sum = 100;
+    }
+    sum
+}
+"#;
+
 #[test]
 fn all_test_code_clone_group_is_tagged_separately() {
     let dir = tempfile::tempdir().expect("failed to create temp dir");
-    let test_module = format!(
-        "#[cfg(test)]\nmod tests {{\n{}\n{}\n}}\n",
-        MEMBER_A.replace("pub fn", "fn"),
-        MEMBER_B.replace("pub fn", "fn")
-    );
+    let test_module =
+        format!("#[cfg(test)]\nmod tests {{\n{LARGE_MEMBER_A}\n{LARGE_MEMBER_B}\n}}\n");
     write_fixture(dir.path(), "tests_only.rs", &test_module);
 
     let symptoms = run_type2_clones(dir.path()).expect("detector run failed");
@@ -220,6 +296,29 @@ fn all_test_code_clone_group_is_tagged_separately() {
     assert!(
         clone_groups[0],
         "a clone group whose members are entirely inside #[cfg(test)] must be tagged all_test_code"
+    );
+}
+
+#[test]
+fn small_all_test_code_clone_group_below_raised_gate_is_not_reported() {
+    let dir = tempfile::tempdir().expect("failed to create temp dir");
+    let test_module = format!(
+        "#[cfg(test)]\nmod tests {{\n{}\n{}\n}}\n",
+        MEMBER_A.replace("pub fn", "fn"),
+        MEMBER_B.replace("pub fn", "fn")
+    );
+    write_fixture(dir.path(), "tests_only.rs", &test_module);
+
+    let symptoms = run_type2_clones(dir.path()).expect("detector run failed");
+    let clone_groups: Vec<_> = symptoms
+        .iter()
+        .filter(|s| matches!(&s.evidence, Evidence::CloneGroup { .. }))
+        .collect();
+
+    assert!(
+        clone_groups.is_empty(),
+        "an all-test-code clone group below the raised gate (parametrized-style test scaffolding) must not be reported, found: {:#?}",
+        clone_groups
     );
 }
 
