@@ -3,16 +3,8 @@ use lspkit::{FileLocation, Location, LspClient, Position};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
 use thiserror::Error;
 use tree_sitter::{Node, Parser, Point};
-
-/// Same indexing-warmup concern as `dead_exports`/`near_duplicate_structs`
-/// (a transiently-empty `implementations()` result before indexing settles
-/// must not be trusted). See
-/// `dead_exports::detector::INDEXING_WARMUP_BUDGET` for the full rationale.
-const INDEXING_WARMUP_BUDGET: Duration = Duration::from_secs(30);
-const INDEXING_POLL_INTERVAL: Duration = Duration::from_millis(300);
 
 pub const DETECTOR_ID: &str = "single-impl-traits";
 
@@ -29,7 +21,7 @@ pub enum SingleImplTraitsError {
     Walk {
         path: PathBuf,
         #[source]
-        source: std::io::Error,
+        source: ignore::Error,
     },
 
     #[error("failed to read file {path}")]
@@ -93,7 +85,6 @@ pub fn run_single_impl_traits(root: &Path) -> Result<Vec<Symptom>, SingleImplTra
     }
 
     let client = LspClient::start(root)?;
-    let warmup_deadline = Instant::now() + INDEXING_WARMUP_BUDGET;
     let mut file_cache: HashMap<PathBuf, (String, tree_sitter::Tree)> = HashMap::new();
     let mut symptoms = Vec::new();
 
@@ -111,7 +102,7 @@ pub fn run_single_impl_traits(root: &Path) -> Result<Vec<Symptom>, SingleImplTra
         // to the candidate itself — see `dead_exports::detector`'s
         // identical fix) must not abort every other candidate's evidence
         // gathering. Skip and continue rather than `?`.
-        let implementations = match implementations_settled(&client, &at, warmup_deadline) {
+        let implementations = match client.implementations(&at) {
             Ok(locations) => locations,
             Err(err) => {
                 eprintln!(
@@ -199,34 +190,6 @@ fn location_label(root: &Path, location: &Location) -> String {
         .strip_prefix(root)
         .unwrap_or(location.path.as_path());
     format!("{}:{}", relative.display(), location.range.start.line)
-}
-
-/// Polls `client.implementations(at)` until two consecutive reads agree
-/// (indexing has caught up) or `deadline` passes, whichever comes first.
-/// Mirrors `dead_exports::detector::references_settled` — an in-progress
-/// index can return `Ok([])` just as easily as an error, and that empty
-/// result is indistinguishable from a genuinely unimplemented trait without
-/// this stability check.
-fn implementations_settled(
-    client: &LspClient,
-    at: &FileLocation,
-    deadline: Instant,
-) -> lspkit::Result<Vec<Location>> {
-    let mut previous: Option<Vec<Location>> = None;
-    loop {
-        match client.implementations(at) {
-            Ok(locations) => {
-                let past_deadline = Instant::now() >= deadline;
-                if previous.as_ref() == Some(&locations) || past_deadline {
-                    return Ok(locations);
-                }
-                previous = Some(locations);
-            }
-            Err(err) if Instant::now() >= deadline => return Err(err),
-            Err(_) => {}
-        }
-        std::thread::sleep(INDEXING_POLL_INTERVAL);
-    }
 }
 
 /// Splits `implementations()`'s results into production implementors and
@@ -401,29 +364,20 @@ fn qualified_name(node: Node, source: &[u8]) -> String {
 
 fn collect_rust_files(root: &Path) -> Result<Vec<PathBuf>, SingleImplTraitsError> {
     let mut files = Vec::new();
-    visit(root, &mut files)?;
-    files.sort();
-    Ok(files)
-}
-
-fn visit(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), SingleImplTraitsError> {
-    let entries = fs::read_dir(dir).map_err(|source| SingleImplTraitsError::Walk {
-        path: dir.to_path_buf(),
-        source,
-    })?;
-    for entry in entries {
+    let mut builder = ignore::WalkBuilder::new(root);
+    builder.add_custom_ignore_filename(crate::detectors::IGNORE_FILE_NAME);
+    for entry in builder.build() {
         let entry = entry.map_err(|source| SingleImplTraitsError::Walk {
-            path: dir.to_path_buf(),
+            path: root.to_path_buf(),
             source,
         })?;
         let path = entry.path();
-        if path.is_dir() {
-            visit(&path, files)?;
-        } else if path.extension().is_some_and(|ext| ext == "rs") {
-            files.push(path);
+        if path.extension().is_some_and(|ext| ext == "rs") && path.is_file() {
+            files.push(path.to_path_buf());
         }
     }
-    Ok(())
+    files.sort();
+    Ok(files)
 }
 
 #[cfg(test)]

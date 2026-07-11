@@ -14,6 +14,7 @@ ast-grep-core = { workspace = true }
 ast-grep-language = { workspace = true, features = ["tree-sitter-rust"] }
 clap = { version = "4.6", features = ["derive"] }
 diffviz-core = { workspace = true }
+ignore = { workspace = true }
 lspkit = { workspace = true }
 persistkit = { workspace = true }
 serde = { workspace = true }

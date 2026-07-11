@@ -12,9 +12,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicI64, Ordering};
 use std::sync::mpsc::{self, Sender};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -143,7 +143,31 @@ pub struct BlastRadius {
 
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// Safety net only. rust-analyzer sends `experimental/serverStatus` for
+/// every workspace we've observed once the client advertises
+/// `serverStatusNotification`, so `start` normally returns as soon as the
+/// server reports `quiescent: true` — this bound just stops a future/odd
+/// server version that never sends the notification from hanging `start`
+/// forever.
+const INDEXING_FALLBACK_TIMEOUT: Duration = Duration::from_secs(60);
+
 type PendingRequests = Mutex<HashMap<i64, Sender<serde_json::Value>>>;
+
+/// Tracks rust-analyzer's `experimental/serverStatus` notifications so
+/// `start` can block until the server reports `quiescent: true` — its "all
+/// background analysis done" signal. Counting `$/progress` streams instead
+/// is racy: the phases (`Fetching`, `Roots Scanned`, `cachePriming`, ...)
+/// run back-to-back with gaps between one stream's `end` and the next's
+/// `begin`, so "a stream ended and none are outstanding" can be observed
+/// ~500ms after spawn while indexing hasn't actually started — every
+/// subsequent `references()` then answers from an empty index.
+#[derive(Default)]
+struct IndexingState {
+    /// Latest `quiescent` value reported by `experimental/serverStatus`.
+    quiescent: bool,
+}
+
+type IndexingSignal = Arc<(Mutex<IndexingState>, Condvar)>;
 
 pub struct LspClient {
     #[allow(dead_code)]
@@ -169,17 +193,27 @@ impl LspClient {
         let stdout = process.stdout.take().ok_or(Error::ServerExited)?;
 
         let pending: Arc<PendingRequests> = Arc::new(Mutex::new(HashMap::new()));
+        let indexing: IndexingSignal =
+            Arc::new((Mutex::new(IndexingState::default()), Condvar::new()));
         let reader_thread = {
             let pending = Arc::clone(&pending);
+            let indexing = Arc::clone(&indexing);
             let mut reader = BufReader::new(stdout);
             std::thread::spawn(move || {
                 while let Ok(message) = transport::read_message(&mut reader) {
                     let Some(id) = message.get("id").and_then(serde_json::Value::as_i64) else {
                         // Notifications and server-initiated requests (e.g.
                         // window/logMessage, client/registerCapability) carry
-                        // no response we need to dispatch — dropped, not
-                        // answered. Only response messages (matched by id
-                        // against a pending request) are wired to a waiter.
+                        // no response we need to dispatch.
+                        // `experimental/serverStatus` is the exception: its
+                        // `quiescent` flag is how rust-analyzer tells us all
+                        // background analysis is done, so `start` can wait on
+                        // it instead of guessing with a timeout.
+                        if message.get("method").and_then(serde_json::Value::as_str)
+                            == Some("experimental/serverStatus")
+                        {
+                            track_server_status(&indexing, &message);
+                        }
                         continue;
                     };
                     if let Some(sender) = pending.lock().unwrap().remove(&id) {
@@ -202,7 +236,18 @@ impl LspClient {
             serde_json::json!({
                 "processId": std::process::id(),
                 "rootUri": root_uri,
-                "capabilities": {},
+                "capabilities": {
+                    "experimental": { "serverStatusNotification": true },
+                },
+                // Analyze with every cargo feature enabled: code behind a
+                // non-default feature gate (e.g. a `#[cfg(feature = "...")]`
+                // test harness and the integration tests exercising it) is
+                // otherwise cfg'd out of the crate graph entirely, and
+                // `references` silently reports 0 for symbols only such code
+                // uses.
+                "initializationOptions": {
+                    "cargo": { "features": "all" },
+                },
             }),
         )?;
 
@@ -217,6 +262,8 @@ impl LspClient {
                 }),
             )?;
         }
+
+        wait_for_indexing(&indexing);
 
         Ok(Self {
             workspace_root: workspace_root.to_path_buf(),
@@ -283,6 +330,43 @@ fn send_request(
         .get("result")
         .cloned()
         .unwrap_or(serde_json::Value::Null))
+}
+
+/// Updates `indexing` from one `experimental/serverStatus` notification.
+/// The flag is level-triggered — rust-analyzer re-sends the full status on
+/// every change, so `quiescent` can flip back to `false` (e.g. a workspace
+/// reload) and the latest value always wins.
+fn track_server_status(indexing: &IndexingSignal, message: &serde_json::Value) {
+    let Some(quiescent) = message
+        .pointer("/params/quiescent")
+        .and_then(serde_json::Value::as_bool)
+    else {
+        return;
+    };
+    let (lock, condvar) = &**indexing;
+    let mut state = lock.lock().unwrap();
+    state.quiescent = quiescent;
+    if quiescent {
+        condvar.notify_all();
+    }
+}
+
+/// Blocks until rust-analyzer reports `quiescent: true`, bounded by
+/// [`INDEXING_FALLBACK_TIMEOUT`] as a safety net.
+fn wait_for_indexing(indexing: &IndexingSignal) {
+    let (lock, condvar) = &**indexing;
+    let deadline = Instant::now() + INDEXING_FALLBACK_TIMEOUT;
+    let mut state = lock.lock().unwrap();
+    while !state.quiescent {
+        let Some(remaining) = deadline.checked_duration_since(Instant::now()) else {
+            break;
+        };
+        let (guard, timeout) = condvar.wait_timeout(state, remaining).unwrap();
+        state = guard;
+        if timeout.timed_out() {
+            break;
+        }
+    }
 }
 
 impl Drop for LspClient {

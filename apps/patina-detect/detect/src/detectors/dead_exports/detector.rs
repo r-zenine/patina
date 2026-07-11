@@ -3,25 +3,8 @@ use lspkit::{FileLocation, Location, LspClient, Position};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
 use thiserror::Error;
 use tree_sitter::{Node, Parser, Point};
-
-/// `rust-analyzer` answers `initialize` before it has finished indexing the
-/// crate graph (`libs/lspkit/tests/references_integration.rs` documents the
-/// same race for a single call): calls made right after `LspClient::start`
-/// can transiently fail outright ("file not found"), or worse, *succeed*
-/// with an incomplete result (an empty `references()` that looks exactly
-/// like a genuinely dead symbol, until indexing catches up a moment later).
-/// A production detector issuing many calls in one run can't rely on a
-/// test-level retry (each retry there restarts the whole client, racing
-/// indexing again every time) — it must ride out the warm-up itself, bounded
-/// by one shared deadline so indexing only has to settle once per run.
-const INDEXING_WARMUP_BUDGET: Duration = Duration::from_secs(30);
-
-/// Delay between successive polls while riding out indexing warm-up (see
-/// [`INDEXING_WARMUP_BUDGET`]).
-const INDEXING_POLL_INTERVAL: Duration = Duration::from_millis(300);
 
 /// The detector id every dead-exports `Symptom`/`SymptomId` is tagged with.
 pub const DETECTOR_ID: &str = "dead-exports";
@@ -39,7 +22,7 @@ pub enum DeadExportsError {
     Walk {
         path: PathBuf,
         #[source]
-        source: std::io::Error,
+        source: ignore::Error,
     },
 
     #[error("failed to read file {path}")]
@@ -108,7 +91,6 @@ pub fn run_dead_exports(root: &Path) -> Result<Vec<Symptom>, DeadExportsError> {
     }
 
     let client = LspClient::start(root)?;
-    let warmup_deadline = Instant::now() + INDEXING_WARMUP_BUDGET;
     let mut file_cache: HashMap<PathBuf, (String, tree_sitter::Tree)> = HashMap::new();
     let mut symptoms = Vec::new();
 
@@ -126,7 +108,7 @@ pub fn run_dead_exports(root: &Path) -> Result<Vec<Symptom>, DeadExportsError> {
         // the candidate itself — see `near_duplicate_structs::detector`'s
         // identical fix) must not abort every other candidate's evidence
         // gathering. Skip and continue rather than `?`.
-        let references = match references_settled(&client, &at, warmup_deadline) {
+        let references = match client.references(&at, false) {
             Ok(references) => references,
             Err(err) => {
                 eprintln!(
@@ -181,35 +163,6 @@ pub fn run_dead_exports(root: &Path) -> Result<Vec<Symptom>, DeadExportsError> {
 
     symptoms.sort_by_key(|s| s.id.to_string());
     Ok(symptoms)
-}
-
-/// Polls `client.references(at, false)` until two consecutive reads agree
-/// (indexing has caught up — results only grow monotonically as indexing
-/// completes, never shrink) or `deadline` passes, whichever comes first. A
-/// bare retry-on-error isn't enough: an in-progress index can return `Ok([])`
-/// just as easily as an error, and that empty result is indistinguishable
-/// from a genuinely dead symbol without this stability check. See
-/// [`INDEXING_WARMUP_BUDGET`].
-fn references_settled(
-    client: &LspClient,
-    at: &FileLocation,
-    deadline: Instant,
-) -> lspkit::Result<Vec<Location>> {
-    let mut previous: Option<Vec<Location>> = None;
-    loop {
-        match client.references(at, false) {
-            Ok(locations) => {
-                let past_deadline = Instant::now() >= deadline;
-                if previous.as_ref() == Some(&locations) || past_deadline {
-                    return Ok(locations);
-                }
-                previous = Some(locations);
-            }
-            Err(err) if Instant::now() >= deadline => return Err(err),
-            Err(_) => {}
-        }
-        std::thread::sleep(INDEXING_POLL_INTERVAL);
-    }
 }
 
 /// Classifies a candidate's `references()` result into a reportable finding,
@@ -291,6 +244,7 @@ fn collect_candidates(
     if !in_trait_impl
         && node.kind() == "function_item"
         && has_pub_visibility(node, source)
+        && !has_preceding_attribute(node, source, "test")
         && let Some(name_node) = node.child_by_field_name("name")
         && let Ok(name) = name_node.utf8_text(source)
         && name != "main"
@@ -426,29 +380,20 @@ fn qualified_name(node: Node, source: &[u8]) -> String {
 
 fn collect_rust_files(root: &Path) -> Result<Vec<PathBuf>, DeadExportsError> {
     let mut files = Vec::new();
-    visit(root, &mut files)?;
-    files.sort();
-    Ok(files)
-}
-
-fn visit(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), DeadExportsError> {
-    let entries = fs::read_dir(dir).map_err(|source| DeadExportsError::Walk {
-        path: dir.to_path_buf(),
-        source,
-    })?;
-    for entry in entries {
+    let mut builder = ignore::WalkBuilder::new(root);
+    builder.add_custom_ignore_filename(crate::detectors::IGNORE_FILE_NAME);
+    for entry in builder.build() {
         let entry = entry.map_err(|source| DeadExportsError::Walk {
-            path: dir.to_path_buf(),
+            path: root.to_path_buf(),
             source,
         })?;
         let path = entry.path();
-        if path.is_dir() {
-            visit(&path, files)?;
-        } else if path.extension().is_some_and(|ext| ext == "rs") {
-            files.push(path);
+        if path.extension().is_some_and(|ext| ext == "rs") && path.is_file() {
+            files.push(path.to_path_buf());
         }
     }
-    Ok(())
+    files.sort();
+    Ok(files)
 }
 
 #[cfg(test)]
@@ -490,6 +435,18 @@ mod tests {
     #[test]
     fn a_function_named_main_is_excluded_even_when_pub() {
         let candidates = candidates_for("pub fn main() {}");
+        assert!(candidates.is_empty());
+    }
+
+    #[test]
+    fn a_test_annotated_function_is_excluded_even_when_pub() {
+        let candidates = candidates_for("#[test]\npub fn checks_something() { assert!(true); }");
+        assert!(candidates.is_empty());
+    }
+
+    #[test]
+    fn a_tokio_test_annotated_function_is_excluded_even_when_pub() {
+        let candidates = candidates_for("#[tokio::test]\npub async fn checks_something() {}");
         assert!(candidates.is_empty());
     }
 

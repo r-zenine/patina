@@ -18,7 +18,7 @@ pub enum CognitiveComplexityError {
     Walk {
         path: PathBuf,
         #[source]
-        source: std::io::Error,
+        source: ignore::Error,
     },
 
     #[error("failed to read file {path}")]
@@ -317,29 +317,20 @@ fn qualified_name(node: Node, source: &[u8]) -> String {
 
 fn collect_rust_files(root: &Path) -> Result<Vec<PathBuf>, CognitiveComplexityError> {
     let mut files = Vec::new();
-    visit(root, &mut files)?;
-    files.sort();
-    Ok(files)
-}
-
-fn visit(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), CognitiveComplexityError> {
-    let entries = fs::read_dir(dir).map_err(|source| CognitiveComplexityError::Walk {
-        path: dir.to_path_buf(),
-        source,
-    })?;
-    for entry in entries {
+    let mut builder = ignore::WalkBuilder::new(root);
+    builder.add_custom_ignore_filename(crate::detectors::IGNORE_FILE_NAME);
+    for entry in builder.build() {
         let entry = entry.map_err(|source| CognitiveComplexityError::Walk {
-            path: dir.to_path_buf(),
+            path: root.to_path_buf(),
             source,
         })?;
         let path = entry.path();
-        if path.is_dir() {
-            visit(&path, files)?;
-        } else if path.extension().is_some_and(|ext| ext == "rs") {
-            files.push(path);
+        if path.extension().is_some_and(|ext| ext == "rs") && path.is_file() {
+            files.push(path.to_path_buf());
         }
     }
-    Ok(())
+    files.sort();
+    Ok(files)
 }
 
 #[cfg(test)]

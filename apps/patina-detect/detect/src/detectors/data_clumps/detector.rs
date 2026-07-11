@@ -1,19 +1,10 @@
 use crate::entities::{DetectorId, Evidence, LineRange, Site, SiteRole, Symptom, SymptomId};
-use lspkit::{CallHierarchyItem, CallSite, FileLocation, LspClient, Position};
+use lspkit::{FileLocation, LspClient, Position};
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
 use thiserror::Error;
 use tree_sitter::{Node, Parser, Point};
-
-/// Same rust-analyzer indexing-warmup concern as `middleman_delegation` (see
-/// its `INDEXING_WARMUP_BUDGET` doc) — `run_data_clumps_refined` issues many
-/// `prepare_call_hierarchy`/`incoming_calls` requests and must ride out
-/// warm-up itself, bounded by one shared deadline per run.
-const INDEXING_WARMUP_BUDGET: Duration = Duration::from_secs(30);
-
-const INDEXING_POLL_INTERVAL: Duration = Duration::from_millis(300);
 
 /// The detector id every data-clump `Symptom`/`SymptomId` is tagged with.
 pub const DETECTOR_ID: &str = "data-clumps";
@@ -49,7 +40,7 @@ pub enum DataClumpsError {
     Walk {
         path: PathBuf,
         #[source]
-        source: std::io::Error,
+        source: ignore::Error,
     },
 
     #[error("failed to read file {path}")]
@@ -126,11 +117,10 @@ pub fn run_data_clumps_refined(root: &Path) -> Result<Vec<Symptom>, DataClumpsEr
     let (groups, structs) = promoted_groups(root)?;
 
     let client = LspClient::start(root)?;
-    let warmup_deadline = Instant::now() + INDEXING_WARMUP_BUDGET;
 
     let mut kept: GroupsByMembers = BTreeMap::new();
     for (members, group) in groups {
-        match is_closed_cluster(&client, root, &group, warmup_deadline) {
+        match is_closed_cluster(&client, root, &group) {
             Ok(true) => continue,
             Ok(false) => {
                 kept.insert(members, group);
@@ -292,7 +282,6 @@ fn is_closed_cluster(
     client: &LspClient,
     root: &Path,
     group: &[Occurrence],
-    deadline: Instant,
 ) -> Result<bool, DataClumpsError> {
     let members: Vec<(PathBuf, LineRange)> = group
         .iter()
@@ -309,9 +298,9 @@ fn is_closed_cluster(
             path: root.join(&occurrence.file),
             position,
         };
-        let items = prepare_call_hierarchy_settled(client, &at, deadline)?;
+        let items = client.prepare_call_hierarchy(&at)?;
         for item in &items {
-            let callers = incoming_calls_settled(client, item, deadline)?;
+            let callers = client.incoming_calls(item)?;
             for caller in &callers {
                 let caller_start_line = caller.item.location.range.start.line as usize;
                 let is_member = members.iter().any(|(path, range)| {
@@ -323,60 +312,16 @@ fn is_closed_cluster(
                     external_callers.insert((caller.item.location.path.clone(), caller_start_line));
                 }
             }
+            // Two distinct external callers already prove the cluster open;
+            // every further `prepare_call_hierarchy`/`incoming_calls` round
+            // trip would only re-prove it.
+            if external_callers.len() >= 2 {
+                return Ok(false);
+            }
         }
     }
 
     Ok(external_callers.len() <= 1)
-}
-
-/// Polls `client.prepare_call_hierarchy(at)` until two consecutive reads
-/// agree or `deadline` passes — same stability rationale as
-/// `middleman_delegation::detector::prepare_call_hierarchy_settled`.
-fn prepare_call_hierarchy_settled(
-    client: &LspClient,
-    at: &FileLocation,
-    deadline: Instant,
-) -> lspkit::Result<Vec<CallHierarchyItem>> {
-    let mut previous: Option<Vec<CallHierarchyItem>> = None;
-    loop {
-        match client.prepare_call_hierarchy(at) {
-            Ok(items) => {
-                let past_deadline = Instant::now() >= deadline;
-                if previous.as_ref() == Some(&items) || past_deadline {
-                    return Ok(items);
-                }
-                previous = Some(items);
-            }
-            Err(err) if Instant::now() >= deadline => return Err(err),
-            Err(_) => {}
-        }
-        std::thread::sleep(INDEXING_POLL_INTERVAL);
-    }
-}
-
-/// Polls `client.incoming_calls(item)` until two consecutive reads agree or
-/// `deadline` passes — same stability rationale as
-/// `middleman_delegation::detector::incoming_calls_settled`.
-fn incoming_calls_settled(
-    client: &LspClient,
-    item: &CallHierarchyItem,
-    deadline: Instant,
-) -> lspkit::Result<Vec<CallSite>> {
-    let mut previous: Option<Vec<CallSite>> = None;
-    loop {
-        match client.incoming_calls(item) {
-            Ok(call_sites) => {
-                let past_deadline = Instant::now() >= deadline;
-                if previous.as_ref() == Some(&call_sites) || past_deadline {
-                    return Ok(call_sites);
-                }
-                previous = Some(call_sites);
-            }
-            Err(err) if Instant::now() >= deadline => return Err(err),
-            Err(_) => {}
-        }
-        std::thread::sleep(INDEXING_POLL_INTERVAL);
-    }
 }
 
 fn parse_rust(content: &str, path: &Path) -> Result<tree_sitter::Tree, DataClumpsError> {
@@ -594,27 +539,18 @@ fn collect_structs(node: Node, source: &[u8], out: &mut Vec<(String, HashSet<(St
 
 fn collect_rust_files(root: &Path) -> Result<Vec<PathBuf>, DataClumpsError> {
     let mut files = Vec::new();
-    visit(root, &mut files)?;
-    files.sort();
-    Ok(files)
-}
-
-fn visit(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), DataClumpsError> {
-    let entries = fs::read_dir(dir).map_err(|source| DataClumpsError::Walk {
-        path: dir.to_path_buf(),
-        source,
-    })?;
-    for entry in entries {
+    let mut builder = ignore::WalkBuilder::new(root);
+    builder.add_custom_ignore_filename(crate::detectors::IGNORE_FILE_NAME);
+    for entry in builder.build() {
         let entry = entry.map_err(|source| DataClumpsError::Walk {
-            path: dir.to_path_buf(),
+            path: root.to_path_buf(),
             source,
         })?;
         let path = entry.path();
-        if path.is_dir() {
-            visit(&path, files)?;
-        } else if path.extension().is_some_and(|ext| ext == "rs") {
-            files.push(path);
+        if path.extension().is_some_and(|ext| ext == "rs") && path.is_file() {
+            files.push(path.to_path_buf());
         }
     }
-    Ok(())
+    files.sort();
+    Ok(files)
 }

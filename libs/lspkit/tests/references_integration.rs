@@ -37,6 +37,73 @@ fn references_with_retry(client: &LspClient, at: &FileLocation) -> Vec<Location>
     }
 }
 
+/// Regression test for the indexing-wait race: `start()` must block until
+/// rust-analyzer reports `quiescent: true` (`experimental/serverStatus`), so
+/// the very first `references` call — deliberately no retry here — already
+/// sees cross-file references, including struct-field accesses. The earlier
+/// `$/progress`-counting wait returned ~500ms after spawn (in the gap
+/// between two progress streams), and every call answered from an empty
+/// index: 0 references for everything.
+#[test]
+#[ignore = "requires rust-analyzer on PATH; run with `cargo test -- --ignored`"]
+fn first_call_after_start_sees_cross_file_field_references() {
+    let root = fixture_root();
+    let client = LspClient::start(&root).expect("initialize handshake should succeed");
+
+    // `Item::weight` field declaration in src/types.rs, referenced only by
+    // the `item.weight` field access in src/lib.rs's `total_weight`.
+    let at = FileLocation {
+        path: root.join("src/types.rs"),
+        position: Position {
+            line: 2,
+            character: 9,
+        },
+    };
+
+    let locations = client
+        .references(&at, false)
+        .expect("references should succeed on the first call after start()");
+    assert_eq!(
+        locations.len(),
+        1,
+        "expected the single cross-file field access, got {locations:?}"
+    );
+    assert!(
+        locations[0].path.ends_with("src/lib.rs"),
+        "expected the reference in src/lib.rs, got {locations:?}"
+    );
+}
+
+/// Regression test for feature-gated references: `gated_target` is only
+/// called from `gated_caller`, which sits behind the fixture's non-default
+/// `extra` feature. Without `cargo.features = "all"` in the initialize
+/// options, rust-analyzer cfg's that caller out of the crate graph and
+/// silently reports 0 references — exactly how feature-gated test harnesses
+/// and their integration tests were misreported as dead exports.
+#[test]
+#[ignore = "requires rust-analyzer on PATH; run with `cargo test -- --ignored`"]
+fn references_include_call_sites_behind_non_default_features() {
+    let root = fixture_root();
+    let client = LspClient::start(&root).expect("initialize handshake should succeed");
+
+    let at = FileLocation {
+        path: root.join("src/lib.rs"),
+        position: Position {
+            line: 55,
+            character: 8,
+        },
+    };
+
+    let locations = client
+        .references(&at, false)
+        .expect("references should succeed on the first call after start()");
+    assert_eq!(
+        locations.len(),
+        1,
+        "expected the feature-gated call site, got {locations:?}"
+    );
+}
+
 #[test]
 #[ignore = "requires rust-analyzer on PATH; run with `cargo test -- --ignored`"]
 fn references_finds_known_call_sites() {

@@ -45,3 +45,18 @@ impl Greeter for EnglishGreeter {
         "hello".to_string()
     }
 }
+
+pub mod types;
+
+pub fn total_weight(item: &types::Item) -> u32 {
+    item.weight
+}
+
+pub fn gated_target() -> i32 {
+    3
+}
+
+#[cfg(feature = "extra")]
+pub fn gated_caller() -> i32 {
+    gated_target()
+}

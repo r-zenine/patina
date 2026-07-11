@@ -1,18 +1,10 @@
 use crate::entities::{DetectorId, Evidence, LineRange, Site, SiteRole, Symptom, SymptomId};
-use lspkit::{FileLocation, Hover, Location, LspClient, Position};
+use lspkit::{FileLocation, Location, LspClient, Position};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
 use thiserror::Error;
 use tree_sitter::{Node, Parser, Point};
-
-/// Same rust-analyzer indexing-warmup concern as `dead_exports` (see its
-/// `INDEXING_WARMUP_BUDGET` doc) — a production run issuing many
-/// `definition`/`hover` calls right after spawn can transiently under- or
-/// over-report before the crate graph finishes indexing.
-const INDEXING_WARMUP_BUDGET: Duration = Duration::from_secs(30);
-const INDEXING_POLL_INTERVAL: Duration = Duration::from_millis(300);
 
 /// The detector id every parallel-dispatch `Symptom`/`SymptomId` is tagged
 /// with.
@@ -45,7 +37,7 @@ pub enum ParallelDispatchError {
     Walk {
         path: PathBuf,
         #[source]
-        source: std::io::Error,
+        source: ignore::Error,
     },
 
     #[error("failed to read file {path}")]
@@ -110,7 +102,6 @@ pub fn run_parallel_dispatch(root: &Path) -> Result<Vec<Symptom>, ParallelDispat
     }
 
     let client = LspClient::start(root)?;
-    let warmup_deadline = Instant::now() + INDEXING_WARMUP_BUDGET;
     let mut decl_cache: HashMap<PathBuf, (String, tree_sitter::Tree)> = HashMap::new();
     let mut groups: HashMap<String, Vec<(PathBuf, LineRange, usize)>> = HashMap::new();
 
@@ -132,7 +123,7 @@ pub fn run_parallel_dispatch(root: &Path) -> Result<Vec<Symptom>, ParallelDispat
         // build metadata, a type from an unindexed dependency, ...) must not
         // abort every other candidate's evidence gathering — skip and
         // continue, mirroring `dead_exports`/`near_duplicate_structs`.
-        let hover = match hover_settled(&client, &at, warmup_deadline) {
+        let hover = match client.hover(&at) {
             Ok(hover) => hover,
             Err(err) => {
                 eprintln!(
@@ -150,7 +141,7 @@ pub fn run_parallel_dispatch(root: &Path) -> Result<Vec<Symptom>, ParallelDispat
             continue;
         }
 
-        let definitions = match definition_settled(&client, &at, warmup_deadline) {
+        let definitions = match client.definition(&at) {
             Ok(defs) => defs,
             Err(err) => {
                 eprintln!(
@@ -221,56 +212,6 @@ pub fn run_parallel_dispatch(root: &Path) -> Result<Vec<Symptom>, ParallelDispat
 
     symptoms.sort_by_key(|s| s.id.to_string());
     Ok(symptoms)
-}
-
-/// Polls `client.hover(at)` until two consecutive reads agree or `deadline`
-/// passes — same stability concern as `dead_exports::references_settled`,
-/// adapted to hover's `Option<Hover>` shape (no monotonic-growth invariant to
-/// lean on, just retry-until-stable-or-timeout).
-fn hover_settled(
-    client: &LspClient,
-    at: &FileLocation,
-    deadline: Instant,
-) -> lspkit::Result<Option<Hover>> {
-    let mut previous: Option<Option<Hover>> = None;
-    loop {
-        match client.hover(at) {
-            Ok(hover) => {
-                let past_deadline = Instant::now() >= deadline;
-                if previous.as_ref() == Some(&hover) || past_deadline {
-                    return Ok(hover);
-                }
-                previous = Some(hover);
-            }
-            Err(err) if Instant::now() >= deadline => return Err(err),
-            Err(_) => {}
-        }
-        std::thread::sleep(INDEXING_POLL_INTERVAL);
-    }
-}
-
-/// Polls `client.definition(at)` until two consecutive reads agree or
-/// `deadline` passes. See [`hover_settled`].
-fn definition_settled(
-    client: &LspClient,
-    at: &FileLocation,
-    deadline: Instant,
-) -> lspkit::Result<Vec<Location>> {
-    let mut previous: Option<Vec<Location>> = None;
-    loop {
-        match client.definition(at) {
-            Ok(locations) => {
-                let past_deadline = Instant::now() >= deadline;
-                if previous.as_ref() == Some(&locations) || past_deadline {
-                    return Ok(locations);
-                }
-                previous = Some(locations);
-            }
-            Err(err) if Instant::now() >= deadline => return Err(err),
-            Err(_) => {}
-        }
-        std::thread::sleep(INDEXING_POLL_INTERVAL);
-    }
 }
 
 /// Resolves an enum's declaration `Location` to its container-qualified name
@@ -467,29 +408,20 @@ fn parse_rust(content: &str, path: &Path) -> Result<tree_sitter::Tree, ParallelD
 
 fn collect_rust_files(root: &Path) -> Result<Vec<PathBuf>, ParallelDispatchError> {
     let mut files = Vec::new();
-    visit(root, &mut files)?;
-    files.sort();
-    Ok(files)
-}
-
-fn visit(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), ParallelDispatchError> {
-    let entries = fs::read_dir(dir).map_err(|source| ParallelDispatchError::Walk {
-        path: dir.to_path_buf(),
-        source,
-    })?;
-    for entry in entries {
+    let mut builder = ignore::WalkBuilder::new(root);
+    builder.add_custom_ignore_filename(crate::detectors::IGNORE_FILE_NAME);
+    for entry in builder.build() {
         let entry = entry.map_err(|source| ParallelDispatchError::Walk {
-            path: dir.to_path_buf(),
+            path: root.to_path_buf(),
             source,
         })?;
         let path = entry.path();
-        if path.is_dir() {
-            visit(&path, files)?;
-        } else if path.extension().is_some_and(|ext| ext == "rs") {
-            files.push(path);
+        if path.extension().is_some_and(|ext| ext == "rs") && path.is_file() {
+            files.push(path.to_path_buf());
         }
     }
-    Ok(())
+    files.sort();
+    Ok(files)
 }
 
 #[cfg(test)]

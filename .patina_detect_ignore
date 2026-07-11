@@ -1,0 +1,8 @@
+# Excludes files/directories from patina-detect's scans without excluding
+# them from git. Gitignore syntax, checked at every directory level.
+
+# Intentional test fixtures containing deliberately-smelly/dead code planted
+# to exercise the detectors themselves — not production code, so every
+# finding inside these directories is a false positive by construction.
+apps/patina-detect/detect/tests/fixtures/
+libs/lspkit/tests/fixtures/

@@ -3,16 +3,8 @@ use lspkit::{FileLocation, Location, LspClient, Position};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
 use thiserror::Error;
 use tree_sitter::{Node, Parser, Point};
-
-/// Same indexing-warmup concern as `dead_exports` (spec.md's fingerprint-
-/// stability requirement means a transiently-empty `references()` result
-/// must not be trusted before indexing settles). See
-/// `dead_exports::detector::INDEXING_WARMUP_BUDGET` for the full rationale.
-const INDEXING_WARMUP_BUDGET: Duration = Duration::from_secs(30);
-const INDEXING_POLL_INTERVAL: Duration = Duration::from_millis(300);
 
 /// Minimum count and ratio of shared normalized `(name, type)` fields
 /// before a struct pair is even considered (spec.md:198-199).
@@ -34,7 +26,7 @@ pub enum NearDuplicateStructsError {
     Walk {
         path: PathBuf,
         #[source]
-        source: std::io::Error,
+        source: ignore::Error,
     },
 
     #[error("failed to read file {path}")]
@@ -110,7 +102,6 @@ pub fn run_near_duplicate_structs(root: &Path) -> Result<Vec<Symptom>, NearDupli
     }
 
     let client = LspClient::start(root)?;
-    let warmup_deadline = Instant::now() + INDEXING_WARMUP_BUDGET;
     let mut file_cache: HashMap<PathBuf, (String, tree_sitter::Tree)> = HashMap::new();
     let mut symptoms = Vec::new();
 
@@ -128,7 +119,7 @@ pub fn run_near_duplicate_structs(root: &Path) -> Result<Vec<Symptom>, NearDupli
         // to the pair itself — observed against `catppuccin`'s generated
         // output on a full-workspace run) must not abort every other
         // pair's evidence gathering. Skip and continue rather than `?`.
-        let references = match references_settled(&client, &at, warmup_deadline) {
+        let references = match client.references(&at, false) {
             Ok(references) => references,
             Err(err) => {
                 eprintln!(
@@ -363,32 +354,6 @@ fn enclosing_conversion_item(node: Node) -> Option<Node> {
     None
 }
 
-/// Polls `client.references(at, false)` until two consecutive reads agree
-/// or `deadline` passes — see `dead_exports::detector::references_settled`
-/// for the full rationale (identical concern, duplicated per this crate's
-/// per-detector convention).
-fn references_settled(
-    client: &LspClient,
-    at: &FileLocation,
-    deadline: Instant,
-) -> lspkit::Result<Vec<Location>> {
-    let mut previous: Option<Vec<Location>> = None;
-    loop {
-        match client.references(at, false) {
-            Ok(locations) => {
-                let past_deadline = Instant::now() >= deadline;
-                if previous.as_ref() == Some(&locations) || past_deadline {
-                    return Ok(locations);
-                }
-                previous = Some(locations);
-            }
-            Err(err) if Instant::now() >= deadline => return Err(err),
-            Err(_) => {}
-        }
-        std::thread::sleep(INDEXING_POLL_INTERVAL);
-    }
-}
-
 fn parse_rust(content: &str, path: &Path) -> Result<tree_sitter::Tree, NearDuplicateStructsError> {
     let mut parser = Parser::new();
     parser.set_language(&tree_sitter_rust::LANGUAGE.into())?;
@@ -554,29 +519,20 @@ fn qualified_name(node: Node, source: &[u8]) -> String {
 
 fn collect_rust_files(root: &Path) -> Result<Vec<PathBuf>, NearDuplicateStructsError> {
     let mut files = Vec::new();
-    visit(root, &mut files)?;
-    files.sort();
-    Ok(files)
-}
-
-fn visit(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), NearDuplicateStructsError> {
-    let entries = fs::read_dir(dir).map_err(|source| NearDuplicateStructsError::Walk {
-        path: dir.to_path_buf(),
-        source,
-    })?;
-    for entry in entries {
+    let mut builder = ignore::WalkBuilder::new(root);
+    builder.add_custom_ignore_filename(crate::detectors::IGNORE_FILE_NAME);
+    for entry in builder.build() {
         let entry = entry.map_err(|source| NearDuplicateStructsError::Walk {
-            path: dir.to_path_buf(),
+            path: root.to_path_buf(),
             source,
         })?;
         let path = entry.path();
-        if path.is_dir() {
-            visit(&path, files)?;
-        } else if path.extension().is_some_and(|ext| ext == "rs") {
-            files.push(path);
+        if path.extension().is_some_and(|ext| ext == "rs") && path.is_file() {
+            files.push(path.to_path_buf());
         }
     }
-    Ok(())
+    files.sort();
+    Ok(files)
 }
 
 #[cfg(test)]

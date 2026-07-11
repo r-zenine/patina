@@ -1,19 +1,10 @@
 use crate::entities::{DetectorId, Evidence, LineRange, Site, SiteRole, Symptom, SymptomId};
-use lspkit::{CallHierarchyItem, CallSite, FileLocation, LspClient, Position};
+use lspkit::{CallSite, FileLocation, LspClient, Position};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, Instant};
 use thiserror::Error;
 use tree_sitter::{Node, Parser, Point};
-
-/// Same rust-analyzer indexing-warmup concern as `dead_exports` (see its
-/// `INDEXING_WARMUP_BUDGET` doc) — a production run issuing many
-/// `prepare_call_hierarchy`/`incoming_calls` requests must ride out warm-up
-/// itself, bounded by one shared deadline per run.
-const INDEXING_WARMUP_BUDGET: Duration = Duration::from_secs(30);
-
-const INDEXING_POLL_INTERVAL: Duration = Duration::from_millis(300);
 
 /// The detector id every middleman-delegation `Symptom`/`SymptomId` is
 /// tagged with.
@@ -32,7 +23,7 @@ pub enum MiddlemanDelegationError {
     Walk {
         path: PathBuf,
         #[source]
-        source: std::io::Error,
+        source: ignore::Error,
     },
 
     #[error("failed to read file {path}")]
@@ -113,7 +104,6 @@ pub fn run_middleman_delegation(root: &Path) -> Result<Vec<Symptom>, MiddlemanDe
     }
 
     let client = LspClient::start(root)?;
-    let warmup_deadline = Instant::now() + INDEXING_WARMUP_BUDGET;
 
     let mut confirmed: HashMap<usize, CallSite> = HashMap::new();
     for (index, candidate) in candidates.iter().enumerate() {
@@ -133,7 +123,7 @@ pub fn run_middleman_delegation(root: &Path) -> Result<Vec<Symptom>, MiddlemanDe
         // itself — see `near_duplicate_structs::detector`'s identical fix)
         // must not abort every other candidate's evidence gathering. Skip
         // and continue rather than `?`.
-        let items = match prepare_call_hierarchy_settled(&client, &at, warmup_deadline) {
+        let items = match client.prepare_call_hierarchy(&at) {
             Ok(items) => items,
             Err(err) => {
                 eprintln!(
@@ -146,7 +136,7 @@ pub fn run_middleman_delegation(root: &Path) -> Result<Vec<Symptom>, MiddlemanDe
         let Some(item) = items.into_iter().next() else {
             continue;
         };
-        let callers = match incoming_calls_settled(&client, &item, warmup_deadline) {
+        let callers = match client.incoming_calls(&item) {
             Ok(callers) => callers,
             Err(err) => {
                 eprintln!(
@@ -264,56 +254,6 @@ pub fn run_middleman_delegation(root: &Path) -> Result<Vec<Symptom>, MiddlemanDe
 
     symptoms.sort_by_key(|s| s.id.to_string());
     Ok(symptoms)
-}
-
-/// Polls `client.prepare_call_hierarchy(at)` until two consecutive reads
-/// agree or `deadline` passes — same stability rationale as
-/// `dead_exports::references_settled`.
-fn prepare_call_hierarchy_settled(
-    client: &LspClient,
-    at: &FileLocation,
-    deadline: Instant,
-) -> lspkit::Result<Vec<CallHierarchyItem>> {
-    let mut previous: Option<Vec<CallHierarchyItem>> = None;
-    loop {
-        match client.prepare_call_hierarchy(at) {
-            Ok(items) => {
-                let past_deadline = Instant::now() >= deadline;
-                if previous.as_ref() == Some(&items) || past_deadline {
-                    return Ok(items);
-                }
-                previous = Some(items);
-            }
-            Err(err) if Instant::now() >= deadline => return Err(err),
-            Err(_) => {}
-        }
-        std::thread::sleep(INDEXING_POLL_INTERVAL);
-    }
-}
-
-/// Polls `client.incoming_calls(item)` until two consecutive reads agree or
-/// `deadline` passes — same stability rationale as
-/// `dead_exports::references_settled`.
-fn incoming_calls_settled(
-    client: &LspClient,
-    item: &CallHierarchyItem,
-    deadline: Instant,
-) -> lspkit::Result<Vec<CallSite>> {
-    let mut previous: Option<Vec<CallSite>> = None;
-    loop {
-        match client.incoming_calls(item) {
-            Ok(call_sites) => {
-                let past_deadline = Instant::now() >= deadline;
-                if previous.as_ref() == Some(&call_sites) || past_deadline {
-                    return Ok(call_sites);
-                }
-                previous = Some(call_sites);
-            }
-            Err(err) if Instant::now() >= deadline => return Err(err),
-            Err(_) => {}
-        }
-        std::thread::sleep(INDEXING_POLL_INTERVAL);
-    }
 }
 
 fn parse_rust(content: &str, path: &Path) -> Result<tree_sitter::Tree, MiddlemanDelegationError> {
@@ -466,29 +406,20 @@ fn qualified_name(node: Node, source: &[u8]) -> String {
 
 fn collect_rust_files(root: &Path) -> Result<Vec<PathBuf>, MiddlemanDelegationError> {
     let mut files = Vec::new();
-    visit(root, &mut files)?;
-    files.sort();
-    Ok(files)
-}
-
-fn visit(dir: &Path, files: &mut Vec<PathBuf>) -> Result<(), MiddlemanDelegationError> {
-    let entries = fs::read_dir(dir).map_err(|source| MiddlemanDelegationError::Walk {
-        path: dir.to_path_buf(),
-        source,
-    })?;
-    for entry in entries {
+    let mut builder = ignore::WalkBuilder::new(root);
+    builder.add_custom_ignore_filename(crate::detectors::IGNORE_FILE_NAME);
+    for entry in builder.build() {
         let entry = entry.map_err(|source| MiddlemanDelegationError::Walk {
-            path: dir.to_path_buf(),
+            path: root.to_path_buf(),
             source,
         })?;
         let path = entry.path();
-        if path.is_dir() {
-            visit(&path, files)?;
-        } else if path.extension().is_some_and(|ext| ext == "rs") {
-            files.push(path);
+        if path.extension().is_some_and(|ext| ext == "rs") && path.is_file() {
+            files.push(path.to_path_buf());
         }
     }
-    Ok(())
+    files.sort();
+    Ok(files)
 }
 
 #[cfg(test)]
