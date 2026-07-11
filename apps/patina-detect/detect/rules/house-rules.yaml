@@ -34,9 +34,28 @@ message: "catch-all `_` match arm returns a default instead of handling the case
 files:
   - "libs/diffviz-core/**/*.rs"
 rule:
-  pattern:
-    context: "match x { _ => $DEFAULT }"
-    selector: match_arm
+  all:
+    - pattern:
+        context: "match x { _ => $DEFAULT }"
+        selector: match_arm
+    - not:
+        any:
+          - pattern:
+              context: "match x { _ => panic!($$$) }"
+              selector: match_arm
+          - pattern:
+              context: "match x { _ => unreachable!($$$) }"
+              selector: match_arm
+constraints:
+  DEFAULT:
+    # Excludes catch-alls that construct an explicit named variant
+    # (e.g. `_ => Category::Other(reason)`) — only a bare default
+    # value/unit silently discards information.
+    not:
+      kind: call_expression
+      has:
+        field: function
+        kind: scoped_identifier
 ---
 id: no-stringly-typed-map-err
 language: Rust

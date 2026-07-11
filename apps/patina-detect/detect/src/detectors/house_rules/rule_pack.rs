@@ -1,5 +1,6 @@
 use crate::entities::{DetectorId, Evidence, LineRange, Site, SiteRole, Symptom, SymptomId};
 use ast_grep_config::{GlobalRules, RuleConfig, RuleConfigError, from_yaml_string};
+use ast_grep_core::{Doc, NodeMatch};
 use ast_grep_language::{LanguageExt, SupportLang};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -49,6 +50,9 @@ pub fn run_house_rules(root: &Path) -> Result<Vec<Symptom>, HouseRulesError> {
 
         for rule in &rules {
             for m in grep.root().find_all(&rule.matcher) {
+                if !passes_post_filter(&rule.id, &m) {
+                    continue;
+                }
                 let matched_snippet = m.text().to_string();
                 let start_line = m.start_pos().line() + 1;
                 let end_line = m.end_pos().line() + 1;
@@ -77,6 +81,51 @@ pub fn run_house_rules(root: &Path) -> Result<Vec<Symptom>, HouseRulesError> {
     }
 
     Ok(symptoms)
+}
+
+/// Rejects matches that ast-grep's YAML matcher language can't distinguish
+/// on its own, using the small amount of structural context (ancestors,
+/// captured metavariables, sibling comments) available on the matched node.
+fn passes_post_filter<D: Doc>(rule_id: &str, m: &NodeMatch<D>) -> bool {
+    match rule_id {
+        "no-format-in-error-value" => format_in_error_value_is_true_positive(m),
+        "no-let-underscore-result" => let_underscore_result_is_true_positive(m),
+        _ => true,
+    }
+}
+
+/// `format!` inside a `field_initializer` is only a stringly-typed error
+/// value when the enclosing struct/enum literal is itself an error type
+/// (this repo's convention: `*Error` naming, see root `CLAUDE.md`'s error
+/// handling section). Fields on unrelated diagnostic/UI types (e.g.
+/// `Symptom { title: format!(...) }`) are excluded.
+fn format_in_error_value_is_true_positive<D: Doc>(m: &NodeMatch<D>) -> bool {
+    let Some(struct_lit) = m.ancestors().find(|n| n.kind() == "struct_expression") else {
+        return true;
+    };
+    let Some(name) = struct_lit.field("name") else {
+        return true;
+    };
+    name.text().contains("Error")
+}
+
+/// `let _ = $EXPR;` only swallows a `Result` when `$EXPR` actually returns
+/// one. Ast-grep has no type information, so this narrowly excludes the
+/// audit's confirmed non-Result false positive (`String::from_utf8_lossy`,
+/// which returns `Cow<str>`) and best-effort cleanup calls the author has
+/// already justified with a preceding comment.
+fn let_underscore_result_is_true_positive<D: Doc>(m: &NodeMatch<D>) -> bool {
+    if let Some(expr) = m.get_env().get_match("EXPR")
+        && expr.text().contains("from_utf8_lossy")
+    {
+        return false;
+    }
+    if let Some(prev) = m.prev()
+        && prev.kind().contains("comment")
+    {
+        return false;
+    }
+    true
 }
 
 /// Builds this detector's fingerprint bytes: rule id + whitespace-normalized
@@ -164,6 +213,36 @@ mod tests {
     }
 
     #[test]
+    fn does_not_flag_catchall_panic_arm() {
+        let dir = write_fixture(
+            "fn f(x: i32) { match x { 1 => (), _ => panic!(\"unexpected value\") } }",
+        );
+        let symptoms = run_house_rules(dir.path()).expect("detector run failed");
+        assert!(
+            symptoms
+                .iter()
+                .all(|s| !matches!(&s.evidence, Evidence::RuleMatch { rule_id, .. } if rule_id == "no-catchall-default-arm")),
+            "expected no no-catchall-default-arm symptom for a panic!() test-assertion arm, found: {:#?}",
+            symptoms
+        );
+    }
+
+    #[test]
+    fn does_not_flag_catchall_named_variant_construction() {
+        let dir = write_fixture(
+            "enum Category { Known, Other(String) }\nfn f(x: &str) -> Category { match x { \"known\" => Category::Known, _ => Category::Other(x.to_string()) } }",
+        );
+        let symptoms = run_house_rules(dir.path()).expect("detector run failed");
+        assert!(
+            symptoms
+                .iter()
+                .all(|s| !matches!(&s.evidence, Evidence::RuleMatch { rule_id, .. } if rule_id == "no-catchall-default-arm")),
+            "expected no no-catchall-default-arm symptom for an explicit named-variant catch-all, found: {:#?}",
+            symptoms
+        );
+    }
+
+    #[test]
     fn finds_format_in_error_value_in_diffviz_core() {
         let symptoms = run_house_rules(&diffviz_core_src()).expect("detector run failed");
         assert!(
@@ -171,6 +250,36 @@ mod tests {
                 .iter()
                 .any(|s| matches!(&s.evidence, Evidence::RuleMatch { rule_id, .. } if rule_id == "no-format-in-error-value")),
             "expected at least one no-format-in-error-value symptom, found: {:#?}",
+            symptoms
+        );
+    }
+
+    #[test]
+    fn does_not_flag_format_in_non_error_struct_field() {
+        let dir = write_fixture(
+            "struct Symptom { title: String }\nfn f(name: &str) -> Symptom { Symptom { title: format!(\"Found: {name}\") } }",
+        );
+        let symptoms = run_house_rules(dir.path()).expect("detector run failed");
+        assert!(
+            symptoms
+                .iter()
+                .all(|s| !matches!(&s.evidence, Evidence::RuleMatch { rule_id, .. } if rule_id == "no-format-in-error-value")),
+            "expected no no-format-in-error-value symptom for a format! field on a non-error diagnostic type, found: {:#?}",
+            symptoms
+        );
+    }
+
+    #[test]
+    fn still_flags_format_in_error_struct_field() {
+        let dir = write_fixture(
+            "struct ParseError { message: String }\nfn f(e: &str) -> ParseError { ParseError { message: format!(\"failed: {e}\") } }",
+        );
+        let symptoms = run_house_rules(dir.path()).expect("detector run failed");
+        assert!(
+            symptoms
+                .iter()
+                .any(|s| matches!(&s.evidence, Evidence::RuleMatch { rule_id, .. } if rule_id == "no-format-in-error-value")),
+            "expected a no-format-in-error-value symptom for a format! field on a *Error type, found: {:#?}",
             symptoms
         );
     }
@@ -197,6 +306,34 @@ mod tests {
                 .iter()
                 .any(|s| matches!(&s.evidence, Evidence::RuleMatch { rule_id, .. } if rule_id == "no-let-underscore-result")),
             "expected a no-let-underscore-result symptom, found: {:#?}",
+            symptoms
+        );
+    }
+
+    #[test]
+    fn does_not_flag_let_underscore_from_utf8_lossy() {
+        let dir = write_fixture("fn f(bytes: &[u8]) { let _ = String::from_utf8_lossy(bytes); }");
+        let symptoms = run_house_rules(dir.path()).expect("detector run failed");
+        assert!(
+            symptoms
+                .iter()
+                .all(|s| !matches!(&s.evidence, Evidence::RuleMatch { rule_id, .. } if rule_id == "no-let-underscore-result")),
+            "expected no no-let-underscore-result symptom for a from_utf8_lossy call, found: {:#?}",
+            symptoms
+        );
+    }
+
+    #[test]
+    fn does_not_flag_let_underscore_with_justifying_comment() {
+        let dir = write_fixture(
+            "fn f() { // best-effort cleanup, failure here is not actionable\n    let _ = std::fs::remove_file(\"tmp\"); }",
+        );
+        let symptoms = run_house_rules(dir.path()).expect("detector run failed");
+        assert!(
+            symptoms
+                .iter()
+                .all(|s| !matches!(&s.evidence, Evidence::RuleMatch { rule_id, .. } if rule_id == "no-let-underscore-result")),
+            "expected no no-let-underscore-result symptom when a justifying comment precedes the let, found: {:#?}",
             symptoms
         );
     }
