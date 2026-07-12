@@ -5,7 +5,6 @@ members = [
   "apps/diffviz/review",
   "apps/diffviz/review-tui",
   "apps/patina-detect/detect",
-  "apps/patina-detect/detect-tui",
   "libs/*",
   # sam
   "apps/sam/cli",
@@ -22,7 +21,6 @@ default-members = [
   "apps/diffviz/review",
   "apps/diffviz/review-tui",
   "apps/patina-detect/detect",
-  "apps/patina-detect/detect-tui",
   "libs/*",
   "apps/sam/cli",
   "apps/sam/core",
@@ -38,7 +36,6 @@ diffviz-core = { path = "libs/diffviz-core" }
 diffviz-review = { path = "apps/diffviz/review" }
 diffviz-review-tui = { path = "apps/diffviz/review-tui" }
 patina-detect = { path = "apps/patina-detect/detect" }
-patina-detect-tui = { path = "apps/patina-detect/detect-tui" }
 fsutils = { path = "libs/fsutils" }
 gitkit = { path = "libs/gitkit" }
 lspkit = { path = "libs/lspkit" }

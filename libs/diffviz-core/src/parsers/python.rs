@@ -99,6 +99,10 @@ impl LanguageDescriptor for PythonDescriptor {
         Some("decorator")
     }
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "utf8_text on a tree-sitter node's own byte range is infallible"
+    )]
     fn extract_identifier<'a>(&self, node: Node<'a>, source: &str) -> Option<String> {
         match node.kind() {
             "assignment" | "augmented_assignment" => {
@@ -205,7 +209,16 @@ impl LanguageParser for PythonParser {
                 SemanticNodeKind::Module,
                 SemanticNodeKind::SourceFile,
             ],
-            _ => vec![
+            SemanticNodeKind::Struct
+            | SemanticNodeKind::Enum
+            | SemanticNodeKind::Interface
+            | SemanticNodeKind::ImplBlock
+            | SemanticNodeKind::Module
+            | SemanticNodeKind::SignatureComponent
+            | SemanticNodeKind::TypeDefinition
+            | SemanticNodeKind::Comment
+            | SemanticNodeKind::SourceFile
+            | SemanticNodeKind::Other(_) => vec![
                 SemanticNodeKind::Function,
                 SemanticNodeKind::Class,
                 SemanticNodeKind::Module,

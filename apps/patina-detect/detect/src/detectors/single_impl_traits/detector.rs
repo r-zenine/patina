@@ -169,10 +169,14 @@ pub fn run_single_impl_traits(root: &Path) -> Result<Vec<Symptom>, SingleImplTra
                 },
                 Site {
                     file: implementor_relative,
-                    line_ranges: vec![LineRange {
-                        start: sole_implementor.range.start.line as usize,
-                        end: sole_implementor.range.end.line as usize,
-                    }],
+                    line_ranges: vec![
+                        enclosing_impl_line_range(sole_implementor, &file_cache).unwrap_or(
+                            LineRange {
+                                start: sole_implementor.range.start.line as usize,
+                                end: sole_implementor.range.end.line as usize,
+                            },
+                        ),
+                    ],
                     role: SiteRole::Definition,
                     note: "Sole implementor of this trait".to_string(),
                 },
@@ -182,6 +186,31 @@ pub fn run_single_impl_traits(root: &Path) -> Result<Vec<Symptom>, SingleImplTra
 
     symptoms.sort_by_key(|s| s.id.to_string());
     Ok(symptoms)
+}
+
+/// `implementations()` locations point at the implementor type's name
+/// identifier, not the surrounding `impl` block — rendering that bare
+/// single-line range fails (`create_reviewable_diff_from_range` requires a
+/// complete semantic unit). Walk up to the enclosing `impl_item` so the
+/// site covers the whole block, the way `collect_traits` already does for
+/// the trait declaration itself.
+fn enclosing_impl_line_range(
+    location: &Location,
+    file_cache: &HashMap<PathBuf, (String, tree_sitter::Tree)>,
+) -> Option<LineRange> {
+    let (_, tree) = file_cache.get(&location.path)?;
+    let point = Point {
+        row: (location.range.start.line as usize).saturating_sub(1),
+        column: (location.range.start.character as usize).saturating_sub(1),
+    };
+    let mut node = tree.root_node().descendant_for_point_range(point, point)?;
+    while node.kind() != "impl_item" {
+        node = node.parent()?;
+    }
+    Some(LineRange {
+        start: node.start_position().row + 1,
+        end: node.end_position().row + 1,
+    })
 }
 
 fn location_label(root: &Path, location: &Location) -> String {

@@ -2,7 +2,7 @@
 //! forwarding-gate refinement (`.plans/plan-patina-detect/implementation-roadmap.md`,
 //! Phase 16; decision D011).
 //!
-//! Like `middleman_delegation`/`single_impl_traits`, the closed-cluster
+//! Like `single_impl_traits`, the closed-cluster
 //! check's whole reason to exist is a real `incoming_calls` call through
 //! `lspkit::LspClient` against a real `rust-analyzer` process — there is no
 //! meaningful pure-unit-test slice of "is this clump's call graph closed"
@@ -65,6 +65,33 @@ fn a_closed_recursive_helper_family_with_a_single_entry_point_is_excluded() {
         "visit_node/visit_branch/visit_leaf form a closed family reached only \
          through run_visitor's single entry-point call — must not be \
          reported, found: {symptoms:?}"
+    );
+}
+
+#[test]
+#[ignore = "requires a real rust-analyzer process on PATH"]
+fn a_family_routed_through_a_superset_signature_helper_is_still_closed() {
+    let symptoms = run_with_retry(&fixture_root());
+
+    assert!(
+        !has_clump(&symptoms, "item"),
+        "walk_guard carries the walk_* clump plus an extra parameter — it is \
+         the traveling family itself, not an independent call site, so the \
+         family's single run_walker entry point must keep it closed, found: \
+         {symptoms:?}"
+    );
+}
+
+#[test]
+#[ignore = "requires a real rust-analyzer process on PATH"]
+fn a_test_caller_does_not_count_as_an_independent_call_site() {
+    let symptoms = run_with_retry(&fixture_root());
+
+    assert!(
+        !has_clump(&symptoms, "trail"),
+        "the probe_* family is reached only from run_probe and a #[test] fn \
+         — a test driver is not an independent production call site, so the \
+         family must not be reported, found: {symptoms:?}"
     );
 }
 

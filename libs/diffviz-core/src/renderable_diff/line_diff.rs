@@ -128,11 +128,15 @@ pub fn align_by_anchors(
         for k in 0..paired {
             let old_idx = match delete_run[k] {
                 DiffOp::Delete { old_idx } => old_idx,
-                _ => unreachable!("delete_run only contains Delete ops"),
+                DiffOp::Keep { .. } | DiffOp::Add { .. } | DiffOp::Modify { .. } => {
+                    unreachable!("delete_run only contains Delete ops")
+                }
             };
             let new_idx = match add_run[k] {
                 DiffOp::Add { new_idx } => new_idx,
-                _ => unreachable!("add_run only contains Add ops"),
+                DiffOp::Keep { .. } | DiffOp::Delete { .. } | DiffOp::Modify { .. } => {
+                    unreachable!("add_run only contains Add ops")
+                }
             };
 
             if semantically_related(&old_anchors[old_idx], &new_anchors[new_idx]) {
@@ -201,7 +205,7 @@ mod tests {
             .iter()
             .filter_map(|op| match op {
                 DiffOp::Keep { new_idx, .. } | DiffOp::Add { new_idx } => Some(new[*new_idx]),
-                _ => None,
+                DiffOp::Delete { .. } | DiffOp::Modify { .. } => None,
             })
             .collect();
         assert_eq!(kept_and_added_new, new);

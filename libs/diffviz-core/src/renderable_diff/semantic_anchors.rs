@@ -78,6 +78,16 @@ fn kind_to_anchor_type(kind: &SemanticNodeKind) -> Option<SemanticAnchorType> {
         SemanticNodeKind::Enum => Some(SemanticAnchorType::EnumDeclaration),
         SemanticNodeKind::Variable => Some(SemanticAnchorType::VariableAssignment),
         SemanticNodeKind::Import => Some(SemanticAnchorType::Import),
-        _ => None,
+        SemanticNodeKind::Class
+        | SemanticNodeKind::Interface
+        | SemanticNodeKind::ImplBlock
+        | SemanticNodeKind::Module
+        | SemanticNodeKind::SignatureComponent
+        | SemanticNodeKind::Statement
+        | SemanticNodeKind::Expression
+        | SemanticNodeKind::TypeDefinition
+        | SemanticNodeKind::Comment
+        | SemanticNodeKind::SourceFile
+        | SemanticNodeKind::Other(_) => None,
     }
 }

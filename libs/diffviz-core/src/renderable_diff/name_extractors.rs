@@ -23,7 +23,19 @@ pub fn extract_boundary_name(reviewable: &ReviewableDiff) -> String {
             .identifier
             .clone()
             .unwrap_or_else(|| "enum".to_string()),
-        _ => {
+        SemanticNodeKind::Class
+        | SemanticNodeKind::Interface
+        | SemanticNodeKind::ImplBlock
+        | SemanticNodeKind::Module
+        | SemanticNodeKind::Import
+        | SemanticNodeKind::Variable
+        | SemanticNodeKind::SignatureComponent
+        | SemanticNodeKind::Statement
+        | SemanticNodeKind::Expression
+        | SemanticNodeKind::TypeDefinition
+        | SemanticNodeKind::Comment
+        | SemanticNodeKind::SourceFile
+        | SemanticNodeKind::Other(_) => {
             if let Ok(source_text) = source_provider.node_text(display_node) {
                 // User requested: "drop size conditions everywhere, any diff even if it's one line is meaningful"
                 // Show the full first line instead of truncating

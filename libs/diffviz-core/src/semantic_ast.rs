@@ -270,6 +270,10 @@ impl<'a> SemanticNode<'a> {
     }
 
     /// Get the name of this semantic unit from source
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "utf8_text on a tree-sitter node's own byte range is infallible"
+    )]
     pub fn name(&self, source: &str) -> Option<String> {
         self.name_node?
             .utf8_text(source.as_bytes())

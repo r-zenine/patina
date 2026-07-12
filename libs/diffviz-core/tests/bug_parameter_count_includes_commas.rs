@@ -17,6 +17,10 @@ mod bug_parameter_count_includes_commas {
     use diffviz_core::semantic_ast::SemanticUnitType;
 
     #[test]
+    #[expect(
+        clippy::wildcard_enum_match_arm,
+        reason = "test asserts on the one relevant variant"
+    )]
     fn two_parameter_function_reports_parameter_count_two() {
         let parser = RustParser::new();
         let source = "fn f(a: i32, b: i32) -> i32 { a + b }\n";

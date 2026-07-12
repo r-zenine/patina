@@ -73,7 +73,10 @@ fn is_recursable_container(unit: &SemanticNode) -> bool {
     match unit.unit_type {
         SemanticUnitType::Module { .. } => true,
         SemanticUnitType::DataStructure { .. } => !unit.children.is_empty(),
-        _ => false,
+        SemanticUnitType::Callable { .. }
+        | SemanticUnitType::Variable { .. }
+        | SemanticUnitType::Import { .. }
+        | SemanticUnitType::Unknown { .. } => false,
     }
 }
 
@@ -242,6 +245,10 @@ fn find_semantic_unit_by_name<'a>(
 }
 
 /// Helper: Extract the name from a semantic unit
+#[expect(
+    clippy::disallowed_methods,
+    reason = "utf8_text on a tree-sitter node's own byte range is infallible"
+)]
 fn get_unit_name(unit: &SemanticNode, source: &[u8]) -> Option<String> {
     if let Some(name_node) = unit.name_node {
         name_node.utf8_text(source).ok().map(|s| s.to_string())

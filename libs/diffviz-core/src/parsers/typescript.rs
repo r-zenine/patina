@@ -94,6 +94,10 @@ impl LanguageDescriptor for TypeScriptDescriptor {
         Some("decorator")
     }
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "utf8_text on a tree-sitter node's own byte range is infallible"
+    )]
     fn extract_identifier<'a>(&self, node: Node<'a>, source: &str) -> Option<String> {
         match node.kind() {
             "variable_declaration" | "lexical_declaration" => {

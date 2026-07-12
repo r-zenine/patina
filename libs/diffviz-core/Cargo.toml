@@ -28,3 +28,10 @@ similar = { workspace = true }
 [dev-dependencies]
 proptest = { workspace = true }
 
+[lints.clippy]
+wildcard_enum_match_arm = "warn"
+let_underscore_must_use = "warn"
+todo = "warn"
+unimplemented = "warn"
+allow_attributes = "warn"
+

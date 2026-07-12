@@ -54,6 +54,10 @@ impl B {
 "#;
 
     #[test]
+    #[expect(
+        clippy::wildcard_enum_match_arm,
+        reason = "test asserts on the one relevant variant"
+    )]
     fn modified_method_pairs_with_same_impl_counterpart() {
         let old_provider = SourceCode::new(OLD_SOURCE.to_string());
         let new_provider = SourceCode::new(NEW_SOURCE.to_string());
@@ -117,6 +121,10 @@ mod b {
 "#;
 
     #[test]
+    #[expect(
+        clippy::wildcard_enum_match_arm,
+        reason = "test asserts on the one relevant variant"
+    )]
     fn same_named_fns_in_sibling_modules_do_not_mispair() {
         let old_provider = SourceCode::new(OLD_SIBLING_MODULES.to_string());
         let new_provider = SourceCode::new(NEW_SIBLING_MODULES.to_string());
@@ -180,6 +188,10 @@ fn get() -> u32 {
 "#;
 
     #[test]
+    #[expect(
+        clippy::wildcard_enum_match_arm,
+        reason = "test asserts on the one relevant variant"
+    )]
     fn method_and_free_function_with_same_bare_name_do_not_mispair() {
         let old_provider = SourceCode::new(OLD_METHOD_VS_FREE_FN.to_string());
         let new_provider = SourceCode::new(NEW_METHOD_VS_FREE_FN.to_string());
@@ -235,6 +247,10 @@ impl B {
 "#;
 
     #[test]
+    #[expect(
+        clippy::wildcard_enum_match_arm,
+        reason = "test asserts on the one relevant variant"
+    )]
     fn renamed_container_surfaces_as_addition_not_bogus_match() {
         let old_provider = SourceCode::new(OLD_RENAMED_CONTAINER.to_string());
         let new_provider = SourceCode::new(NEW_RENAMED_CONTAINER.to_string());

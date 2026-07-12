@@ -338,7 +338,9 @@ impl<'source> TryFrom<&'source ReviewableDiff> for RenderableDiff<'source> {
             NodeChangeStatus::Modified {
                 old_node, new_node, ..
             } => create_line_by_line_diff_for_modified(reviewable, old_node, new_node)?,
-            _ => create_single_source_lines(reviewable)?,
+            NodeChangeStatus::Unchanged { .. }
+            | NodeChangeStatus::Added { .. }
+            | NodeChangeStatus::Deleted { .. } => create_single_source_lines(reviewable)?,
         };
 
         // Create simplified metadata

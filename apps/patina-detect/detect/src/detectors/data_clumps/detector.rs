@@ -27,6 +27,29 @@ type GroupsByMembers = BTreeMap<MemberSet, Vec<Occurrence>>;
 /// subset-of-struct evidence.
 type StructFieldSets = Vec<(String, HashSet<(String, String)>)>;
 
+/// Every `function_item` in a scanned file — no minimum parameter count,
+/// trait-impl methods included — so `is_closed_cluster` can resolve an
+/// incoming caller back to its enclosing function's parameter set and
+/// test-ness.
+struct FunctionInfo {
+    line_range: LineRange,
+    /// 0-based tree-sitter position of the function's name identifier, the
+    /// position `is_closed_cluster` queries when this function is absorbed
+    /// into a cluster and its own callers must be chased.
+    name_point: Point,
+    /// Normalized `(name, type)` parameter set, same normalization as
+    /// `Occurrence::members`.
+    members: HashSet<(String, String)>,
+    /// Whether the function sits under a `#[test]`/`#[cfg(test)]` attribute
+    /// (directly or via an ancestor mod) — mirrors `dead_exports`'
+    /// test-context classification.
+    in_test_context: bool,
+}
+
+/// Per-file `FunctionInfo`s, keyed by root-relative path (the same path
+/// convention `Occurrence::file` uses).
+type FunctionIndex = BTreeMap<PathBuf, Vec<FunctionInfo>>;
+
 #[derive(Debug, Error)]
 pub enum DataClumpsError {
     #[error("failed to resolve {path} to an absolute path")]
@@ -85,25 +108,26 @@ struct Occurrence {
 /// intact to another call (spec.md:238's precision gate — non-traveling
 /// clumps are dropped).
 pub fn run_data_clumps(root: &Path) -> Result<Vec<Symptom>, DataClumpsError> {
-    let (groups, structs) = promoted_groups(root)?;
+    let (groups, structs, _) = promoted_groups(root)?;
     Ok(build_symptoms(groups, &structs))
 }
 
 /// Phase 16 revision (decision D011): runs the same tree-sitter clump
 /// extraction and promotion gates as `run_data_clumps`, then additionally
 /// excludes any promoted group whose call graph is *closed* — at most one
-/// distinct call site anywhere outside the group ever reaches in (see
-/// [`is_closed_cluster`] for why "at most one", not strictly zero). This is
-/// the false-positive shape a private recursive-descent visitor's own
-/// helper functions produce when they forward `(node, accumulator...)`
-/// state to each other (e.g. `cognitive_complexity::score_node`/
-/// `score_if`/`score_match`, whose only external caller is
-/// `run_cognitive_complexity`'s single entry-point invocation) — confined
-/// to one module, never genuinely reused from more than one outside call
-/// site. A group reached from >= 2 distinct external call sites is kept
-/// regardless of whether all its members happen to share a file (spec.md/
-/// D011: a file/module-scope heuristic was rejected precisely because it
-/// would wrongly exclude that case too).
+/// distinct production call site anywhere outside the clump's traveling
+/// family ever reaches in (see [`is_closed_cluster`] for the family
+/// expansion and for why "at most one", not strictly zero). This is the
+/// false-positive shape a private recursive-descent visitor's own helper
+/// functions produce when they forward `(node, accumulator...)` state to
+/// each other (e.g. `cognitive_complexity::score_node`/`score_if`/
+/// `score_match`, whose only production entry is `run_cognitive_complexity`'s
+/// single call into `score_node`) — confined to one module, never genuinely
+/// reused from more than one outside call site. A group reached from >= 2
+/// distinct external call sites is kept regardless of whether all its
+/// members happen to share a file (spec.md/D011: a file/module-scope
+/// heuristic was rejected precisely because it would wrongly exclude that
+/// case too).
 pub fn run_data_clumps_refined(root: &Path) -> Result<Vec<Symptom>, DataClumpsError> {
     // Same rationale as every other lspkit-backed detector in this crate:
     // `LspClient::start` builds a `file://` URI directly from `root`, which
@@ -114,13 +138,13 @@ pub fn run_data_clumps_refined(root: &Path) -> Result<Vec<Symptom>, DataClumpsEr
     })?;
     let root = root.as_path();
 
-    let (groups, structs) = promoted_groups(root)?;
+    let (groups, structs, functions) = promoted_groups(root)?;
 
     let client = LspClient::start(root)?;
 
     let mut kept: GroupsByMembers = BTreeMap::new();
     for (members, group) in groups {
-        match is_closed_cluster(&client, root, &group) {
+        match is_closed_cluster(&client, root, &group, &functions) {
             Ok(true) => continue,
             Ok(false) => {
                 kept.insert(members, group);
@@ -146,14 +170,18 @@ pub fn run_data_clumps_refined(root: &Path) -> Result<Vec<Symptom>, DataClumpsEr
 }
 
 /// Shared by `run_data_clumps` and `run_data_clumps_refined`: walks every
-/// `.rs` file under `root`, collects candidate occurrences and struct field
-/// sets, groups occurrences by normalized member set, and applies the
-/// standard Phase 6 promotion gates (`>= MIN_OCCURRENCES` members, at least
-/// one forwarding occurrence). Callers apply any further filtering (e.g.
-/// the Phase 16 closed-cluster check) before building symptoms.
-fn promoted_groups(root: &Path) -> Result<(GroupsByMembers, StructFieldSets), DataClumpsError> {
+/// `.rs` file under `root`, collects candidate occurrences, struct field
+/// sets, and the per-file function index, groups occurrences by normalized
+/// member set, and applies the standard Phase 6 promotion gates (`>=
+/// MIN_OCCURRENCES` members, at least one forwarding occurrence). Callers
+/// apply any further filtering (e.g. the Phase 16 closed-cluster check)
+/// before building symptoms.
+fn promoted_groups(
+    root: &Path,
+) -> Result<(GroupsByMembers, StructFieldSets, FunctionIndex), DataClumpsError> {
     let mut occurrences: Vec<Occurrence> = Vec::new();
     let mut structs: StructFieldSets = Vec::new();
+    let mut functions: FunctionIndex = BTreeMap::new();
 
     for file in collect_rust_files(root)? {
         let content = fs::read_to_string(&file).map_err(|source| DataClumpsError::Read {
@@ -174,6 +202,17 @@ fn promoted_groups(root: &Path) -> Result<(GroupsByMembers, StructFieldSets), Da
             &mut occurrences,
         );
         collect_structs(tree.root_node(), content.as_bytes(), &mut structs);
+
+        let mut file_functions = Vec::new();
+        collect_functions(
+            tree.root_node(),
+            content.as_bytes(),
+            false,
+            &mut file_functions,
+        );
+        if !file_functions.is_empty() {
+            functions.insert(relative, file_functions);
+        }
     }
 
     let mut groups: GroupsByMembers = BTreeMap::new();
@@ -188,7 +227,7 @@ fn promoted_groups(root: &Path) -> Result<(GroupsByMembers, StructFieldSets), Da
         group.len() >= MIN_OCCURRENCES && group.iter().any(|o| o.forwarding.is_some())
     });
 
-    Ok((groups, structs))
+    Ok((groups, structs, functions))
 }
 
 fn build_symptoms(groups: GroupsByMembers, structs: &StructFieldSets) -> Vec<Symptom> {
@@ -264,59 +303,117 @@ fn build_symptoms(groups: GroupsByMembers, structs: &StructFieldSets) -> Vec<Sym
     symptoms
 }
 
-/// Whether `group`'s call graph is *closed*: at most one distinct call site
-/// from outside the group reaches in anywhere. Zero external callers is the
-/// textbook closed recursive/mutually-recursive family; exactly one is a
-/// private algorithm's own single driver/entry point (e.g.
-/// `run_cognitive_complexity`'s one call into `score_node` to kick off the
-/// visitor) — still not the "clump travels between independent call sites"
-/// smell this detector exists to find. Two or more distinct external
-/// callers means the clump genuinely is being passed around from separate
-/// places, so the group is kept regardless of whether those callers happen
-/// to share a file with the group (decision D011 — this is exactly the
-/// shape the rejected file/module heuristic would have wrongly excluded).
-/// `root` resolves each occurrence's absolute file path for both the
-/// `prepare_call_hierarchy` query and for matching a caller's location back
-/// against group membership.
+/// Whether `group`'s call graph is *closed*: at most one distinct production
+/// call site from outside the clump's traveling family reaches in anywhere.
+/// Zero external callers is the textbook closed recursive/mutually-recursive
+/// family; exactly one is a private algorithm's own single driver/entry
+/// point (e.g. `run_cognitive_complexity`'s one call into `score_node` to
+/// kick off the visitor) — still not the "clump travels between independent
+/// call sites" smell this detector exists to find. Two or more distinct
+/// external callers means the clump genuinely is being passed around from
+/// separate places, so the group is kept regardless of whether those callers
+/// happen to share a file with the group (decision D011 — this is exactly
+/// the shape the rejected file/module heuristic would have wrongly
+/// excluded).
+///
+/// Two caller shapes do not count as external, both learned from the
+/// `cognitive_complexity` scorer family this check exists to exclude yet
+/// initially failed to:
+///
+/// - A caller whose own normalized parameter set is a *superset* of the
+///   clump (`score_binary`/`score_operand` carry `(node, nesting,
+///   max_nesting_depth)` plus `run_op`) is the same family with an extra
+///   argument, not an independent origin — it is absorbed into the cluster
+///   and its own incoming calls are chased transitively, so an extra entry
+///   point hiding behind it still counts.
+/// - A caller in `#[test]`/`#[cfg(test)]` context (the `score_of` test
+///   helper) is a test driver exercising the family, not production code
+///   the clump travels through (mirrors `dead_exports`' test-only
+///   classification).
+///
+/// A caller that cannot be resolved in `functions` (outside the scanned
+/// root, or not enclosed by any indexed function) counts as external:
+/// failing to prove family membership must fail toward reporting, same as
+/// the caller-side error handling in `run_data_clumps_refined`.
+///
+/// `root` resolves each queried function's absolute file path for the
+/// `prepare_call_hierarchy` query and relativizes caller paths back to the
+/// index's root-relative convention.
 fn is_closed_cluster(
     client: &LspClient,
     root: &Path,
     group: &[Occurrence],
+    functions: &FunctionIndex,
 ) -> Result<bool, DataClumpsError> {
-    let members: Vec<(PathBuf, LineRange)> = group
+    let clump: HashSet<(String, String)> = group
         .iter()
-        .map(|o| (root.join(&o.file), o.line_range))
+        .flat_map(|o| o.members.iter().cloned())
         .collect();
 
+    // Root-relative file + range of every cluster member found so far, and
+    // the worklist of member name positions whose incoming calls are still
+    // to be inspected.
+    let mut cluster: Vec<(PathBuf, LineRange)> = group
+        .iter()
+        .map(|o| (o.file.clone(), o.line_range))
+        .collect();
+    let mut worklist: Vec<(PathBuf, Point)> = group
+        .iter()
+        .map(|o| (o.file.clone(), o.name_point))
+        .collect();
+    let mut queried: HashSet<(PathBuf, usize)> = HashSet::new();
     let mut external_callers: HashSet<(PathBuf, usize)> = HashSet::new();
-    for occurrence in group {
-        let position = Position {
-            line: occurrence.name_point.row as u32 + 1,
-            character: occurrence.name_point.column as u32 + 1,
-        };
+
+    while let Some((file, name_point)) = worklist.pop() {
+        if !queried.insert((file.clone(), name_point.row)) {
+            continue;
+        }
         let at = FileLocation {
-            path: root.join(&occurrence.file),
-            position,
+            path: root.join(&file),
+            position: Position {
+                line: name_point.row as u32 + 1,
+                character: name_point.column as u32 + 1,
+            },
         };
-        let items = client.prepare_call_hierarchy(&at)?;
-        for item in &items {
-            let callers = client.incoming_calls(item)?;
-            for caller in &callers {
-                let caller_start_line = caller.item.location.range.start.line as usize;
-                let is_member = members.iter().any(|(path, range)| {
-                    *path == caller.item.location.path
-                        && range.start <= caller_start_line
-                        && caller_start_line <= range.end
-                });
-                if !is_member {
-                    external_callers.insert((caller.item.location.path.clone(), caller_start_line));
+        for item in client.prepare_call_hierarchy(&at)? {
+            for caller in client.incoming_calls(&item)? {
+                // lspkit's `CallHierarchyItem` range is the LSP
+                // selectionRange — the caller's name identifier, 1-based.
+                let caller_line = caller.item.location.range.start.line as usize;
+                let caller_file = caller.item.location.path.strip_prefix(root).ok();
+
+                if let Some(caller_file) = caller_file
+                    && cluster.iter().any(|(f, range)| {
+                        f == caller_file && range.start <= caller_line && caller_line <= range.end
+                    })
+                {
+                    continue;
                 }
-            }
-            // Two distinct external callers already prove the cluster open;
-            // every further `prepare_call_hierarchy`/`incoming_calls` round
-            // trip would only re-prove it.
-            if external_callers.len() >= 2 {
-                return Ok(false);
+
+                let info = caller_file.and_then(|caller_file| {
+                    functions
+                        .get(caller_file)?
+                        .iter()
+                        .filter(|f| {
+                            f.line_range.start <= caller_line && caller_line <= f.line_range.end
+                        })
+                        .max_by_key(|f| f.line_range.start)
+                });
+                match (caller_file, info) {
+                    (_, Some(f)) if f.in_test_context => {}
+                    (Some(caller_file), Some(f)) if clump.is_subset(&f.members) => {
+                        cluster.push((caller_file.to_path_buf(), f.line_range));
+                        worklist.push((caller_file.to_path_buf(), f.name_point));
+                    }
+                    _ => {
+                        external_callers.insert((caller.item.location.path.clone(), caller_line));
+                    }
+                }
+                // Two distinct external callers already prove the cluster
+                // open; every further round trip would only re-prove it.
+                if external_callers.len() >= 2 {
+                    return Ok(false);
+                }
             }
         }
     }
@@ -409,6 +506,84 @@ fn build_occurrence(node: Node, source: &[u8], file: &Path) -> Option<Occurrence
         forwarding,
         name_point,
     })
+}
+
+/// Walks `node`'s subtree collecting one `FunctionInfo` per `function_item`
+/// — every function, unlike `collect_occurrences`' candidate gates, because
+/// `is_closed_cluster` must be able to resolve *any* incoming caller.
+/// `in_test` propagates `#[test]`/`#[cfg(test)]` context down from an
+/// annotated `mod_item`/`function_item` to everything nested inside it.
+fn collect_functions(node: Node, source: &[u8], in_test: bool, out: &mut Vec<FunctionInfo>) {
+    let mut child_in_test = in_test;
+    if matches!(node.kind(), "mod_item" | "function_item")
+        && has_preceding_attribute(node, source, "test")
+    {
+        child_in_test = true;
+    }
+
+    if node.kind() == "function_item" {
+        let mut members = HashSet::new();
+        if let Some(params_node) = node.child_by_field_name("parameters") {
+            let mut cursor = params_node.walk();
+            for parameter in params_node.named_children(&mut cursor) {
+                if parameter.kind() != "parameter" {
+                    continue;
+                }
+                if let Some(pattern) = parameter.child_by_field_name("pattern")
+                    && let Some(ty_node) = parameter.child_by_field_name("type")
+                    && let Ok(name) = pattern.utf8_text(source)
+                    && let Ok(ty) = ty_node.utf8_text(source)
+                {
+                    members.insert((name.to_string(), normalize_type(ty)));
+                }
+            }
+        }
+        let name_point = node
+            .child_by_field_name("name")
+            .map(|n| n.start_position())
+            .unwrap_or_else(|| node.start_position());
+        out.push(FunctionInfo {
+            line_range: LineRange {
+                start: node.start_position().row + 1,
+                end: node.end_position().row + 1,
+            },
+            name_point,
+            members,
+            in_test_context: child_in_test,
+        });
+    }
+
+    let mut cursor = node.walk();
+    for child in node.children(&mut cursor) {
+        collect_functions(child, source, child_in_test, out);
+    }
+}
+
+/// Whether `node` is immediately preceded (among its parent's children) by
+/// an `attribute_item` whose text contains `keyword` — re-derived locally
+/// per `dead_exports`' identical helper rather than sharing it across
+/// detector modules (this crate's self-contained-detector precedent).
+fn has_preceding_attribute(node: Node, source: &[u8], keyword: &str) -> bool {
+    let Some(parent) = node.parent() else {
+        return false;
+    };
+    let mut cursor = parent.walk();
+    let siblings: Vec<Node> = parent.children(&mut cursor).collect();
+    let Some(index) = siblings.iter().position(|s| s.id() == node.id()) else {
+        return false;
+    };
+    for sibling in siblings[..index].iter().rev() {
+        if sibling.kind() != "attribute_item" {
+            break;
+        }
+        if sibling
+            .utf8_text(source)
+            .is_ok_and(|text| text.contains(keyword))
+        {
+            return true;
+        }
+    }
+    false
 }
 
 /// Strips a leading `&`/`&mut`/`mut` from a parameter or field type's text

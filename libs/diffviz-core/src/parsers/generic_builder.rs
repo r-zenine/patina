@@ -56,11 +56,7 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
     // ── Entry point ───────────────────────────────────────────────────────
 
     /// Build the semantic tree rooted at the `source_file` node.
-    pub(crate) fn build_root<'a>(
-        &self,
-        node: Node<'a>,
-        source: &str,
-    ) -> std::result::Result<SemanticNode<'a>, SemanticError> {
+    pub(crate) fn build_root<'a>(&self, node: Node<'a>, source: &str) -> SemanticNode<'a> {
         let children = self.build_container_children(node, source, None);
         let mut root = SemanticNode::new(
             node,
@@ -73,7 +69,7 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
             Vec::new(),
         );
         root.children = children;
-        Ok(root)
+        root
     }
 
     // ── Container child collection ────────────────────────────────────────
@@ -165,6 +161,10 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
         }
     }
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "build_import only fails on infallible utf8 decode of a tree-sitter node's own byte range"
+    )]
     fn build_typed_node<'a>(
         &self,
         node: Node<'a>,
@@ -176,7 +176,7 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
         match semantic_kind {
             SemanticNodeKind::SourceFile => {
                 // Shouldn't be encountered as a child, but handle gracefully.
-                self.build_root(node, source).ok()
+                Some(self.build_root(node, source))
             }
 
             SemanticNodeKind::Function => {
@@ -204,12 +204,23 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
 
             // Statement, Expression, Comment, SignatureComponent, TypeDefinition, Other:
             // These are classification-only kinds; skip them in tree construction.
-            _ => None,
+            SemanticNodeKind::SignatureComponent
+            | SemanticNodeKind::Statement
+            | SemanticNodeKind::Expression
+            | SemanticNodeKind::TypeDefinition
+            | SemanticNodeKind::Comment
+            | SemanticNodeKind::Other(_) => None,
         }
     }
 
     // ── Typed builders ────────────────────────────────────────────────────
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "utf8_text is an infallible decode of a tree-sitter node's own byte range; \
+                  unwrap_or_default on an Option<Vec>/Option<Metadata> here represents \
+                  \"field absent for this node kind\", not a swallowed error"
+    )]
     fn build_callable<'a>(
         &self,
         node: Node<'a>,
@@ -257,6 +268,11 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
         semantic_node
     }
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "unwrap_or_default on Option<Vec> here represents \"field absent for this \
+                  node kind\", not a swallowed error"
+    )]
     fn build_data_structure<'a>(
         &self,
         node: Node<'a>,
@@ -322,6 +338,12 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
     /// Representing impl blocks as Module triggers the decompose path in
     /// `create_reviewable_diff_from_range`, so byte ranges covering the impl
     /// header correctly resolve to the enclosed methods rather than the full file.
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "utf8_text is an infallible decode of a tree-sitter node's own byte range; \
+                  unwrap_or_default on Option<Vec> here represents \"field absent for this \
+                  node kind\", not a swallowed error"
+    )]
     fn build_impl_container<'a>(
         &self,
         node: Node<'a>,
@@ -355,6 +377,12 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
         module_node
     }
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "utf8_text is an infallible decode of a tree-sitter node's own byte range; \
+                  unwrap_or_default on Option<Vec> here represents \"field absent for this \
+                  node kind\", not a swallowed error"
+    )]
     fn build_module_container<'a>(
         &self,
         node: Node<'a>,
@@ -408,6 +436,10 @@ impl<D: LanguageDescriptor> GenericSemanticTreeBuilder<D> {
         ))
     }
 
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "utf8_text is an infallible decode of a tree-sitter node's own byte range"
+    )]
     fn build_variable<'a>(
         &self,
         node: Node<'a>,
@@ -540,7 +572,7 @@ impl<D: LanguageDescriptor> LanguageParser for GenericSemanticTreeBuilder<D> {
         ast: &'a Tree,
         source: &str,
     ) -> std::result::Result<SemanticTree<'a>, SemanticError> {
-        let semantic_root = self.build_root(ast.root_node(), source)?;
+        let semantic_root = self.build_root(ast.root_node(), source);
         Ok(SemanticTree::new(
             semantic_root,
             self.descriptor.programming_language(),
@@ -563,7 +595,6 @@ impl<D: LanguageDescriptor> LanguageParser for GenericSemanticTreeBuilder<D> {
 
 /// Assert that every child's byte range is contained within its parent's range.
 /// Panics with a descriptive message if the invariant is violated.
-#[allow(dead_code)]
 pub fn assert_byte_coverage_invariant(node: &SemanticNode<'_>, source_len: usize) {
     let parent_range = node.tree_sitter_node.byte_range();
     assert!(

@@ -74,6 +74,10 @@ pub trait LanguageDescriptor: Send + Sync {
     ///
     /// Override for nodes whose identifier lives under a different field or requires
     /// walking binding patterns (e.g. Rust let_declaration, Go short_var_declaration).
+    #[expect(
+        clippy::disallowed_methods,
+        reason = "utf8_text on a tree-sitter node's own byte range is infallible"
+    )]
     fn extract_identifier<'a>(&self, node: Node<'a>, source: &str) -> Option<String> {
         node.child_by_field_name("name")
             .and_then(|n| n.utf8_text(source.as_bytes()).ok())
